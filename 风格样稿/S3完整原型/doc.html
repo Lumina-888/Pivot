@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文档详情 · 问枢 Pivot</title>
+<link rel="stylesheet" href="s3.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="home.html"><span class="dot">枢</span>问枢 <small style="font-weight:400;color:#9db2ce">Pivot</small></a>
+  <nav class="nav">
+    <a href="home.html">首页</a>
+    <a href="library.html" class="on">知识库</a>
+    <a href="chat.html">对话</a>
+  </nav>
+  <form class="gsearch" onsubmit="gsearch(event)">🔍<input id="gq" placeholder="搜索文档 / 问 AI…  (Ctrl K)" autocomplete="off"><span class="kbd">Ctrl K</span></form>
+  <div class="user" id="userbox" onclick="toggleUserMenu(event)">
+    <span class="avatar">张</span><span>张 · 管理员</span><span class="caret">▼</span>
+    <div class="menu">
+      <a class="mi" href="chat.html">💬 我的对话</a>
+      <a class="mi" href="admin-overview.html">⚙️ 管理后台</a>
+      <div class="sep"></div>
+      <a class="mi danger" href="login.html">🚪 退出登录</a>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <div style="font-size:12.5px;color:var(--c-muted);margin-bottom:14px">
+    <a href="home.html" style="color:var(--c-accent)">首页</a> ›
+    <a href="library.html" style="color:var(--c-accent)">知识库</a> ›
+    <a href="library.html?s=hr" style="color:var(--c-accent)">人事制度</a> ›
+    <b style="color:var(--c-text)">考勤管理制度 v3</b>
+  </div>
+
+  <div class="doclayout">
+    <!-- 左：元信息 -->
+    <aside class="docmeta">
+      <h1 id="dtitle">考勤管理制度 v3</h1>
+      <div class="sub" id="dspace">人事制度 · 更新于 2026-08-30</div>
+      <div class="fl" style="margin-bottom:10px">
+        <span class="badge blue">制度</span><span class="badge hollow">考勤</span><span class="badge hollow">假期</span>
+      </div>
+      <div class="kv"><span class="k">版本</span><span class="v" id="dver">v3</span></div>
+      <div class="kv"><span class="k">页数</span><span class="v" id="dpg">4 页</span></div>
+      <div class="kv"><span class="k">大小</span><span class="v">320 KB</span></div>
+      <div class="kv"><span class="k">格式</span><span class="v">PDF</span></div>
+      <div class="kv"><span class="k">上传人</span><span class="v">王敏</span></div>
+      <div class="kv"><span class="k">被引用</span><span class="v">3 次 · 其中 2 次问答</span></div>
+      <div class="btns">
+        <a class="btn ghost" href="#" onclick="toast('📥 开始下载《考勤管理制度 v3.pdf》（演示）')">⬇ 下载原文件</a>
+        <a class="btn pri" href="chat.html?doc=1" onclick="toast('📎 已引用本文档，只检索《考勤管理制度 v3》')">💬 针对本文提问</a>
+      </div>
+      <div style="margin-top:10px;font-size:11.5px;color:var(--c-muted);line-height:1.7">「针对本文提问」能让回答只基于这份文档，准确率更高。</div>
+    </aside>
+
+    <!-- 右：PDF 预览 -->
+    <div class="docbio">
+      <div class="pdfwrap" id="pdfwrap">
+        <div class="pgbar">第 <span id="pgnow">1</span> / <span id="pgnum">4</span> 页</div>
+        <div class="pdfpage">
+          <div class="ph">考勤管理制度 v3 — 第 1 章 总则</div>
+          <p>1.1 制度目的：为规范公司考勤管理，保障员工权益，依据国家劳动法规制定本制度。</p>
+          <p>1.2 适用范围：全体员工。</p>
+        </div>
+        <div class="pdfpage">
+          <div class="ph">2.3 工作时间</div>
+          <p>标准工作时间为每日 8 小时，周一至周五 9:00-18:00，午休 12:00-13:00。弹性上班的员工须在 9:30 前到岗。</p>
+        </div>
+        <div class="pdfpage" style="display:none">
+          <div class="ph">5.2 年假管理</div>
+          <p>年假按自然年度计算，<mark>当年有效，不跨年结转</mark>；如因工作安排未能休假，需部门负责人审批后办理延期，最长不超过 30 天。</p>
+        </div>
+        <div class="pdfpage" style="display:none">
+          <div class="ph">7.4 审批流程</div>
+          <p>请假单提交 → 部门负责人审批 → 人力资源确认 → 系统留档。急病请假的须在 2 日内补办手续。</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+        <button class="btn ghost sm" onclick="pageNav(-1)">‹ 上一页</button>
+        <button class="btn ghost sm" onclick="pageNav(1)">下一页 ›</button>
+        <span style="font-size:12px;color:var(--c-muted)">浏览器内预览（PDF.js）· 仅 PDF 支持内嵌，Word/PPT/Excel 请下载查看</span>
+        <span style="margin-left:auto"></span>
+        <button class="btn gray sm" onclick="toast('🔍 页内搜索（V2 功能，届时可定位并高亮）')">页内搜索</button>
+        <a class="btn gray sm" href="library.html" style="text-decoration:none">← 返回列表</a>
+      </div>
+      <!-- 模拟：从问答跳转时的高亮提示 -->
+      <div class="badge yellow" id="hlbar" style="display:none;margin-top:10px">📍 从引用跳转：已定位到 P12 §5.2（高亮命中段落）</div>
+    </div>
+  </div>
+</main>
+
+<script src="common.js"></script>
+<script>
+/* 模拟翻页 */
+var page=1,total=4,HL=3;
+function pageNav(d){
+  page=Math.min(Math.max(page+d,1),total);
+  document.querySelectorAll('.pdfpage').forEach(function(p,i){p.style.display=(i===page-1)?'':'none'});
+  document.getElementById('pgnow').textContent=page;
+  toast('已翻到第 '+page+' / '+total+' 页');
+}
+/* URL 参数：?id=1..7 文档映射 & ?p=12&hl=1 模拟问答跳转定位 */
+var DOCS={1:['考勤管理制度 v3','人事制度','v3','4'],2:['员工手册 2026','人事制度','2026','120'],3:['华东销售台账 Q2','数据表格','Q2','64'],4:['产品白皮书 v2.4','研发文档','v2.4','38'],5:['采购合同模板 2026Q3','合同库','2026Q3','18'],6:['安全准入规范 v1','研发文档','v1','12'],7:['年度体检与福利说明','人事制度','2026','9']};
+(function(){
+  var p=new URLSearchParams(location.search);
+  var id=p.get('id')||'1',d=DOCS[id]||DOCS[1];
+  document.getElementById('dtitle').textContent=d[0];
+  document.getElementById('dspace').textContent=d[1]+' · 更新于 2026-08-30';
+  document.getElementById('dver').textContent=d[2];
+  document.getElementById('dpg').textContent=d[3]+' 页';
+  if(p.get('hl')){ if(id==='1'||!id){page=HL;pageNav(0);document.getElementById('hlbar').style.display='inline-flex';} else {document.getElementById('hlbar').style.display='inline-flex';} }
+})();
+</script>
+</body>
+</html>

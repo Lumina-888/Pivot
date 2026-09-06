@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>对话 · 问枢 Pivot</title>
+<link rel="stylesheet" href="s3.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="home.html"><span class="dot">枢</span>问枢 <small style="font-weight:400;color:#9db2ce">Pivot</small></a>
+  <nav class="nav">
+    <a href="home.html">首页</a>
+    <a href="library.html">知识库</a>
+    <a href="chat.html" class="on">对话</a>
+  </nav>
+  <form class="gsearch" onsubmit="gsearch(event)">🔍<input id="gq" placeholder="搜索文档 / 问 AI…  (Ctrl K)" autocomplete="off"><span class="kbd">Ctrl K</span></form>
+  <div class="user" id="userbox" onclick="toggleUserMenu(event)">
+    <span class="avatar">张</span><span>张 · 管理员</span><span class="caret">▼</span>
+    <div class="menu">
+      <a class="mi" href="chat.html">💬 我的对话</a>
+      <a class="mi" href="admin-overview.html">⚙️ 管理后台</a>
+      <div class="sep"></div>
+      <a class="mi danger" href="login.html">🚪 退出登录</a>
+    </div>
+  </div>
+</header>
+
+<div class="chatwrap">
+  <aside class="side">
+    <button class="newbtn" onclick="newChat()">＋ 新建对话</button>
+    <div class="glabel">今天 <span class="add" onclick="toast('📁 新建分组（演示）')">＋</span></div>
+    <div class="sitem on" data-title="年假能否跨年累计？" onclick="selectItem(this)"><span class="t">年假能否跨年累计？</span><button class="more" onclick="event.stopPropagation();toast('⋮ 重命名 / 归档 / 删除')">⋯</button></div>
+    <div class="glabel">上周 <span class="add" onclick="toast('📁 新建分组（演示）')">＋</span></div>
+    <div class="sitem" data-title="报销流程是什么？" onclick="selectItem(this)"><span class="t">报销流程是什么？</span><button class="more" onclick="event.stopPropagation();toast('⋮ 重命名 / 归档 / 删除')">⋯</button></div>
+    <div class="sitem" data-title="请假需要什么材料" onclick="selectItem(this)"><span class="t">请假需要什么材料</span><button class="more" onclick="event.stopPropagation();toast('⋮ 重命名 / 归档 / 删除')">⋯</button></div>
+    <div class="glabel">更早 <span class="add" onclick="toast('📁 新建分组（演示）')">＋</span></div>
+    <div class="sitem" data-title="产品离线部署要求" onclick="selectItem(this)"><span class="t">产品离线部署要求</span><button class="more" onclick="event.stopPropagation();toast('⋮ 重命名 / 归档 / 删除')">⋯</button></div>
+  </aside>
+
+  <section class="chat">
+    <div class="chead"><b id="ctitle">年假能否跨年累计？</b><span class="st">已完成</span><span class="chip" id="docchip" style="display:none">📎 已引用文档: 考勤管理制度 v3 <span class="x" onclick="dropChip()">×</span></span>
+      <button class="chist" onclick="toast('📜 会话信息（演示）')">会话详情</button>
+    </div>
+    <div class="msgs" id="msgs">
+      <div class="msg"><div class="mq" id="mq0">年假能否跨年累计？</div></div>
+      <div class="msg"><div class="ma">
+        <div class="title"><span class="pulse"></span>主控 Agent · 检索 2 路 · 一致性校验通过</div>
+        <div class="body">原则上年假<b>不可跨年累计</b><span class="cite" data-tip="查看证据:考勤管理制度 v3" onclick="openDrawer(0)">1</span>，但经审批可顺延 30 天<span class="cite" data-tip="查看证据:员工手册 2026" onclick="openDrawer(1)">2</span>。<br><br>两处制度表述存在松紧差异：以最新版《考勤管理制度 v3》为准，特殊审批路径以《员工手册 2026》为补充。</div>
+        <div class="refs">
+          <span class="r" onclick="openDrawer(0)">【1】考勤管理制度 v3 · <span class="p">P12 §5.2</span></span>
+          <span class="r" onclick="openDrawer(1)">【2】员工手册 2026 · <span class="p">P9</span></span>
+        </div>
+        <div class="trace">
+          <span class="st done">主控路由</span><span class="arrow">→</span>
+          <span class="st done">检索(2 路)</span><span class="arrow">→</span>
+          <span class="st done">合成</span><span class="arrow">→</span>
+          <span class="st done">一致性校验</span>
+        </div>
+        <div class="actions">
+          <button class="vote ok" onclick="vote(this,'ok')">👍 有用<span class="n"></span></button>
+          <button class="vote no" onclick="vote(this,'no')">👎 无用<span class="n"></span></button>
+          <button onclick="copyAns()">⧉ 复制</button>
+          <span class="wrap"><button onclick="togglePop(event)">⬇ 导出</button>
+            <div class="pop">
+              <div class="pi" onclick="toast('✅ 已导出 Word 文档（演示）')">📝 导出为 Word (.docx)</div>
+              <div class="pi" onclick="toast('✅ 已导出 Markdown（演示）')">📄 导出为 Markdown</div>
+              <div class="pi" onclick="toast('✅ 已复制为纯文本（演示）')">📋 复制为纯文本</div>
+            </div>
+          </span>
+        </div>
+      </div></div>
+    </div>
+    <div class="composer">
+      <div class="box">
+        <textarea id="cin" placeholder="输入问题，Enter 发送，Shift+Enter 换行…" rows="1"></textarea>
+        <div class="foot"><span class="tip">答案将带有出处引用 · <kbd>Enter</kbd> 发送 · <kbd>Shift+Enter</kbd> 换行</span>
+        <button class="send" id="sendbtn" onclick="sendMsg()">发送 ↑</button></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- 抽屉 -->
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="dhead"><b>📄 证据<span id="dtag"></span></b><button class="close" onclick="closeDrawer()">✕</button></div>
+  <div class="dbody">
+    <div class="dp">点击引用编号查看对应证据与过程轨迹</div>
+    <div class="ev">
+      <div class="eh"><span>📄 考勤管理制度 v3</span><span class="pg">P12 · §5.2</span><span class="go">查看 →</span></div>
+      <div class="eb">年假按自然年度计算，<mark>当年有效，不跨年结转</mark>；如因工作安排未能休假，需部门负责人审批后办理延期，最长不超过 30 天。</div>
+      <div class="ef"><span class="conf hi">置信度 高</span>命中方式:语义+关键词<button class="go2" onclick="toast('📄 正在打开原文 P12…（演示）')">跳转原文 →</button></div>
+    </div>
+    <div class="ev">
+      <div class="eh"><span>📄 员工手册 2026</span><span class="pg">P9</span><span class="go">查看 →</span></div>
+      <div class="eb">员工年假原则上应在本年度内休完。确有特殊情况的，<mark>经审批可顺延至次年 3 月底前使用</mark>。</div>
+      <div class="ef"><span class="conf mid">置信度 中</span>命中方式:语义<button class="go2" onclick="toast('📄 正在打开原文 P9…（演示）')">跳转原文 →</button></div>
+    </div>
+    <div class="dtrack">
+      <h4>过程轨迹（主控 Agent 分发审计）</h4>
+      <ul class="tl">
+        <li>意图识别：知识问答 · 制度类<small>路由：主控 Agent</small></li>
+        <li>分发检索任务 ×2<small>知识检索员：并行检索「跨年 累计 年假」</small></li>
+        <li>回收证据包 · 重排命中 7/50<small>bge-reranker 精排</small></li>
+        <li class="succ">写作编辑合成 · 一致性校验通过<small>未触发改写重试</small></li>
+      </ul>
+    </div>
+  </div>
+</aside>
+
+<div class="note" style="text-align:center;padding:12px;color:var(--c-muted);font-size:11.5px">问枢 Pivot · S3 完整原型 P6 对话页 · 数据为模拟</div>
+
+<script src="common.js"></script>
+<script>
+/* 会话切换 */
+function selectItem(el){
+  document.querySelectorAll('.sitem').forEach(function(s){s.classList.remove('on')});
+  el.classList.add('on');
+  document.getElementById('ctitle').textContent=el.getAttribute('data-title');
+}
+function newChat(){
+  var d=document.createElement('div');
+  d.className='sitem on'; d.setAttribute('data-title','新对话');
+  d.onclick=function(){selectItem(d)};
+  d.innerHTML='<span class="t">新对话 · '+new Date().toTimeString().slice(0,5)+'</span><button class="more" onclick="event.stopPropagation();toast(\'⋮ 更多操作\')">⋯</button>';
+  var today=document.querySelector('.side .glabel');
+  today.parentNode.insertBefore(d,today.nextSibling);
+  document.querySelectorAll('.sitem').forEach(function(s){s.classList.remove('on')});
+  d.classList.add('on'); toast('➕ 已创建新对话，试试发送问题');
+  document.getElementById('cin').focus();
+}
+/* 发送演示 */
+function sendMsg(){
+  var ta=document.getElementById('cin'),v=ta.value.trim();
+  if(!v)return;
+  var msgs=document.getElementById('msgs');
+  ta.value=''; ta.style.height='22px';
+  var q=document.createElement('div'); q.className='msg';
+  q.innerHTML='<div class="mq"></div>'; q.querySelector('.mq').textContent=v;
+  msgs.appendChild(q);
+  var typing=document.createElement('div'); typing.className='typing';
+  typing.innerHTML='<span class="dd"><i></i><i></i><i></i></span>主控 Agent 正在路由 · 分发检索任务…';
+  msgs.appendChild(typing); scrollDown();
+  setTimeout(function(){
+    typing.remove();
+    var a=document.createElement('div'); a.className='msg';
+    a.innerHTML='<div class="ma"><div class="title"><span class="pulse"></span>主控 Agent · 检索 1 路 · 校验通过</div><div class="body">已收到你的问题「'+v+'」。这是一条<b>演示回复</b>：真实系统中主控 Agent 将路由到对应场景，由知识检索员检索知识库并给出带引用<span class="cite" data-tip="查看证据" onclick="openDrawer(0)">1</span>的答案。</div><div class="refs"><span class="r" onclick="openDrawer(0)">【1】考勤管理制度 v3 · <span class="p">P4</span></span></div><div class="trace"><span class="st done">主控路由</span><span class="arrow">→</span><span class="st done">检索</span><span class="arrow">→</span><span class="st done">合成</span></div><div class="actions"><button class="vote ok" onclick="vote(this,\'ok\')">👍 有用<span class="n"></span></button><button class="vote no" onclick="vote(this,\'no\')">👎 无用<span class="n"></span></button><button onclick="copyAns()">⧉ 复制</button></div></div>';
+    msgs.appendChild(a); scrollDown(); toast('✅ 演示回复已生成');
+  },1500);
+}
+function scrollDown(){var m=document.getElementById('msgs');m.scrollTop=m.scrollHeight}
+function copyAns(){if(navigator.clipboard)navigator.clipboard.writeText('原则上年假不可跨年累计，但经审批可顺延30天。');toast('✅ 回答已复制')}
+document.getElementById('cin').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg()}
+});
+document.getElementById('cin').addEventListener('input',function(){
+  this.style.height='22px'; this.style.height=Math.min(this.scrollHeight,120)+'px';
+});
+/* URL 参数：?q=问题 / ?doc=@文档 */
+(function(){
+  var p=new URLSearchParams(location.search);
+  var q=p.get('q'), d=p.get('doc');
+  if(q){document.getElementById('cin').value=q;document.getElementById('cin').focus();toast('💬 已带入问题，发送即可提问');}
+  if(d!==null){var c=document.getElementById('docchip');c.style.display='inline-flex';toast('📎 本次提问仅检索「考勤管理制度 v3」');}
+})();
+function dropChip(){document.getElementById('docchip').style.display='none';toast('已取消文档限定')}
+</script>
+</body>
+</html>

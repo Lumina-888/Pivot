@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 · 问枢 Pivot</title>
+<link rel="stylesheet" href="s3.css">
+</head>
+<body>
+<div class="loginbg">
+  <div class="logincard">
+    <div class="lg-logo"><span class="dot">枢</span><b>问枢 Pivot</b></div>
+    <div class="lg-sub">企业文档智能问答系统 · 登录</div>
+    <form class="frm" onsubmit="doLogin(event)">
+      <label for="luser">用户名</label>
+      <input id="luser" placeholder="请输入用户名" autocomplete="username" value="zhangsan">
+      <div style="height:12px"></div>
+      <label for="lpass">密码</label>
+      <input id="lpass" type="password" placeholder="请输入密码" autocomplete="current-password">
+      <div class="hint">演示原型：任意输入即可登录；批量创建账号在后台「用户管理」。</div>
+      <div style="height:18px"></div>
+      <button class="btn pri" style="width:100%;justify-content:center;padding:11px" type="submit">登 录</button>
+    </form>
+    <div class="lg-foot">内部系统 SysPivot · 仅限公司员工使用<br>忘记密码请联系管理员重置</div>
+  </div>
+</div>
+<script>
+function doLogin(e){
+  e.preventDefault();
+  var u=document.getElementById('luser').value.trim(),p=document.getElementById('lpass').value;
+  var pin=document.getElementById('lpass');
+  if(!u||!p){
+    if(!p) pin.style.borderColor='#dc2626'; else document.getElementById('luser').style.borderColor='#dc2626';
+    toast(!u&&!p?'请输入用户名和密码':(!u?'请输入用户名':'请输入密码'));
+    return;
+  }
+  var t=document.createElement('div');t.className='toast show';t.textContent='✅ 登录成功，正在进入…';
+  document.body.appendChild(t);
+  setTimeout(function(){window.location.href='home.html'},500);
+}
+document.getElementById('luser').addEventListener('input',function(){this.style.borderColor=''});
+document.getElementById('lpass').addEventListener('input',function(){this.style.borderColor=''});
+</script>
+<script src="common.js"></script>
+</body>
+</html>

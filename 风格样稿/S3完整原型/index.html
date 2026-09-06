@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>问枢 Pivot · S3 完整原型 · 入口</title>
+<style>
+:root{--c-accent:#1d4ed8;--c-accent-2:#3b82f6;--c-soft:#e8eef5;--c-border:#dbe2ea;--c-muted:#64748b;--c-text:#1e293b;--c-head:#234060}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#f1f5f9;color:var(--c-text)}
+.wrap{max-width:820px;margin:0 auto;padding:48px 24px}
+h1{font-size:22px;color:var(--c-head);margin-bottom:6px}
+.sub{font-size:13px;color:var(--c-muted);margin-bottom:26px}
+.g{background:#fff;border:1px solid var(--c-border);border-radius:10px;padding:20px 22px;margin-bottom:16px}
+.g h2{font-size:15px;color:var(--c-head);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.g h2 .bar{width:3px;height:14px;background:var(--c-accent);border-radius:2px}
+.g p{font-size:12px;color:var(--c-muted);margin:4px 0 12px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.tile{display:flex;flex-direction:column;gap:4px;border:1px solid var(--c-border);border-radius:8px;padding:14px;cursor:pointer;transition:transform .16s,box-shadow .16s,border-color .16s;background:#fff}
+.tile:hover{transform:translateY(-2px);border-color:var(--c-accent-2);box-shadow:0 8px 20px rgba(30,64,175,.1)}
+.tile b{font-size:13.5px}
+.tile .tag{font-size:10.5px;color:var(--c-accent);background:var(--c-soft);padding:2px 8px;border-radius:99px;width:max-content}
+.tile .p{font-size:11.5px;color:var(--c-muted)}
+.flow{background:#fff;border:1px dashed var(--c-accent-2);border-radius:8px;padding:13px 16px;font-size:12.5px;line-height:2;color:var(--c-text)}
+.flow b{color:var(--c-accent)}
+.note{font-size:11.5px;color:var(--c-muted);line-height:1.9;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>问枢 Pivot · S3 完整原型（10 页）</h1>
+  <div class="sub">页面结构与功能依据《A3门户设计》· 视觉与交互规范依据 §7（S3 商务蓝灰）· 全部为演示 Mock 数据</div>
+
+  <div class="g">
+    <h2><span class="bar"></span>前台（员工）</h2>
+    <p>体验路径：登录 → 首页 → 知识库 → 文档详情 → 搜索 → 对话（引用回溯）</p>
+    <div class="tiles">
+      <a class="tile" href="login.html"><b>🔐 登录</b><span class="tag">P1</span><span class="p">用户名/密码 → 首页</span></a>
+      <a class="tile" href="home.html"><b>🏠 首页</b><span class="tag">P2</span><span class="p">搜索/空间/最近更新</span></a>
+      <a class="tile" href="library.html"><b>📚 知识库</b><span class="tag">P3</span><span class="p">筛选/搜索/文档列表</span></a>
+      <a class="tile" href="doc.html"><b>📄 文档详情</b><span class="tag">P4</span><span class="p">PDF 内嵌预览/针对本文提问</span></a>
+      <a class="tile" href="search.html"><b>🔍 全局搜索</b><span class="tag">P5</span><span class="p">混合检索/高亮/引流问 AI</span></a>
+      <a class="tile" href="chat.html"><b>💬 对话</b><span class="tag">P6</span><span class="p">引用/证据抽屉/导出/发送</span></a>
+    </div>
+  </div>
+
+  <div class="g">
+    <h2><span class="bar"></span>后台（管理员）</h2>
+    <p>入口：任意页右上角「张 · 管理员」菜单 → 管理后台 / 首页快捷入口</p>
+    <div class="tiles">
+      <a class="tile" href="admin-overview.html"><b>📊 概览</b><span class="tag">P7</span><span class="p">统计卡/解析队列/趋势</span></a>
+      <a class="tile" href="admin-docs.html"><b>📄 文档管理</b><span class="tag">P8</span><span class="p">上传/解析状态/重试/删除</span></a>
+      <a class="tile" href="admin-users.html"><b>👥 用户管理</b><span class="tag">P9</span><span class="p">新建/角色/停用/重置</span></a>
+      <a class="tile" href="admin-audit.html"><b>📜 审计日志</b><span class="tag">P10</span><span class="p">全留痕/提问命中展开</span></a>
+    </div>
+  </div>
+
+  <div class="g">
+    <h2><span class="bar"></span>推荐浏览路径（含联动演示）</h2>
+    <div class="flow">
+      1. <b>登录</b>（任意输入）→ 2. 首页点「人事制度」→ 3. 知识库点「考勤管理制度 v3」→ 4. 文档详情点「<b>针对本文提问</b>」→ 5. 对话页看到「已引用文档」chip → 6. 输入任意问题回车看<b>分发轨迹</b> → 7. 点引用 [1] 弹<b>证据抽屉</b> → 8. 抽屉内「跳转原文」返回文档详情<b>定位高亮</b>。<br>
+      另：首页 Hero 搜索框切到「问 AI」输入问题 → 自动跳对话带入问题；顶栏搜索（Ctrl+K）带关键词跳搜索结果页。
+    </div>
+  </div>
+
+  <div class="note">
+    数据与交互均为演示：对话回复为本地模拟；文件解析/上传/删除仅做界面状态演示。<br>
+    正式开发：Next.js + shadcn/ui，按 `s3.css` 设计令牌与 `common.js` 交互组件落地；页面 ↔ 规格文档对照详见 README.md。
+  </div>
+</div>
+</body>
+</html>

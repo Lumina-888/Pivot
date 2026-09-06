@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>问枢 Pivot · 风格 S5 暖米阅读</title>
+<style>
+:root{
+  --c-bg:#f7f1e8; --c-surface:#fffdf8; --c-border:#e5dacb; --c-border-2:#f0e8db;
+  --c-text:#3f3529; --c-muted:#8a7a67; --c-soft:#efe5d3; --c-hover:#f1e9da;
+  --c-accent:#9c5f2e; --c-accent-2:#c98a4b; --c-ink:#4a3a28;
+  --radius:10px; --radius-s:7px;
+  --font-head:"Georgia","Songti SC","STZhongsong","Noto Serif SC",serif;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--c-bg);color:var(--c-text);font-size:14px}
+button{font-family:inherit;cursor:pointer}
+a{text-decoration:none;color:inherit}
+
+/* ===== 顶栏 ===== */
+.topbar{background:#fffdf8;border-bottom:1px solid var(--c-border);padding:0 26px;height:58px;display:flex;align-items:center;gap:22px;position:sticky;top:0;z-index:50}
+.logo{font-size:17px;font-weight:700;font-family:var(--font-head);color:var(--c-ink);display:flex;align-items:center;gap:9px;letter-spacing:.5px}
+.logo .dot{width:26px;height:26px;border-radius:50%;background:var(--c-accent);display:grid;place-items:center;font-size:12px;color:#fff;font-family:var(--font)}
+.nav{display:flex;gap:4px}
+.nav a{padding:7px 13px;border-radius:var(--radius-s);color:var(--c-muted);font-size:13.5px}
+.nav a:hover{background:var(--c-hover);color:var(--c-accent)}
+.nav a.on{background:var(--c-soft);color:var(--c-accent);font-weight:700}
+.gsearch{margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--radius-s);padding:7px 12px;width:300px}
+.gsearch input{flex:1;border:none;outline:none;background:none;font-size:13px;color:var(--c-text)}
+.gsearch input::placeholder{color:#b3a28c}
+.user{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--c-muted)}
+.user .avatar{width:28px;height:28px;border-radius:50%;background:var(--c-soft);display:grid;place-items:center;font-size:12px;color:var(--c-accent)}
+
+/* ===== 首页 ===== */
+.view{max-width:1080px;margin:0 auto;padding:30px 26px 60px}
+.hero{background:#fffdf8;border:1px solid var(--c-border);border-radius:var(--radius);padding:38px 36px;border-left:4px solid var(--c-accent-2)}
+.hero h1{font-family:var(--font-head);font-size:24px;font-weight:700;color:var(--c-ink);margin-bottom:7px}
+.hero p{color:var(--c-muted);margin-bottom:22px;font-size:13.5px}
+.searchbox{display:flex;align-items:center;background:#fff;border:1px solid var(--c-border);border-radius:var(--radius-s);padding:4px;max-width:580px;box-shadow:0 2px 10px rgba(120,90,50,.06)}
+.searchbox .tab{border:none;background:none;padding:9px 14px;border-radius:var(--radius-s);font-size:13.5px;color:var(--c-muted);font-weight:600}
+.searchbox .tab.on{background:var(--c-soft);color:var(--c-accent);font-weight:700}
+.searchbox input{flex:1;border:none;outline:none;font-size:14px;padding:9px 8px}
+.searchbox .go{background:var(--c-accent);color:#fff;border:none;padding:9px 20px;border-radius:var(--radius-s);font-size:13.5px;font-weight:600;letter-spacing:2px}
+.searchbox .go:hover{background:#8a5226}
+
+h2.sec{font-family:var(--font-head);font-size:16px;font-weight:700;color:var(--c-ink);margin:32px 0 15px;display:flex;align-items:center;gap:10px}
+h2.sec::after{content:"";flex:1;height:1px;background:var(--c-border);margin-left:6px}
+.spaces{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.space{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius);padding:21px;transition:.15s;cursor:pointer}
+.space:hover{box-shadow:0 6px 18px rgba(120,90,50,.1);border-color:var(--c-accent-2)}
+.space .ic{font-size:19px;margin-bottom:11px}
+.space h3{font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--c-ink);margin-bottom:4px}
+.space p{color:var(--c-muted);font-size:12.5px;line-height:1.65}
+.space .cnt{display:inline-block;margin-top:11px;font-size:11.5px;color:var(--c-accent);background:var(--c-soft);padding:3px 11px;border-radius:var(--radius-s)}
+.row2{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;margin-top:16px}
+.card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius);padding:19px}
+.dlist{list-style:none}
+.dlist li{display:flex;align-items:center;gap:12px;padding:11px 5px;border-bottom:1px solid var(--c-border-2)}
+.dlist li:last-child{border-bottom:none}
+.dlist .fic{font-size:16px;width:30px;text-align:center;flex-shrink:0}
+.dlist .info{flex:1;min-width:0}
+.dlist .info b{display:block;font-size:13.5px;font-weight:600;color:var(--c-ink)}
+.dlist .info span{font-size:12px;color:var(--c-muted)}
+.dlist .tag{font-size:11px;color:var(--c-accent);border:1px solid var(--c-border);padding:2px 9px;border-radius:var(--radius-s);flex-shrink:0}
+.quick{display:flex;flex-direction:column;gap:11px}
+.quick a{display:flex;align-items:center;gap:11px;padding:13px 15px;border-radius:var(--radius-s);background:var(--c-soft);color:var(--c-accent);font-weight:700;font-size:13.5px;transition:.15s}
+.quick a:hover{background:var(--c-hover)}
+.quick a.alt{background:transparent;border:1px solid var(--c-border);color:var(--c-text);font-weight:500}
+
+/* ===== 对话页 ===== */
+.chatwrap{display:flex;height:calc(100vh - 58px);max-width:1200px;margin:0 auto}
+.side{width:240px;background:var(--c-surface);border-right:1px solid var(--c-border);padding:15px;display:flex;flex-direction:column;flex-shrink:0}
+.side .newbtn{background:var(--c-accent);color:#fff;border:none;border-radius:var(--radius-s);padding:11px;font-size:13.5px;font-weight:700;margin-bottom:13px;letter-spacing:1px}
+.side .newbtn:hover{background:#8a5226}
+.side .glabel{font-size:11px;color:#b3a28c;margin:9px 0 4px;padding-left:6px;letter-spacing:.5px}
+.sitem{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:var(--radius-s);cursor:pointer;font-size:13px;color:var(--c-text);margin-bottom:2px}
+.sitem:hover{background:var(--c-hover)}
+.sitem.on{background:var(--c-soft);color:var(--c-accent);font-weight:700}
+.sitem .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat{flex:1;display:flex;flex-direction:column;min-width:0}
+.chead{padding:13px 24px;border-bottom:1px solid var(--c-border);background:var(--c-surface);display:flex;align-items:center;gap:9px}
+.chead b{font-family:var(--font-head);font-size:14.5px;color:var(--c-ink)}
+.chead .st{font-size:11px;padding:2px 10px;border-radius:var(--radius-s);background:#f7ecd7;color:#8a6d1a;font-weight:700}
+.msgs{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:20px}
+.msg{max-width:760px;width:100%;margin:0 auto}
+.mq{background:var(--c-soft);border-radius:var(--radius) var(--radius) var(--radius) 3px;padding:12px 16px;font-size:14px;font-weight:600;color:var(--c-ink);width:max-content;max-width:76%}
+.ma{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius);padding:18px 20px;border-right:3px solid var(--c-accent-2)}
+.ma .title{font-size:11.5px;color:var(--c-muted);margin-bottom:9px}
+.ma .body{font-size:14px;line-height:1.9;font-family:var(--font)}
+.ma .body .cite{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;background:var(--c-accent);color:#fff;border-radius:4px;font-size:11px;font-weight:700;margin:0 2px;cursor:pointer;vertical-align:-4px}
+.ma .body .cite:hover{background:#8a5226}
+.refs{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px;padding-top:12px;border-top:1px dashed var(--c-border)}
+.refs .r{font-size:11.5px;color:var(--c-accent);background:var(--c-soft);padding:4px 11px;border-radius:var(--radius-s);cursor:pointer;font-weight:600}
+.refs .r:hover{background:var(--c-hover)}
+.trace{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:11.5px;color:var(--c-muted);flex-wrap:wrap}
+.trace .st{background:var(--c-bg);border:1px solid var(--c-border);padding:3px 10px;border-radius:99px}
+.trace .st.done{background:var(--c-soft);color:#8a5226;border-color:#e0d2ba}
+.actions{display:flex;gap:7px;margin-top:11px}
+.actions button{background:none;border:1px solid var(--c-border);color:var(--c-muted);padding:4px 12px;border-radius:var(--radius-s);font-size:12px}
+.actions button:hover{border-color:var(--c-accent-2);color:var(--c-accent)}
+.composer{padding:14px 24px 20px;border-top:1px solid var(--c-border);background:var(--c-surface)}
+.composer .box{max-width:760px;margin:0 auto;border:1px solid var(--c-border);border-radius:var(--radius-s);padding:11px 14px;background:#fff;transition:.15s}
+.composer .box:focus-within{border-color:var(--c-accent-2)}
+.composer textarea{width:100%;border:none;outline:none;resize:none;font-size:14px;font-family:inherit;min-height:22px;background:none;color:var(--c-text)}
+.composer .foot{display:flex;align-items:center;gap:10px;margin-top:7px}
+.composer .tip{font-size:11.5px;color:var(--c-muted)}
+.composer .send{margin-left:auto;background:var(--c-accent);color:#fff;border:none;padding:8px 22px;border-radius:var(--radius-s);font-weight:700;font-size:13px;letter-spacing:2px}
+.composer .send:hover{background:#8a5226}
+
+/* ===== 抽屉 ===== */
+.overlay{position:fixed;inset:0;background:rgba(74,58,40,.35);opacity:0;pointer-events:none;transition:.25s;z-index:80}
+.overlay.show{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:-420px;width:420px;height:100%;background:var(--c-surface);border-left:1px solid var(--c-border);transition:.28s;z-index:90;display:flex;flex-direction:column;border-left:3px solid var(--c-accent-2)}
+.drawer.show{right:0}
+.dhead{padding:17px 20px;border-bottom:1px solid var(--c-border);background:linear-gradient(90deg,#fffdf8,var(--c-soft));display:flex;align-items:center}
+.dhead b{font-family:var(--font-head);font-size:14px;color:var(--c-ink)}
+.dhead .close{margin-left:auto;border:none;background:none;font-size:19px;color:var(--c-muted)}
+.dbody{flex:1;overflow-y:auto;padding:16px 20px}
+.dp{font-size:12px;color:var(--c-muted);line-height:1.7}
+.ev{border:1px solid var(--c-border);border-radius:var(--radius-s);margin-top:11px;background:#fff;overflow:hidden}
+.ev .eh{background:var(--c-bg);padding:10px 13px;font-size:12.5px;font-weight:700;color:var(--c-ink);display:flex;align-items:center;border-bottom:1px solid var(--c-border-2)}
+.ev .eh span.pg{margin-left:auto;font-size:11px;color:var(--c-accent);background:#fff;border:1px solid var(--c-border);padding:1px 9px;border-radius:var(--radius-s)}
+.ev .eb{padding:12px 13px;font-size:12.5px;line-height:1.9;font-family:var(--font)}
+.ev .eb mark{background:#f5e3b8;padding:1px 3px;border-radius:2px}
+.ev .ef{padding:8px 13px;border-top:1px solid var(--c-border-2);background:#fcf8f0;font-size:11.5px;color:var(--c-muted);display:flex;align-items:center;gap:8px}
+.conf{font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:var(--radius-s)}
+.conf.hi{background:#e3efdc;color:#4d7c33}.conf.mid{background:#f7ecd7;color:#8a6d1a}
+.dtrack{margin-top:18px}
+.dtrack h4{font-family:var(--font-head);font-size:12.5px;color:var(--c-ink);margin-bottom:9px}
+.dtrack .tl{list-style:none;padding-left:15px}
+.dtrack .tl li{position:relative;padding:5px 0 5px 11px;font-size:12px;color:var(--c-text)}
+.dtrack .tl li::before{content:"";position:absolute;left:-4px;top:12px;width:7px;height:7px;border-radius:50%;background:var(--c-accent-2)}
+.dtrack .tl li::after{content:"";position:absolute;left:0;top:20px;bottom:-3px;width:1px;background:var(--c-border)}
+.dtrack .tl li:last-child::after{display:none}
+.dtrack .tl li small{color:var(--c-muted);display:block}
+.note{max-width:1080px;margin:0 auto;padding:12px 26px 26px;color:var(--c-muted);font-size:11.5px;text-align:center}
+.viewbar{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#4a3a28;border-radius:99px;padding:7px 13px;display:flex;gap:4px;z-index:60;box-shadow:0 6px 20px rgba(74,58,40,.3)}
+.viewbar button{background:none;border:none;color:#c8b89e;padding:6px 16px;border-radius:99px;font-size:12.5px}
+.viewbar button.on{background:var(--c-accent);color:#fff;font-weight:700}
+@media(max-width:1000px){.side{display:none}.spaces{grid-template-columns:1fr}.row2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo"><span class="dot">枢</span>问枢 <small style="font-weight:400;color:#b3a28c;font-family:var(--font)">Pivot</small></div>
+  <nav class="nav">
+    <a href="#" onclick="switchView('home')" id="navhome" class="on">首页</a>
+    <a href="#">知识库</a>
+    <a href="#" onclick="switchView('chat')" id="navchat">对话</a>
+  </nav>
+  <div class="gsearch">🔍<input placeholder="搜索文档 / 问 AI…"></div>
+  <div class="user"><span class="avatar">张</span>张 · 管理员</div>
+</header>
+
+<!-- 首页 -->
+<main class="view" id="view-home">
+  <section class="hero">
+    <h1>问枢 · 企业知识的轴心</h1>
+    <p>搜索企业文档，或直接向智能问答系统提问——答案均带出处，可追溯。</p>
+    <div class="searchbox">
+      <button class="tab on">🔍 搜文档</button>
+      <button class="tab">💬 问 AI</button>
+      <input placeholder="搜索制度、手册、合同…">
+      <button class="go">搜索</button>
+    </div>
+  </section>
+
+  <h2 class="sec">知识空间</h2>
+  <div class="spaces">
+    <div class="space"><div class="ic">📋</div><h3>人事制度</h3><p>考勤、薪酬、假期、入职离职等制度与手册</p><span class="cnt">86 份文档</span></div>
+    <div class="space"><div class="ic">🧪</div><h3>研发文档</h3><p>产品白皮书、技术方案、接口文档、发布记录</p><span class="cnt">124 份文档</span></div>
+    <div class="space"><div class="ic">📑</div><h3>合同库</h3><p>采购、销售、框架合同模板与已签归档</p><span class="cnt">176 份文档</span></div>
+  </div>
+
+  <div class="row2">
+    <div class="card">
+      <h2 class="sec" style="margin-top:0">最近更新</h2>
+      <ul class="dlist">
+        <li><span class="fic">📄</span><div class="info"><b>考勤管理制度 v3</b><span>人事制度 · 4 页 · 2026-08-30 更新</span></div><span class="tag">PDF</span></li>
+        <li><span class="fic">📄</span><div class="info"><b>员工手册 2026</b><span>人事制度 · 120 页 · 2026-08-28 更新</span></div><span class="tag">PDF</span></li>
+        <li><span class="fic">📊</span><div class="info"><b>华东销售台账 Q2</b><span>数据表格 · 64 页 · 2026-08-25 更新</span></div><span class="tag">XLS</span></li>
+        <li><span class="fic">📄</span><div class="info"><b>产品白皮书 v2.4</b><span>研发文档 · 38 页 · 2026-08-22 更新</span></div><span class="tag">PDF</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2 class="sec" style="margin-top:0">快捷入口</h2>
+      <div class="quick">
+        <a href="#" onclick="switchView('chat');return false;">💬 新建对话 —— 向知识库提问</a>
+        <a href="#" class="alt">📤 上传文档（管理员）</a>
+        <a href="#" class="alt">⚙️ 管理后台</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- 对话页 -->
+<div class="chatwrap" id="view-chat" style="display:none">
+  <aside class="side">
+    <button class="newbtn">＋ 新建对话</button>
+    <div class="glabel">今天</div>
+    <div class="sitem on"><span class="t">年假能否跨年累计？</span></div>
+    <div class="glabel">上周</div>
+    <div class="sitem"><span class="t">报销流程是什么？</span></div>
+    <div class="sitem"><span class="t">请假需要什么材料</span></div>
+    <div class="glabel">更早</div>
+    <div class="sitem"><span class="t">产品离线部署要求</span></div>
+  </aside>
+
+  <section class="chat">
+    <div class="chead"><b>年假能否跨年累计？</b><span class="st">已完成</span></div>
+    <div class="msgs">
+      <div class="msg"><div class="mq">年假能否跨年累计？</div></div>
+      <div class="msg"><div class="ma">
+        <div class="title">主控 Agent · 检索 2 路 · 一致性校验通过</div>
+        <div class="body">原则上年假<b>不可跨年累计</b><span class="cite" onclick="openDrawer(0)">1</span>，但经审批可顺延 30 天<span class="cite" onclick="openDrawer(1)">2</span>。<br><br>两处制度表述存在松紧差异：以最新版《考勤管理制度 v3》为准，特殊审批路径以《员工手册 2026》为补充。</div>
+        <div class="refs">
+          <span class="r" onclick="openDrawer(0)">【1】考勤管理制度 v3 · P12 §5.2</span>
+          <span class="r" onclick="openDrawer(1)">【2】员工手册 2026 · P9</span>
+        </div>
+        <div class="trace">
+          <span class="st done">主控路由</span><span>→</span><span class="st done">检索(2 路)</span><span>→</span><span class="st done">合成</span><span>→</span><span class="st done">一致性校验</span>
+        </div>
+        <div class="actions"><button>👍 有用</button><button>👎 无用</button><button>复制</button><button>导出 Word</button></div>
+      </div></div>
+    </div>
+    <div class="composer">
+      <div class="box">
+        <textarea placeholder="输入问题，Enter 发送，Shift+Enter 换行…"></textarea>
+        <div class="foot"><span class="tip">答案将带有出处引用 · 支持追问</span><button class="send">发送</button></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- 抽屉 -->
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="dhead"><b>📄 证据</b><button class="close" onclick="closeDrawer()">×</button></div>
+  <div class="dbody">
+    <div class="dp">引用 <b>[1]</b> 对应的证据内容：</div>
+    <div class="ev">
+      <div class="eh"><span>📄 考勤管理制度 v3</span><span class="pg">P12 · §5.2</span></div>
+      <div class="eb">年假按自然年度计算，<mark>当年有效，不跨年结转</mark>；如因工作安排未能休假，需部门负责人审批后办理延期，最长不超过 30 天。</div>
+      <div class="ef"><span class="conf hi">置信度 高</span>命中方式:语义+关键词 · <a style="color:var(--c-accent)" href="#">跳转原文 →</a></div>
+    </div>
+    <div class="dp" style="margin-top:13px">引用 <b>[2]</b> 对应的证据内容：</div>
+    <div class="ev">
+      <div class="eh"><span>📄 员工手册 2026</span><span class="pg">P9</span></div>
+      <div class="eb">员工年假原则上应在本年度内休完。确有特殊情况的，<mark>经审批可顺延至次年 3 月底前使用</mark>。</div>
+      <div class="ef"><span class="conf mid">置信度 中</span>命中方式:语义 · <a style="color:var(--c-accent)" href="#">跳转原文 →</a></div>
+    </div>
+    <div class="dtrack">
+      <h4>过程轨迹（主控 Agent 分发审计）</h4>
+      <ul class="tl">
+        <li>意图识别：知识问答 · 制度类<small>路由：主控 Agent</small></li>
+        <li>分发检索任务 ×2<small>知识检索员：并行检索「跨年 累计 年假」</small></li>
+        <li>回收证据包 · 重排命中 7/50<small>bge-reranker 精排</small></li>
+        <li>写作编辑合成 · 一致性校验通过<small>未触发改写重试</small></li>
+      </ul>
+    </div>
+  </div>
+</aside>
+
+<div class="viewbar">
+  <button class="on" id="vb1" onclick="switchView('home')">🏠 首页风格</button>
+  <button id="vb2" onclick="switchView('chat')">💬 对话页风格</button>
+</div>
+<div class="note">问枢 Pivot · 静态风格演示稿 S5 暖米阅读 · 数据为模拟 · 结构依据《A3门户设计》</div>
+
+<script>
+function switchView(v){
+  var home=document.getElementById('view-home'),chat=document.getElementById('view-chat');
+  home.style.display = v==='home'?'':'none';
+  chat.style.display = v==='chat'?'':'none';
+  document.getElementById('navhome').classList.toggle('on',v==='home');
+  document.getElementById('navchat').classList.toggle('on',v==='chat');
+  document.getElementById('vb1').classList.toggle('on',v==='home');
+  document.getElementById('vb2').classList.toggle('on',v==='chat');
+}
+function openDrawer(i){document.getElementById('overlay').classList.add('show');document.getElementById('drawer').classList.add('show');}
+function closeDrawer(){document.getElementById('overlay').classList.remove('show');document.getElementById('drawer').classList.remove('show');}
+</script>
+</body>
+</html>

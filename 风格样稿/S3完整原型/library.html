@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知识库 · 问枢 Pivot</title>
+<link rel="stylesheet" href="s3.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="home.html"><span class="dot">枢</span>问枢 <small style="font-weight:400;color:#9db2ce">Pivot</small></a>
+  <nav class="nav">
+    <a href="home.html">首页</a>
+    <a href="library.html" class="on">知识库</a>
+    <a href="chat.html">对话</a>
+  </nav>
+  <form class="gsearch" onsubmit="gsearch(event)">🔍<input id="gq" placeholder="搜索文档 / 问 AI…  (Ctrl K)" autocomplete="off"><span class="kbd">Ctrl K</span></form>
+  <div class="user" id="userbox" onclick="toggleUserMenu(event)">
+    <span class="avatar">张</span><span>张 · 管理员</span><span class="caret">▼</span>
+    <div class="menu">
+      <a class="mi" href="chat.html">💬 我的对话</a>
+      <a class="mi" href="admin-overview.html">⚙️ 管理后台</a>
+      <div class="sep"></div>
+      <a class="mi danger" href="login.html">🚪 退出登录</a>
+    </div>
+  </div>
+</header>
+
+<main class="page-sm">
+  <h2 class="sec" style="margin-top:4px"><span class="bar"></span>知识库
+    <span style="font-size:12px;color:var(--c-muted);font-weight:400" id="rescnt">共 386 份文档</span></h2>
+
+  <div style="display:flex;gap:16px;align-items:flex-start">
+    <!-- 左侧筛选 -->
+    <div style="width:220px;flex-shrink:0">
+      <div class="card" style="padding:14px">
+        <div class="csec" style="margin-bottom:10px;font-size:13px"><span class="bar"></span>知识空间</div>
+        <div class="cks">
+          <label><input type="checkbox" class="sp" value="hr" checked> 人事制度 <span class="t" style="color:var(--c-muted);font-size:11px">86</span></label>
+          <label><input type="checkbox" class="sp" value="rd" checked> 研发文档 <span class="t" style="color:var(--c-muted);font-size:11px">124</span></label>
+          <label><input type="checkbox" class="sp" value="law" checked> 合同库 <span class="t" style="color:var(--c-muted);font-size:11px">176</span></label>
+        </div>
+        <div class="csec" style="margin:16px 0 10px;font-size:13px"><span class="bar"></span>文件类型</div>
+        <div class="fl">
+          <span class="fchip on">全部</span><span class="fchip">PDF</span><span class="fchip">Word</span><span class="fchip">PPT</span><span class="fchip">Excel</span>
+        </div>
+        <div class="csec" style="margin:16px 0 10px;font-size:13px"><span class="bar"></span>标签</div>
+        <div class="fl">
+          <span class="fchip on">全部</span><span class="fchip">制度</span><span class="fchip">手册</span><span class="fchip">合同</span><span class="fchip">台账</span>
+        </div>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px dashed var(--c-border);font-size:11.5px;color:var(--c-muted)">
+          筛选条件实时生效（演示）<br>管理员可在此新增空间与标签
+        </div>
+      </div>
+    </div>
+
+    <!-- 主区 -->
+    <div style="flex:1;min-width:0">
+      <div class="toolbar">
+        <div class="gsearch" style="width:260px;background:#fff;border:1px solid var(--c-border);margin-left:0;color:var(--c-muted)">
+          🔍<input id="libq" placeholder="库内搜索：文件名 / 关键词…" autocomplete="off">
+        </div>
+        <div class="sp">
+          <span class="cnt-t">排序</span>
+          <select id="libsort" onchange="toast('排序已切换（演示）')"><option>最近更新</option><option>文件名称</option><option>文件大小</option></select>
+          <button class="btn ghost sm" onclick="toast('📤 上传文档入口在后台：文档管理页面')">📤 上传</button>
+        </div>
+      </div>
+
+      <div class="tblw">
+        <table class="tbl">
+          <thead><tr>
+            <th style="width:34%">文档名称</th><th>所属空间</th><th>页数</th><th>大小</th><th>更新时间</th><th style="width:96px">操作</th>
+          </tr></thead>
+          <tbody id="libbody">
+            <tr class="trow" onclick="location.href='doc.html?id=1'">
+              <td><span class="dot blue"></span><b>考勤管理制度 v3</b></td><td class="colmuted">人事制度</td><td>4</td><td class="colmuted">320 KB</td><td class="colmuted">2026-08-30</td>
+              <td><button class="btn ghost sm" onclick="event.stopPropagation();toast('📥 下载中…（演示）')">下载</button></td>
+            </tr>
+            <tr class="trow" onclick="location.href='doc.html?id=2'">
+              <td><span class="dot blue"></span><b>员工手册 2026</b></td><td class="colmuted">人事制度</td><td>120</td><td class="colmuted">4.1 MB</td><td class="colmuted">2026-08-28</td>
+              <td><button class="btn ghost sm" onclick="event.stopPropagation();toast('📥 下载中…（演示）')">下载</button></td>
+            </tr>
+            <tr class="trow" onclick="location.href='doc.html?id=3'">
+              <td><span class="dot green"></span><b>华东销售台账 Q2</b></td><td class="colmuted">数据表格</td><td>64</td><td class="colmuted">1.8 MB</td><td class="colmuted">2026-08-25</td>
+              <td><button class="btn ghost sm" onclick="event.stopPropagation();toast('📥 下载中…（演示）')">下载</button></td>
+            </tr>
+            <tr class="trow" onclick="location.href='doc.html?id=4'">
+              <td><span class="dot blue"></span><b>产品白皮书 v2.4</b></td><td class="colmuted">研发文档</td><td>38</td><td class="colmuted">2.3 MB</td><td class="colmuted">2026-08-22</td>
+              <td><button class="btn ghost sm" onclick="event.stopPropagation();toast('📥 下载中…（演示）')">下载</button></td>
+            </tr>
+            <tr class="trow" onclick="location.href='doc.html?id=5'">
+              <td><span class="dot blue"></span><b>采购合同模板 2026Q3</b></td><td class="colmuted">合同库</td><td>18</td><td class="colmuted">560 KB</td><td class="colmuted">2026-08-20</td>
+              <td><button class="btn ghost sm" onclick="event.stopPropagation();toast('📥 下载中…（演示）')">下载</button></td>
+            </tr>
+            <tr class="trow" onclick="location.href='doc.html?id=6'">
+              <td><span class="dot red"></span><b>安全准入规范 v1</b></td><td class="colmuted">研发文档</td><td>12</td><td class="colmuted">410 KB</td><td class="colmuted">2026-08-18</td>
+              <td><button class="btn ghost sm" onclick="event.stopPropagation();toast('📥 下载中…（演示）')">下载</button></td>
+            </tr>
+            <tr class="trow" onclick="location.href='doc.html?id=7'">
+              <td><span class="dot blue"></span><b>年度体检与福利说明</b></td><td class="colmuted">人事制度</td><td>9</td><td class="colmuted">280 KB</td><td class="colmuted">2026-08-15</td>
+              <td><button class="btn ghost sm" onclick="event.stopPropagation();toast('📥 下载中…（演示）')">下载</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="pgn">
+          <button onclick="toast('已是第一页（演示）')">‹</button>
+          <button class="on">1</button><button onclick="toast('翻页演示：第二页')">2</button><button onclick="toast('翻页演示：第三页')">3</button><button onclick="toast('翻页演示：第四页')">4</button>
+          <button onclick="toast('翻页演示：下一页')">›</button>
+          <span class="ginfo">共 386 份 · 每页 20 份</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="common.js"></script>
+<script>
+/* URL 参数 s=hr/rd/law → 勾选空间 */
+(function(){
+  var s=new URLSearchParams(location.search).get('s');
+  var v={hr:'人事制度',rd:'研发文档',law:'合同库'};
+  if(s&&v[s]){
+    document.querySelectorAll('input.sp').forEach(function(c){c.checked=(c.value===s)});
+    applyFilter(); toast('🔍 已按空间筛选：'+v[s]);
+  }
+})();
+/* 空间勾选/库内搜索 → 过滤演示 */
+document.querySelectorAll('input.sp').forEach(function(c){c.onchange=applyFilter;});
+document.getElementById('libq').addEventListener('input',applyFilter);
+function applyFilter(){
+  var sp=[];document.querySelectorAll('input.sp').forEach(function(c){if(c.checked)sp.push(c.value)});
+  var kw=document.getElementById('libq').value.trim();
+  var rows=document.querySelectorAll('#libbody tr');
+  var shown=0;
+  rows.forEach(function(r){
+    var txt=r.textContent; var ok=(kw===''||txt.indexOf(kw)>-1);
+    r.style.display=ok?'':'none'; if(ok)shown++;
+  });
+  document.getElementById('rescnt').textContent='显示 '+shown+' / 386 份文档';
+}
+/* 类型/标签 chip 切换 */
+document.querySelectorAll('.fchip').forEach(function(ch){
+  ch.onclick=function(){
+    var group=ch.parentNode;
+    group.querySelectorAll('.fchip').forEach(function(c){c.classList.remove('on')});
+    ch.classList.add('on'); toast('筛选已更新（演示）');
+  };
+});
+</script>
+</body>
+</html>

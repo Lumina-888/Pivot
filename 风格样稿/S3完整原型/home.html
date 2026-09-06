@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>首页 · 问枢 Pivot</title>
+<link rel="stylesheet" href="s3.css">
+</head>
+<body>
+
+<!-- 顶栏 -->
+<header class="topbar">
+  <a class="logo" href="home.html"><span class="dot">枢</span>问枢 <small style="font-weight:400;color:#9db2ce">Pivot</small></a>
+  <nav class="nav">
+    <a href="home.html" class="on">首页</a>
+    <a href="library.html">知识库</a>
+    <a href="chat.html">对话</a>
+  </nav>
+  <form class="gsearch" onsubmit="gsearch(event)">🔍<input id="gq" placeholder="搜索文档 / 问 AI…  (Ctrl K)" autocomplete="off"><span class="kbd">Ctrl K</span></form>
+  <div class="user" id="userbox" onclick="toggleUserMenu(event)">
+    <span class="avatar">张</span><span>张 · 管理员</span><span class="caret">▼</span>
+    <div class="menu">
+      <a class="mi" href="chat.html">💬 我的对话</a>
+      <a class="mi" href="admin-overview.html">⚙️ 管理后台</a>
+      <div class="sep"></div>
+      <a class="mi danger" href="login.html">🚪 退出登录</a>
+    </div>
+  </div>
+</header>
+
+<!-- 首页 -->
+<main class="page">
+  <section class="hero">
+    <div class="ht">
+      <h1>问枢 · 企业知识的轴心</h1>
+      <p>搜索企业文档，或直接提问——答案均带出处，可追溯。</p>
+    </div>
+    <div class="searchbox" id="sbx">
+      <span class="ind" id="sbxind"></span>
+      <button class="tab on" type="button" onclick="setMode(this,0)">搜文档</button>
+      <button class="tab" type="button" onclick="setMode(this,1)">问 AI</button>
+      <input id="sbxi" placeholder="搜索制度、手册、合同…" autocomplete="off">
+      <button class="go" type="button" onclick="heroGo()">搜索</button>
+    </div>
+  </section>
+
+  <h2 class="sec"><span class="bar"></span>知识空间</h2>
+  <div class="spaces">
+    <div class="space" onclick="location.href='library.html?s=hr'">
+      <div class="top"><div class="ic">📋</div><span class="arr">进入 →</span></div>
+      <h3>人事制度</h3><p>考勤、薪酬、假期、入职离职等制度与手册</p>
+      <span class="cnt">86 份文档</span>
+    </div>
+    <div class="space" onclick="location.href='library.html?s=rd'">
+      <div class="top"><div class="ic">🧪</div><span class="arr">进入 →</span></div>
+      <h3>研发文档</h3><p>产品白皮书、技术方案、接口文档、发布记录</p>
+      <span class="cnt">124 份文档</span>
+    </div>
+    <div class="space" onclick="location.href='library.html?s=law'">
+      <div class="top"><div class="ic">📑</div><span class="arr">进入 →</span></div>
+      <h3>合同库</h3><p>采购、销售、框架合同模板与已签归档</p>
+      <span class="cnt">176 份文档</span>
+    </div>
+  </div>
+
+  <div class="row2">
+    <div class="card">
+      <div class="csec"><span class="bar"></span>最近更新</div>
+      <ul class="dlist">
+        <li onclick="location.href='doc.html?id=1'"><span class="fic">📄</span><div class="info"><b>考勤管理制度 v3</b><span>人事制度 · 4 页 · 2026-08-30 更新</span></div><span class="tag">PDF</span><span class="chev">›</span></li>
+        <li onclick="location.href='doc.html?id=2'"><span class="fic">📄</span><div class="info"><b>员工手册 2026</b><span>人事制度 · 120 页 · 2026-08-28 更新</span></div><span class="tag">PDF</span><span class="chev">›</span></li>
+        <li onclick="location.href='doc.html?id=3'"><span class="fic">📊</span><div class="info"><b>华东销售台账 Q2</b><span>数据表格 · 64 页 · 2026-08-25 更新</span></div><span class="tag">XLS</span><span class="chev">›</span></li>
+        <li onclick="location.href='doc.html?id=4'"><span class="fic">📄</span><div class="info"><b>产品白皮书 v2.4</b><span>研发文档 · 38 页 · 2026-08-22 更新</span></div><span class="tag">PDF</span><span class="chev">›</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="csec"><span class="bar"></span>快捷入口</div>
+      <div class="quick">
+        <a href="chat.html"><span class="ic">💬</span>新建对话 · 向知识库提问<span class="to">→</span></a>
+        <a href="admin-docs.html" class="alt"><span class="ic">📤</span>上传文档（管理员）<span class="to">→</span></a>
+        <a href="admin-overview.html" class="alt"><span class="ic">⚙️</span>管理后台<span class="to">→</span></a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="common.js"></script>
+<script>
+/* Hero 双 Tab */
+var mode = 0;
+function moveInd(btn){
+  document.querySelectorAll('#sbx .tab').forEach(function(t){t.classList.remove('on')});
+  btn.classList.add('on');
+  var ind=document.getElementById('sbxind');
+  ind.style.left=btn.offsetLeft+'px'; ind.style.width=btn.offsetWidth+'px';
+}
+function setMode(btn,m){
+  mode=m; moveInd(btn);
+  document.getElementById('sbxi').placeholder = m===0?'搜索制度、手册、合同…':'例如：年假能否跨年累计？';
+  document.getElementById('sbxi').focus();
+}
+moveInd(document.querySelector('#sbx .tab.on'));
+function heroGo(){
+  var v=document.getElementById('sbxi').value.trim();
+  if(!v){document.getElementById('sbxi').focus();toast('请输入搜索内容');return}
+  if(mode===0) location.href='search.html?q='+encodeURIComponent(v);
+  else location.href='chat.html?q='+encodeURIComponent(v);
+}
+document.getElementById('sbxi').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){e.preventDefault();heroGo()}
+});
+</script>
+</body>
+</html>

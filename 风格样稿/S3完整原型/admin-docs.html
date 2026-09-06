@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文档管理 · 问枢 Pivot</title>
+<link rel="stylesheet" href="s3.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="home.html"><span class="dot">枢</span>问枢 <small style="font-weight:400;color:#9db2ce">Pivot</small></a>
+  <nav class="nav">
+    <a href="home.html">首页</a>
+    <a href="library.html">知识库</a>
+    <a href="chat.html">对话</a>
+  </nav>
+  <form class="gsearch" onsubmit="gsearch(event)">🔍<input id="gq" placeholder="搜索文档 / 问 AI…  (Ctrl K)" autocomplete="off"><span class="kbd">Ctrl K</span></form>
+  <div class="user" id="userbox" onclick="toggleUserMenu(event)">
+    <span class="avatar">张</span><span>张 · 管理员</span><span class="caret">▼</span>
+    <div class="menu">
+      <a class="mi" href="chat.html">💬 我的对话</a>
+      <a class="mi" href="admin-overview.html">⚙️ 管理后台</a>
+      <div class="sep"></div>
+      <a class="mi danger" href="login.html">🚪 退出登录</a>
+    </div>
+  </div>
+</header>
+
+<div class="adminwrap">
+  <aside class="aside">
+    <div class="alabel">管理后台</div>
+    <a class="amenu" href="admin-overview.html">📊 概览</a>
+    <a class="amenu on" href="admin-docs.html">📄 文档管理 <span class="bdg y">2 失败</span></a>
+    <a class="amenu" href="admin-users.html">👥 用户管理</a>
+    <a class="amenu" href="admin-audit.html">📜 审计日志</a>
+    <div class="alabel" style="margin-top:14px">系统</div>
+    <a class="amenu" href="#" onclick="toast('⚙️ 设置页为 V2 功能（模型配置/成本告警/Prompt 管理）')">⚙️ 系统设置 <span class="badge gray">V2</span></a>
+  </aside>
+
+  <section class="acont">
+    <div class="act">📄 文档管理
+      <a class="btn pri sm" href="#" onclick="pickFile();return false" style="margin-left:8px">📤 上传文档</a></div>
+    <div class="adesc">上传 → 解析 → 向量化入库；失败的文件可重试，不静默。</div>
+
+    <!-- 上传区 -->
+    <div class="dropzone" id="dz" onclick="pickFile()"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="event.preventDefault();this.classList.remove('drag');pickFile('drop')">
+      <div class="dz-i">📂</div>
+      <h4>拖拽文件到这里，或点击选择</h4>
+      <p>支持 <b>PDF / Word / PPT / Excel</b> · 可多文件 · 解析失败会在这里红标并提示原因</p>
+    </div>
+    <div class="queue" id="queue">
+      <div class="qi"><span class="fic">📊</span><div class="fi"><b>华东销售台账 Q2.xlsx</b><span>sheet ×8 · 64 页</span></div>
+        <div class="bar"><i style="width:68%"></i></div><span class="sp">解析中 68%</span></div>
+      <div class="qi"><span class="fic">📄</span><div class="fi"><b>产品白皮书 v2.5.pdf</b><span>38 页</span></div>
+        <div class="bar"><i class="ok" style="width:100%"></i></div><span class="sp">✓ 成功</span><button class="iconbtn del" onclick="toast('🗑 已从队列移除（演示）')">✕</button></div>
+      <div class="qi"><span class="fic">📄</span><div class="fi"><b>安全准入规范 v1.pdf</b><span>12 页 · 含扫描页</span></div>
+        <div class="bar"><i class="fail" style="width:100%"></i></div><span class="sp" style="color:var(--c-danger)">✗ 失败</span><button class="iconbtn del" onclick="toast('🗑 已从队列移除（演示）')">✕</button></div>
+    </div>
+
+    <!-- 文档列表 -->
+    <div class="tblw" style="margin-top:16px">
+      <table class="tbl">
+        <thead><tr><th style="width:30%">文档名称</th><th>所属空间</th><th>页数</th><th>更新时间</th><th>状态</th><th style="width:130px">操作</th></tr></thead>
+        <tbody id="doctbody">
+          <tr class="trow"><td><b>考勤管理制度 v3</b></td><td class="colmuted">人事制度</td><td>4</td><td class="colmuted">08-30</td><td><span class="badge green">✓ 已入库</span></td>
+            <td><button class="btn ghost sm" onclick="toast('🔁 重建索引任务已提交（演示）')">重建索引</button><button class="btn danger sm" style="margin-left:6px" onclick="confirmDel(event,'考勤管理制度 v3')">删除</button></td></tr>
+          <tr class="trow"><td><b>员工手册 2026</b></td><td class="colmuted">人事制度</td><td>120</td><td class="colmuted">08-28</td><td><span class="badge green">✓ 已入库</span></td>
+            <td><button class="btn ghost sm" onclick="toast('🔁 重建索引任务已提交（演示）')">重建索引</button><button class="btn danger sm" style="margin-left:6px" onclick="confirmDel(event,'员工手册 2026')">删除</button></td></tr>
+          <tr class="trow" style="background:#fff8f1"><td><b>华东销售台账 Q2.xlsx</b></td><td class="colmuted">数据表格</td><td>64</td><td class="colmuted">08-25</td><td><span class="badge blue">⚙ 解析中 68%</span></td>
+            <td><button class="btn gray sm" disabled>解析中…</button></td></tr>
+          <tr class="trow" style="background:#fff8f1"><td><b>安全准入规范 v1.pdf</b></td><td class="colmuted">研发文档</td><td>12</td><td class="colmuted">08-18</td><td><span class="badge red">✗ 失败 · 含扫描页，MVP 暂不支持 OCR</span></td>
+            <td><button class="btn ghost sm" onclick="retryDoc(this)">重试</button><button class="btn danger sm" style="margin-left:6px" onclick="confirmDel(event,'安全准入规范 v1.pdf')">删除</button></td></tr>
+          <tr class="trow"><td><b>采购合同模板 2026Q3</b></td><td class="colmuted">合同库</td><td>18</td><td class="colmuted">08-20</td><td><span class="badge green">✓ 已入库</span></td>
+            <td><button class="btn ghost sm" onclick="toast('🔁 重建索引任务已提交（演示）')">重建索引</button><button class="btn danger sm" style="margin-left:6px" onclick="confirmDel(event,'采购合同模板 2026Q3')">删除</button></td></tr>
+        </tbody>
+      </table>
+      <div class="pgn">
+        <button class="on">1</button><button onclick="toast('翻页演示：第二页')">2</button><button onclick="toast('翻页演示：第三页')">3</button>
+        <span class="ginfo">共 386 份 · 失败 2 待处理</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- 删除确认 Modal -->
+<div class="mask" id="delmask">
+  <div class="modal">
+    <div class="mhead"><b>删除文档</b><button class="iconbtn" onclick="closeModal('delmask')">✕</button></div>
+    <div class="mbody">
+      <div style="font-size:13.5px;line-height:1.8">确定删除 <b id="delname"></b> 吗？<br><span style="font-size:12.5px;color:var(--c-muted)">将同时删除其分块与向量索引，此操作不可恢复。</span></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn ghost" onclick="closeModal('delmask')">取消</button>
+      <button class="btn pri" style="background:var(--c-danger);box-shadow:0 2px 0 rgba(153,27,27,.4)" onclick="doDel()">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<script src="common.js"></script>
+<script>
+var seq=0, delTarget='';
+function pickFile(kind){
+  seq++;
+  var q=document.getElementById('queue');
+  var d=document.createElement('div'); d.className='qi';
+  var name=(kind==='drop'?'拖入文档':'新上传文档')+'_'+new Date().toTimeString().slice(0,5)+'.pdf';
+  d.innerHTML='<span class="fic">📄</span><div class="fi"><b>'+name.replace('_',' ')+'</b><span>等待解析 · 排队第 '+seq+' 位</span></div><div class="bar"><i style="width:12%"></i></div><span class="sp">排队中</span><button class="iconbtn del" onclick="this.parentNode.remove()">✕</button>';
+  q.appendChild(d);
+  var bar=d.querySelector('.bar i'),sp=d.querySelector('.sp');var p=12;
+  var t=setInterval(function(){
+    p+=14; bar.style.width=Math.min(p,100)+'%';
+    if(p>=100){clearInterval(t);sp.textContent='✓ 成功';sp.style.color='var(--c-ok)';bar.classList.add('ok');toast('✅ 解析完成：'+name)}
+    else sp.textContent='解析中 '+p+'%';
+  },240);
+  toast('📤 已加入解析队列（演示）：'+name);
+}
+function retryDoc(btn){
+  var tr=btn.closest('tr');
+  tr.querySelector('td:nth-child(5)').innerHTML='<span class="badge yellow">⏳ 排队中</span>';
+  tr.style.background='#f8fafc';
+  toast('🔁 已入队重试（演示：V2 启用 MinerU 后可支持扫描件）');
+}
+function confirmDel(e,name){
+  e.stopPropagation();
+  delTarget=name;
+  document.getElementById('delname').textContent=name;
+  openModal('delmask');
+}
+function doDel(){
+  closeModal('delmask');
+  toast('🗑 已删除：'+delTarget+'（演示）');
+  document.getElementById('doctbody').querySelectorAll('.trow').forEach(function(r){
+    if(r.querySelector('td b')&&r.querySelector('td b').textContent===delTarget) r.remove();
+  });
+}
+</script>
+</body>
+</html>

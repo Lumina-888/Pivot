@@ -1,0 +1,54 @@
+# ===== 密钥与环境配置：模板入库，密钥永不入库（V2 §7 / SPEC §8.4）=====
+.env
+.env.*
+!.env.template
+!.env.example
+*.pem
+*.key
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+
+# ===== Node / Next.js =====
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+
+# ===== 数据与运行产物（容器/本地运行时生成，不提交）=====
+data/
+tmp/
+uploads/
+exported/
+*.log
+logs/
+
+# ===== 工具工作痕迹（不入库）=====
+.zcode/
+.claude/
+
+# ===== IDE / 系统 =====
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ===== 测试与报告生成物 =====
+test-results/
+playwright-report/
+coverage/
+*.prof

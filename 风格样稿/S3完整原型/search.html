@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>搜索 · 问枢 Pivot</title>
+<link rel="stylesheet" href="s3.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="home.html"><span class="dot">枢</span>问枢 <small style="font-weight:400;color:#9db2ce">Pivot</small></a>
+  <nav class="nav">
+    <a href="home.html">首页</a>
+    <a href="library.html" class="on">知识库</a>
+    <a href="chat.html">对话</a>
+  </nav>
+  <form class="gsearch" onsubmit="gsearch(event)">🔍<input id="gq" placeholder="搜索文档 / 问 AI…  (Ctrl K)" autocomplete="off"><span class="kbd">Ctrl K</span></form>
+  <div class="user" id="userbox" onclick="toggleUserMenu(event)">
+    <span class="avatar">张</span><span>张 · 管理员</span><span class="caret">▼</span>
+    <div class="menu">
+      <a class="mi" href="chat.html">💬 我的对话</a>
+      <a class="mi" href="admin-overview.html">⚙️ 管理后台</a>
+      <div class="sep"></div>
+      <a class="mi danger" href="login.html">🚪 退出登录</a>
+    </div>
+  </div>
+</header>
+
+<main class="page-sm">
+  <h2 class="sec" style="margin-top:4px"><span class="bar"></span>全局搜索</h2>
+
+  <div class="toolbar" style="margin-bottom:16px">
+    <div class="gsearch" style="width:420px;background:#fff;border:1px solid var(--c-border);margin-left:0;color:var(--c-muted)">
+      🔍<input id="sqi" placeholder="输入关键词，回车检索…" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();runSearch()}">
+      <button class="btn pri sm" style="padding:5px 12px" onclick="runSearch()">检索</button>
+    </div>
+    <div class="sp">
+      <span class="cnt-t" id="scnt"></span>
+      <button class="btn ghost sm" onclick="location.href='chat.html?q='+encodeURIComponent(document.getElementById('sqi').value)">💬 直接问 AI</button>
+    </div>
+  </div>
+
+  <div class="fpanel" style="margin-bottom:14px">
+    <div class="fl">
+      <span class="fchip on">全部空间</span><span class="fchip">人事制度</span><span class="fchip">研发文档</span><span class="fchip">合同库</span>
+    </div>
+  </div>
+
+  <div id="slist">
+    <!-- 结果由 JS 生成：highlight 关键词 -->
+  </div>
+
+  <div class="empty hidden" id="sempty">
+    <div class="b">🔍</div>
+    <h4>未找到匹配内容</h4>
+    <p>试试换个关键词，或直接向 AI 提问——答案将给出处引用。</p>
+    <a class="btn pri" href="chat.html?q=" onclick="this.href+=''+encodeURIComponent(document.getElementById('sqi').value)">💬 直接问 AI</a>
+  </div>
+</main>
+
+<script src="common.js"></script>
+<script>
+var DATA=[
+  {doc:'考勤管理制度 v3', loc:'P12 §5.2', sp:'人事制度', type:'PDF', sn:'年假按自然年度计算，<b>年假</b>当年有效，不跨年结转；如因工作安排未能休假，需部门负责人审批后办理延期，最长不超过 30 天。'},
+  {doc:'员工手册 2026', loc:'P9', sp:'人事制度', type:'PDF', sn:'员工<b>年假</b>原则上应在本年度内休完。确有特殊情况的，经审批可顺延至次年 3 月底前使用。'},
+  {doc:'采购合同模板 2026Q3', loc:'P4 第2.1条', sp:'合同库', type:'PDF', sn:'乙方提交的交付物须经甲方验收合格后，甲方在 30 个工作日内支付 <b>30%</b> 预付款…'},
+  {doc:'产品白皮书 v2.4', loc:'P18 图表3', sp:'研发文档', type:'PDF', sn:'系统支持私有化部署，最低配置建议 <b>4C8G</b>，可承载 500 用户在线问答。'},
+  {doc:'安全准入规范 v1', loc:'P6 第4节', sp:'研发文档', type:'PDF', sn:'外网访问须经 <b>VPN</b> + 二次验证，未纳入白名单的设备禁止接入内网。'}
+];
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function hl(text,kw){
+  if(!kw) kw=text.match(/<b>([^<]+)<\/b>/g).map(function(m){return m.slice(3,-4)})[0]||'';
+  var t=esc(text.replace(/<\/?b>/g,''));
+  if(!kw) return t;
+  var re=new RegExp('('+kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+  return t.replace(re,'<mark>$1</mark>');
+}
+function runSearch(){
+  var kw=document.getElementById('sqi').value.trim();
+  if(!kw){document.getElementById('sqi').focus();toast('请输入搜索关键词');return}
+  var list=document.getElementById('slist'),empty=document.getElementById('sempty');
+  var hits=DATA.filter(function(d){return d.sn.indexOf(kw)>-1||d.doc.indexOf(kw)>-1||d.sp.indexOf(kw)>-1});
+  list.innerHTML='';
+  hits.forEach(function(d){
+    var el=document.createElement('div');el.className='sres';
+    el.innerHTML='<div class="sh"><b>'+d.doc+'</b><span class="badge blue">'+d.sp+'</span><span class="badge hollow">'+d.type+'</span></div>'+
+      '<div class="sn">'+hl(d.sn,kw)+'</div>'+
+      '<div class="sf"><span class="loc" onclick="location.href=\'doc.html?id=1&hl=1\'">'+d.loc+'</span><span>语义+关键词混合命中</span><span>置信度:高</span></div>';
+    el.onclick=function(){location.href='doc.html?id=1&hl=1'};
+    list.appendChild(el);
+  });
+  if(hits.length===0){empty.classList.remove('hidden');list.classList.add('hidden')}
+  else{empty.classList.add('hidden');list.classList.remove('hidden')}
+  document.getElementById('scnt').textContent='命中 '+hits.length+' 条 · 关键词「'+kw+'」';
+  toast('🔍 已检索：「'+kw+'」（混合检索演示）');
+}
+/* 载入 ?q= */
+(function(){
+  var q=new URLSearchParams(location.search).get('q');
+  if(q){document.getElementById('sqi').value=q;runSearch()}
+  else{document.getElementById('scnt').textContent='请输入关键词检索，或直接问 AI';}
+})();
+</script>
+</body>
+</html>

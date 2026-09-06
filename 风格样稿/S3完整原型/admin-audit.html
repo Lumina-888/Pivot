@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>审计日志 · 问枢 Pivot</title>
+<link rel="stylesheet" href="s3.css">
+<style>
+.audit-detail{display:none;background:#f8fafc;border-top:1px solid var(--c-border-2)}
+.audit-detail td{padding:13px 16px!important;font-size:12.5px;line-height:1.9;color:var(--c-muted)}
+.audit-detail .doclist{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.audit-detail .doclist .badge{cursor:pointer}
+tr.open .audit-detail{display:table-row}
+tr.open td:nth-child(1){color:var(--c-accent);font-weight:600}
+.drow .caret-i{display:inline-block;transition:transform .2s var(--ease);font-size:10px;color:#94a3b8}
+tr.open .caret-i{transform:rotate(90deg)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="home.html"><span class="dot">枢</span>问枢 <small style="font-weight:400;color:#9db2ce">Pivot</small></a>
+  <nav class="nav">
+    <a href="home.html">首页</a>
+    <a href="library.html">知识库</a>
+    <a href="chat.html">对话</a>
+  </nav>
+  <form class="gsearch" onsubmit="gsearch(event)">🔍<input id="gq" placeholder="搜索文档 / 问 AI…  (Ctrl K)" autocomplete="off"><span class="kbd">Ctrl K</span></form>
+  <div class="user" id="userbox" onclick="toggleUserMenu(event)">
+    <span class="avatar">张</span><span>张 · 管理员</span><span class="caret">▼</span>
+    <div class="menu">
+      <a class="mi" href="chat.html">💬 我的对话</a>
+      <a class="mi" href="admin-overview.html">⚙️ 管理后台</a>
+      <div class="sep"></div>
+      <a class="mi danger" href="login.html">🚪 退出登录</a>
+    </div>
+  </div>
+</header>
+
+<div class="adminwrap">
+  <aside class="aside">
+    <div class="alabel">管理后台</div>
+    <a class="amenu" href="admin-overview.html">📊 概览</a>
+    <a class="amenu" href="admin-docs.html">📄 文档管理 <span class="bdg y">2 失败</span></a>
+    <a class="amenu" href="admin-users.html">👥 用户管理</a>
+    <a class="amenu on" href="admin-audit.html">📜 审计日志</a>
+    <div class="alabel" style="margin-top:14px">系统</div>
+    <a class="amenu" href="#" onclick="toast('⚙️ 设置页为 V2 功能（模型配置/成本告警/Prompt 管理）')">⚙️ 系统设置 <span class="badge gray">V2</span></a>
+  </aside>
+
+  <section class="acont">
+    <div class="act">📜 审计日志
+      <a class="btn ghost sm" href="#" onclick="toast('📄 CSV 导出为 V2 功能')" style="margin-left:8px">⬇ 导出 CSV <span class="badge gray">V2</span></a></div>
+    <div class="adesc">登录 / 提问 / 导出 / 上传 / 删除 全留痕。点击类型为「提问」的记录可展开查看命中详情。</div>
+
+    <div class="fpanel" style="background:#fff;border:1px solid var(--c-border);border-radius:8px;padding:14px">
+      <div class="fit"><label>时间范围</label><select onchange="toast('筛选已应用（演示）')"><option>今天</option><option>近 7 天</option><option>近 30 天</option><option>全部</option></select></div>
+      <div class="fit"><label>用户</label><select onchange="toast('筛选已应用（演示）')"><option>全部用户</option><option>张三</option><option>李四</option><option>王五</option></select></div>
+      <div class="fit"><label>类型</label><select onchange="toast('筛选已应用（演示）')"><option>全部类型</option><option>登录</option><option>提问</option><option>导出</option><option>上传</option><option>删除</option></select></div>
+      <div class="fit"><label style="visibility:hidden">占位</label><button class="btn ghost sm" onclick="toast('✅ 已按条件过滤（演示）')">查询</button></div>
+    </div>
+
+    <div class="tblw">
+      <table class="tbl">
+        <thead><tr><th style="width:90px">时间</th><th style="width:70px">用户</th><th style="width:70px">类型</th><th>详情</th></tr></thead>
+        <tbody>
+          <tr class="trow drow" onclick="toggleRow(this)">
+            <td>09-05 09:41</td><td>张三</td><td><span class="badge blue">提问</span></td>
+            <td>"年假能否跨年累计？" · 命中 4 文档 · 引用 2 处 <span class="caret-i">▶</span></td>
+          </tr>
+          <tr class="audit-detail"><td colspan="4">
+            <b>问题：</b>年假能否跨年累计？<br>
+            <b>主控分发：</b>路由(知识问答·制度类) → 检索任务 ×2 → 写作编辑合成 → 一致性校验通过（未改写）<br>
+            <b>命中文档清单：</b>
+            <div class="doclist">
+              <span class="badge hollow" onclick="location.href='doc.html?id=1&hl=1'">考勤管理制度 v3 · P12 §5.2 · 引用[1]</span>
+              <span class="badge hollow" onclick="location.href='doc.html?id=2&hl=1'">员工手册 2026 · P9 · 引用[2]</span>
+              <span class="badge gray">人事福利说明 2025 · P3 · 未引用</span>
+              <span class="badge gray">请假指引 v2 · P1 · 未引用</span>
+            </div>
+          </td></tr>
+          <tr class="trow drow" onclick="toggleRow(this)">
+            <td>09-05 09:38</td><td>张三</td><td><span class="badge blue">提问</span></td>
+            <td>"报销需要哪些发票？" · 命中 2 文档 · 引用 1 处 <span class="caret-i">▶</span></td>
+          </tr>
+          <tr class="audit-detail"><td colspan="4">
+            <b>问题：</b>报销需要哪些发票？<br>
+            <b>主控分发：</b>路由 → 检索 ×1 → 合成 → 校验通过<br>
+            <b>命中文档清单：</b>
+            <div class="doclist"><span class="badge hollow" onclick="location.href='doc.html?id=7'">报销管理制度v2 · P5 · 引用[1]</span><span class="badge gray">财务指引 · P2 · 未引用</span></div>
+          </td></tr>
+          <tr class="trow"><td>09-05 09:35</td><td>张三</td><td><span class="badge yellow">导出</span></td><td>导出《对话_20260905_09.docx》 · 1 文件</td></tr>
+          <tr class="trow"><td>09-05 09:30</td><td>李四</td><td><span class="badge green">上传</span></td><td>《华东销售台账 Q2.xlsx》 · 归属空间:数据表格 · 64 页</td></tr>
+          <tr class="trow"><td>09-05 09:12</td><td>李四</td><td><span class="badge hollow">登录</span></td><td>IP 122.96.12.88 · Windows / Edge</td></tr>
+          <tr class="trow"><td>09-04 18:40</td><td>王五</td><td><span class="badge hollow">登录</span></td><td>IP 122.96.12.91 · Windows / Chrome</td></tr>
+          <tr class="trow"><td>09-04 16:02</td><td>张三</td><td><span class="badge red">删除</span></td><td>删除《旧版考勤制度 2024.pdf》 · 关联 146 chunks 已同步清理</td></tr>
+          <tr class="trow"><td>09-04 15:55</td><td>张三</td><td><span class="badge yellow">导出</span></td><td>导出《合同对比_20260904.docx》 · 1 文件</td></tr>
+        </tbody>
+      </table>
+      <div class="pgn">
+        <button class="on">1</button><button onclick="toast('翻页演示：第二页')">2</button><button onclick="toast('翻页演示：第三页')">3</button>
+        <span class="ginfo">共 1,342 条 · 保留期 365 天</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="common.js"></script>
+<script>
+function toggleRow(tr){tr.classList.toggle('open')}
+</script>
+</body>
+</html>

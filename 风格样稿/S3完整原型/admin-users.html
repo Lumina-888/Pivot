@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用户管理 · 问枢 Pivot</title>
+<link rel="stylesheet" href="s3.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="home.html"><span class="dot">枢</span>问枢 <small style="font-weight:400;color:#9db2ce">Pivot</small></a>
+  <nav class="nav">
+    <a href="home.html">首页</a>
+    <a href="library.html">知识库</a>
+    <a href="chat.html">对话</a>
+  </nav>
+  <form class="gsearch" onsubmit="gsearch(event)">🔍<input id="gq" placeholder="搜索文档 / 问 AI…  (Ctrl K)" autocomplete="off"><span class="kbd">Ctrl K</span></form>
+  <div class="user" id="userbox" onclick="toggleUserMenu(event)">
+    <span class="avatar">张</span><span>张 · 管理员</span><span class="caret">▼</span>
+    <div class="menu">
+      <a class="mi" href="chat.html">💬 我的对话</a>
+      <a class="mi" href="admin-overview.html">⚙️ 管理后台</a>
+      <div class="sep"></div>
+      <a class="mi danger" href="login.html">🚪 退出登录</a>
+    </div>
+  </div>
+</header>
+
+<div class="adminwrap">
+  <aside class="aside">
+    <div class="alabel">管理后台</div>
+    <a class="amenu" href="admin-overview.html">📊 概览</a>
+    <a class="amenu" href="admin-docs.html">📄 文档管理 <span class="bdg y">2 失败</span></a>
+    <a class="amenu on" href="admin-users.html">👥 用户管理</a>
+    <a class="amenu" href="admin-audit.html">📜 审计日志</a>
+    <div class="alabel" style="margin-top:14px">系统</div>
+    <a class="amenu" href="#" onclick="toast('⚙️ 设置页为 V2 功能（模型配置/成本告警/Prompt 管理）')">⚙️ 系统设置 <span class="badge gray">V2</span></a>
+  </aside>
+
+  <section class="acont">
+    <div class="act">👥 用户管理
+      <a class="btn pri sm" href="#" onclick="openModal('addmask');return false" style="margin-left:8px">＋ 新建用户</a></div>
+    <div class="adesc">MVP：管理员手动创建账号并分配角色；V2：邀请链接 / SSO。</div>
+
+    <div class="tblw">
+      <table class="tbl">
+        <thead><tr><th>用户名</th><th>角色</th><th>最近登录</th><th>本周问答</th><th>状态</th><th style="width:170px">操作</th></tr></thead>
+        <tbody id="usersbody">
+          <tr class="trow"><td><b>张三</b><span class="colmuted" style="margin-left:8px">管理员</span></td><td><span class="badge blue">管理员</span></td><td class="colmuted">2026-09-05 09:12</td><td>128</td><td><span class="badge green">正常</span></td>
+            <td><button class="btn ghost sm" onclick="toast('🔑 已生成临时密码并复制（演示）')">重置密码</button></td></tr>
+          <tr class="trow"><td><b>李四</b><span class="colmuted" style="margin-left:8px">产品部</span></td><td><span class="badge hollow">用户</span></td><td class="colmuted">2026-09-04 18:40</td><td>45</td><td><span class="badge green">正常</span></td>
+            <td><button class="btn ghost sm" onclick="toast('🔑 已生成临时密码并复制（演示）')">重置密码</button><button class="btn gray sm" style="margin-left:6px" onclick="toggleUser(this)">停用</button></td></tr>
+          <tr class="trow"><td><b>王五</b><span class="colmuted" style="margin-left:8px">研发部</span></td><td><span class="badge hollow">用户</span></td><td class="colmuted">2026-09-03 15:22</td><td>67</td><td><span class="badge green">正常</span></td>
+            <td><button class="btn ghost sm" onclick="toast('🔑 已生成临时密码并复制（演示）')">重置密码</button><button class="btn gray sm" style="margin-left:6px" onclick="toggleUser(this)">停用</button></td></tr>
+          <tr class="trow"><td><b>赵六</b><span class="colmuted" style="margin-left:8px">市场部</span></td><td><span class="badge hollow">用户</span></td><td class="colmuted">2026-09-02 10:05</td><td>12</td><td><span class="badge yellow">未激活</span></td>
+            <td><button class="btn ghost sm" onclick="toast('🔑 已生成临时密码并复制（演示）')">重置密码</button><button class="btn gray sm" style="margin-left:6px" onclick="toggleUser(this)">停用</button></td></tr>
+          <tr class="trow" style="opacity:.6"><td><b>钱七</b><span class="colmuted" style="margin-left:8px">财务部</span></td><td><span class="badge hollow">用户</span></td><td class="colmuted">2026-08-12 09:55</td><td>0</td><td><span class="badge red">已停用</span></td>
+            <td><button class="btn ghost sm" onclick="toast('🔑 已生成临时密码并复制（演示）')">重置密码</button><button class="btn gray sm" style="margin-left:6px" onclick="toggleUser(this)">启用</button></td></tr>
+        </tbody>
+      </table>
+      <div class="pgn"><span class="ginfo">共 8 位用户 · 演示展示前 5 位</span></div>
+    </div>
+  </section>
+</div>
+
+<!-- 新建用户 Modal -->
+<div class="mask" id="addmask">
+  <div class="modal">
+    <div class="mhead"><b>新建用户</b><button class="iconbtn" onclick="closeModal('addmask')">✕</button></div>
+    <div class="mbody">
+      <div class="frm" style="display:flex;flex-direction:column;gap:12px">
+        <div><label>用户名</label><input id="nu" placeholder="如：sunba"></div>
+        <div><label>部门</label><input id="nd" placeholder="如：研发部" value="研发部"></div>
+        <div><label>角色</label><select id="nr"><option value="user">普通用户</option><option value="admin">管理员</option></select></div>
+        <div><label>初始密码</label><input id="np" value="pivot@2026"><div class="hint">用户首次登录后应修改密码（V2 支持自助找回）</div></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn ghost" onclick="closeModal('addmask')">取消</button>
+      <button class="btn pri" onclick="addUser()">创建用户</button>
+    </div>
+  </div>
+</div>
+
+<script src="common.js"></script>
+<script>
+function addUser(){
+  var u=document.getElementById('nu').value.trim();
+  if(!u){document.getElementById('nu').focus();toast('请输入用户名');return}
+  var v=document.getElementById('nr').value;
+  var tr=document.createElement('tr');
+  tr.className='trow';tr.style.opacity=.7;
+  tr.innerHTML='<td><b>'+u+'</b><span class="colmuted" style="margin-left:8px">'+document.getElementById('nd').value+'</span></td><td><span class="badge '+(v==='admin'?'blue':'hollow')+'">'+(v==='admin'?'管理员':'用户')+'</span></td><td class="colmuted">—</td><td>0</td><td><span class="badge yellow">未激活</span></td><td><button class="btn ghost sm" onclick="toast(\'🔑 已生成临时密码（演示）\')">重置密码</button><button class="btn gray sm" style="margin-left:6px" onclick="toggleUser(this)">停用</button></td>';
+  document.querySelector('#usersbody').appendChild(tr);
+  closeModal('addmask');
+  toast('✅ 用户已创建：'+u+'（未激活，重置密码即可激活）');
+  document.getElementById('nu').value='';
+}
+function toggleUser(btn){
+  var tr=btn.closest('tr');
+  var on=btn.textContent==='停用';
+  tr.style.opacity=on?0.6:1;
+  tr.querySelector('td:nth-child(5)').innerHTML=on?'<span class="badge red">已停用</span>':'<span class="badge green">正常</span>';
+  btn.textContent=on?'启用':'停用';
+  toast(on?'⏸ 已停用该用户，其无法登录':'▶️ 已启用该用户');
+}
+</script>
+</body>
+</html>

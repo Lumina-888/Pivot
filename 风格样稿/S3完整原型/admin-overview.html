@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>后台概览 · 问枢 Pivot</title>
+<link rel="stylesheet" href="s3.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="home.html"><span class="dot">枢</span>问枢 <small style="font-weight:400;color:#9db2ce">Pivot</small></a>
+  <nav class="nav">
+    <a href="home.html">首页</a>
+    <a href="library.html">知识库</a>
+    <a href="chat.html">对话</a>
+  </nav>
+  <form class="gsearch" onsubmit="gsearch(event)">🔍<input id="gq" placeholder="搜索文档 / 问 AI…  (Ctrl K)" autocomplete="off"><span class="kbd">Ctrl K</span></form>
+  <div class="user" id="userbox" onclick="toggleUserMenu(event)">
+    <span class="avatar">张</span><span>张 · 管理员</span><span class="caret">▼</span>
+    <div class="menu">
+      <a class="mi" href="chat.html">💬 我的对话</a>
+      <a class="mi" href="admin-overview.html">⚙️ 管理后台</a>
+      <div class="sep"></div>
+      <a class="mi danger" href="login.html">🚪 退出登录</a>
+    </div>
+  </div>
+</header>
+
+<div class="adminwrap">
+  <aside class="aside">
+    <div class="alabel">管理后台</div>
+    <a class="amenu on" href="admin-overview.html">📊 概览</a>
+    <a class="amenu" href="admin-docs.html">📄 文档管理 <span class="bdg y">2 失败</span></a>
+    <a class="amenu" href="admin-users.html">👥 用户管理</a>
+    <a class="amenu" href="admin-audit.html">📜 审计日志</a>
+    <div class="alabel" style="margin-top:14px">系统</div>
+    <a class="amenu" href="#" onclick="toast('⚙️ 设置页为 V2 功能（模型配置/成本告警/Prompt 管理）')">⚙️ 系统设置 <span class="badge gray">V2</span></a>
+  </aside>
+
+  <section class="acont">
+    <div class="act">📊 后台概览</div>
+    <div class="adesc">系统运行状态一览 · 数据为演示快照（2026-09-05 09:40）</div>
+
+    <div class="statgrid">
+      <div class="stat" onclick="location.href='admin-docs.html';"><div class="sk">文档总数</div><div class="sv">386</div><div class="sd">本周 +24 份</div></div>
+      <div class="stat" onclick="location.href='admin-docs.html';"><div class="sk">Chunk 总数</div><div class="sv">12.4k</div><div class="sd">索引覆盖率 98.7%</div></div>
+      <div class="stat" onclick="location.href='admin-users.html';"><div class="sk">用户数</div><div class="sv">8</div><div class="sd warn">活跃 5 / 本周</div></div>
+      <div class="stat" onclick="location.href='admin-audit.html';"><div class="sk">今日问答</div><div class="sv">52</div><div class="sd red">引用率 96% · 拒答 2 次</div></div>
+    </div>
+
+    <div class="row2" style="grid-template-columns:1fr 1fr;margin-top:0">
+      <div class="card">
+        <div class="csec"><span class="bar"></span>解析队列
+          <a href="admin-docs.html" style="margin-left:auto;font-size:12px;color:var(--c-accent);cursor:pointer">查看 →</a></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="qi"><span class="fic">⏳</span><div class="fi"><b>排队中</b><span>4 个文件等待解析</span></div><span class="badge yellow">4</span></div>
+          <div class="qi"><span class="fic">⚙️</span><div class="fi"><b>解析中</b><span>8 个文件正在处理</span></div><span class="badge blue">8</span></div>
+          <div class="qi"><span class="fic">✗</span><div class="fi"><b>解析失败</b><span>2 个文件需处理 · 点击查看原因</span></div><span class="badge red">2</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="csec"><span class="bar"></span>快捷操作</div>
+        <div class="quick">
+          <a href="admin-docs.html"><span class="ic">📤</span>上传文档（拖拽/批量）<span class="to">→</span></a>
+          <a href="admin-users.html" class="alt"><span class="ic">＋</span>新建用户<span class="to">→</span></a>
+          <a href="#" class="alt" onclick="toast('📜 审计日志已是最新（演示）');return false;"><span class="ic">📜</span>查看审计日志<span class="to">→</span></a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="csec"><span class="bar"></span>问答量趋势 <span class="badge gray" style="margin-left:6px">V2 图表</span></div>
+      <div style="height:90px;display:flex;align-items:flex-end;gap:6px;padding:6px 2px">
+        <div style="flex:1;height:22%;background:var(--c-soft);border-radius:4px 4px 0 0;transition:height .3s" title="周一 18" onmouseover="this.style.height='34%'" onmouseout="this.style.height='22%'"></div>
+        <div style="flex:1;height:35%;background:var(--c-soft);border-radius:4px 4px 0 0" title="周二 28" onmouseover="this.style.height='44%'" onmouseout="this.style.height='35%'"></div>
+        <div style="flex:1;height:52%;background:var(--c-soft);border-radius:4px 4px 0 0" title="周三 41" onmouseover="this.style.height='60%'" onmouseout="this.style.height='52%'"></div>
+        <div style="flex:1;height:46%;background:var(--c-accent-2);border-radius:4px 4px 0 0" title="周四 38" onmouseover="this.style.height='56%'" onmouseout="this.style.height='46%'"></div>
+        <div style="flex:1;height:66%;background:var(--c-accent);border-radius:4px 4px 0 0" title="周五 52 · 今日" onmouseover="this.style.height='76%'" onmouseout="this.style.height='66%'"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--c-muted)"><span>周一</span><span>周二</span><span>周三</span><span>周四</span><span>周五</span></div>
+    </div>
+  </section>
+</div>
+
+<script src="common.js"></script>
+</body>
+</html>
