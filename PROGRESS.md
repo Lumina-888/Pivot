@@ -2,8 +2,8 @@
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-06  
-> **当前状态**：分模块并行开发规格已建立，尚未启动 Wave 0 实现。  
-> **当前基线**：`module-spec-v1.0`（创建后打标）。
+> **当前状态**：Wave 0 进行中；M00 契约已集成，M03/M08 待完成。  
+> **当前基线**：`wave-0-m00-integrated`（M00 contract-v0.1 已集成）。
 
 ## 1. 新会话恢复入口
 
@@ -21,7 +21,7 @@
 
 | 模块 | 状态 | 分支/worktree | 会话/Owner | 基线契约 | 最近证据 | 下一步 |
 |---|---|---|---|---|---|---|
-| M00 契约治理 | planned | — | — | — | — | 生成契约来源映射，建立 contract-v0.1 |
+| M00 契约治理 | integrated | `module/M00-contracts` / `../Pivot-M00-contracts` | 本会话已集成 | `contract-v0.1` | `tests/contract`: 48 passed | 已完成契约、场景、矩阵；依赖模块开始消费 |
 | M01 身份授权 | planned | — | — | — | — | 等待 M00/M03 Wave 0 |
 | M02 文档接入 | planned | — | — | — | — | 等待 M00/M03 Wave 0 |
 | M03 数据基础 | planned | — | — | — | — | 建立模型、Repository、adapter 接口 |
@@ -42,8 +42,8 @@
 
 | 需求范围 | Accountable | 测试/场景入口 | 当前状态 | 验收证据 |
 |---|---|---|---|---|
-| FR-AUTH-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/` | planned | 待实现 |
-| FR-RBAC-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/` | planned | 待实现 |
+| FR-AUTH-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`spec/scenarios/auth.feature` | planned | M00 contract-v0.1 已提供，待实现 |
+| FR-RBAC-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`spec/scenarios/auth.feature` | planned | M00 contract-v0.1 已提供，待实现 |
 | FR-DOC-001~008 | M02 | `tests/unit/documents/` | planned | 待实现 |
 | FR-SEARCH-001~002 / FR-RAG-001~006 | M04 | `tests/unit/retrieval/` | planned | 待实现 |
 | FR-QA-001~006 / FR-STREAM-001~005 | M05 | `tests/unit/qa/`、`tests/contract/stream/` | planned | 待实现 |
@@ -55,12 +55,12 @@
 
 ## 4. 当前波次计划
 
-### Wave 0 — 基线冻结（下一步）
+### Wave 0 — 基线冻结（进行中）
 
-- [ ] M00：从 SPEC §5、附录 B/C 建立 `contract-v0.1` 草案；
+- [x] M00：从 SPEC §5、附录 B/C 建立并集成 `contract-v0.1` 草案（48 项契约测试通过）；
 - [ ] M03：建立数据对象、Repository/UoW 和 PG/MinIO/Qdrant/Redis adapter 接口草案；
 - [ ] M08：建立 Next.js/TypeScript/shadcn 工程和 S3 设计系统边界；
-- [ ] 每个 Wave 0 模块创建自己的 worktree 和 `progress/modules/Mxx.md` 状态记录；
+- [x] M00 已创建独立 worktree、模块进度、场景与契约测试；
 - [ ] Wave 0 退出评审：契约、数据接口、Web client 输入冻结。
 
 ### Wave 1 — 核心能力
@@ -78,14 +78,20 @@ M11 组织完整测试、Golden Set、性能、恢复和回滚；M00 汇总矩�
 ## 5. 未完成项与已知差距
 
 - [ ] 真实 `api/`、`web/`、`worker/` 代码尚不存在；
-- [ ] `spec/contracts/`、`spec/scenarios/`、Golden Set 和供应商 Fake 尚待对应模块建立；
-- [ ] `tests/` 目前只有附录 D 目录骨架；
+- [x] `spec/contracts/`、`spec/scenarios/`、`spec/acceptance/matrix.md` 已由 M00 建立；Golden Set 和供应商 Fake 尚待对应模块建立；
+- [ ] `tests/` 已有 M00 `tests/contract/` 契约测试；其他测试层仍为骨架；
 - [ ] PostgreSQL/Qdrant/MinIO/Redis/Docker Compose 尚未建立；
 - [ ] 所有 `TBD-P0` 均未冻结，禁止模块自行填默认值；
 - [ ] P0 八项门槛均未验证；
-- [ ] `progress/changes/` 目前没有已批准的跨模块变更。
+- [ ] `progress/changes/` 目前没有已批准的跨模块变更；M00 已提交 `20260906-M00-contract-test-path.md`，待治理审核。
 
 ## 6. 轮次日志
+
+### 2026-09-06 — M00 contract-v0.1 集成
+
+- **完成**：合并 `module/M00-contracts`（merge commit 由本集成会话产生）；集成 OpenAPI、SSE、Worker schema、六组 Gherkin、验收矩阵及 48 项契约测试。
+- **验证**：主分支运行 `tests/contract` → **48 passed**；M00 tags：`contract-v0.1`、`M00-v0.1.0`。
+- **前置**：Wave 0 尚未完成，`wave-0-integrated` 需等待 M03/M08 交付后再创建。
 
 ### 2026-09-06 — MODULE-SPEC-1.0 建立
 
