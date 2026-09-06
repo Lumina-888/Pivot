@@ -1,0 +1,5 @@
+# M00 契约验证测试依赖（Wave 0）
+# 使用方式：python -m venv .venv && .venv/Scripts/python -m pip install -r tests/contract/requirements.txt
+pytest>=8.0
+jsonschema>=4.20
+PyYAML>=6.0

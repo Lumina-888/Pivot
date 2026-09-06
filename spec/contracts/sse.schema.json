@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pivot.local/spec/contracts/sse.schema.json",
+  "title": "Pivot SSE 事件 JSON data 负载信封（contract-v0.1）",
+  "description": "来源：SPEC §3.3、§5.6（SSE 事件契约）。本 schema 校验每条 SSE data 的 JSON 负载信封。事件名由 SSE 的 event: 行承载（合法集合见 x-event-types），不放入 JSON 负载（additionalProperties=false 强制）；Last-Event-ID 对应负载内 seq 字段，仅补发 seq 大于 last_event_id 的事件。seq 严格单调递增、终态事件最多一个且为最后一条属于跨事件序列约束，由 tests/contract/test_contract_sse_sequence.py 的序列校验函数保证。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "message_id", "seq", "timestamp", "stage", "payload"],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Run 不透明 ID（SPEC §2.2、§5.1），同一 Run 内所有事件一致"
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "对应 Message 不透明 ID（SPEC §2.2）"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Run 内单调递增序号（SPEC §3.3）；SSE id: 行使用本值，重连时以 Last-Event-ID 补发 seq 更大的事件"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC（SPEC 附录 B.3）"
+    },
+    "stage": {
+      "type": "string",
+      "minLength": 1,
+      "description": "当前阶段。取值参考 Run 状态（SPEC 附录 C.2）与 MVP 主图节点（SPEC §7.1 normalize/classify/retrieve/rerank/build_evidence/draft_answer/verify_claims/finalize/refuse）以及终态枚举；终态事件须为 x-terminal-event-types 之一"
+    },
+    "payload": {
+      "type": "object",
+      "description": "事件内容：run_started/stage/warning 通常为空或轻量摘要；token 为增量文本片段；citation 为结构化引用；终态事件承载最终结果摘要。具体载荷字段由对应消费模块（M05/M08）在实现契约中细化，本文件不冻结字段"
+    }
+  },
+  "x-event-types": [
+    "run_started",
+    "stage",
+    "token",
+    "citation",
+    "warning",
+    "completed",
+    "uncertain",
+    "refused",
+    "failed",
+    "cancelled"
+  ],
+  "x-terminal-event-types": ["completed", "uncertain", "refused", "failed", "cancelled"],
+  "x-spec-source": "SPEC.md §3.3、§5.6",
+  "x-contract-version": "contract-v0.1"
+}

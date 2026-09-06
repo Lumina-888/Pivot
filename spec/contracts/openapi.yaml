@@ -1,0 +1,1124 @@
+# 问枢 Pivot 公共 HTTP API 契约
+# contract-v0.1（Wave 0 草案；来源：SPEC.md §5.1~5.5、附录 B/C）
+#
+# 通用规则（SPEC §5.1）：
+# - Base URL：/api/v1；
+# - ID 为不透明字符串（Id），禁止依赖自增顺序；
+# - 时间为 ISO 8601 UTC（TimeStamp）；
+# - 所有 operation 以 default 响应声明统一错误包 Error（附录 B.1 错误码枚举）；
+# - 所有错误响应携带 request_id；不返回 Secret、堆栈或敏感上下文；
+# - 除 /auth/login、/auth/refresh 外的全部接口要求 bearerAuth（服务端授权，FR-RBAC-001/003）；
+# - 分页方案等 TBD-P0 项仅以 x-tbd-p0 注解声明，禁止在契约中静默填默认值。
+openapi: 3.0.3
+info:
+  title: 问枢 Pivot API
+  version: 0.1.0
+  description: >
+    问枢 Pivot MVP 公共 HTTP API（契约版本 contract-v0.1）。
+    规范源为根目录 SPEC.md（SPEC-1.0）§5.1~5.5 与附录 B/C；
+    变更记录见 spec/contracts/CHANGELOG.md；破坏性变更须升级 /api/v1 或提供兼容窗口。
+x-contract-version: contract-v0.1
+servers:
+  - url: /api/v1
+    description: 生产反向代理后路径（默认 HTTPS/VPN，SPEC §8.1、NFR-SEC-001）
+security:
+  - bearerAuth: []
+paths:
+  # ================= §5.2 认证接口 =================
+  /auth/login:
+    post:
+      operationId: login
+      summary: 登录（FR-AUTH-001/002）
+      description: 成功建立会话并返回短时 access token；refresh token 仅经 HttpOnly/Secure/SameSite Cookie 下发（FR-AUTH-001）。失败返回统一错误且不泄露“用户不存在/密码错误”差异（FR-AUTH-002）。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: 登录成功，Set-Cookie 同时写入 refresh token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginSuccess' }
+        default:
+          description: 统一错误包（含 AUTH_INVALID_CREDENTIALS、AUTH_FORBIDDEN、限流错误）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      summary: 刷新短时 access token（FR-AUTH-003）
+      description: refresh token 仅经 HttpOnly Cookie 提交；停用用户的既有 Token 全部失效（FR-AUTH-003、§3.4）。
+      security: []
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginSuccess' }
+        default:
+          description: 统一错误包（refresh 无效/过期）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: 退出并撤销 refresh 凭证（FR-AUTH-003）
+      responses:
+        '204':
+          description: 已撤销 refresh 凭证并清除 Cookie
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      summary: 修改密码（含首次登录改密，FR-AUTH-004）
+      description: 密码使用 Argon2id 或 bcrypt；初始密码不得经普通日志或 URL 传输（FR-AUTH-004）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '204':
+          description: 修改成功
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ================= §5.3 文档与搜索接口 =================
+  /documents:
+    get:
+      operationId: listDocuments
+      summary: 文档列表与筛选（FR-SEARCH-001 数据入口之一）
+      description: 仅返回当前用户有权访问、非 tombstone 的文档列表；删除请求后立即从列表过滤（FR-DOC-007）。
+      parameters:
+        - name: space
+          in: query
+          required: false
+          schema: { type: string }
+        - name: tags
+          in: query
+          required: false
+          schema: { type: array, items: { type: string } }
+        - name: page
+          in: query
+          required: false
+          x-tbd-p0: true
+          description: 分页方案 TBD-P0（SPEC §5.1），冻结前不承诺默认值
+          schema: { type: integer, minimum: 1 }
+        - name: page_size
+          in: query
+          required: false
+          x-tbd-p0: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 文档摘要列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentList' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      operationId: uploadDocument
+      summary: 管理员上传文档（FR-DOC-001~006）
+      description: multipart + Idempotency-Key；内容按扩展名、声明 MIME 与文件签名校验（FR-DOC-002）；相同 content_sha256 的重复上传幂等返回已存在版本（FR-DOC-005）。
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: 上传幂等键（FR-DOC-005、§5.1）
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/UploadDocument' }
+      responses:
+        '201':
+          description: 已受理，进入版本状态机（uploaded，SPEC §3.1）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentUploadResult' }
+        default:
+          description: 统一错误包（含 UNSUPPORTED_EXTENSION、INVALID_FILE_SIGNATURE、RESOURCE_LIMIT）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/documents/{id}':
+    get:
+      operationId: getDocument
+      summary: 文档详情（服务端资源授权，FR-RBAC-003）
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '200':
+          description: 文档详情（不含内部存储地址）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentDetail' }
+        default:
+          description: 统一错误包（RESOURCE_NOT_FOUND / RESOURCE_FORBIDDEN）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/documents/{id}/versions':
+    get:
+      operationId: listDocumentVersions
+      summary: 文档版本列表（FR-DOC-006、FR-RAG-005）
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '200':
+          description: 版本信息列表（含 current、生效区间与索引代次关联）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VersionList' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/documents/{id}/retry':
+    post:
+      operationId: retryDocument
+      summary: 重试失败任务（§3.1 parse_failed/embed_failed -> queued）
+      description: 仅管理员；失败版本在重试完成并发布前不得进入检索。
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '202':
+          description: 重试已受理（异步）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentActionResponse' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/documents/{id}/delete':
+    post:
+      operationId: deleteDocument
+      summary: 软删并触发异步清理（FR-DOC-007）
+      description: 删除先写 tombstone 并立即从列表与检索下线，再异步清理 Qdrant/缓存/导出物/原始对象；审计保留。
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '202':
+          description: 删除已受理（进入 delete_pending）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentActionResponse' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/documents/{id}/preview':
+    get:
+      operationId: previewDocument
+      summary: 授权预览（FR-RBAC-003、FR-EXPORT-001 同源语义）
+      description: 服务端授权后经短时授权响应返回内容；不暴露 MinIO 内部地址（SPEC §8.1）。文件由后端代理与清洗。
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '200':
+          description: 预览文件流
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/documents/{id}/download':
+    get:
+      operationId: downloadDocument
+      summary: 授权下载（FR-RBAC-003、NFR-SEC-015）
+      description: 文件名清洗（FR-EXPORT-003）；短时授权，不暴露 MinIO 内部地址。
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '200':
+          description: 文件流
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /search:
+    get:
+      operationId: searchDocuments
+      summary: 全局搜索（FR-SEARCH-001/002）
+      description: 关键词/摘要/类型/空间/标签筛选；结果仅含当前用户有权访问且 ready/current 的版本（FR-SEARCH-001）。进入对话须携带原问题且不改变 scope（FR-SEARCH-002）。
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: space
+          in: query
+          required: false
+          schema: { type: string }
+        - name: tag
+          in: query
+          required: false
+          schema: { type: string }
+        - name: page
+          in: query
+          required: false
+          x-tbd-p0: true
+          description: 分页方案 TBD-P0
+          schema: { type: integer, minimum: 1 }
+        - name: page_size
+          in: query
+          required: false
+          x-tbd-p0: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 搜索结果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchResponse' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ================= §5.4 会话与 Run 接口 =================
+  /conversations:
+    get:
+      operationId: listConversations
+      summary: 当前用户会话列表（FR-RBAC-002）
+      description: 只能看到自己的会话；管理员查看他人会话需显式授权并审计，默认不返回完整敏感内容（FR-RBAC-002、DR-005）。
+      responses:
+        '200':
+          description: 会话摘要列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationList' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      operationId: createConversation
+      summary: 创建会话（可带 scope）
+      description: Run 不得扩大 Conversation 的 scope（§2.2 不变量）；scope_type=document 时 scope_document_id 必填。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConversationCreate' }
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationSummary' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/conversations/{id}':
+    get:
+      operationId: getConversation
+      summary: 会话详情（owner 隔离，FR-RBAC-002）
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '200':
+          description: 会话信息
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationSummary' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      operationId: deleteConversation
+      summary: 删除或隐藏当前用户会话（FR-RBAC-002）
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '204':
+          description: 已删除/隐藏
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/conversations/{id}/messages':
+    get:
+      operationId: listMessages
+      summary: 当前用户消息（FR-RBAC-002）
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '200':
+          description: 消息列表（终态答案持久化在消息中，SSE 非唯一事实来源，FR-STREAM-003）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageList' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /runs:
+    post:
+      operationId: createRun
+      summary: 创建问答运行（FR-STREAM-001）
+      description: 相同用户、会话与有效 idempotency_key 的重复请求返回同一 Run；同键异参数返回 IDEMPOTENCY_CONFLICT（FR-STREAM-001、§3.2）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRunRequest' }
+      responses:
+        '200':
+          description: Run 已创建或幂等命中已存在 Run
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunCreated' }
+        default:
+          description: 统一错误包（含 IDEMPOTENCY_CONFLICT、EXTERNAL_LLM_NOT_ALLOWED）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/runs/{id}':
+    get:
+      operationId: getRun
+      summary: Run 状态与最终结果（FR-STREAM-003）
+      description: 终态持久化；SSE 断线且补发不可用时读取本接口（§3.3）。所有 Run 最终进入明确终态（§3.2）。
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '200':
+          description: Run 状态详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunDetail' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/runs/{id}/events':
+    get:
+      operationId: streamRunEvents
+      summary: Run 事件 SSE 流（SPEC §3.3、§5.6）
+      description: 事件名与信封见 spec/contracts/sse.schema.json；支持 Last-Event-ID 断线补发（FR-STREAM-003）。
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: 断线重连时携带已接收的最后 seq，服务端仅补发 seq 更大的事件（FR-STREAM-003）
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: text/event-stream；事件 JSON 负载须满足 sse.schema.json
+          content:
+            text/event-stream:
+              schema: { type: string }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/runs/{id}/cancel':
+    post:
+      operationId: cancelRun
+      summary: 取消未完成 Run（FR-STREAM-004）
+      description: 幂等；已完成 Run 不得改写；取消尽可能传递到 LLM、检索与 Worker。
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '200':
+          description: 取消受理（终态 cancelled）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CancelResult' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ================= §5.5 导出与后台接口 =================
+  /exports:
+    post:
+      operationId: createExport
+      summary: 创建 Markdown/Word 导出任务（FR-EXPORT-001/002/003）
+      description: 校验用户、源对象归属、格式；仅导出已持久化最终答案/Claims/Citation/允许展示的定位证据，不含 Prompt、思考链与隐藏上下文（FR-EXPORT-002）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExportCreateRequest' }
+      responses:
+        '202':
+          description: 导出任务已受理
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExportCreated' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/exports/{id}':
+    get:
+      operationId: getExport
+      summary: 导出状态与短时下载地址（FR-EXPORT-001/003）
+      description: download_url 为短时授权地址，过期不可下载（EXPORT_EXPIRED）；不暴露 MinIO 内部地址。
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      responses:
+        '200':
+          description: 导出任务状态
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExportStatus' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /admin/metrics:
+    get:
+      operationId: adminMetrics
+      summary: 基础运行指标（管理员）
+      responses:
+        '200':
+          description: 指标集结构 TBD-P0，冻结前以注解声明
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminMetrics' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /admin/tasks:
+    get:
+      operationId: adminTasks
+      summary: 解析任务与队列（管理员）
+      responses:
+        '200':
+          description: 任务列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminTaskList' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /admin/users:
+    get:
+      operationId: listUsers
+      summary: 用户列表（管理员，FR-AUTH-004）
+      responses:
+        '200':
+          description: 用户列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUserList' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      operationId: createUser
+      summary: 创建用户（管理员，FR-AUTH-004）
+      description: 初始密码仅经安全通道一次性传递，禁止普通日志或 URL 传输（FR-AUTH-004）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminUserCreate' }
+      responses:
+        '201':
+          description: 用户已创建
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUser' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  '/admin/users/{id}':
+    patch:
+      operationId: updateUser
+      summary: 停用/启用、角色变更、重置密码（§3.4、FR-AUTH-004）
+      description: 停用后立即阻止新登录与受保护资源访问，既有 Token 失效；启用/停用与角色变更必须审计（§3.4、FR-AUTH-001 停用失效）。
+      parameters:
+        - { $ref: '#/components/parameters/PathId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminUserUpdate' }
+      responses:
+        '200':
+          description: 更新后的用户
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUser' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /admin/audit-events:
+    get:
+      operationId: listAuditEvents
+      summary: 审计查询（管理员只读，FR-AUDIT-002/003）
+      description: 追加写、不可修改/删除；敏感内容按分级脱敏展示（FR-AUDIT-002）。分页方案 TBD-P0。
+      parameters:
+        - name: actor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: action
+          in: query
+          required: false
+          schema: { type: string }
+        - name: page
+          in: query
+          required: false
+          x-tbd-p0: true
+          schema: { type: integer, minimum: 1 }
+        - name: page_size
+          in: query
+          required: false
+          x-tbd-p0: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 审计事件列表（脱敏）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditEventList' }
+        default:
+          description: 统一错误包
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  parameters:
+    PathId:
+      name: id
+      in: path
+      required: true
+      description: 资源不透明 ID
+      schema: { $ref: '#/components/schemas/Id' }
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 短时 access token；refresh token 仅经 HttpOnly/Secure/SameSite Cookie（FR-AUTH-001）
+  schemas:
+    Id:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: 不透明字符串 ID（SPEC §5.1、附录 B.3）；禁止依赖自增 ID 暴露业务顺序
+    TimeStamp:
+      type: string
+      format: date-time
+      description: ISO 8601 UTC（SPEC 附录 B.3）
+    ScopeType:
+      type: string
+      enum: [global, document]
+      description: scope_type（SPEC 附录 C.1）；document 时须携带 scope_document_id
+    # ---- 统一错误包（SPEC §5.1、附录 B.1）----
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, request_id]
+      properties:
+        code:
+          type: string
+          enum:
+            - AUTH_INVALID_CREDENTIALS
+            - AUTH_FORBIDDEN
+            - RESOURCE_NOT_FOUND
+            - RESOURCE_FORBIDDEN
+            - IDEMPOTENCY_CONFLICT
+            - UNSUPPORTED_EXTENSION
+            - INVALID_FILE_SIGNATURE
+            - UNSUPPORTED_SCAN_PDF
+            - ENCRYPTED_FILE
+            - CORRUPTED_FILE
+            - RESOURCE_LIMIT
+            - EXTERNAL_LLM_NOT_ALLOWED
+            - PROVIDER_TIMEOUT
+            - PROVIDER_RATE_LIMITED
+            - PROVIDER_TEMPORARY_ERROR
+            - RUN_CANCELLED
+            - RUN_TIMEOUT
+            - VERIFICATION_UNAVAILABLE
+            - EXPORT_EXPIRED
+          description: 错误码枚举（SPEC 附录 B.1）
+        message:
+          type: string
+          description: 面向用户的统一说明，不泄露内部细节
+        request_id:
+          type: string
+          minLength: 1
+          description: 追踪 ID；所有错误必须携带（SPEC §5.1、FR-AUDIT-003）
+        details:
+          type: object
+          description: 结构化附加信息；禁止返回 Secret、堆栈或敏感上下文
+        retryable:
+          type: boolean
+          description: 是否可安全重试（SPEC 附录 B.1 每码标注）
+    # ---- 认证（SPEC §4.1、§5.2）----
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1 }
+        password: { type: string, minLength: 1 }
+    LoginSuccess:
+      type: object
+      additionalProperties: false
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token: { type: string, description: 短时 access token（JWT） }
+        token_type: { type: string, const: Bearer }
+        expires_in:
+          type: integer
+          x-tbd-p0: true
+          description: 有效期秒数 TBD-P0
+        refresh_token_cookie:
+          type: boolean
+          description: 固定为 true 的说明字段：refresh token 仅经 HttpOnly/Secure/SameSite Cookie 下发（FR-AUTH-001）
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password: { type: string, description: 首次改密时可为初始密码 }
+        new_password: { type: string, minLength: 8 }
+    # ---- 文档（SPEC §2.2、§4.3、§5.3）----
+    UploadDocument:
+      type: object
+      additionalProperties: false
+      required: [title, file]
+      properties:
+        title: { type: string, minLength: 1, description: 文档标题 }
+        space:
+          type: string
+          description: 空间（共享库准入前提，FR-RBAC-004；ACL 属 P1 后能力）
+        tags: { type: array, items: { type: string } }
+        classification:
+          type: string
+          description: 密级；与 external_llm_allowed 一并影响外部模型门禁（SPEC §8.3）
+        external_llm_allowed:
+          type: boolean
+          description: 是否允许外发至外部 LLM；上传时与任务执行前各检查一次（SPEC §8.3）
+        content_sha256:
+          type: string
+          description: 可选入参；服务端计算/校验（FR-DOC-005 重复上传幂等，SPEC §5.3）
+        file:
+          type: string
+          format: binary
+          description: 白名单格式 .pdf/.docx/.pptx/.xlsx（FR-DOC-001）；扩展名/MIME/签名校验后进入隔离解析（FR-DOC-002/003）
+    DocumentUploadResult:
+      type: object
+      additionalProperties: false
+      required: [document_id, version_id, state]
+      properties:
+        document_id: { $ref: '#/components/schemas/Id' }
+        version_id: { $ref: '#/components/schemas/Id' }
+        state:
+          type: string
+          const: uploaded
+          description: 初始版本状态（SPEC §3.1）
+    DocumentSummary:
+      type: object
+      additionalProperties: false
+      required: [document_id, title, created_at]
+      properties:
+        document_id: { $ref: '#/components/schemas/Id' }
+        title: { type: string }
+        space: { type: string }
+        tags: { type: array, items: { type: string } }
+        classification: { type: string }
+        created_at: { $ref: '#/components/schemas/TimeStamp' }
+        current_version:
+          description: 当前有效版本摘要；无 ready 版本时为空
+          type: [object, 'null']
+          properties:
+            version_id: { $ref: '#/components/schemas/Id' }
+            version_label: { type: string }
+            state: { type: string }
+    DocumentList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/DocumentSummary' } }
+        pagination:
+          type: [object, 'null']
+          x-tbd-p0: true
+          description: 分页结构 TBD-P0（SPEC §5.1）
+    DocumentDetail:
+      type: object
+      additionalProperties: false
+      required: [document_id, title, created_at]
+      properties:
+        document_id: { $ref: '#/components/schemas/Id' }
+        title: { type: string }
+        space: { type: string }
+        tags: { type: array, items: { type: string } }
+        classification: { type: string }
+        created_by: { type: string, description: 上传者用户名（非敏感代理字段） }
+        created_at: { $ref: '#/components/schemas/TimeStamp' }
+        deleted_at:
+          type: [string, 'null']
+          format: date-time
+          description: tombstone 时间；非空表示已下线待清理（FR-DOC-007）
+        versions:
+          type: array
+          items: { $ref: '#/components/schemas/DocumentVersionInfo' }
+    DocumentVersionInfo:
+      type: object
+      additionalProperties: false
+      required: [version_id, document_id, version_label, state, current]
+      properties:
+        version_id: { $ref: '#/components/schemas/Id' }
+        document_id: { $ref: '#/components/schemas/Id' }
+        version_label: { type: string }
+        state:
+          type: string
+          description: DocumentVersion 状态（SPEC 附录 C.3：uploaded/queued/parsing/chunking/embedding/indexed/ready/parse_failed/embed_failed/delete_pending/deleted/delete_failed）
+        current: { type: boolean, description: 同一逻辑文档最多一个 current=true（§2.2 不变量） }
+        content_sha256: { type: string }
+        effective_from:
+          type: [string, 'null']
+          format: date-time
+        effective_to:
+          type: [string, 'null']
+          format: date-time
+        external_llm_allowed: { type: boolean }
+        embedding_model_version: { type: string }
+        index_generation:
+          type: [string, 'null']
+          description: 参与检索的发布代次（FR-RAG-006）
+        created_at: { $ref: '#/components/schemas/TimeStamp' }
+    VersionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/DocumentVersionInfo' } }
+        pagination:
+          type: [object, 'null']
+          x-tbd-p0: true
+    DocumentActionResponse:
+      type: object
+      additionalProperties: false
+      required: [document_id, accepted]
+      properties:
+        document_id: { $ref: '#/components/schemas/Id' }
+        accepted: { type: boolean, description: 异步操作已受理；结果经任务状态接口跟踪（SPEC §2.2 CeleryTask） }
+    SearchResultItem:
+      type: object
+      additionalProperties: false
+      required: [document_id, title]
+      properties:
+        document_id: { $ref: '#/components/schemas/Id' }
+        title: { type: string }
+        space: { type: string }
+        snippet:
+          type: string
+          description: 命中摘要（关键词/摘要，FR-SEARCH-001）
+        version_id: { $ref: '#/components/schemas/Id' }
+        updated_at: { $ref: '#/components/schemas/TimeStamp' }
+    SearchResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/SearchResultItem' } }
+        pagination:
+          type: [object, 'null']
+          x-tbd-p0: true
+    # ---- 会话 / 消息 / Run（SPEC §2.2、§5.4）----
+    ConversationCreate:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1 }
+        scope_type: { $ref: '#/components/schemas/ScopeType' }
+        scope_document_id:
+          type: string
+          description: scope_type=document 时必填；Run 不得扩大 Conversation scope（§2.2）
+    ConversationSummary:
+      type: object
+      additionalProperties: false
+      required: [conversation_id, owner_id, title, scope_type, created_at, updated_at]
+      properties:
+        conversation_id: { $ref: '#/components/schemas/Id' }
+        owner_id: { $ref: '#/components/schemas/Id' }
+        title: { type: string }
+        scope_type: { $ref: '#/components/schemas/ScopeType' }
+        scope_document_id:
+          type: [string, 'null']
+          description: scope_type=document 时非空
+        created_at: { $ref: '#/components/schemas/TimeStamp' }
+        updated_at: { $ref: '#/components/schemas/TimeStamp' }
+    ConversationList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ConversationSummary' } }
+        pagination:
+          type: [object, 'null']
+          x-tbd-p0: true
+    Message:
+      type: object
+      additionalProperties: false
+      required: [message_id, conversation_id, sender, content, status, created_at]
+      properties:
+        message_id: { $ref: '#/components/schemas/Id' }
+        conversation_id: { $ref: '#/components/schemas/Id' }
+        sender: { type: string, description: user/assistant 等角色（SPEC §2.2 Message.sender） }
+        content: { type: string, description: 已持久化的最终答案/问题文本 }
+        status: { type: string, description: 消息渲染状态，取值与 Run 终态映射（answered/uncertain/refused/failed/cancelled） }
+        run_id:
+          type: [string, 'null']
+          description: 关联 Run；普通消息为空
+        created_at: { $ref: '#/components/schemas/TimeStamp' }
+    MessageList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Message' } }
+    CreateRunRequest:
+      type: object
+      additionalProperties: false
+      required: [conversation_id, question, idempotency_key]
+      properties:
+        conversation_id: { $ref: '#/components/schemas/Id' }
+        question: { type: string, minLength: 1, description: 原问题（FR-SEARCH-002 进入对话须携带原问题） }
+        scope_type:
+          type: string
+          enum: [global, document]
+          description: scope_type（SPEC 附录 C.1）
+        scope_document_id:
+          type: string
+          description: scope_type=document 时必填；Run 不得扩大 Conversation scope（§2.2、FR-RAG-003）
+        idempotency_key: { type: string, minLength: 1, description: 有效幂等键不能产生多个业务 Run（§2.2、FR-STREAM-001） }
+    RunCreated:
+      type: object
+      additionalProperties: false
+      required: [run_id, message_id, initial_state, request_id]
+      properties:
+        run_id: { $ref: '#/components/schemas/Id' }
+        message_id: { $ref: '#/components/schemas/Id' }
+        initial_state:
+          type: object
+          x-tbd-p0: true
+          description: 初始状态结构 TBD-P0（SPEC §5.4 仅要求返回 initial_state，未冻结字段）；冻结后回填并升级契约
+        request_id: { type: string, description: 本次请求追踪 ID（FR-AUDIT-003） }
+    RunDetail:
+      type: object
+      additionalProperties: false
+      required: [run_id, conversation_id, message_id, state, created_at]
+      properties:
+        run_id: { $ref: '#/components/schemas/Id' }
+        conversation_id: { $ref: '#/components/schemas/Id' }
+        message_id: { $ref: '#/components/schemas/Id' }
+        question: { type: string }
+        state:
+          type: string
+          description: Run 状态（SPEC 附录 C.2：received/planning/retrieving/retrying/waiting_for_user/resuming/drafting/verifying/answered/uncertain/refused/failed/cancelled）
+        attempt: { type: integer, minimum: 1 }
+        error_code:
+          type: [string, 'null']
+          description: 终态 failed 时非空（附录 B.1）
+        model_version: { type: [string, 'null'] }
+        retrieval_config_version: { type: [string, 'null'] }
+        index_generation: { type: [string, 'null'] }
+        created_at: { $ref: '#/components/schemas/TimeStamp' }
+        started_at: { type: [string, 'null'], format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+        scope_type: { $ref: '#/components/schemas/ScopeType' }
+        scope_document_id: { type: [string, 'null'] }
+    CancelResult:
+      type: object
+      additionalProperties: false
+      required: [run_id, state]
+      properties:
+        run_id: { $ref: '#/components/schemas/Id' }
+        state: { type: string, description: cancelled（已完成 Run 不改写，FR-STREAM-004） }
+    # ---- 导出（SPEC §2.2、§4.7、§5.5）----
+    ExportCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [source_type, source_id, format]
+      properties:
+        source_type:
+          type: string
+          enum: [conversation, document]
+          description: 导出来源：会话答案或文档内容；仅允许已授权范围（FR-EXPORT-001）
+        source_id: { $ref: '#/components/schemas/Id' }
+        format:
+          type: string
+          enum: [markdown, docx]
+          description: Markdown/Word 导出（SPEC §5.5）
+    ExportCreated:
+      type: object
+      additionalProperties: false
+      required: [export_id, state]
+      properties:
+        export_id: { $ref: '#/components/schemas/Id' }
+        state:
+          type: string
+          const: requested
+          description: 初始状态（SPEC 附录 C.5）
+    ExportStatus:
+      type: object
+      additionalProperties: false
+      required: [export_id, state, expires_at]
+      properties:
+        export_id: { $ref: '#/components/schemas/Id' }
+        state:
+          type: string
+          description: ExportTask 状态（SPEC 附录 C.5：requested/queued/generating/ready/failed/expired）
+        download_url:
+          type: [string, 'null']
+          description: 仅 ready 时非空；短时授权地址，不暴露 MinIO 内部地址（FR-EXPORT-001）；过期不可下载（FR-EXPORT-003）
+        expires_at: { $ref: '#/components/schemas/TimeStamp' }
+    # ---- 审计 / 成本（SPEC §2.2、§4.8、§5.5）----
+    AuditEventInfo:
+      type: object
+      additionalProperties: false
+      required: [audit_event_id, actor, action, target, result, created_at]
+      properties:
+        audit_event_id: { $ref: '#/components/schemas/Id' }
+        actor: { type: string, description: 发起者（用户名/系统） }
+        action: { type: string, description: 动作名（login/upload/qa/export/...，FR-AUDIT-001 关键事件覆盖） }
+        target: { type: string, description: 对象摘要（经脱敏，FR-AUDIT-002） }
+        result: { type: string }
+        request_id: { type: [string, 'null'] }
+        run_id: { type: [string, 'null'], description: 问答复盘关联（FR-AUDIT-003） }
+        metadata: { type: object, description: 脱敏后的附加信息 }
+        created_at: { $ref: '#/components/schemas/TimeStamp' }
+    AuditEventList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AuditEventInfo' } }
+        pagination:
+          type: [object, 'null']
+          x-tbd-p0: true
+    # ---- 管理端（SPEC §5.5）----
+    AdminMetrics:
+      type: object
+      additionalProperties: true
+      x-tbd-p0: true
+      description: 基础指标字段集 TBD-P0（SPEC §5.5 仅声明端点；监控项清单见 SPEC §9.2），冻结前不承诺结构
+    AdminTaskInfo:
+      type: object
+      additionalProperties: false
+      required: [task_id, entity_type, entity_id, attempt, state, retryable, created_at]
+      properties:
+        task_id: { $ref: '#/components/schemas/Id' }
+        entity_type: { type: string, description: 实体类型（document_version 等，SPEC §2.2 CeleryTask） }
+        entity_id: { $ref: '#/components/schemas/Id' }
+        attempt: { type: integer, minimum: 1 }
+        state: { type: string, description: 任务执行状态 }
+        retryable: { type: boolean }
+        created_at: { $ref: '#/components/schemas/TimeStamp' }
+    AdminTaskList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AdminTaskInfo' } }
+        pagination:
+          type: [object, 'null']
+          x-tbd-p0: true
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required: [user_id, username, role, status, created_at]
+      properties:
+        user_id: { $ref: '#/components/schemas/Id' }
+        username: { type: string }
+        role: { type: string, enum: [admin, user], description: Role（SPEC §2.2） }
+        status: { type: string, enum: [active, disabled], description: UserStatus（SPEC §2.2） }
+        created_at: { $ref: '#/components/schemas/TimeStamp' }
+        updated_at: { $ref: '#/components/schemas/TimeStamp' }
+    AdminUserList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AdminUser' } }
+        pagination:
+          type: [object, 'null']
+          x-tbd-p0: true
+    AdminUserCreate:
+      type: object
+      additionalProperties: false
+      required: [username, initial_password]
+      properties:
+        username: { type: string, minLength: 1 }
+        initial_password:
+          type: string
+          minLength: 8
+          description: 初始密码，仅经安全通道一次性返回；禁止普通日志或 URL 传输（FR-AUTH-004）；传递机制细节 TBD-P0
+    AdminUserUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        role: { type: string, enum: [admin, user] }
+        status: { type: string, enum: [active, disabled] }
+        reset_password:
+          type: boolean
+          description: 置位时生成新初始密码经安全通道返回（FR-AUTH-004）
+      anyOf:
+        - required: [role]
+        - required: [status]
+        - required: [reset_password]
