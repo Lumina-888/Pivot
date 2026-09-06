@@ -1,0 +1,1 @@
+"""Dependency-free adapter helpers."""
