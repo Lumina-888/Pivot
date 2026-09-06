@@ -16,4 +16,4 @@
 - **兼容方案**：骨架页不含登录/知识库/对话/后台业务；浏览器只走 `/api/v1` 与 SSE，不直连模型、向量库或 MinIO。
 - **测试 ID**：`test_NFR_UX_design_tokens_align_s3`、`test_NFR_UX_001_keyboard_and_focus_visible`、`test_NFR_UX_003_aria_live_and_reduced_motion`、`test_FR_AUTH_001_*`、`test_FR_STREAM_002_*`、`test_FR_STREAM_003_*`。
 - **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置）。
-- **审核结果**：待 M00/集成维护者在 Wave 0 退出评审中确认。
+- **审核结果**：2026-09-06 Wave 0 退出评审 **批准**。已写入 `MODULE_SPEC.md` §3 M08 允许路径与 §5.1 Owner 表；M09 实现 `/` 时必须替换 `web/app/page.tsx`。

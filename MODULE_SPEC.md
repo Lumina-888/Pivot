@@ -107,6 +107,7 @@ progress/modules/<自己的模块>.md
 spec/contracts/**
 spec/scenarios/**
 spec/acceptance/**
+tests/contract/*（根级 conftest/requirements/test_contract_*；不含 stream 等模块子路径）
 progress/modules/M00.md
 progress/changes/**（审核后归档）
 ```
@@ -179,11 +180,11 @@ progress/modules/M02.md
 **允许修改**：
 
 ```text
+api/pyproject.toml
 api/src/pivot/db/**
 api/src/pivot/storage/**
 migrations/**
-api/src/pivot/shared/ids.py
-api/src/pivot/shared/time.py
+api/src/pivot/shared/**
 tests/integration/db/**
 progress/modules/M03.md
 ```
@@ -290,11 +291,17 @@ progress/modules/M07.md
 
 ```text
 web/package.json
+web/package-lock.json
 web/next.config.*
 web/tsconfig.json
+web/.eslintrc.json
+web/next-env.d.ts
 web/app/globals.css
+web/app/layout.tsx
+web/app/page.tsx（Wave 0 装配页；M09 实现 `/` 时必须替换或删除）
 web/components/ui/**
 web/components/layouts/**
+web/lib/cn.ts
 web/lib/api/**
 web/lib/auth/**
 web/lib/stream/**
@@ -302,7 +309,7 @@ tests/e2e/fixtures/web/**
 progress/modules/M08.md
 ```
 
-页面 routes、feature components 和视觉稿原文件不在 M08 所有权内。共享组件 API 变更应提交变更申请并通知 M09/M10。
+产品页面 routes、feature components 和视觉稿原文件不在 M08 所有权内。共享组件 API 变更应提交变更申请并通知 M09/M10。
 
 **首批测试**：设计令牌对齐 S3、`:focus-visible`、键盘操作、aria-live、prefers-reduced-motion、无长期凭证 localStorage、SSE 断线状态可展示。
 
@@ -470,11 +477,12 @@ M11 组织 Golden Set、真实容器、5 并发/100k Chunk、供应商故障、�
 | `PROGRESS.md` | 集成维护者 | 模块只改自己的 `progress/modules/Mxx.md` |
 | `spec/contracts/**` | M00 | `progress/changes/` + 消费者确认 |
 | `spec/scenarios/**`、`spec/acceptance/**` | M00 | 提供场景/证据更新提案 |
+| `tests/contract/` 根级（`test_contract_*`、conftest、requirements） | M00 | M05 仍拥有 `tests/contract/stream/**` |
 | `api/pyproject.toml`、锁文件 | M03 | 提交依赖申请，由 M03 串行合并 |
 | `api/src/pivot/shared/**` | M03 | 变更申请，禁止复制到其他模块 |
 | `api/src/pivot/errors.py` / 公共错误码 | M00 规范、M03 基础实现 | 变更申请 + 契约测试 |
 | `migrations/**` | M03 | 每个迁移唯一编号、禁止并行重编号 |
-| `web/package.json`、共享组件 | M08 | 组件 API 变更申请 |
+| `web/package.json`、`web/package-lock.json`、共享组件、`web/lib/cn.ts`、根 layout | M08 | 组件 API 变更申请；`web/app/page.tsx` 由 M09 接管 `/` 时替换 |
 | `docker-compose*`、CI、`ops/**` | M11 | 集成变更记录 |
 | `progress/modules/Mxx.md` | 对应 Mxx | 只允许该模块会话修改 |
 | `progress/changes/**` | 提案作者，M00 审核 | 审核后保留或归档 |
@@ -709,12 +717,12 @@ progress/modules/M04.md，以及当前波次的集成 tag。
 
 ## 11. 当前未覆盖与后续承接
 
-本文件建立并行边界，不代表这些能力已经实现。当前仓库仍处于开发前规格基线：
+本文件建立并行边界，不代表 Wave 1 业务能力已经实现。Wave 0 已冻结契约、数据端口和 Web client 输入：
 
-- 没有真实 `api/`、`web/`、`worker/` 代码；
-- `spec/contracts/`、`spec/scenarios/` 和大部分 fixtures 仍待对应波次生成；
-- `tests/` 只有目录骨架；
+- `api/` 仅有 M03 模型/UoW/存储端口；`web/` 仅有 M08 设计系统与 client；`worker/` 仍未实现；
+- `spec/contracts/`、`spec/scenarios/` 与契约测试已存在；业务 fixtures 仍待对应波次生成；
+- `tests/` 已有 M00 契约、M03 数据集成和 M08 基础 fixture，其余层仍为骨架；
 - `TBD-P0` 仍必须按原 SPEC 的 P0 流程冻结；
 - Docker/PG/Qdrant/MinIO/Redis 集成、Golden Set、性能和灾备须由后续模块波次完成。
 
-第一轮可从 Wave 0 启动；Wave 0 的会话不得越过自己的所有权边界提前实现 Wave 1 业务逻辑。
+Wave 1 会话必须基于 `wave-0-integrated`，不得越过自己的所有权边界提前实现其他模块业务逻辑。

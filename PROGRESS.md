@@ -2,8 +2,8 @@
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-06  
-> **当前状态**：Wave 0 进行中；M00 契约已集成，M03/M08 待完成。  
-> **当前基线**：`wave-0-m00-integrated`（M00 contract-v0.1 已集成）。
+> **当前状态**：Wave 0 已完成退出评审；基线 `wave-0-integrated`。
+> **当前基线**：`wave-0-integrated`（M00 `contract-v0.1` + M03 数据端口 + M08 Web client 已冻结）。
 
 ## 1. 新会话恢复入口
 
@@ -13,7 +13,7 @@
 4. 用 `git log --oneline --decorate -20`、`git worktree list` 确认实际基线；
 5. 只有满足模块 DoR 后，才在对应 `module/Mxx-*` worktree 开发。
 
-如果没有指定模块：先从 **Wave 0 的 M00、M03、M08** 中选择一个尚未被其他会话认领的模块，不要直接实现 Wave 1 业务代码。
+如果没有指定模块：从 **Wave 1 的 M01、M02、M04、M05、M06、M07** 中选择一个尚未被其他会话认领的模块；基于 `wave-0-integrated` 创建 worktree，不要直接实现 Wave 2 页面。
 
 ## 2. 当前波次与模块状态
 
@@ -22,17 +22,17 @@
 | 模块 | 状态 | 分支/worktree | 会话/Owner | 基线契约 | 最近证据 | 下一步 |
 |---|---|---|---|---|---|---|
 | M00 契约治理 | integrated | `module/M00-contracts` / `../Pivot-M00-contracts` | 本会话已集成 | `contract-v0.1` | `tests/contract`: 48 passed | 已完成契约、场景、矩阵；依赖模块开始消费 |
-| M01 身份授权 | planned | — | — | — | — | 等待 M00/M03 Wave 0 |
-| M02 文档接入 | planned | — | — | — | — | 等待 M00/M03 Wave 0 |
+| M01 身份授权 | planned | — | — | `contract-v0.1` | — | 可基于 `wave-0-integrated` 启动 |
+| M02 文档接入 | planned | — | — | `contract-v0.1` | — | 可基于 `wave-0-integrated` 启动 |
 | M03 数据基础 | integrated | `module/M03-data` / `../Pivot-M03-data` | 本集成会话 | `contract-v0.1` | M03 12 + M00 48 tests passed；Ruff/compile 通过 | PostgreSQL/外部存储集成待 M11 验证 |
-| M04 检索 RAG | planned | — | — | — | — | 等待 M00/M03/M07 |
-| M05 QA/Run/SSE | planned | — | — | — | — | 等待 M00/M03/M04 |
-| M06 导出/审计 | planned | — | — | — | — | 等待 M00/M03/M05 |
-| M07 Worker/解析/索引 | planned | — | — | — | — | 等待 M00/M02/M03 |
-| M08 Web 基础 | planned | — | — | — | — | 建立 Next.js、S3 设计系统、client 边界 |
-| M09 员工前台 | planned | — | — | — | — | 等待 M08 与 Wave 1 契约 |
-| M10 管理后台 | planned | — | — | — | — | 等待 M08 与 Wave 1 契约 |
-| M11 集成/质量/运维 | planned | — | — | — | — | 等待各模块交付 |
+| M04 检索 RAG | planned | — | — | `contract-v0.1` | — | 等待 M07 索引端口消费；可先用 Fake |
+| M05 QA/Run/SSE | planned | — | — | `contract-v0.1` | — | 等待 M04；可先用 Fake 检索 |
+| M06 导出/审计 | planned | — | — | `contract-v0.1` | — | 等待 M05 持久化答案/Run |
+| M07 Worker/解析/索引 | planned | — | — | `contract-v0.1` | — | 可基于 M02 规则与 M03 端口启动 |
+| M08 Web 基础 | integrated | `module/M08-web-foundation` / `../Pivot-M08-web-foundation` | 本集成会话 | `contract-v0.1` | M08 9 tests + typecheck/lint 通过 | M09/M10 消费共享组件与 client |
+| M09 员工前台 | planned | — | — | `contract-v0.1` | — | 等待 Wave 1 契约与可运行 fixture |
+| M10 管理后台 | planned | — | — | `contract-v0.1` | — | 等待 Wave 1 契约与可运行 fixture |
+| M11 集成/质量/运维 | planned | — | — | `wave-0-integrated` | Wave 0 回归 69 passed | 等待 Wave 1 模块交付 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护；模块会话不要并发编辑本表。
 
@@ -50,18 +50,18 @@
 | FR-EXPORT-001~003 / FR-AUDIT-001~003 | M06 | `tests/unit/exports/`、`tests/unit/audit/` | planned | 待实现 |
 | §2 存储不变量 | M03 | `tests/integration/db/`、`api/src/pivot/db/`、`migrations/` | implemented | M03 12 项测试 + 48 项 M00 契约回归通过；PostgreSQL 真实环境待 M11 |
 | §6 解析/分块/索引执行 | M07 | `tests/unit/worker/`、`tests/integration/worker/` | planned | 待实现 |
-| 10 页 UI / NFR-UX | M08/M09/M10 | `tests/e2e/user/`、`tests/e2e/admin/` | planned | 待实现 |
+| §1.5 / NFR-UX 设计系统与 client | M08 | `tests/e2e/fixtures/web/test-foundation.mjs` | implemented | M08 9 项基础测试通过；产品页面待 M09/M10 |
+| 10 页 UI | M09/M10 | `tests/e2e/user/`、`tests/e2e/admin/` | planned | 待实现 |
 | NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/security/`、`tests/performance/`、`evidence/` | planned | 待实现 |
 
 ## 4. 当前波次计划
 
-### Wave 0 — 基线冻结（进行中）
+### Wave 0 — 基线冻结（已完成）
 
 - [x] M00：从 SPEC §5、附录 B/C 建立并集成 `contract-v0.1` 草案（48 项契约测试通过）；
 - [x] M03：建立数据对象、Repository/UoW 和 PG/MinIO/Qdrant/Redis adapter 接口草案；12 项 M03 测试与 48 项 M00 回归通过；
-- [ ] M08：建立 Next.js/TypeScript/shadcn 工程和 S3 设计系统边界；
-- [x] M00 已创建独立 worktree、模块进度、场景与契约测试；
-- [ ] Wave 0 退出评审：契约、数据接口、Web client 输入冻结。
+- [x] M08：建立 Next.js/TypeScript 工程、S3 设计系统和 API/SSE client 边界（9 项基础测试通过）；
+- [x] Wave 0 退出评审：契约、数据接口、Web client 输入已冻结；三项所有权变更申请已批准；标签 `wave-0-integrated`。
 
 ### Wave 1 — 核心能力
 
@@ -77,15 +77,31 @@ M11 组织完整测试、Golden Set、性能、恢复和回滚；M00 汇总矩�
 
 ## 5. 未完成项与已知差距
 
-- [ ] 真实 `api/`、`web/`、`worker/` 代码尚不存在；
+- [x] Wave 0 基础已存在：`api/` 数据端口、`web/` 设计系统与 client；`worker/` 仍未实现；
 - [x] `spec/contracts/`、`spec/scenarios/`、`spec/acceptance/matrix.md` 已由 M00 建立；Golden Set 和供应商 Fake 尚待对应模块建立；
-- [ ] `tests/` 已有 M00 `tests/contract/` 契约测试；其他测试层仍为骨架；
+- [x] `tests/` 已有 M00 契约 48、M03 数据 12、M08 基础 9；其余测试层仍为骨架；
 - [ ] PostgreSQL/Qdrant/MinIO/Redis/Docker Compose 尚未建立；
 - [ ] 所有 `TBD-P0` 均未冻结，禁止模块自行填默认值；
 - [ ] P0 八项门槛均未验证；
-- [ ] `progress/changes/` 目前没有已批准的跨模块变更；M00 已提交 `20260906-M00-contract-test-path.md`，待治理审核。
+- [x] Wave 0 三项变更申请已批准：`20260906-M00-contract-test-path.md`、`20260906-M03-ownership-clarification.md`、`20260906-M08-web-scaffold-ownership.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-06 — Wave 0 退出评审与 `wave-0-integrated`
+
+- **完成**：非快进合并 `module/M08-web-foundation`（`1181e28`）；批准三项所有权变更并写入 `MODULE_SPEC.md`；创建 `wave-0-integrated`。
+- **验证**（main，2026-09-06）：
+  - `pytest tests/integration/db tests/contract -q` → **60 passed**（M03 12 + M00 48）；
+  - `npm --prefix web ci && npm --prefix web test` → **9 passed**；
+  - `npm --prefix web run typecheck`、`npm --prefix web run lint` → 通过。
+- **退出条件核对**：
+  - `contract-v0.1` 已冻结（OpenAPI/SSE/Worker + 48 项契约测试）；
+  - 数据 adapter 协议已冻结（Repository/UoW、Object/Vector/Queue/Cache ports）；
+  - Web API/SSE client 输入已冻结（`/api/v1`、错误包、SSE 事件白名单、`Last-Event-ID`）；
+  - 公共路径所有权无歧义（三项变更申请已写入 MODULE_SPEC）；
+  - M00/M03/M08 均有进度文件、模块 tag 与测试证据。
+- **限制/不通过项**：未连接真实 PostgreSQL/MinIO/Qdrant/Redis；无浏览器 E2E；`web/app/page.tsx` 为装配页，M09 必须替换；`npm audit` 报告 Next 14.2.15 传递依赖漏洞，不在 Wave 0 静默升级；全部 `TBD-P0` 与 GATE-P0 仍未冻结/验证。
+- **基线**：M08 模块提交 `2fac277`、标签 `M08-v0.1.0`；Wave 0 标签 `wave-0-integrated`。
 
 ### 2026-09-06 — M00 contract-v0.1 集成
 

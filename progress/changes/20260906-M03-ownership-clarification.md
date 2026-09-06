@@ -9,4 +9,4 @@
 - **兼容方案**：`api/pyproject.toml` 只声明可安装依赖和 pytest 配置，不改变公开 API；shared 工具保持独立、无外部服务依赖。若治理会话要求调整所有权，后续仅迁移文件位置，不改变接口。
 - **测试 ID**：`test_M03_opaque_ids_are_non_sequential_strings`、`test_M03_utc_helpers_return_timezone_aware_utc` 及 M03 数据集成测试。
 - **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置）；ID 具体编码仍为实现内部细节，不升级为公共契约。
-- **审核结果**：待 M00/集成维护者审核；审核前继续使用本变更所述兼容范围，不修改其他 Owner 路径。
+- **审核结果**：2026-09-06 Wave 0 退出评审 **批准**。已写入 `MODULE_SPEC.md` §3 M03 允许路径，与 §5.1 的 `api/pyproject.toml`、`api/src/pivot/shared/**` Owner 对齐。
