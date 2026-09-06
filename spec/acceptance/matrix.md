@@ -1,18 +1,19 @@
 # 验收矩阵（Acceptance Matrix）
 
-> 模板源：SPEC §12.4。按功能域追踪必测场景与结果字段，行内填入具体需求 ID（索引见 SPEC 附录 A）。随各需求批次进入 `implemented/verified` 逐行填写（SPEC §0.3、§0.5 DoD）。每行须满足追踪链路：需求 ID → 场景 ID → 契约/数据 → 测试 ID → 验收证据 → verified（SPEC §12.1）。
+> 模板源：SPEC §12.4。每行满足追踪链路：需求 ID → 场景 ID → 契约/数据 → 测试 ID → 验收证据 → verified（SPEC §12.1）。
+> 本表为 **Wave 0 追踪基线（contract-v0.1）**：契约层已冻结并有契约测试证据；功能层需求一律 `proposed`（未实现不标记），待对应模块实现后由集成会话回填测试与证据（SPEC §0.3、§0.5 DoD）。Accountable 映射见 MODULE_SPEC §8；测试命名 `test_<requirement_id>_<behavior>()`（SPEC 附录 D）。
 
-## 模板
+| 功能域 | 必测场景 | 需求 ID | Accountable | 契约/场景入口 | 测试 ID（计划） | 结果字段（报告/日志/状态） | 验收证据路径 | 状态 |
+|---|---|---|---|---|---|---|---|---|
+| 认证 | 成功、失败、刷新、退出、停用、密码生命周期 | FR-AUTH-001~004 | M01 | `scenarios/auth.feature` | T-AUTH-001/002/003、T-SEC-LOGIN-RATE | 登录/刷新/退出/停用审计事件 | `tests/unit/auth/`、`tests/security/auth/`（Wave 1 待建） | proposed |
+| RBAC | 普通用户后台、会话归属、资源四重授权、共享库准入 | FR-RBAC-001~004 | M01 | `scenarios/auth.feature` | T-RBAC-001~003、T-SCOPE-001（配合 M04） | API 负向响应、审计事件 | `tests/unit/auth/`、`tests/security/auth/`（Wave 1 待建） | proposed |
+| 文档 | 上传、签名、解析错误、幂等、版本原子发布、删除、孤儿扫描 | FR-DOC-001~008 | M02 | `scenarios/ingestion.feature` | T-DOC-SIGNATURE、T-DOC-VERSION 等 | 版本状态（附录 C.3）、任务记录 | `tests/unit/documents/`、`tests/integration/documents/`（Wave 1 待建） | proposed |
+| RAG | 混合检索、服务端过滤、scope、单路降级、版本冲突、代次追溯 | FR-SEARCH-001~002、FR-RAG-001~006 | M04 | `scenarios/retrieval.feature` | T-SCOPE-001、T-SEC-SCOPE-BYPASS 等 | 检索结果、index_generation/embedding 版本 | `tests/unit/retrieval/`、`tests/security/retrieval/`（Wave 1 待建） | proposed |
+| 问答 | 主图、引用、拒答、Verifier、澄清、轻量轨迹 | FR-QA-001~006 | M05 | `scenarios/qa.feature` | 首批 QA 测试（模块 DoR） | Run/Claim/Citation 状态 | `tests/unit/qa/`、`tests/unit/runs/`（Wave 1 待建） | proposed |
+| SSE | 有序、断线、重连、取消、终态、幂等创建、重试预算 | FR-STREAM-001~005 | M05 | `scenarios/stream.feature`、`contracts/sse.schema.json` | test_contract_sse_*（已过）、test_FR_STREAM_003_reconnects_from_last_event_id | seq/终态事件序列、Run 终态 | `tests/contract/`（48 项已过）、`tests/unit/runs/`（Wave 1 待建） | 契约层 accepted；实现层 proposed |
+| 导出 | 授权、内容边界、过期、文件名清洗 | FR-EXPORT-001~003 | M06 | `scenarios/export.feature` | 导出模块首批测试 | ExportTask 状态（附录 C.5）、下载与审计 | `tests/unit/exports/`、`tests/security/export/`（Wave 1 待建） | proposed |
+| 审计 | 关键事件覆盖、追加写脱敏、问答复盘 | FR-AUDIT-001~003 | M06 | `scenarios/export.feature`（审计场景） | 审计模块首批测试 | 审计事件行、脱敏字段 | `tests/unit/audit/`（Wave 1 待建） | proposed |
+| Worker/解析 | 四类格式、分块 locator、Embedding、索引代次 | §3.1、§5.7、§6.1~6.2 | M07 | `contracts/worker.schema.json` | test_contract_worker_*（已过） | Worker status/error_code、任务状态 | `tests/unit/worker/`、`tests/integration/worker/`（Wave 1 待建） | 契约层 accepted；实现层 proposed |
+| 运维 | 健康、重启、备份、恢复、回滚、容量 | NFR-OBS-001/002、NFR-DR-001~004、NFR-CAP/PERF、GATE-P0-001~008 | M11 | SPEC §9、§10.7、§12.2 | 性能/可靠性/恢复测试 | /healthz、/readyz、RPO/RTO 实测、压测报告 | `tests/performance/`、`evidence/`（Wave 3 待建） | proposed |
 
-| 功能域 | 必测场景 | 需求 ID | 测试 ID | 结果字段（报告/日志/状态） | 验收证据路径 | 状态 |
-|---|---|---|---|---|---|---|
-| 认证 | 成功、失败、刷新、退出、停用 | | | | | |
-| RBAC | 普通用户后台、会话、资源越权 | | | | | |
-| 文档 | 上传、签名、解析、重试、版本、删除 | | | | | |
-| RAG | 混合检索、过滤、scope、降级、冲突 | | | | | |
-| 问答 | 引用、拒答、Verifier、重试、澄清 | | | | | |
-| SSE | 有序、断线、重连、取消、终态 | | | | | |
-| 导出 | 授权、内容边界、过期、审计 | | | | | |
-| 运维 | 健康、重启、备份、恢复、回滚 | | | | | |
-
-状态取值：`proposed / accepted / implemented / verified / deferred`（SPEC §0.2）。验收证据可为 CI 报告、契约测试、Golden Set 报告、压测报告、安全清单、恢复演练日志、迁移/回滚记录或生产前截图/录屏；**截图不能替代自动化测试**（SPEC §12.1）。
+状态取值：`proposed / accepted / implemented / verified / deferred`（SPEC §0.2）。验收证据可为 CI 报告、契约测试、Golden Set 报告、压测报告、安全清单、恢复演练日志、迁移/回滚记录或生产前截图/录屏；**截图不能替代自动化测试**（SPEC §12.1）。契约层 `accepted` 表示对应 `spec/contracts/` 文件已冻结并通过 `tests/contract/`（契约测试证据：2026-09-06，48 passed）。
