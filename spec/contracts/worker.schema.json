@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pivot.local/spec/contracts/worker.schema.json",
+  "title": "Pivot 内部 Worker 输出契约（contract-v0.1）",
+  "description": "来源：SPEC §5.7（内部 Worker 契约）、附录 B.1。status ∈ {ok, insufficient, failed}：ok 必须携带 content 与 citations 且 error_code 为 null；insufficient 表示输出不足以作答（不得携带非空 error_code）；failed 必须携带非空 error_code 与 trace。Worker 不得改变权限范围、调用未白名单工具或保存跨任务记忆（SPEC §5.7）。",
+  "type": "object",
+  "definitions": {
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "duration_ms"],
+      "properties": {
+        "stage": {
+          "type": "string",
+          "description": "输出阶段名，与 SPEC §7.1 主图节点一致（如 retrieve/rerank/draft/verify）"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "该阶段耗时毫秒"
+        }
+      }
+    },
+    "citation": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "轻量引用载荷，具体字段由消费模块（M04/M05）在实现契约中细化，本文件不冻结字段"
+    }
+  },
+  "oneOf": [
+    {
+      "title": "ok",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "content", "citations", "confidence", "error_code", "trace"],
+      "properties": {
+        "status": { "const": "ok" },
+        "content": { "type": "object", "description": "节点结构化输出（如草稿答案/证据包）" },
+        "citations": { "type": "array", "items": { "$ref": "#/definitions/citation" } },
+        "confidence": { "type": ["number", "null"], "description": "置信度，可为 null（SPEC §5.7 示例）" },
+        "error_code": { "const": null, "description": "ok 状态不得携带错误码" },
+        "trace": { "$ref": "#/definitions/trace" }
+      }
+    },
+    {
+      "title": "insufficient",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "content", "citations", "confidence", "error_code", "trace"],
+      "properties": {
+        "status": { "const": "insufficient" },
+        "content": { "type": ["object", "null"], "description": "可空：不足以作答时不承诺结构化输出" },
+        "citations": { "type": "array", "items": { "$ref": "#/definitions/citation" } },
+        "confidence": { "type": ["number", "null"] },
+        "error_code": { "const": null, "description": "insufficient 是结果不足而非失败，不得携带错误码" },
+        "trace": { "$ref": "#/definitions/trace" }
+      }
+    },
+    {
+      "title": "failed",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "content", "citations", "confidence", "error_code", "trace"],
+      "properties": {
+        "status": { "const": "failed" },
+        "content": { "type": ["object", "null"] },
+        "citations": { "type": "array", "items": { "$ref": "#/definitions/citation" } },
+        "confidence": { "type": ["number", "null"] },
+        "error_code": {
+          "type": "string",
+          "minLength": 1,
+          "description": "必填：错误码取值参考 SPEC 附录 B.1，稳定后可扩展枚举"
+        },
+        "trace": { "$ref": "#/definitions/trace" }
+      }
+    }
+  ],
+  "x-spec-source": "SPEC.md §5.7、附录 B.1",
+  "x-contract-version": "contract-v0.1"
+}
