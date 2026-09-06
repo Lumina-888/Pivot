@@ -1,0 +1,52 @@
+"""In-memory Run aggregate used by M05 unit tests."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+
+
+@dataclass
+class RunRecord:
+    id: str
+    conversation_id: str
+    message_id: str
+    owner_id: str
+    question: str
+    idempotency_key: str
+    fingerprint: str
+    scope_type: str = "global"
+    scope_document_id: str | None = None
+    state: str = "received"
+    rewrite_count: int = 0
+    clarification_count: int = 0
+    error_code: str | None = None
+    answer_markdown: str | None = None
+    created_at: datetime | None = None
+
+
+@dataclass
+class ClaimRecord:
+    id: str
+    run_id: str
+    text: str
+    citation_ids: tuple[str, ...]
+    support: str = "unsupported"
+
+
+@dataclass
+class CitationRecord:
+    id: str
+    run_id: str
+    claim_id: str
+    document_id: str
+    version_id: str
+    chunk_id: str
+    locator: str = ""
+
+
+@dataclass
+class RunBundle:
+    run: RunRecord
+    claims: list[ClaimRecord] = field(default_factory=list)
+    citations: list[CitationRecord] = field(default_factory=list)
