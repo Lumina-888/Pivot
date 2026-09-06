@@ -1,0 +1,26 @@
+{
+  "name": "pivot-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint",
+    "test": "tsx ../tests/e2e/fixtures/web/test-foundation.mjs"
+  },
+  "dependencies": {
+    "next": "14.2.15",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.7.4",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "eslint": "8.57.1",
+    "eslint-config-next": "14.2.15",
+    "tsx": "4.19.1",
+    "typescript": "5.6.2"
+  }
+}
