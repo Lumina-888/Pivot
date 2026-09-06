@@ -24,7 +24,7 @@
 | M00 契约治理 | integrated | `module/M00-contracts` / `../Pivot-M00-contracts` | 本会话已集成 | `contract-v0.1` | `tests/contract`: 48 passed | 已完成契约、场景、矩阵；依赖模块开始消费 |
 | M01 身份授权 | planned | — | — | — | — | 等待 M00/M03 Wave 0 |
 | M02 文档接入 | planned | — | — | — | — | 等待 M00/M03 Wave 0 |
-| M03 数据基础 | planned | — | — | — | — | 建立模型、Repository、adapter 接口 |
+| M03 数据基础 | integrated | `module/M03-data` / `../Pivot-M03-data` | 本集成会话 | `contract-v0.1` | M03 12 + M00 48 tests passed；Ruff/compile 通过 | PostgreSQL/外部存储集成待 M11 验证 |
 | M04 检索 RAG | planned | — | — | — | — | 等待 M00/M03/M07 |
 | M05 QA/Run/SSE | planned | — | — | — | — | 等待 M00/M03/M04 |
 | M06 导出/审计 | planned | — | — | — | — | 等待 M00/M03/M05 |
@@ -48,7 +48,7 @@
 | FR-SEARCH-001~002 / FR-RAG-001~006 | M04 | `tests/unit/retrieval/` | planned | 待实现 |
 | FR-QA-001~006 / FR-STREAM-001~005 | M05 | `tests/unit/qa/`、`tests/contract/stream/` | planned | 待实现 |
 | FR-EXPORT-001~003 / FR-AUDIT-001~003 | M06 | `tests/unit/exports/`、`tests/unit/audit/` | planned | 待实现 |
-| §2 存储不变量 | M03 | `tests/integration/db/` | planned | 待实现 |
+| §2 存储不变量 | M03 | `tests/integration/db/`、`api/src/pivot/db/`、`migrations/` | implemented | M03 12 项测试 + 48 项 M00 契约回归通过；PostgreSQL 真实环境待 M11 |
 | §6 解析/分块/索引执行 | M07 | `tests/unit/worker/`、`tests/integration/worker/` | planned | 待实现 |
 | 10 页 UI / NFR-UX | M08/M09/M10 | `tests/e2e/user/`、`tests/e2e/admin/` | planned | 待实现 |
 | NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/security/`、`tests/performance/`、`evidence/` | planned | 待实现 |
@@ -58,7 +58,7 @@
 ### Wave 0 — 基线冻结（进行中）
 
 - [x] M00：从 SPEC §5、附录 B/C 建立并集成 `contract-v0.1` 草案（48 项契约测试通过）；
-- [ ] M03：建立数据对象、Repository/UoW 和 PG/MinIO/Qdrant/Redis adapter 接口草案；
+- [x] M03：建立数据对象、Repository/UoW 和 PG/MinIO/Qdrant/Redis adapter 接口草案；12 项 M03 测试与 48 项 M00 回归通过；
 - [ ] M08：建立 Next.js/TypeScript/shadcn 工程和 S3 设计系统边界；
 - [x] M00 已创建独立 worktree、模块进度、场景与契约测试；
 - [ ] Wave 0 退出评审：契约、数据接口、Web client 输入冻结。
@@ -92,6 +92,13 @@ M11 组织完整测试、Golden Set、性能、恢复和回滚；M00 汇总矩�
 - **完成**：合并 `module/M00-contracts`（merge commit 由本集成会话产生）；集成 OpenAPI、SSE、Worker schema、六组 Gherkin、验收矩阵及 48 项契约测试。
 - **验证**：主分支运行 `tests/contract` → **48 passed**；M00 tags：`contract-v0.1`、`M00-v0.1.0`。
 - **前置**：Wave 0 尚未完成，`wave-0-integrated` 需等待 M03/M08 交付后再创建。
+
+### 2026-09-06 — M03 数据基础集成
+
+- **完成**：以非快进方式合并 `module/M03-data`，集成 SQLAlchemy 模型、Alembic 初始迁移、UnitOfWork、Repository/存储端口、opaque ID/UTC 工具和审计追加写保护。
+- **验证**：在 M03 worktree 环境运行 `tests/integration/db tests/contract` → **60 passed**；Ruff check 与 compileall 均通过。
+- **限制**：尚未连接真实 PostgreSQL/MinIO/Qdrant/Redis；PostgreSQL 权限、partial index、审计触发器由 M11 后续验证。
+- **基线**：M03 模块提交 `9a8e851`、标签 `M03-v0.1.0`；本次集成提交为当前 main HEAD。
 
 ### 2026-09-06 — MODULE-SPEC-1.0 建立
 
