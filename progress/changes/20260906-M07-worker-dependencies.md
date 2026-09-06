@@ -12,4 +12,4 @@
 - **兼容方案**：单元测试不调用真实供应商；无密钥、无网络。
 - **测试 ID**：`test_FR_DOC_004_*`、`test_M07_chunk_locator_*`、`test_FR_DOC_005_duplicate_task_*`。
 - **是否触发 ADR**：否。
-- **审核结果**：待审核。
+- **审核结果**：2026-09-06 Wave 1 退出评审 **暂缓写入依赖**。stdlib/启发式解析与 Fake Embedding 已合并；Celery/PyMuPDF/python-docx 等由 M03/M11 后续加入 worker extra，本波次不静默改 `api/pyproject.toml`。

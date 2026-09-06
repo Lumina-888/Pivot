@@ -2,8 +2,8 @@
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-06  
-> **当前状态**：Wave 0 已完成退出评审；基线 `wave-0-integrated`。
-> **当前基线**：`wave-0-integrated`（M00 `contract-v0.1` + M03 数据端口 + M08 Web client 已冻结）。
+> **当前状态**：Wave 1 已完成退出评审；基线 `wave-1-integrated`。
+> **当前基线**：`wave-1-integrated`（Wave 0 契约/数据/Web client + M01–M02/M04–M07 领域服务）。
 
 ## 1. 新会话恢复入口
 
@@ -13,7 +13,7 @@
 4. 用 `git log --oneline --decorate -20`、`git worktree list` 确认实际基线；
 5. 只有满足模块 DoR 后，才在对应 `module/Mxx-*` worktree 开发。
 
-如果没有指定模块：从 **Wave 1 的 M01、M02、M04、M05、M06、M07** 中选择一个尚未被其他会话认领的模块；基于 `wave-0-integrated` 创建 worktree，不要直接实现 Wave 2 页面。
+如果没有指定模块：从 **Wave 2 的 M09、M10、M11** 中选择一个尚未被其他会话认领的模块；基于 `wave-1-integrated` 创建 worktree。不要在本波次静默加 FastAPI/Celery/Compose，也不要冻结 `TBD-P0`。
 
 ## 2. 当前波次与模块状态
 
@@ -22,17 +22,17 @@
 | 模块 | 状态 | 分支/worktree | 会话/Owner | 基线契约 | 最近证据 | 下一步 |
 |---|---|---|---|---|---|---|
 | M00 契约治理 | integrated | `module/M00-contracts` / `../Pivot-M00-contracts` | 本会话已集成 | `contract-v0.1` | `tests/contract`: 48 passed | 已完成契约、场景、矩阵；依赖模块开始消费 |
-| M01 身份授权 | planned | — | — | `contract-v0.1` | — | 可基于 `wave-0-integrated` 启动 |
-| M02 文档接入 | planned | — | — | `contract-v0.1` | — | 可基于 `wave-0-integrated` 启动 |
+| M01 身份授权 | integrated | `module/M01-auth` / `../Pivot-M01-auth` | 本集成会话 | `contract-v0.1` | 27 passed；tag `M01-v0.1.0` | HTTP 路由待 FastAPI 依赖 |
+| M02 文档接入 | integrated | `module/M02-documents` / `../Pivot-M02-documents` | 本集成会话 | `contract-v0.1` | 15 passed；tag `M02-v0.1.0` | 解析执行已由 M07 提供；上传 HTTP 待装配 |
 | M03 数据基础 | integrated | `module/M03-data` / `../Pivot-M03-data` | 本集成会话 | `contract-v0.1` | M03 12 + M00 48 tests passed；Ruff/compile 通过 | PostgreSQL/外部存储集成待 M11 验证 |
-| M04 检索 RAG | planned | — | — | `contract-v0.1` | — | 等待 M07 索引端口消费；可先用 Fake |
-| M05 QA/Run/SSE | planned | — | — | `contract-v0.1` | — | 等待 M04；可先用 Fake 检索 |
-| M06 导出/审计 | planned | — | — | `contract-v0.1` | — | 等待 M05 持久化答案/Run |
-| M07 Worker/解析/索引 | planned | — | — | `contract-v0.1` | — | 可基于 M02 规则与 M03 端口启动 |
+| M04 检索 RAG | integrated | `module/M04-retrieval` / `../Pivot-M04-retrieval` | 本集成会话 | `contract-v0.1` | 10 passed；tag `M04-v0.1.0` | 真实 dense/BM25/rerank 与 Golden Set 待后续 |
+| M05 QA/Run/SSE | integrated | `module/M05-qa-stream` / `../Pivot-M05-qa-stream` | 本集成会话 | `contract-v0.1` | 12 passed；tag `M05-v0.1.0` | HTTP/SSE 传输与 LangGraph extra 待后续 |
+| M06 导出/审计 | integrated | `module/M06-export-audit` / `../Pivot-M06-export-audit` | 本集成会话 | `contract-v0.1` | 26 passed；tag `M06-v0.1.0` | 导出 HTTP 与 PG/MinIO 持久化待后续 |
+| M07 Worker/解析/索引 | integrated | `module/M07-worker` / `../Pivot-M07-worker` | 本集成会话 | `contract-v0.1` | 7 passed；tag `M07-v0.1.0` | Celery/真实解析库待依赖审核 |
 | M08 Web 基础 | integrated | `module/M08-web-foundation` / `../Pivot-M08-web-foundation` | 本集成会话 | `contract-v0.1` | M08 9 tests + typecheck/lint 通过 | M09/M10 消费共享组件与 client |
-| M09 员工前台 | planned | — | — | `contract-v0.1` | — | 等待 Wave 1 契约与可运行 fixture |
-| M10 管理后台 | planned | — | — | `contract-v0.1` | — | 等待 Wave 1 契约与可运行 fixture |
-| M11 集成/质量/运维 | planned | — | — | `wave-0-integrated` | Wave 0 回归 69 passed | 等待 Wave 1 模块交付 |
+| M09 员工前台 | planned | — | — | `wave-1-integrated` | — | 可基于 `wave-1-integrated` 启动 |
+| M10 管理后台 | planned | — | — | `wave-1-integrated` | — | 可基于 `wave-1-integrated` 启动 |
+| M11 集成/质量/运维 | planned | — | — | `wave-1-integrated` | Wave 1 领域 97 + Wave 0 回归 60 | Compose/CI/真实存储 fixture 待 Wave 2/3 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护；模块会话不要并发编辑本表。
 
@@ -42,14 +42,14 @@
 
 | 需求范围 | Accountable | 测试/场景入口 | 当前状态 | 验收证据 |
 |---|---|---|---|---|
-| FR-AUTH-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`spec/scenarios/auth.feature` | planned | M00 contract-v0.1 已提供，待实现 |
-| FR-RBAC-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`spec/scenarios/auth.feature` | planned | M00 contract-v0.1 已提供，待实现 |
-| FR-DOC-001~008 | M02 | `tests/unit/documents/` | planned | 待实现 |
-| FR-SEARCH-001~002 / FR-RAG-001~006 | M04 | `tests/unit/retrieval/` | planned | 待实现 |
-| FR-QA-001~006 / FR-STREAM-001~005 | M05 | `tests/unit/qa/`、`tests/contract/stream/` | planned | 待实现 |
-| FR-EXPORT-001~003 / FR-AUDIT-001~003 | M06 | `tests/unit/exports/`、`tests/unit/audit/` | planned | 待实现 |
+| FR-AUTH-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`spec/scenarios/auth.feature` | implemented | 27 项 M01 测试通过；无 HTTP；argon2-cffi 未写入 pyproject |
+| FR-RBAC-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`spec/scenarios/auth.feature` | implemented | 资源四重授权与会话隔离负向测试通过 |
+| FR-DOC-001~008 | M02 | `tests/unit/documents/` | implemented | 15 项 M02 测试通过；无上传 HTTP / 真实 MinIO |
+| FR-SEARCH-001~002 / FR-RAG-001~006 | M04 | `tests/unit/retrieval/`、`tests/security/retrieval/` | implemented | 10 项 M04 测试通过；dense/BM25 为 Fake |
+| FR-QA-001~006 / FR-STREAM-001~005 | M05 | `tests/unit/qa/`、`tests/unit/runs/`、`tests/contract/stream/` | implemented | 12 项 M05 测试通过；SSE 为内存 EventLog |
+| FR-EXPORT-001~003 / FR-AUDIT-001~003 | M06 | `tests/unit/exports/`、`tests/unit/audit/`、`tests/security/export/` | implemented | 26 项 M06 测试通过；内存审计/导出存储 |
 | §2 存储不变量 | M03 | `tests/integration/db/`、`api/src/pivot/db/`、`migrations/` | implemented | M03 12 项测试 + 48 项 M00 契约回归通过；PostgreSQL 真实环境待 M11 |
-| §6 解析/分块/索引执行 | M07 | `tests/unit/worker/`、`tests/integration/worker/` | planned | 待实现 |
+| §6 解析/分块/索引执行 | M07 | `tests/unit/worker/` | implemented | 7 项 M07 测试通过；stdlib/Fake Embedding，非 Celery |
 | §1.5 / NFR-UX 设计系统与 client | M08 | `tests/e2e/fixtures/web/test-foundation.mjs` | implemented | M08 9 项基础测试通过；产品页面待 M09/M10 |
 | 10 页 UI | M09/M10 | `tests/e2e/user/`、`tests/e2e/admin/` | planned | 待实现 |
 | NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/security/`、`tests/performance/`、`evidence/` | planned | 待实现 |
@@ -63,9 +63,15 @@
 - [x] M08：建立 Next.js/TypeScript 工程、S3 设计系统和 API/SSE client 边界（9 项基础测试通过）；
 - [x] Wave 0 退出评审：契约、数据接口、Web client 输入已冻结；三项所有权变更申请已批准；标签 `wave-0-integrated`。
 
-### Wave 1 — 核心能力
+### Wave 1 — 核心能力（已完成）
 
-M01、M02、M04、M05、M06、M07 并行；前置条件是 Wave 0 集成 tag。详见 `MODULE_SPEC.md §4.3`。
+- [x] M01：认证会话、RBAC、资源四重授权（27 项测试，`M01-v0.1.0`）；
+- [x] M02：文档签名、状态机、幂等与 tombstone（15 项测试，`M02-v0.1.0`）；
+- [x] M07：可插拔解析/分块/Fake Embedding/索引代次（7 项测试，`M07-v0.1.0`）；
+- [x] M04：服务端过滤、scope、RRF 降级（10 项测试，`M04-v0.1.0`）；
+- [x] M05：问答主图、Run 幂等、SSE 事件日志（12 项测试，`M05-v0.1.0`）；
+- [x] M06：导出授权/内容边界/过期与脱敏审计（26 项测试，`M06-v0.1.0`）；
+- [x] Wave 1 退出评审：模块 tag 齐全；矩阵回填为单元层 `implemented`；M11 可装配单元/契约 fixture；标签 `wave-1-integrated`。
 
 ### Wave 2 — 页面与联调
 
@@ -77,15 +83,40 @@ M11 组织完整测试、Golden Set、性能、恢复和回滚；M00 汇总矩�
 
 ## 5. 未完成项与已知差距
 
-- [x] Wave 0 基础已存在：`api/` 数据端口、`web/` 设计系统与 client；`worker/` 仍未实现；
-- [x] `spec/contracts/`、`spec/scenarios/`、`spec/acceptance/matrix.md` 已由 M00 建立；Golden Set 和供应商 Fake 尚待对应模块建立；
-- [x] `tests/` 已有 M00 契约 48、M03 数据 12、M08 基础 9；其余测试层仍为骨架；
-- [ ] PostgreSQL/Qdrant/MinIO/Redis/Docker Compose 尚未建立；
+- [x] Wave 0 基础已存在：`api/` 数据端口、`web/` 设计系统与 client；
+- [x] Wave 1 领域服务已存在：auth/documents/retrieval/qa/runs/stream/exports/audit/parsing/chunking 与 `worker/`（Fake/stdlib）；
+- [x] `spec/contracts/`、`spec/scenarios/`、`spec/acceptance/matrix.md` 已由 M00 建立；Golden Set 和真实供应商 Fake 仍待 M11；
+- [x] `tests/` 已有 M00 契约 48、M03 数据 12、M08 基础 9、Wave 1 领域 97；
+- [ ] 无 FastAPI `/api/v1` HTTP 与 SSE 传输；无 Celery；无 Docker Compose；
+- [ ] PostgreSQL/Qdrant/MinIO/Redis 尚未建立；
 - [ ] 所有 `TBD-P0` 均未冻结，禁止模块自行填默认值；
 - [ ] P0 八项门槛均未验证；
 - [x] Wave 0 三项变更申请已批准：`20260906-M00-contract-test-path.md`、`20260906-M03-ownership-clarification.md`、`20260906-M08-web-scaffold-ownership.md`。
+- [x] Wave 1 观测包变更已批准：`20260906-M06-observability-package-init.md`。
+- [ ] Wave 1 依赖变更暂缓写入 pyproject：`20260906-M01-auth-dependencies.md`、`20260906-M05-langgraph.md`、`20260906-M07-worker-dependencies.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-06 — Wave 1 退出评审与 `wave-1-integrated`
+
+- **完成**：按 DAG 非快进合并 M01 → M02 → M07 → M04 → M05 → M06；补齐 `M01/M02/M04/M05/M07-v0.1.0`；批准 M06 观测包 `__init__.py`；依赖类变更申请暂缓写入 pyproject。
+- **验证**（main，2026-09-06，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）：
+  - M01 `tests/unit/auth tests/security/auth` → **27 passed**；
+  - M02 `tests/unit/documents` → **15 passed**；
+  - M04 `tests/unit/retrieval tests/security/retrieval` → **10 passed**；
+  - M05 `tests/unit/qa tests/unit/runs tests/contract/stream` → **12 passed**；
+  - M06 `tests/unit/exports tests/unit/audit tests/security/export` → **26 passed**；
+  - M07 `tests/unit/worker` → **7 passed**；
+  - Wave 0：`tests/integration/db` **12** + `tests/contract --ignore stream` **48** → **60 passed**；
+  - 合计领域+回归 **157 passed**（因各模块 `fakes.py` 同名，分组执行而非单进程收集）；
+  - ruff check / compileall 覆盖 Wave 1 Python 包 → 通过。
+- **退出条件核对**（`MODULE_SPEC.md` §4.3）：
+  - 六模块单元/契约测试通过；
+  - 模块 tag `M01–M07-v0.1.0` 齐全；
+  - M00 追踪矩阵已回填单元层 `implemented`（不标 `verified`）；
+  - M11 可装配单元/契约 fixture（无 Compose/真实存储，属 Wave 2/3）。
+- **限制/不通过项**：无 HTTP/SSE 传输；Worker 非 Celery；解析器非 PyMuPDF 全家桶；未连接 PG/MinIO/Qdrant/Redis；`argon2-cffi` 仅本地 venv；全部 `TBD-P0` 与 GATE-P0 仍未冻结/验证。
+- **基线**：合并终点 `db42789`；文档提交后创建 `wave-1-integrated`。
 
 ### 2026-09-06 — Wave 0 退出评审与 `wave-0-integrated`
 

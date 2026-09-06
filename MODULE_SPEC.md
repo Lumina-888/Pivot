@@ -246,6 +246,7 @@ progress/modules/M05.md
 ```text
 api/src/pivot/exports/**
 api/src/pivot/audit/**
+api/src/pivot/observability/__init__.py
 api/src/pivot/observability/audit/**
 tests/unit/exports/**
 tests/unit/audit/**

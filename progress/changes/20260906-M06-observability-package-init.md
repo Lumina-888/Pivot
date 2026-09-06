@@ -9,4 +9,4 @@
 - **兼容方案**：仅包初始化；若治理要求观测根包改 Owner，可迁移文件位置而不改 sink 接口。
 - **测试 ID**：`test_FR_AUDIT_001_accepts_m01_audit_sink_drafts`
 - **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置）。
-- **审核结果**：待集成会话审核。
+- **审核结果**：2026-09-06 Wave 1 退出评审 **批准**。已写入 `MODULE_SPEC.md` §3 M06 允许路径：`api/src/pivot/observability/__init__.py` 为包标记，与 `observability/audit/**` 对齐。

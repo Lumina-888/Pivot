@@ -12,4 +12,4 @@
 - **兼容方案**：M01 单元测试使用 `TestPasswordHasher`（PBKDF2）注入，不依赖 `argon2-cffi`。`Argon2idHasher` 在缺少该包时失败并指向本文件。Refresh 凭证只以 SHA-256 哈希保存在 RefreshTokenStore，不入库明文。
 - **测试 ID**：`test_NFR_SEC_004_argon2id_hasher_uses_expected_prefix`、`test_FR_AUTH_001_*`、`test_FR_AUTH_004_*`。
 - **是否触发 ADR**：否（算法已由 SPEC 指定；不改变状态机、权限或检索配置）。
-- **审核结果**：待 M03/集成维护者审核。
+- **审核结果**：2026-09-06 Wave 1 退出评审 **暂缓写入 pyproject**。Argon2id 算法与测试已合并；`argon2-cffi` 仍由 M03 后续串行加入 `api/pyproject.toml`，本波次不把未批准依赖写进公共锁文件。集成回归仅在本地 venv 安装该包。
