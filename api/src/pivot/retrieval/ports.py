@@ -1,0 +1,24 @@
+"""Dense/BM25/rerank ports. Implementations are fakes until M07/M11 wire real backends."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from pivot.retrieval.models import RankedHit
+
+
+class Retriever(Protocol):
+    def search(self, query: str, k: int) -> tuple[RankedHit, ...]: ...
+
+
+class Reranker(Protocol):
+    def rerank(
+        self, query: str, chunk_ids: tuple[str, ...], texts: dict[str, str], limit: int
+    ) -> tuple[RankedHit, ...]: ...
+
+
+class RetrieverError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
