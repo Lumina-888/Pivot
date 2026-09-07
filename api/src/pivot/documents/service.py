@@ -6,6 +6,7 @@ import hashlib
 from datetime import datetime
 
 from pivot.documents.errors import (
+    DocumentError,
     invalid_signature,
     resource_limit,
     unsupported_extension,
@@ -25,7 +26,7 @@ from pivot.documents.ports import (
     VersionStore,
 )
 from pivot.documents.signatures import normalize_filename, validate_upload
-from pivot.domain.document_state import is_searchable, next_state
+from pivot.domain.document_state import TERMINAL_FAILURE, is_searchable, next_state
 from pivot.shared.ids import new_id
 from pivot.shared.time import utc_now
 
@@ -208,12 +209,49 @@ class DocumentService:
         self._audit(actor_id, "doc.retry", version.id, "ok", request_id)
         return version
 
-    def request_delete(self, document_id: str, request_id: str, actor_id: str) -> DocumentRecord:
-        document = self._documents.get(document_id)
-        if document is None:
-            from pivot.documents.errors import DocumentError
+    def retry_document(self, document_id: str, request_id: str, actor_id: str) -> VersionRecord:
+        self._require_document(document_id, request_id)
+        failed = [
+            version
+            for version in self._versions.list_for_document(document_id)
+            if version.state in TERMINAL_FAILURE
+        ]
+        if not failed:
+            raise DocumentError("RESOURCE_FORBIDDEN", "没有可重试的失败版本", request_id)
+        return self.retry(failed[-1].id, request_id, actor_id)
 
+    def get_detail(
+        self, document_id: str, *, viewer_role: str, request_id: str
+    ) -> dict[str, object]:
+        document = self._require_document(document_id, request_id)
+        if viewer_role != "admin" and (
+            document.deleted_at is not None or document.space != "shared"
+        ):
             raise DocumentError("RESOURCE_NOT_FOUND", "资源不存在", request_id)
+        created = document.created_at or self._now()
+        return {
+            "document_id": document.id,
+            "title": document.title,
+            "space": document.space,
+            "tags": list(document.tags),
+            "classification": document.classification,
+            "created_by": document.created_by,
+            "created_at": created.isoformat(),
+            "deleted_at": None if document.deleted_at is None else document.deleted_at.isoformat(),
+            "versions": [
+                self._version_view(version)
+                for version in self._versions.list_for_document(document.id)
+            ],
+        }
+
+    def list_versions(
+        self, document_id: str, *, viewer_role: str, request_id: str
+    ) -> tuple[dict[str, object], ...]:
+        detail = self.get_detail(document_id, viewer_role=viewer_role, request_id=request_id)
+        return tuple(detail["versions"])  # type: ignore[arg-type]
+
+    def request_delete(self, document_id: str, request_id: str, actor_id: str) -> DocumentRecord:
+        document = self._require_document(document_id, request_id)
         now = self._now()
         document.deleted_at = now
         self._documents.save(document)
@@ -340,13 +378,27 @@ class DocumentService:
         self._versions.save(version)
         return version
 
+    def _require_document(self, document_id: str, request_id: str) -> DocumentRecord:
+        document = self._documents.get(document_id)
+        if document is None:
+            raise DocumentError("RESOURCE_NOT_FOUND", "资源不存在", request_id)
+        return document
+
     def _require_version(self, version_id: str, request_id: str) -> VersionRecord:
         version = self._versions.get(version_id)
         if version is None:
-            from pivot.documents.errors import DocumentError
-
             raise DocumentError("RESOURCE_NOT_FOUND", "资源不存在", request_id)
         return version
+
+    def _version_view(self, version: VersionRecord) -> dict[str, object]:
+        return {
+            "version_id": version.id,
+            "document_id": version.document_id,
+            "version_label": version.id,
+            "state": version.state,
+            "current": version.current,
+            "content_sha256": version.content_sha256,
+        }
 
     def _now(self) -> datetime:
         return self._clock() if callable(self._clock) else self._clock
