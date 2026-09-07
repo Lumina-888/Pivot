@@ -63,6 +63,7 @@ class DocumentService:
         idempotency_key: str | None = None,
         space: str = "shared",
         classification: str = "",
+        tags: tuple[str, ...] = (),
     ) -> VersionRecord:
         try:
             normalize_filename(filename)
@@ -90,6 +91,8 @@ class DocumentService:
             space=space,
             created_by=actor_id,
             classification=classification,
+            created_at=self._now(),
+            tags=tags,
         )
         version_id = new_id("version")
         version = VersionRecord(
@@ -250,6 +253,51 @@ class DocumentService:
 
     def retry_cleanup(self, version_id: str, request_id: str) -> VersionRecord:
         return self._advance(version_id, "retry_cleanup", request_id)
+
+    def list_library(
+        self,
+        *,
+        viewer_role: str,
+        space: str | None = None,
+        tags: tuple[str, ...] = (),
+    ) -> tuple[dict[str, object], ...]:
+        items: list[dict[str, object]] = []
+        for document in self._documents.list_active():
+            if document.deleted_at is not None:
+                continue
+            if viewer_role != "admin" and document.space != "shared":
+                continue
+            if space is not None and document.space != space:
+                continue
+            if tags and not set(tags).issubset(document.tags):
+                continue
+            current = next(
+                (
+                    version
+                    for version in self._versions.list_for_document(document.id)
+                    if version.current and version.state == "ready"
+                ),
+                None,
+            )
+            created = document.created_at or self._now()
+            items.append(
+                {
+                    "document_id": document.id,
+                    "title": document.title,
+                    "space": document.space,
+                    "tags": list(document.tags),
+                    "classification": document.classification,
+                    "created_at": created.isoformat(),
+                    "current_version": None
+                    if current is None
+                    else {
+                        "version_id": current.id,
+                        "version_label": current.id,
+                        "state": current.state,
+                    },
+                }
+            )
+        return tuple(items)
 
     def visible_in_library(self, document_id: str) -> bool:
         document = self._documents.get(document_id)

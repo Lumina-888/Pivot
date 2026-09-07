@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 
 from pivot.auth.errors import AuthError
 from pivot.auth.service import AuthService
+from pivot.documents.errors import DocumentError
+from pivot.documents.service import DocumentService
 
 _CHECKS = ("postgres", "minio", "qdrant", "redis")
 
@@ -23,10 +25,12 @@ class DependencyProbes(Protocol):
 def create_app(
     probes: DependencyProbes | None = None,
     auth: AuthService | None = None,
+    documents: DocumentService | None = None,
 ) -> FastAPI:
     """Create the HTTP assembly. Missing probes make /readyz fail closed.
 
-    Auth routes are mounted only when an AuthService is injected.
+    Domain routes are mounted only when their services are injected.
+    Document routes additionally require AuthService (fail closed).
     """
 
     app = FastAPI(
@@ -41,6 +45,12 @@ def create_app(
         from pivot.auth.http import auth_error_response
 
         return auth_error_response(exc)
+
+    @app.exception_handler(DocumentError)
+    async def handle_document_error(_request: Request, exc: DocumentError) -> JSONResponse:
+        from pivot.documents.http import document_error_response
+
+        return document_error_response(exc)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -67,5 +77,10 @@ def create_app(
         from pivot.auth.http import build_auth_router
 
         app.include_router(build_auth_router(auth), prefix="/api/v1")
+
+    if documents is not None and auth is not None:
+        from pivot.documents.http import build_documents_router
+
+        app.include_router(build_documents_router(documents, auth), prefix="/api/v1")
 
     return app

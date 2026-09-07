@@ -179,6 +179,7 @@ def persisted_from_run(bundle: RunBundle) -> PersistedAnswer:
 class Pipeline:
     def __init__(self) -> None:
         hasher = _auth_fakes.TestPasswordHasher()
+        self.hasher = hasher
         self.clock = _auth_fakes.FakeClock()
         self.users = _auth_fakes.InMemoryUserDirectory(
             [

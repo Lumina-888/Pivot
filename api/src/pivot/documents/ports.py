@@ -15,6 +15,8 @@ class DocumentRecord:
     created_by: str
     deleted_at: datetime | None = None
     classification: str = ""
+    created_at: datetime | None = None
+    tags: tuple[str, ...] = ()
 
 
 @dataclass
