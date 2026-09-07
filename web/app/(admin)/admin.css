@@ -1,0 +1,100 @@
+.muted {
+  color: var(--c-muted);
+  font-size: 12.5px;
+}
+
+.admin-page h1 {
+  color: var(--c-head);
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-filters input,
+.admin-create input {
+  border: 1.5px solid var(--c-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.admin-create {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.statgrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin: 16px 0;
+}
+
+.stat {
+  background: #fff;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  color: inherit;
+  display: block;
+  padding: 14px 16px;
+}
+
+.stat .sk {
+  color: var(--c-muted);
+  font-size: 12px;
+}
+
+.stat .sv {
+  color: var(--c-head);
+  font-size: 22px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.status-banner {
+  border-radius: 8px;
+  margin: 12px 0;
+  padding: 10px 14px;
+}
+
+.status-banner[data-tone="loading"] {
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+}
+
+.status-banner[data-tone="error"],
+.status-banner[data-tone="forbidden"] {
+  background: var(--c-danger-soft);
+  color: #b91c1c;
+}
+
+.status-banner[data-tone="empty"] {
+  background: var(--c-hover);
+  color: var(--c-muted);
+}
+
+.audit-expand {
+  background: #f8fafc;
+  border-top: 1px solid var(--c-border-subtle);
+  font-size: 12.5px;
+  padding: 10px 14px;
+}
+
+.user-btn {
+  background: transparent;
+  border: 0;
+  color: #c3d2e6;
+  font-size: 12.5px;
+}
