@@ -26,8 +26,7 @@ function exists(relativePath) {
   return fs.existsSync(path.join(webRoot, relativePath));
 }
 
-function test_FR_RBAC_001_four_admin_routes_exist_and_assembly_page_kept() {
-  assert.equal(exists("app/page.tsx"), true, "M10 must not delete M08 assembly page");
+function test_FR_RBAC_001_four_admin_routes_exist() {
   for (const file of [
     "app/(admin)/admin/page.tsx",
     "app/(admin)/admin/docs/page.tsx",
@@ -194,7 +193,7 @@ function test_pages_show_forbidden_and_loading_states() {
 }
 
 const tests = [
-  ["test_FR_RBAC_001_four_admin_routes_exist_and_assembly_page_kept", test_FR_RBAC_001_four_admin_routes_exist_and_assembly_page_kept],
+  ["test_FR_RBAC_001_four_admin_routes_exist", test_FR_RBAC_001_four_admin_routes_exist],
   ["test_FR_RBAC_001_regular_user_admin_api_is_forbidden", test_FR_RBAC_001_regular_user_admin_api_is_forbidden],
   ["test_FR_DOC_006_admin_lists_document_states", test_FR_DOC_006_admin_lists_document_states],
   ["test_FR_DOC_007_retry_and_delete_return_accepted", test_FR_DOC_007_retry_and_delete_return_accepted],

@@ -33,9 +33,9 @@ GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
-def run(command: list[str], env: dict[str, str]) -> int:
+def run(command: list[str], env: dict[str, str], cwd: Path | None = None) -> int:
     print("+", " ".join(command), flush=True)
-    completed = subprocess.run(command, cwd=ROOT, env=env, check=False)
+    completed = subprocess.run(command, cwd=cwd or ROOT, env=env, check=False)
     return completed.returncode
 
 
@@ -88,10 +88,29 @@ def main() -> int:
 
     if not args.skip_web:
         npm = "npm.cmd" if os.name == "nt" else "npm"
+        npx = "npx.cmd" if os.name == "nt" else "npx"
+        web = ROOT / "web"
         if run([npm, "--prefix", "web", "ci"], env) != 0:
             failures.append("web-ci")
-        elif run([npm, "--prefix", "web", "test"], env) != 0:
-            failures.append("web-test")
+        else:
+            web_checks: tuple[tuple[str, list[str], Path], ...] = (
+                ("web-test", [npm, "--prefix", "web", "test"], ROOT),
+                (
+                    "web-user-e2e",
+                    [npx, "tsx", "../tests/e2e/user/test_user_web.mjs"],
+                    web,
+                ),
+                (
+                    "web-admin-e2e",
+                    [npx, "tsx", "../tests/e2e/admin/test_admin_web.mjs"],
+                    web,
+                ),
+                ("web-typecheck", [npm, "--prefix", "web", "run", "typecheck"], ROOT),
+                ("web-lint", [npm, "--prefix", "web", "run", "lint"], ROOT),
+            )
+            for name, command, cwd in web_checks:
+                if run(command, env, cwd=cwd) != 0:
+                    failures.append(name)
 
     if failures:
         print("failed groups:", ", ".join(failures), file=sys.stderr)
