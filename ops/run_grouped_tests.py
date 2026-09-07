@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run Wave 1/2 checks in isolated pytest groups (fakes.py name collision).
 
-This is an M11 harness. It does not start Compose, FastAPI, Celery, or mark GATE-P0 verified.
+This is an M11 harness. It does not start Compose, uvicorn, Celery, or mark GATE-P0 verified.
 """
 
 from __future__ import annotations

@@ -366,6 +366,7 @@ progress/modules/M10.md
 docker-compose*.yml
 Dockerfile*
 .github/workflows/**
+api/src/pivot/http/**
 tests/integration/**
 tests/e2e/**
 tests/security/**
@@ -374,6 +375,8 @@ ops/**
 evidence/**
 progress/modules/M11.md
 ```
+
+`api/src/pivot/http/**` 仅允许薄 HTTP 装配（`create_app`、`/healthz`、`/readyz`）。不得在此路径实现认证、文档、检索、问答、SSE 或导出业务路由。FastAPI 依赖以 `api/pyproject.toml` 的 optional extra `http` 引入，由 M03 串行维护。
 
 **首批测试**：所有依赖服务 health/ready、跨模块认证→上传→ready→检索→问答→导出链路、安全负向清单、5 并发、100k Chunk 方案、备份恢复和回滚演练记录。
 
@@ -479,7 +482,8 @@ M11 组织 Golden Set、真实容器、5 并发/100k Chunk、供应商故障、�
 | `spec/contracts/**` | M00 | `progress/changes/` + 消费者确认 |
 | `spec/scenarios/**`、`spec/acceptance/**` | M00 | 提供场景/证据更新提案 |
 | `tests/contract/` 根级（`test_contract_*`、conftest、requirements） | M00 | M05 仍拥有 `tests/contract/stream/**` |
-| `api/pyproject.toml`、锁文件 | M03 | 提交依赖申请，由 M03 串行合并 |
+| `api/pyproject.toml`、锁文件 | M03 | 提交依赖申请，由 M03 串行合并；`http` extra 仅含 FastAPI 健康装配依赖 |
+| `api/src/pivot/http/**` | M11（薄装配） | 不得挂 `/api/v1` 业务路由；健康探测必须注入，禁止写死生产 URL |
 | `api/src/pivot/shared/**` | M03 | 变更申请，禁止复制到其他模块 |
 | `api/src/pivot/errors.py` / 公共错误码 | M00 规范、M03 基础实现 | 变更申请 + 契约测试 |
 | `migrations/**` | M03 | 每个迁移唯一编号、禁止并行重编号 |
