@@ -1,4 +1,4 @@
-"""Thin HTTP assembly for liveness and readiness. No /api/v1 business routes."""
+"""Thin HTTP assembly for health and injected domain routers."""
 
 from pivot.http.app import create_app
 

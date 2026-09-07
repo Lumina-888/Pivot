@@ -1,11 +1,14 @@
-"""FastAPI factory exposing only /healthz and /readyz."""
+"""FastAPI factory: health probes plus optional injected domain routers."""
 
 from __future__ import annotations
 
 from typing import Protocol
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+
+from pivot.auth.errors import AuthError
+from pivot.auth.service import AuthService
 
 _CHECKS = ("postgres", "minio", "qdrant", "redis")
 
@@ -17,8 +20,14 @@ class DependencyProbes(Protocol):
     def redis(self) -> bool: ...
 
 
-def create_app(probes: DependencyProbes | None = None) -> FastAPI:
-    """Create the health assembly. Missing probes make /readyz fail closed."""
+def create_app(
+    probes: DependencyProbes | None = None,
+    auth: AuthService | None = None,
+) -> FastAPI:
+    """Create the HTTP assembly. Missing probes make /readyz fail closed.
+
+    Auth routes are mounted only when an AuthService is injected.
+    """
 
     app = FastAPI(
         title="Pivot health",
@@ -26,6 +35,12 @@ def create_app(probes: DependencyProbes | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
+
+    @app.exception_handler(AuthError)
+    async def handle_auth_error(_request: Request, exc: AuthError) -> JSONResponse:
+        from pivot.auth.http import auth_error_response
+
+        return auth_error_response(exc)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -47,5 +62,10 @@ def create_app(probes: DependencyProbes | None = None) -> FastAPI:
             {"status": "ready" if ready else "not_ready", "checks": checks},
             status_code=200 if ready else 503,
         )
+
+    if auth is not None:
+        from pivot.auth.http import build_auth_router
+
+        app.include_router(build_auth_router(auth), prefix="/api/v1")
 
     return app
