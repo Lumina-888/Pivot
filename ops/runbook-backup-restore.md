@@ -21,6 +21,6 @@
 
 ## 本波次限制
 
-- 无真实 PG/MinIO/Qdrant；
+- 本地可有依赖 Compose fixture（postgres/minio/qdrant/redis）；仍无应用 HTTP 健康端点，未在新 ECS 演练；
 - 无加密 OSS 备份作业；
 - 无新 ECS 演练记录。证据目录不得把本 Runbook 当作已通过门禁。
