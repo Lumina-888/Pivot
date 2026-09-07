@@ -20,4 +20,5 @@
 - CI **不得**调用 `docker compose up`，也不得在 workflow 中启动容器；
 - 不把 `latest` 写成镜像约定；镜像 tag 只是 fixture pin，不等于 GATE-P0-008 verified；
 - 应用进程 `/healthz` `/readyz` 仍不存在；
+- 对真实 PostgreSQL 的 Alembic 冒烟是 opt-in（`PIVOT_REQUIRE_COMPOSE=1` 或 `ops/smoke_postgres_alembic.py`），CI 不启动容器；
 - 不得将本文件或 compose 文件解释为任一 `GATE-P0-*` 已通过。
