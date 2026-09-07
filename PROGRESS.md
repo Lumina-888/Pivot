@@ -3,7 +3,7 @@
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-07  
 > **当前状态**：Wave 3 进行中；依赖 Compose fixture 已合入 main。波次基线仍为 `wave-2-integrated`（未打 `wave-3-integrated`）。
-> **当前基线**：`wave-2-integrated` + Compose 切片 `c98b012` + 健康端点 `646ab12`（`/healthz` `/readyz` TestClient 装配）。
+> **当前基线**：`wave-2-integrated` + Compose `c98b012` + 健康端点 `646ab12` + 认证 HTTP `f0f4352`。
 
 ## 1. 新会话恢复入口
 
@@ -13,7 +13,7 @@
 4. 用 `git log --oneline --decorate -20`、`git worktree list` 确认实际基线；
 5. 只有满足模块 DoR 后，才在对应 `module/Mxx-*` worktree 开发。
 
-如果没有指定模块：继续 **Wave 3**。`/healthz` `/readyz` 已在 main；下一刀是 `/api/v1` HTTP/SSE 装配（跨 M01/M02/M05/M06）。不要冻结 `TBD-P0`，不要把健康端点标成 GATE verified。
+如果没有指定模块：继续 **Wave 3**。`/api/v1/auth/login|refresh|logout` 已在 main；下一刀是文档/搜索/问答 SSE/导出 HTTP。不要冻结 `TBD-P0`，不要把 HTTP 装配标成 GATE verified。
 
 ## 2. 当前波次与模块状态
 
@@ -22,7 +22,7 @@
 | 模块 | 状态 | 分支/worktree | 会话/Owner | 基线契约 | 最近证据 | 下一步 |
 |---|---|---|---|---|---|---|
 | M00 契约治理 | integrated | `module/M00-contracts` / `../Pivot-M00-contracts` | 本会话已集成 | `contract-v0.1` | `tests/contract`: 48 passed | 已完成契约、场景、矩阵；依赖模块开始消费 |
-| M01 身份授权 | integrated | `module/M01-auth` / `../Pivot-M01-auth` | 本集成会话 | `contract-v0.1` | 27 passed；tag `M01-v0.1.0` | HTTP 路由待 FastAPI 依赖 |
+| M01 身份授权 | integrated | `module/M01-auth-http` / `../Pivot-M01-auth-http` | 本集成会话 | `contract-v0.1` | 27 单元 + HTTP 登录/刷新/退出；tag `M01-v0.2.0` | 改密/管理用户 HTTP 与限流 TBD-P0 仍待 |
 | M02 文档接入 | integrated | `module/M02-documents` / `../Pivot-M02-documents` | 本集成会话 | `contract-v0.1` | 15 passed；tag `M02-v0.1.0` | 解析执行已由 M07 提供；上传 HTTP 待装配 |
 | M03 数据基础 | integrated | `module/M03-data` / `../Pivot-M03-data` | 本集成会话 | `contract-v0.1` | M03 12 + M00 48 tests passed；Ruff/compile 通过 | PostgreSQL/外部存储集成待 M11 验证 |
 | M04 检索 RAG | integrated | `module/M04-retrieval` / `../Pivot-M04-retrieval` | 本集成会话 | `contract-v0.1` | 10 passed；tag `M04-v0.1.0` | 真实 dense/BM25/rerank 与 Golden Set 待后续 |
@@ -32,7 +32,7 @@
 | M08 Web 基础 | integrated | `module/M08-web-foundation` / `../Pivot-M08-web-foundation` | 本集成会话 | `contract-v0.1` | M08 9 tests + typecheck/lint 通过 | 共享组件已被 M09/M10 消费 |
 | M09 员工前台 | integrated | `module/M09-user-web` / `../Pivot-M09-user-web` | 本集成会话 | `wave-1-integrated` | 12 passed；tag `M09-v0.1.0` | Playwright / FastAPI HTTP 待 Wave 3 |
 | M10 管理后台 | integrated | `module/M10-admin-web` / `../Pivot-M10-admin-web` | 本集成会话 | `wave-1-integrated` | 8 passed；tag `M10-v0.1.0` | Playwright / FastAPI HTTP 待 Wave 3 |
-| M11 集成/质量/运维 | in_progress | `module/M11-wave3-health` / `../Pivot-M11-wave3-health` | 本集成会话 | `wave-2-integrated` | 分组 Python 174 passed / 2 skipped；tag `M11-v0.2.2` | `/api/v1` 与 Playwright、GATE-P0 仍待 Wave 3 |
+| M11 集成/质量/运维 | in_progress | `module/M01-auth-http`（挂载） | 本集成会话 | `wave-2-integrated` | 分组 Python 178 passed / 2 skipped | 文档/SSE/导出 HTTP、Playwright、GATE-P0 仍待 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护；模块会话不要并发编辑本表。
 
@@ -42,7 +42,7 @@
 
 | 需求范围 | Accountable | 测试/场景入口 | 当前状态 | 验收证据 |
 |---|---|---|---|---|
-| FR-AUTH-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`spec/scenarios/auth.feature` | implemented | 27 项 M01 测试通过；无 HTTP；argon2-cffi 未写入 pyproject |
+| FR-AUTH-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`tests/integration/pipeline/test_FR_AUTH_001_http_login.py` | implemented | 27 项单元/安全 + `/api/v1/auth` 登录/刷新/退出 HTTP；改密 HTTP 未挂 |
 | FR-RBAC-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`spec/scenarios/auth.feature` | implemented | 资源四重授权与会话隔离负向测试通过 |
 | FR-DOC-001~008 | M02 | `tests/unit/documents/` | implemented | 15 项 M02 测试通过；无上传 HTTP / 真实 MinIO |
 | FR-SEARCH-001~002 / FR-RAG-001~006 | M04 | `tests/unit/retrieval/`、`tests/security/retrieval/` | implemented | 10 项 M04 测试通过；dense/BM25 为 Fake |
@@ -53,7 +53,7 @@
 | §1.5 / NFR-UX 设计系统与 client | M08 | `tests/e2e/fixtures/web/test-foundation.mjs` | implemented | M08 9 项基础测试通过；产品页由 M09/M10 接管 |
 | 前台 6 页 | M09 | `tests/e2e/user/test_user_web.mjs` | implemented | 12 项 Fake fetch 测试通过；无 Playwright |
 | 后台 4 页 | M10 | `tests/e2e/admin/test_admin_web.mjs` | implemented | 8 项 Fake fetch 测试通过；无 Playwright |
-| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + Compose fixture + `/healthz` `/readyz`）；GATE-P0 unverified | TestClient 健康装配；无 `/api/v1`；CI 不启动 Compose |
+| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + Compose + health + auth HTTP）；GATE-P0 unverified | TestClient；无文档/SSE/导出 HTTP；CI 不启动 Compose |
 
 ## 4. 当前波次计划
 
@@ -86,7 +86,8 @@
 - [x] 依赖 Compose fixture：postgres / minio / qdrant / redis（钉镜像 + healthcheck + localhost；`M11-v0.2.0`）
 - [x] Compose Postgres 的 opt-in Alembic 冒烟（默认 skip；`M11-v0.2.1`）
 - [x] 应用 `/healthz` `/readyz`（TestClient 薄装配，`M11-v0.2.2`）
-- [ ] Playwright 浏览器 E2E、Golden Set、5 并发 / 100k Chunk、新 ECS 备份恢复
+- [x] `/api/v1/auth/login|refresh|logout`（`M01-v0.2.0`）
+- [ ] 文档/搜索/问答 SSE/导出 HTTP；Playwright、Golden Set、5 并发 / 100k Chunk、新 ECS 备份恢复
 - [ ] 任一 `GATE-P0-*` verified；未打 `wave-3-integrated`
 
 ## 5. 未完成项与已知差距
@@ -94,11 +95,12 @@
 - [x] Wave 0 基础已存在：`api/` 数据端口、`web/` 设计系统与 client；
 - [x] Wave 1 领域服务已存在：auth/documents/retrieval/qa/runs/stream/exports/audit/parsing/chunking 与 `worker/`（Fake/stdlib）；
 - [x] `spec/contracts/`、`spec/scenarios/`、`spec/acceptance/matrix.md` 已由 M00 建立；Golden Set 和真实供应商 Fake 仍待 M11；
-- [x] `tests/` 已有 M00 契约 48、M03 数据 12、M08 基础 9、Wave 1 领域 97、M09 12、M10 8、M11 pipeline/ops/perf（合入后 17 passed / 2 skipped）；
+- [x] `tests/` 已有 M00 契约 48、M03 数据 12、M08 基础 9、Wave 1 领域 97、M09 12、M10 8、M11 pipeline/ops/perf（合入后 18 passed / 2 skipped）；
 - [x] 分组 CI（`.github/workflows/ci.yml` + `ops/run_grouped_tests.py`）已装配，不启动 Compose；
 - [x] `docker-compose.yml` 依赖 fixture 已合入 main（postgres/minio/qdrant/redis）；CI **不得** `up`；本机未实测拉起；
 - [x] FastAPI 健康装配：`GET /healthz`、`GET /readyz`（探测注入，失败闭环）；optional extra `http`；
-- [ ] 无 FastAPI `/api/v1` HTTP 与 SSE 传输；无 Celery；无 api/worker/web Compose 服务；
+- [x] FastAPI `/api/v1/auth/login|refresh|logout`（注入 AuthService 才挂载；HttpOnly refresh Cookie）；
+- [ ] 无文档/搜索/问答/SSE/导出 HTTP；无 Celery；无 api/worker/web Compose 服务；
 - [ ] PostgreSQL/Qdrant/MinIO/Redis **客户端适配**尚未建立；真实 PG Alembic 冒烟因无 Docker/psycopg 为 skip；
 - [ ] 所有 `TBD-P0` 均未冻结，禁止模块自行填默认值；
 - [ ] P0 八项门槛均未验证；
@@ -106,8 +108,16 @@
 - [x] Wave 1 观测包变更已批准：`20260906-M06-observability-package-init.md`。
 - [ ] Wave 1 依赖变更暂缓写入 pyproject：`20260906-M01-auth-dependencies.md`、`20260906-M05-langgraph.md`、`20260906-M07-worker-dependencies.md`。
 - [x] Wave 3 FastAPI 健康端点已批准并合入：`20260907-M11-fastapi-health-assembly.md`。
+- [x] Wave 3 认证 HTTP 挂载已批准并合入：`20260907-M11-api-v1-auth-mount.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-07 — Wave 3 `/api/v1/auth` 合入 main
+
+- **完成**：批准 `20260907-M11-api-v1-auth-mount.md`；M01 `build_auth_router`；M11 `create_app(auth=...)` 注入挂载；非快进合并 `module/M01-auth-http`（`f0f4352`）；tag `M01-v0.2.0`。
+- **验证**（main，2026-09-07）：`python ops/run_grouped_tests.py --skip-web` → **178 passed, 2 skipped**；ruff / compileall 通过。
+- **限制**：改密/管理用户 HTTP 未挂；无文档/SSE/导出 HTTP；未打 `wave-3-integrated`；GATE-P0 全部 unverified。
+- **下一步**：文档上传/列表 HTTP 或问答 SSE。
 
 ### 2026-09-07 — Wave 3 `/healthz` `/readyz` 合入 main
 
