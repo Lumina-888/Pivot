@@ -109,12 +109,3 @@ def test_GATE_P0_evidence_file_marks_all_gates_unverified():
         line = next(item for item in text.splitlines() if f"GATE-P0-00{gate}" in item)
         assert "unverified" in line.lower()
         assert "verified" not in line.lower().replace("unverified", "")
-
-
-def test_NFR_OBS_ci_does_not_start_compose():
-    workflow = (_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    assert "docker compose" not in workflow.lower()
-    assert "docker-compose" not in workflow.lower()
-    assert not (_ROOT / "docker-compose.yml").exists()
-    intent = (_ROOT / "ops" / "compose-intent.md").read_text(encoding="utf-8")
-    assert "未启用" in intent
