@@ -84,7 +84,38 @@ def build_documents_router(service: DocumentService, auth: AuthService) -> APIRo
             status_code=201,
         )
 
+    @router.get("/documents/{id}")
+    def get_document(request: Request, id: str) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        return service.get_detail(id, viewer_role=principal.role, request_id=request_id)
+
+    @router.get("/documents/{id}/versions")
+    def list_document_versions(request: Request, id: str) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        items = service.list_versions(id, viewer_role=principal.role, request_id=request_id)
+        return {"items": list(items), "pagination": None}
+
+    @router.post("/documents/{id}/retry")
+    def retry_document(request: Request, id: str) -> JSONResponse:
+        request_id, principal = _principal(request, auth)
+        auth.require_admin(principal, request.url.path, request_id)
+        service.retry_document(id, request_id, principal.user_id)
+        return JSONResponse({"document_id": id, "accepted": True}, status_code=202)
+
+    @router.post("/documents/{id}/delete")
+    def delete_document(request: Request, id: str) -> JSONResponse:
+        request_id, principal = _principal(request, auth)
+        auth.require_admin(principal, request.url.path, request_id)
+        service.request_delete(id, request_id, principal.user_id)
+        return JSONResponse({"document_id": id, "accepted": True}, status_code=202)
+
     return router
+
+
+def _principal(request: Request, auth: AuthService):
+    request_id = resolve_request_id(request)
+    principal = auth.authenticate(_bearer_token(request, request_id), request_id)
+    return request_id, principal
 
 
 def _idempotency_key(request: Request) -> str | None:
