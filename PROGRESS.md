@@ -3,7 +3,7 @@
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-07  
 > **当前状态**：Wave 3 进行中；依赖 Compose fixture 已合入 main。波次基线仍为 `wave-2-integrated`（未打 `wave-3-integrated`）。
-> **当前基线**：`wave-2-integrated` + M11 Wave 3 切片合入 `c98b012`（postgres/minio/qdrant/redis fixture 与 opt-in Alembic 冒烟）。
+> **当前基线**：`wave-2-integrated` + Compose 切片 `c98b012` + 健康端点 `646ab12`（`/healthz` `/readyz` TestClient 装配）。
 
 ## 1. 新会话恢复入口
 
@@ -13,7 +13,7 @@
 4. 用 `git log --oneline --decorate -20`、`git worktree list` 确认实际基线；
 5. 只有满足模块 DoR 后，才在对应 `module/Mxx-*` worktree 开发。
 
-如果没有指定模块：继续 **Wave 3**。依赖 Compose 已在 main；下一刀是批准 `20260907-M11-fastapi-health-assembly.md` 后实现 `/healthz` `/readyz`，不要冻结 `TBD-P0`，不要把 Compose fixture 或 Fake 链路标成 GATE verified。
+如果没有指定模块：继续 **Wave 3**。`/healthz` `/readyz` 已在 main；下一刀是 `/api/v1` HTTP/SSE 装配（跨 M01/M02/M05/M06）。不要冻结 `TBD-P0`，不要把健康端点标成 GATE verified。
 
 ## 2. 当前波次与模块状态
 
@@ -32,7 +32,7 @@
 | M08 Web 基础 | integrated | `module/M08-web-foundation` / `../Pivot-M08-web-foundation` | 本集成会话 | `contract-v0.1` | M08 9 tests + typecheck/lint 通过 | 共享组件已被 M09/M10 消费 |
 | M09 员工前台 | integrated | `module/M09-user-web` / `../Pivot-M09-user-web` | 本集成会话 | `wave-1-integrated` | 12 passed；tag `M09-v0.1.0` | Playwright / FastAPI HTTP 待 Wave 3 |
 | M10 管理后台 | integrated | `module/M10-admin-web` / `../Pivot-M10-admin-web` | 本集成会话 | `wave-1-integrated` | 8 passed；tag `M10-v0.1.0` | Playwright / FastAPI HTTP 待 Wave 3 |
-| M11 集成/质量/运维 | in_progress | `module/M11-wave3-compose` / `../Pivot-M11-wave3-compose` | 本集成会话 | `wave-2-integrated` | 分组 Python 168 passed / 2 skipped；tag `M11-v0.2.1` | `/healthz` 待 FastAPI 变更批准；Playwright 与 GATE-P0 仍待 Wave 3 |
+| M11 集成/质量/运维 | in_progress | `module/M11-wave3-health` / `../Pivot-M11-wave3-health` | 本集成会话 | `wave-2-integrated` | 分组 Python 174 passed / 2 skipped；tag `M11-v0.2.2` | `/api/v1` 与 Playwright、GATE-P0 仍待 Wave 3 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护；模块会话不要并发编辑本表。
 
@@ -53,7 +53,7 @@
 | §1.5 / NFR-UX 设计系统与 client | M08 | `tests/e2e/fixtures/web/test-foundation.mjs` | implemented | M08 9 项基础测试通过；产品页由 M09/M10 接管 |
 | 前台 6 页 | M09 | `tests/e2e/user/test_user_web.mjs` | implemented | 12 项 Fake fetch 测试通过；无 Playwright |
 | 后台 4 页 | M10 | `tests/e2e/admin/test_admin_web.mjs` | implemented | 8 项 Fake fetch 测试通过；无 Playwright |
-| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake 链路 + 依赖 Compose fixture）；GATE-P0 unverified | 分组 CI + Fake 认证→导出；`docker-compose.yml` 四依赖服务；CI 不启动容器 |
+| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + Compose fixture + `/healthz` `/readyz`）；GATE-P0 unverified | TestClient 健康装配；无 `/api/v1`；CI 不启动 Compose |
 
 ## 4. 当前波次计划
 
@@ -85,7 +85,7 @@
 
 - [x] 依赖 Compose fixture：postgres / minio / qdrant / redis（钉镜像 + healthcheck + localhost；`M11-v0.2.0`）
 - [x] Compose Postgres 的 opt-in Alembic 冒烟（默认 skip；`M11-v0.2.1`）
-- [ ] 应用 `/healthz` `/readyz`（FastAPI 变更申请待审核）
+- [x] 应用 `/healthz` `/readyz`（TestClient 薄装配，`M11-v0.2.2`）
 - [ ] Playwright 浏览器 E2E、Golden Set、5 并发 / 100k Chunk、新 ECS 备份恢复
 - [ ] 任一 `GATE-P0-*` verified；未打 `wave-3-integrated`
 
@@ -94,9 +94,10 @@
 - [x] Wave 0 基础已存在：`api/` 数据端口、`web/` 设计系统与 client；
 - [x] Wave 1 领域服务已存在：auth/documents/retrieval/qa/runs/stream/exports/audit/parsing/chunking 与 `worker/`（Fake/stdlib）；
 - [x] `spec/contracts/`、`spec/scenarios/`、`spec/acceptance/matrix.md` 已由 M00 建立；Golden Set 和真实供应商 Fake 仍待 M11；
-- [x] `tests/` 已有 M00 契约 48、M03 数据 12、M08 基础 9、Wave 1 领域 97、M09 12、M10 8、M11 pipeline/ops/perf（合入后 11 passed / 2 skipped）；
+- [x] `tests/` 已有 M00 契约 48、M03 数据 12、M08 基础 9、Wave 1 领域 97、M09 12、M10 8、M11 pipeline/ops/perf（合入后 17 passed / 2 skipped）；
 - [x] 分组 CI（`.github/workflows/ci.yml` + `ops/run_grouped_tests.py`）已装配，不启动 Compose；
 - [x] `docker-compose.yml` 依赖 fixture 已合入 main（postgres/minio/qdrant/redis）；CI **不得** `up`；本机未实测拉起；
+- [x] FastAPI 健康装配：`GET /healthz`、`GET /readyz`（探测注入，失败闭环）；optional extra `http`；
 - [ ] 无 FastAPI `/api/v1` HTTP 与 SSE 传输；无 Celery；无 api/worker/web Compose 服务；
 - [ ] PostgreSQL/Qdrant/MinIO/Redis **客户端适配**尚未建立；真实 PG Alembic 冒烟因无 Docker/psycopg 为 skip；
 - [ ] 所有 `TBD-P0` 均未冻结，禁止模块自行填默认值；
@@ -104,9 +105,18 @@
 - [x] Wave 0 三项变更申请已批准：`20260906-M00-contract-test-path.md`、`20260906-M03-ownership-clarification.md`、`20260906-M08-web-scaffold-ownership.md`。
 - [x] Wave 1 观测包变更已批准：`20260906-M06-observability-package-init.md`。
 - [ ] Wave 1 依赖变更暂缓写入 pyproject：`20260906-M01-auth-dependencies.md`、`20260906-M05-langgraph.md`、`20260906-M07-worker-dependencies.md`。
-- [ ] Wave 3 FastAPI 健康端点待审核：`20260907-M11-fastapi-health-assembly.md`。
+- [x] Wave 3 FastAPI 健康端点已批准并合入：`20260907-M11-fastapi-health-assembly.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-07 — Wave 3 `/healthz` `/readyz` 合入 main
+
+- **完成**：批准 `20260907-M11-fastapi-health-assembly.md`；M03 extra `http`；M11 `create_app()` 仅健康路由；非快进合并 `module/M11-wave3-health`（`646ab12`）；tag `M11-v0.2.2`。
+- **验证**（main，2026-09-07，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6 / fastapi 0.141.1）：
+  - `python ops/run_grouped_tests.py --skip-web` → **174 passed, 2 skipped**；
+  - ruff / compileall 通过。
+- **限制**：未挂 `/api/v1`；未打 `wave-3-integrated`；GATE-P0 全部 unverified；CI 不启动 uvicorn/Compose。
+- **下一步**：`/api/v1` HTTP/SSE 装配（跨业务模块）。
 
 ### 2026-09-07 — Wave 3 依赖 Compose 切片合入 main
 
