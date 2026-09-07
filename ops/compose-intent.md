@@ -1,23 +1,24 @@
-# Compose 意图（Wave 2 草稿，默认不启用）
+# Compose 意图（Wave 3 依赖 fixture）
 
-> **状态**：intent only。本文件不是可启动的 Compose 栈。  
-> **约束**：PROGRESS 禁止本波次静默加 Compose/FastAPI/Celery；真实容器属于 Wave 3 / `GATE-P0-008`。
+> **状态**：依赖服务（postgres / minio / qdrant / redis）已写成可本地启动的 `docker-compose.yml` fixture。  
+> **不是**生产 ECS 发布栈，**不是** `GATE-P0-008` 通过证据。
 
-## 计划中的服务（Wave 3 才允许默认拉起）
+## 服务
 
-| 服务 | 用途 | 健康检查意图 | 本波次 |
+| 服务 | 用途 | 健康检查 | 本切片 |
 |---|---|---|---|
-| postgres | 业务事实源 | TCP 5432 / `pg_isready` | 未启用 |
-| minio | 对象存储 | HTTP ready | 未启用 |
-| qdrant | 向量索引 | HTTP ready | 未启用 |
-| redis | 缓存/队列辅助，**不是**业务事实源 | TCP 6379 | 未启用 |
-| api | FastAPI `/api/v1` + `/healthz` `/readyz` | HTTP | **无 FastAPI，未挂路由** |
-| worker | Celery 解析队列与在线队列隔离 | worker ping | **非 Celery** |
-| web | Next.js | HTTP | 仅有工程骨架；M09/M10 尚未合入本基线 |
+| postgres | 业务事实源 | `pg_isready` | fixture 已钉镜像 |
+| minio | 对象存储 | HTTP `/minio/health/live` | fixture 已钉镜像 |
+| qdrant | 向量索引 | HTTP `/readyz` | fixture 已钉镜像 |
+| redis | 缓存/队列辅助，**不是**业务事实源 | `redis-cli ping` | fixture 已钉镜像 |
+| api | FastAPI `/api/v1` + `/healthz` `/readyz` | HTTP | **未启用**（无 FastAPI） |
+| worker | Celery 解析队列与在线队列隔离 | worker ping | **未启用**（非 Celery） |
+| web | Next.js | HTTP | **未启用**（无运行中 API） |
 
-## 明确不做
+## 明确约束
 
-- 不提交默认可 `docker compose up` 的运行栈；
-- 不把 `latest` 写成生产镜像约定；
-- CI **不得**调用 compose；
-- 不得将本文件解释为 `GATE-P0-008` 已通过。
+- CI **不得**调用 `docker compose up`，也不得在 workflow 中启动容器；
+- 不把 `latest` 写成镜像约定；镜像 tag 只是 fixture pin，不等于 GATE-P0-008 verified；
+- 应用进程 `/healthz` `/readyz` 仍不存在；
+- 对真实 PostgreSQL 的 Alembic 冒烟是 opt-in（`PIVOT_REQUIRE_COMPOSE=1` 或 `ops/smoke_postgres_alembic.py`），CI 不启动容器；
+- 不得将本文件或 compose 文件解释为任一 `GATE-P0-*` 已通过。
