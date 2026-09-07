@@ -376,7 +376,7 @@ evidence/**
 progress/modules/M11.md
 ```
 
-`api/src/pivot/http/**` 仅允许薄 HTTP 装配（`create_app`、`/healthz`、`/readyz`，以及 `include_router` 注入的领域 router）。不得在此路径实现认证、文档、检索、问答、SSE 或导出业务逻辑；认证 HTTP 适配位于 `api/src/pivot/auth/http.py`（M01）；文档 HTTP 适配位于 `api/src/pivot/documents/http.py`（M02）。FastAPI 依赖以 `api/pyproject.toml` 的 optional extra `http` 引入，由 M03 串行维护。
+`api/src/pivot/http/**` 仅允许薄 HTTP 装配（`create_app`、`/healthz`、`/readyz`，以及 `include_router` 注入的领域 router）。不得在此路径实现认证、文档、检索、问答、SSE 或导出业务逻辑；认证 HTTP 适配位于 `api/src/pivot/auth/http.py`（M01）；文档 HTTP 适配位于 `api/src/pivot/documents/http.py`（M02）；检索 HTTP 适配位于 `api/src/pivot/retrieval/http.py`（M04）。FastAPI 依赖以 `api/pyproject.toml` 的 optional extra `http` 引入，由 M03 串行维护。
 
 **首批测试**：所有依赖服务 health/ready、跨模块认证→上传→ready→检索→问答→导出链路、安全负向清单、5 并发、100k Chunk 方案、备份恢复和回滚演练记录。
 
