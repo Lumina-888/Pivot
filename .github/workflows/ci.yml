@@ -1,4 +1,4 @@
-# Wave 2 grouped CI. Does not start Compose/FastAPI/Celery and does not verify GATE-P0.
+# Wave 3 grouped CI. Does not start Compose/uvicorn/Celery and does not verify GATE-P0.
 name: ci
 
 on:
@@ -20,7 +20,7 @@ jobs:
       - name: Install Python extras (do not write api/pyproject.toml)
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e "./api[test,lint]"
+          python -m pip install -e "./api[test,lint,http]"
           python -m pip install -e ./worker
           python -m pip install -r tests/contract/requirements.txt
           python -m pip install argon2-cffi
