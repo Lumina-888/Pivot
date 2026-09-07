@@ -16,11 +16,11 @@
 1. 在新 ECS 上检出固定发布版本（禁止 `latest`）；
 2. 恢复 PostgreSQL，跑迁移到该版本；
 3. 恢复对象存储与向量快照（或按 ready/current 版本重建索引）；
-4. 注入密钥，启动依赖并等待 health/ready（**当前无 HTTP 健康端点**）；
+4. 注入密钥，启动依赖并等待 health/ready（应用已有 `/healthz` `/readyz` 装配，尚未作为 Compose api 服务启动）；
 5. 校验：用户可登录、文档列表、抽样 Chunk/向量/Citation、审计条数、抽样问答。
 
 ## 本波次限制
 
-- 本地可有依赖 Compose fixture（postgres/minio/qdrant/redis）；仍无应用 HTTP 健康端点，未在新 ECS 演练；
+- 本地可有依赖 Compose fixture（postgres/minio/qdrant/redis）；应用健康端点仅 TestClient，未在新 ECS 演练；
 - 无加密 OSS 备份作业；
 - 无新 ECS 演练记录。证据目录不得把本 Runbook 当作已通过门禁。

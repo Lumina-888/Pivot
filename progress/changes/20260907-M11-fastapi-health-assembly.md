@@ -11,6 +11,6 @@
   - **不**在该切片挂 `/api/v1` 认证、文档、SSE 或导出路由。
 - **影响模块**：M03（pyproject）；M11（薄 HTTP 与集成测试）；M00（若需把健康路径写入契约再另申请）。
 - **兼容方案**：无 FastAPI 时现有领域单测与 Fake 链路不变；CI 仍不强制启动 Compose。
-- **测试 ID**：后续 `test_NFR_OBS_healthz_*`、`test_NFR_OBS_readyz_*`（尚未编写）。
+- **测试 ID**：`test_NFR_OBS_001_healthz_is_alive_without_probing_dependencies`、`test_NFR_OBS_002_readyz_*`、`test_NFR_OBS_health_app_does_not_mount_api_v1_routes`、`test_GATE_P0_008_not_verified_by_healthz_alone`。
 - **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置）。
-- **审核结果**：待 M03/M00 审核。未批准前不得写入 FastAPI 或改 pyproject。
+- **审核结果**：2026-09-07 Wave 3 集成会话 **批准**。M03 增加 optional extra `http`；MODULE_SPEC 增补 M11 允许 `api/src/pivot/http/**`。本切片仅 `/healthz` `/readyz`，不挂 `/api/v1`，不把 `GATE-P0-008` 标 verified。
