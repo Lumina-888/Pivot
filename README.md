@@ -2,16 +2,16 @@
 
 企业私有文档检索问答（RAG）Web 系统。纯 Web 形态，MVP 固定 10 个页面，技术路线为 Next.js + FastAPI + PostgreSQL/MinIO/Qdrant/Redis + Celery（详见规格文档）。
 
-> **当前状态：分模块并行开发基线（尚未启动 Wave 0）。** 本仓库目前包含规格文档、UI 静态原型、按 SPEC 附录 D 建立的工程骨架，以及并行开发治理文档；**尚无真实后端、前端、数据库、部署或测试代码**。
+> **当前状态：主线开发（MODULE-SPEC-1.1），Wave 3 进行中。** 工作区仅为本目录 `Pivot/` 的 `main`。领域服务与部分 HTTP 已在测试中挂载，但仍是 Fake/内存装配，**不能当作已上线系统**。下一刀见 [`PROGRESS.md`](PROGRESS.md)。
 >
-> 多会话开发入口：先读 [`AGENTS.md`](AGENTS.md)，再读 [`MODULE_SPEC.md`](MODULE_SPEC.md) 和 [`PROGRESS.md`](PROGRESS.md)。每个模块必须使用独立分支与 worktree；模块状态写入 `progress/modules/Mxx.md`，根进度由集成会话汇总。
+> 开发入口：先读 [`AGENTS.md`](AGENTS.md)，再读 [`MODULE_SPEC.md`](MODULE_SPEC.md) 和 [`PROGRESS.md`](PROGRESS.md)。**不要**为模块新建 `../Pivot-Mxx-*` worktree；历史副本禁止继续开发。
 
 ## 文档层级（规格优先级见 SPEC §0.1）
 
 | 文件 | 定位 |
 |---|---|
 | `SPEC.md` | **规范源**（SPEC-1.0）：SDD + TDD 开发总规格，需求 → 场景 → 契约 → 数据 → 测试 → 验收 |
-| `MODULE_SPEC.md` | **分模块并行开发规范**（MODULE-SPEC-1.0）：边界、依赖、Owner、worktree、交接和集成门禁 |
+| `MODULE_SPEC.md` | **模块协作规范**（MODULE-SPEC-1.1）：边界、依赖、Owner、主线 Git、交接和集成门禁 |
 | `AGENTS.md` | 新会话协作指令：启动检查、文件所有权、TDD、收尾交接 |
 | `PROGRESS.md` | 版本化活进度：波次、模块状态、需求追踪、证据和下一步 |
 | `技术方案GPT.md` | 工程实施增强基线（GPT-1.0） |
@@ -25,7 +25,7 @@
 
 ```text
 SPEC.md                  规范源（根目录，保持既有相对引用不动）
-MODULE_SPEC.md            分模块并行开发规范（M00–M11、Wave、Owner、worktree）
+MODULE_SPEC.md            模块协作规范（M00–M11、Wave、Owner、主线 Git）
 AGENTS.md / PROGRESS.md   新会话指令与版本化活进度
 技术方案GPT.md / A3       规格文档（历史文件保留原样，不静默改写）
 风格样稿/                 S3 静态原型（UI 基线）

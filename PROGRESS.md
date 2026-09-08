@@ -2,39 +2,39 @@
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-08  
-> **当前状态**：Wave 3 进行中；依赖 Compose fixture 已合入 main。波次基线仍为 `wave-2-integrated`（未打 `wave-3-integrated`）。
+> **当前状态**：主线开发（MODULE-SPEC-1.1）；Wave 3 进行中。工作区仅为 `Pivot/` 的 `main`。波次基线仍为 `wave-2-integrated`（未打 `wave-3-integrated`）。
 > **当前基线**：`wave-2-integrated` + Compose `c98b012` + 健康端点 `646ab12` + 认证 HTTP `f0f4352` + 文档 HTTP `7d4e8d9` + 搜索 HTTP `0750291` + Run/SSE HTTP `717b7ad` + 导出/审计 HTTP `35d37bc` + 改密/管理用户 HTTP `6cb9118` + 会话 CRUD HTTP `19da428`。
 
 ## 1. 新会话恢复入口
 
-1. 读取 `AGENTS.md`；
-2. 读取 `MODULE_SPEC.md`；
-3. 读取本文件和对应的 `progress/modules/Mxx.md`；
-4. 用 `git log --oneline --decorate -20`、`git worktree list` 确认实际基线；
-5. 只有满足模块 DoR 后，才在对应 `module/Mxx-*` worktree 开发。
+1. 确认 cwd 为 `E:/AI Project/Pivot`，分支为 `main`；不要进入 `../Pivot-Mxx-*`；
+2. 读取 `AGENTS.md`；
+3. 读取 `MODULE_SPEC.md`；
+4. 读取本文件和本切片涉及的 `progress/modules/Mxx.md`；
+5. 用 `git log --oneline --decorate -20` 确认实际基线。
 
-如果没有指定模块：继续 **Wave 3**。认证、文档、搜索、Run/SSE、导出/审计与会话 CRUD HTTP 已在 main；下一刀是预览/下载 HTTP。不要冻结 `TBD-P0`，不要把 HTTP 装配标成 GATE verified。
+如果没有指定切片：继续 **Wave 3**。认证、文档、搜索、Run/SSE、导出/审计与会话 CRUD HTTP 已在 main；下一刀是预览/下载 HTTP。不要冻结 `TBD-P0`，不要把 HTTP 装配标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 
-状态枚举：`planned` → `claimed` → `in_progress` → `blocked` → `review` → `integrated`；只有集成会话可将模块标记为 `integrated`。
+状态枚举：`planned` → `claimed` → `in_progress` → `blocked` → `review` → `integrated`。主线会话可更新本表。
 
-| 模块 | 状态 | 分支/worktree | 会话/Owner | 基线契约 | 最近证据 | 下一步 |
-|---|---|---|---|---|---|---|
-| M00 契约治理 | integrated | `module/M00-contracts` / `../Pivot-M00-contracts` | 本会话已集成 | `contract-v0.1` | `tests/contract`: 48 passed | 已完成契约、场景、矩阵；依赖模块开始消费 |
-| M01 身份授权 | integrated | `module/M01-admin-users-http` / `../Pivot-M01-admin-users-http` | 本集成会话 | `contract-v0.1` | 27 单元 + 登录/改密/管理用户 HTTP；tag `M01-v0.3.0` | 限流与 PATCH 角色/重置仍待 |
-| M02 文档接入 | integrated | `module/M02-documents-lifecycle-http` / `../Pivot-M02-documents-lifecycle-http` | 本集成会话 | `contract-v0.1` | 21 单元 + 上传/列表/详情/重试/删除 HTTP；tag `M02-v0.3.0` | 预览/下载 HTTP 仍待 |
-| M03 数据基础 | integrated | `module/M03-data` / `../Pivot-M03-data` | 本集成会话 | `contract-v0.1` | M03 12 + M00 48 tests passed；Ruff/compile 通过 | PostgreSQL/外部存储集成待 M11 验证 |
-| M04 检索 RAG | integrated | `module/M04-search-http` / `../Pivot-M04-search-http` | 本集成会话 | `contract-v0.1` | 10 单元 + 搜索 HTTP；tag `M04-v0.2.0` | 真实 dense/BM25/rerank 与 Golden Set 待后续 |
-| M05 QA/Run/SSE | integrated | `module/M05-conversations-http` / `../Pivot-M05-conversations-http` | 本集成会话 | `contract-v0.1` | 12 领域 + Run/SSE + 会话 CRUD HTTP；tag `M05-v0.3.0` | LangGraph extra 待后续 |
-| M06 导出/审计 | integrated | `module/M06-export-http` / `../Pivot-M06-export-http` | 本集成会话 | `contract-v0.1` | 26 单元 + 导出/审计 HTTP；tag `M06-v0.2.0` | PG/MinIO 持久化待后续 |
-| M07 Worker/解析/索引 | integrated | `module/M07-worker` / `../Pivot-M07-worker` | 本集成会话 | `contract-v0.1` | 7 passed；tag `M07-v0.1.0` | Celery/真实解析库待依赖审核 |
-| M08 Web 基础 | integrated | `module/M08-web-foundation` / `../Pivot-M08-web-foundation` | 本集成会话 | `contract-v0.1` | M08 9 tests + typecheck/lint 通过 | 共享组件已被 M09/M10 消费 |
-| M09 员工前台 | integrated | `module/M09-user-web` / `../Pivot-M09-user-web` | 本集成会话 | `wave-1-integrated` | 12 passed；tag `M09-v0.1.0` | Playwright / FastAPI HTTP 待 Wave 3 |
-| M10 管理后台 | integrated | `module/M10-admin-web` / `../Pivot-M10-admin-web` | 本集成会话 | `wave-1-integrated` | 8 passed；tag `M10-v0.1.0` | Playwright / FastAPI HTTP 待 Wave 3 |
-| M11 集成/质量/运维 | in_progress | `module/M05-conversations-http`（挂载） | 本集成会话 | `wave-2-integrated` | 分组 Python 227 passed / 2 skipped | 预览/下载 HTTP、Playwright、GATE-P0 仍待 |
+| 模块 | 状态 | 代码位置 | 基线契约 | 最近证据 | 下一步 |
+|---|---|---|---|---|---|
+| M00 契约治理 | integrated | `main` | `contract-v0.1` | `tests/contract`: 48 passed | 已完成契约、场景、矩阵 |
+| M01 身份授权 | integrated | `main`（tag `M01-v0.3.0`） | `contract-v0.1` | 27 单元 + 登录/改密/管理用户 HTTP | 限流与 PATCH 角色/重置仍待 |
+| M02 文档接入 | integrated | `main`（tag `M02-v0.3.0`） | `contract-v0.1` | 21 单元 + 上传/列表/详情/重试/删除 HTTP | 预览/下载 HTTP 仍待 |
+| M03 数据基础 | integrated | `main`（tag `M03-v0.1.0`） | `contract-v0.1` | M03 12 + M00 48 tests passed | PostgreSQL/外部存储客户端待主线切片 |
+| M04 检索 RAG | integrated | `main`（tag `M04-v0.2.0`） | `contract-v0.1` | 10 单元 + 搜索 HTTP | 真实 dense/BM25/rerank 与 Golden Set 待后续 |
+| M05 QA/Run/SSE | integrated | `main`（tag `M05-v0.3.0`） | `contract-v0.1` | 12 领域 + Run/SSE + 会话 CRUD HTTP | LangGraph extra 待后续 |
+| M06 导出/审计 | integrated | `main`（tag `M06-v0.2.0`） | `contract-v0.1` | 26 单元 + 导出/审计 HTTP | PG/MinIO 持久化待后续 |
+| M07 Worker/解析/索引 | integrated | `main`（tag `M07-v0.1.0`） | `contract-v0.1` | 7 passed | Celery/真实解析库待依赖审核 |
+| M08 Web 基础 | integrated | `main`（tag `M08-v0.1.0`） | `contract-v0.1` | M08 9 tests + typecheck/lint 通过 | 共享组件已被 M09/M10 消费 |
+| M09 员工前台 | integrated | `main`（tag `M09-v0.1.0`） | `wave-1-integrated` | 12 passed | Playwright / 真实 FastAPI 待 Wave 3 |
+| M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 passed | Playwright / 真实 FastAPI 待 Wave 3 |
+| M11 集成/质量/运维 | in_progress | `main` | `wave-2-integrated` | 分组 Python 227 passed / 2 skipped | 预览/下载 HTTP、Playwright、GATE-P0 仍待 |
 
-模块详细状态由各自 `progress/modules/Mxx.md` 维护；模块会话不要并发编辑本表。
+模块详细状态由各自 `progress/modules/Mxx.md` 维护。历史 `../Pivot-Mxx-*` worktree 不再使用。
 
 ## 3. 需求追踪摘要
 
@@ -130,8 +130,15 @@
 - [x] Wave 3 导出/审计 HTTP 挂载已批准并合入：`20260908-M11-api-v1-export-audit-mount.md`。
 - [x] Wave 3 改密/管理用户 HTTP 已批准并合入：`20260908-M01-auth-admin-users-http.md`。
 - [x] Wave 3 会话 CRUD HTTP 已批准并合入：`20260908-M11-api-v1-conversations-mount.md`。
+- [x] 主线开发流程已批准：`20260908-M00-mainline-development.md`（MODULE-SPEC-1.1）。历史 worktree 由 Owner 手动清理。
 
 ## 6. 轮次日志
+
+### 2026-09-08 — 改为主线开发（MODULE-SPEC-1.1）
+
+- **完成**：批准 `20260908-M00-mainline-development.md`；默认工作区改为 `Pivot/` 的 `main`；废止为每个模块新建 worktree；主线切片可跨模块路径并直接更新本文件。
+- **未做**：未删除 `E:/AI Project/Pivot-Mxx-*` 历史目录（需 Owner 手动 `git worktree remove`）。
+- **下一步**：仍在 Wave 3；下一刀预览/下载 HTTP。不要冻结 `TBD-P0`。
 
 ### 2026-09-08 — Wave 3 `/api/v1/conversations` 合入 main
 

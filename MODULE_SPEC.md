@@ -1,19 +1,20 @@
-# 问枢 Pivot 分模块并行开发规格
+# 问枢 Pivot 模块协作规格
 
-> **文档 ID**：`MODULE-SPEC-1.0`  
-> **状态**：accepted（并行开发基线）  
+> **文档 ID**：`MODULE-SPEC-1.1`  
+> **状态**：accepted（主线开发；1.0 并行 worktree 不再是默认流程）  
 > **适用仓库**：`Lumina-888/Pivot`  
-> **生效日期**：2026-09-06  
-> **上位规范**：[`SPEC.md`](SPEC.md)（SPEC-1.0）
+> **生效日期**：2026-09-08  
+> **上位规范**：[`SPEC.md`](SPEC.md)（SPEC-1.0）  
+> **流程变更**：[`progress/changes/20260908-M00-mainline-development.md`](progress/changes/20260908-M00-mainline-development.md)
 
 ## 0. 文档定位与优先级
 
-本文是问枢 Pivot 在多个会话、多个 worktree 中并行开发时的**模块边界与协作规范**。它只补充原 SPEC 没有展开的工程协作信息：
+本文是问枢 Pivot 的**模块边界与协作规范**。自 1.1 起默认**主线串行开发**：只在 `Pivot/` 的 `main` 上工作。它只补充原 SPEC 没有展开的工程协作信息：
 
-- 模块边界、唯一负责人与跨模块贡献关系；
-- 模块之间的依赖 DAG 与并行波次；
+- 模块边界、唯一 Accountable 与跨模块贡献关系；
+- 模块之间的依赖 DAG 与波次（波次仍是交付阶段，不再要求多会话并行）；
 - 公共契约、共享文件、目录和测试的所有权；
-- 分支、worktree、提交、标签、集成和交接流程；
+- 主线 Git、提交、标签、集成和交接流程；
 - 每个模块的 DoR、DoD、首批测试和验收证据。
 
 本文**不替代、不改写、不重新解释** `SPEC.md`。凡与 `SPEC.md`、已批准 ADR 或冻结契约冲突的内容，以优先级更高者为准。本文不得自行冻结 `TBD-P0`，不得把原 SPEC 的历史文档静默改写为新口径。
@@ -24,7 +25,7 @@
 
 1. `SPEC.md`：需求、状态机、数据不变量、API/SSE/Worker 语义和验收门槛的规范源；
 2. 已批准 ADR：对开放决策的显式裁决；
-3. 本文 `MODULE_SPEC.md`：模块边界与并行协作规范；
+3. 本文 `MODULE_SPEC.md`：模块边界与主线协作规范；
 4. `spec/contracts/` 中带版本的机器可读契约；
 5. `AGENTS.md`、`PROGRESS.md` 与 `progress/`：执行规则和进度记录；
 6. 具体模块设计文档与实现代码；
@@ -36,22 +37,25 @@
 
 ---
 
-## 1. 并行开发目标与基本原则
+## 1. 主线开发目标与基本原则
 
-本仓库通常同时开启 **5–6 个开发会话**。每个会话在独立 Git worktree 中工作，按一个模块任务包交付。`main` 只接受已验证的集成结果。
+默认 **一个会话、一份工作区、一条主线**。工作区固定为仓库根 `Pivot/`，分支默认 `main`。按 `PROGRESS.md` 指定的下一刀垂直切片串行推进；不要为每个模块新建 worktree 或并行会话。
+
+模块编号 M00–M11 仍是 Accountable 与路径地图，不是必须同时开工的并行任务。
 
 ### 1.1 不可违反的原则
 
 1. **先契约、后实现**：消费者只能依赖已冻结版本的 API、SSE、Worker、领域状态和数据接口。
-2. **一个文件一个 Owner**：模块可读取其他模块文件，但只能修改所有权表中自己的路径。
+2. **一个文件一个 Accountable Owner**：所有权表仍有效，用于追踪责任；主线切片允许一次改动多个模块路径，但必须在进度里写明触及的模块，不得把语义缺陷推给“另一个不存在的并行会话”。
 3. **一个需求一个 Accountable**：跨模块需求必须指定唯一最终负责模块，其余为 Contributors；不能以“对方模块负责”为由遗漏验收。
 4. **TDD 不变**：每个开发单元遵循 Red → Contract → Green → Refactor → Integration → Regression，测试命名遵循 `test_<requirement_id>_<behavior>()`。
 5. **Fake/Stub 隔离外部服务**：单元和大多数契约测试不使用真实密钥或真实供应商 API；真实供应商只在明确标注的冒烟测试中调用。
 6. **不私设 TBD**：发现实现需要未冻结参数时，登记 `TBD-P0` 或变更申请，不在代码中悄悄填默认值。
-7. **集成分支不修业务规则**：集成会话可以修复合并冲突、构建配置和测试装配；业务语义缺陷退回 Accountable 模块。
-8. **所有结论可交接**：完成项、未完成项、测试证据、已知差距、下一步和变更申请必须写入模块进度文件。
+7. **不为绿灯破坏业务规则**：可以在同一主线提交里同时改领域代码与 HTTP 装配；不得通过跳过测试、放宽授权、过滤、幂等或审计来修绿。
+8. **所有结论可交接**：完成项、未完成项、测试证据、已知差距、下一步和变更申请必须写入 `PROGRESS.md` 与相关 `progress/modules/Mxx.md`。
+9. **只在主仓开发**：不要在 `../Pivot-Mxx-*` 历史 worktree 里继续写代码。那些目录是 1.0 遗留，删除由 Owner 手动执行。
 
-### 1.2 并行会话的最小开场动作
+### 1.2 主线会话的最小开场动作
 
 每个新会话在写代码前必须读取：
 
@@ -60,11 +64,11 @@ SPEC.md
 MODULE_SPEC.md
 AGENTS.md
 PROGRESS.md
-progress/modules/<自己的模块>.md
-当前波次的集成 tag 或基线 commit
+本切片涉及的 progress/modules/Mxx.md
+当前波次的集成 tag 或 main HEAD
 ```
 
-然后确认：自己的分支、worktree、允许修改路径、依赖契约版本、首批 Red 测试和未决 ADR。任何一项不满足 DoR，都只能先补齐文档或提交变更申请，不能直接扩大实现范围。
+然后确认：当前在 `Pivot/` 的 `main`、本切片范围、依赖契约版本、首批 Red 测试和未决 ADR。任何一项不满足 DoR，都只能先补齐文档或提交变更申请，不能直接扩大实现范围。
 
 ---
 
@@ -384,7 +388,9 @@ progress/modules/M11.md
 
 ---
 
-## 4. 依赖 DAG 与并行波次
+## 4. 依赖 DAG 与交付波次
+
+波次描述交付顺序与退出条件，**不是**必须同时开多个会话。主线按波次内未完成切片逐条做。
 
 ### 4.1 DAG
 
@@ -430,9 +436,9 @@ graph TD
   M00 --> M11
 ```
 
-### 4.2 Wave 0：基线冻结
+### 4.2 Wave 0：基线冻结（已完成）
 
-最多 3 个会话：
+历史并行上限曾为 3 个会话，现已合入 main：
 
 - M00：契约草案、错误包/SSE/Worker schema 来源映射；
 - M03：数据模型、Repository、存储 adapter 的接口草案；
@@ -440,9 +446,9 @@ graph TD
 
 **退出条件**：`contract-v0.1`、数据 adapter 协议和 Web API client 输入已冻结；`MODULE_SPEC.md` 的公共路径所有权无歧义；每个模块有初版进度文件。
 
-### 4.3 Wave 1：核心能力
+### 4.3 Wave 1：核心能力（已完成）
 
-最多 6 个会话：M01、M02、M04、M05、M06、M07。所有实现只能依赖 Wave 0 的版本化接口。依赖未完成时使用 Fake/Stub，不在别人的路径内临时造实现。
+历史并行上限曾为 6 个会话：M01、M02、M04、M05、M06、M07。后续主线切片仍只能依赖已冻结接口；依赖未完成时使用 Fake/Stub，不在领域模块路径内临时造另一套实现。
 
 **退出条件**：各模块单元/契约测试通过、模块 tag 完成、M00 追踪矩阵更新、M11 可装配集成 fixture。
 
@@ -478,7 +484,7 @@ M11 组织 Golden Set、真实容器、5 并发/100k Chunk、供应商故障、�
 | `SPEC.md` | 规格治理/集成维护者 | 提交 ADR 或变更说明，不直接改 |
 | `MODULE_SPEC.md` | M00/集成维护者 | 走文档变更 PR |
 | `AGENTS.md` | M00/集成维护者 | 走协作规则变更 |
-| `PROGRESS.md` | 集成维护者 | 模块只改自己的 `progress/modules/Mxx.md` |
+| `PROGRESS.md` | 主线会话 | 模块进度仍写 `progress/modules/Mxx.md`；根表由当前主线会话更新 |
 | `spec/contracts/**` | M00 | `progress/changes/` + 消费者确认 |
 | `spec/scenarios/**`、`spec/acceptance/**` | M00 | 提供场景/证据更新提案 |
 | `tests/contract/` 根级（`test_contract_*`、conftest、requirements） | M00 | M05 仍拥有 `tests/contract/stream/**` |
@@ -489,17 +495,17 @@ M11 组织 Golden Set、真实容器、5 并发/100k Chunk、供应商故障、�
 | `migrations/**` | M03 | 每个迁移唯一编号、禁止并行重编号 |
 | `web/package.json`、`web/package-lock.json`、共享组件、`web/lib/cn.ts`、根 layout | M08 | 组件 API 变更申请；`web/app/page.tsx` 由 M09 接管 `/` 时替换 |
 | `docker-compose*`、CI、`ops/**` | M11 | 集成变更记录 |
-| `progress/modules/Mxx.md` | 对应 Mxx | 只允许该模块会话修改 |
+| `progress/modules/Mxx.md` | 对应 Mxx | 主线切片可更新本切片涉及的模块进度 |
 | `progress/changes/**` | 提案作者，M00 审核 | 审核后保留或归档 |
 
 ### 5.2 禁止事项
 
 - 禁止两个模块各自定义同名枚举、错误码、ID 规则或状态机；
-- 禁止直接编辑其他模块的进度文件；
+- 禁止在无关切片里改其他模块的进度文件；主线切片可更新本切片涉及的 `progress/modules/Mxx.md`；
 - 禁止在公共契约中先合并“临时字段”再补文档；
 - 禁止为了通过集成测试而关闭授权、过滤、幂等或审计；
 - 禁止把真实密钥、真实企业文档或供应商 URL 提交进仓库；
-- 禁止在模块分支中修改 `SPEC.md`、历史规格文档或其他模块所有权路径。
+- 禁止静默改写 `SPEC.md` 和历史规格文档；跨模块契约变更走 `progress/changes/`。
 
 ### 5.3 跨模块变更申请
 
@@ -513,59 +519,27 @@ YYYYMMDD-Mxx-short-name.md
 
 ---
 
-## 6. Git、分支与 worktree 协议
+## 6. Git 与主线协议
 
 ### 6.1 分支命名
 
 ```text
-main                         # 只接受集成结果
-integration/wave-0
-integration/wave-1
-integration/wave-2
-module/M00-contracts
-module/M01-auth
-module/M02-documents
-module/M03-data
-module/M04-retrieval
-module/M05-qa-stream
-module/M06-export-audit
-module/M07-worker
-module/M08-web-foundation
-module/M09-user-web
-module/M10-admin-web
-module/M11-integration-ops
+main                         # 默认开发与集成分支
 ```
 
-分支名是建议模板；若同一模块需要并行子任务，可使用 `module/M04-retrieval/<topic>`，但最终必须回到 M04 分支交付。
+1.0 时代的 `module/Mxx-*`、`integration/wave-N` 分支视为只读历史，不再作为默认开发入口。需要短时隔离实验时可用 `wip/<topic>`，合并回 `main` 后删除；不要为此创建 `../Pivot-Mxx-*` worktree。
 
-### 6.2 Windows Git Bash worktree 模板
-
-在干净的集成基线提交后执行：
+### 6.2 主线工作区
 
 ```bash
-git fetch --all --prune
+cd "E:/AI Project/Pivot"
 git switch main
-git pull --ff-only
-
-git switch -c module/M04-retrieval
-git worktree add "../Pivot-M04-retrieval" module/M04-retrieval
+git status --short
 ```
 
-为已有远程/本地分支创建 worktree：
-
-```bash
-git worktree add "../Pivot-M04-retrieval" module/M04-retrieval
-```
-
-查看与移除：
-
-```bash
-git worktree list
-git worktree remove "../Pivot-M04-retrieval"
-git branch -d module/M04-retrieval
-```
-
-> 不要在多个 worktree 之间共享未提交文件；不要在一个 worktree 中切换另一个 worktree 正在使用的分支。
+- 只在这一份工作区写代码。
+- 不要执行 `git worktree add "../Pivot-Mxx-*" ...`。
+- 历史 worktree（`E:/AI Project/Pivot-M00-contracts` 等）禁止继续开发；移除由 Owner 手动执行 `git worktree remove`，本规格不授权批量删除。
 
 ### 6.3 提交与标签
 
@@ -586,20 +560,19 @@ fix(M02): 修正失败版本不替换 current [FR-DOC-006]
 
 - 模块完成：`Mxx-v0.1.0` 注释标签；
 - 波次完成：`wave-0-integrated`、`wave-1-integrated` 等；
-- 本规格冻结：`module-spec-v1.0`；
+- 本规格冻结：`module-spec-v1.0`（并行）；主线流程为 `module-spec-v1.1`；
 - 标签指向已通过测试的 commit，不给未验证代码打完成标签；
-- 不在已被其他 worktree 使用的共享分支上做 rebase/force-push；默认使用保留历史的 merge。
+- 默认直接提交到 `main`；避免 force-push `main`。
 
-### 6.4 模块完成交接
+### 6.4 切片完成交接
 
-模块会话完成前必须：
+一条主线切片完成前必须：
 
-1. 只提交所有权范围内的文件；
-2. 运行模块命令并记录完整命令、版本、结果和失败限制；
-3. 更新 `progress/modules/Mxx.md`；
-4. 提交并创建模块 tag；
-5. 列出未完成项、变更申请、已知 `TBD-P0` 和依赖下一波的事项；
-6. 向集成会话提供 commit/tag、测试证据和合并顺序建议。
+1. 提交本切片范围内的文件（可跨多个模块路径，须在说明里列出）；
+2. 运行受影响测试和静态检查，记录完整命令、版本、结果和失败限制；
+3. 更新相关 `progress/modules/Mxx.md` 与根 `PROGRESS.md`；
+4. 测试通过后可打模块或切片 tag；
+5. 列出未完成项、变更申请、已知 `TBD-P0` 和下一步。
 
 ---
 
@@ -615,7 +588,7 @@ fix(M02): 修正失败版本不替换 current [FR-DOC-006]
 - 依赖模块的接口、数据对象和测试 fixture 可获取；
 - 允许修改路径与禁止修改路径明确；
 - 开放决策/TBD/ADR 已登记；
-- 当前 worktree 基于正确的波次 tag 或集成 commit；
+- 当前工作区是 `Pivot/` 的 `main`，基于正确的波次 tag 或 HEAD；
 - 至少一个 Red 测试已经能表达失败原因。
 
 ### 7.2 模块 Definition of Done
@@ -625,8 +598,8 @@ fix(M02): 修正失败版本不替换 current [FR-DOC-006]
 - 没有真实密钥、真实企业文档和未授权外发；
 - API/SSE/Worker/数据库变更已同步契约和迁移；
 - 没有私自冻结新的 TBD；
-- 只修改本模块所有权路径；
-- 模块进度文件、commit、tag 和验收证据齐全；
+- 主线切片若跨模块，进度中写明触及路径与 Accountable；
+- 进度文件、commit、tag 和验收证据齐全；
 - 不破坏既有契约、Golden Set 和其他模块测试。
 
 ### 7.3 集成门禁顺序
@@ -645,7 +618,7 @@ M11 按以下顺序验证，失败应退回对应 Accountable 模块：
   → P0/P1 验收矩阵
 ```
 
-集成分支允许解决导入、依赖、配置和合并冲突，但不得通过跳过测试、放宽授权或修改业务语义来“绿灯”。
+主线提交允许同时改领域代码与装配，但不得通过跳过测试、放宽授权或修改业务语义来“绿灯”。
 
 ---
 
@@ -674,45 +647,35 @@ M11 按以下顺序验证，失败应退回对应 Accountable 模块：
 
 ## 9. 新会话启动模板
 
-### 9.1 模块实现会话
+### 9.1 主线切片会话
 
 ```text
-你负责问枢 Pivot 的 M04（搜索与检索 RAG）。
+你负责问枢 Pivot 当前主线切片（见 PROGRESS.md 的下一步）。
 
-请先读取：SPEC.md、MODULE_SPEC.md、AGENTS.md、PROGRESS.md、
-progress/modules/M04.md，以及当前波次的集成 tag。
+请先读取：SPEC.md、MODULE_SPEC.md、AGENTS.md、PROGRESS.md，
+以及本切片涉及的 progress/modules/Mxx.md。
 
-只在 module/M04-retrieval 分支和 ../Pivot-M04-retrieval worktree 工作。
-先核对 M04 的 DoR、允许/禁止修改路径、contract-vX.Y 和依赖模块状态。
+只在 E:/AI Project/Pivot 的 main 工作，不要创建或进入 ../Pivot-Mxx-* worktree。
 按 SPEC §0.4 执行 Red → Contract → Green → Refactor → Integration → Regression；
 测试命名使用 test_<requirement_id>_<behavior>()。
 
-不得修改 SPEC.md、公共契约、共享错误码、数据库迁移和其他模块路径。
-需要跨模块变更时只创建 progress/changes/YYYYMMDD-M04-*.md，暂停该变更并说明影响。
-完成后更新 progress/modules/M04.md，记录 commit、tag、测试命令、结果、差距和下一步，
-不要直接修改根 PROGRESS.md，不要 push。
+一次切片可以改多个模块路径，但必须写明 Accountable。
+不得私自冻结 TBD-P0，不得提交密钥。需要改公共契约时先写 progress/changes/。
+完成后更新相关 progress/modules/Mxx.md 和根 PROGRESS.md。
 ```
 
-将 `M04` 替换为目标模块即可；模块会话不应假定当前对话拥有其他模块上下文。
-
-### 9.2 集成会话
+### 9.2 波次收口
 
 ```text
-你负责问枢 Pivot 的 M11/集成工作。
-
-先读取 SPEC.md、MODULE_SPEC.md、AGENTS.md、PROGRESS.md 和所有 progress/modules/Mxx.md。
-确认当前波次及依赖 DAG，按 M00 → M03 → 业务模块 → Web → M11 顺序合并。
-先跑契约、迁移、unit，再跑 integration/security/e2e/performance；
-只修配置/合并冲突，业务语义缺陷退回 Accountable 模块。
-更新根 PROGRESS.md 与 spec/acceptance/matrix.md，记录证据和未通过门禁，
-通过后创建 wave-N-integrated 标签。
+当前切片已完成。请跑分组回归，更新 spec/acceptance/matrix.md，
+记录证据和未通过的 GATE-P0，通过后创建 wave-N-integrated 标签。
 ```
 
 ---
 
 ## 10. 版本与变更流程
 
-- 本文初版标签为 `module-spec-v1.0`；只要模块编号、所有权或依赖 DAG 发生破坏性变化，应升级本文次版本并记录 ADR/变更日志；
+- 并行基线标签为 `module-spec-v1.0`；主线流程为 `module-spec-v1.1`。只要模块编号、所有权或依赖 DAG 发生破坏性变化，应升级本文次版本并记录 ADR/变更日志；
 - 新增模块不得复用已删除模块编号；合并模块必须保留旧 ID 的迁移说明；
 - 需求变化先修改 `SPEC.md` 或对应 ADR，再更新本文件映射，不在模块实现中私下解释新需求；
 - 公共契约采用语义化版本：兼容字段增加提升 minor，破坏性变更提升 major，并提供兼容窗口或 API 版本升级；
@@ -722,12 +685,9 @@ progress/modules/M04.md，以及当前波次的集成 tag。
 
 ## 11. 当前未覆盖与后续承接
 
-本文件建立并行边界，不代表 Wave 1 业务能力已经实现。Wave 0 已冻结契约、数据端口和 Web client 输入：
+本文 1.1 将默认流程改为主线开发，不改变 SPEC 需求，也不把 Fake HTTP 标成 GATE verified。当前主线在 Wave 3：
 
-- `api/` 仅有 M03 模型/UoW/存储端口；`web/` 仅有 M08 设计系统与 client；`worker/` 仍未实现；
-- `spec/contracts/`、`spec/scenarios/` 与契约测试已存在；业务 fixtures 仍待对应波次生成；
-- `tests/` 已有 M00 契约、M03 数据集成和 M08 基础 fixture，其余层仍为骨架；
+- 工作区仅为 `Pivot/` 的 `main`；不要在历史 worktree 继续开发；
+- HTTP 装配仍需注入才挂路由；无 uvicorn 入口、无预览/下载、无真实存储客户端；
 - `TBD-P0` 仍必须按原 SPEC 的 P0 流程冻结；
-- Docker/PG/Qdrant/MinIO/Redis 集成、Golden Set、性能和灾备须由后续模块波次完成。
-
-Wave 1 会话必须基于 `wave-0-integrated`，不得越过自己的所有权边界提前实现其他模块业务逻辑。
+- Docker/PG/Qdrant/MinIO/Redis 客户端、Golden Set、性能和灾备仍待后续主线切片。
