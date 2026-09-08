@@ -3,7 +3,7 @@
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-08  
 > **当前状态**：主线开发（MODULE-SPEC-1.1）；Wave 3 进行中。工作区仅为 `Pivot/` 的 `main`。波次基线仍为 `wave-2-integrated`（未打 `wave-3-integrated`）。
-> **当前基线**：`wave-2-integrated` + Compose `c98b012` + 健康端点 `646ab12` + 认证 HTTP `f0f4352` + 文档 HTTP `7d4e8d9` + 搜索 HTTP `0750291` + Run/SSE HTTP `717b7ad` + 导出/审计 HTTP `35d37bc` + 改密/管理用户 HTTP `6cb9118` + 会话 CRUD HTTP `19da428`。
+> **当前基线**：`wave-2-integrated` + Compose `c98b012` + 健康端点 `646ab12` + 认证 HTTP `f0f4352` + 文档 HTTP `7d4e8d9` + 搜索 HTTP `0750291` + Run/SSE HTTP `717b7ad` + 导出/审计 HTTP `35d37bc` + 改密/管理用户 HTTP `6cb9118` + 会话 CRUD HTTP `19da428` + 主线协议 `ff1626a` + 预览/下载 HTTP（本切片）。
 
 ## 1. 新会话恢复入口
 
@@ -13,7 +13,7 @@
 4. 读取本文件和本切片涉及的 `progress/modules/Mxx.md`；
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
 
-如果没有指定切片：继续 **Wave 3**。认证、文档、搜索、Run/SSE、导出/审计与会话 CRUD HTTP 已在 main；下一刀是预览/下载 HTTP。不要冻结 `TBD-P0`，不要把 HTTP 装配标成 GATE verified。不要新建 worktree。
+如果没有指定切片：继续 **Wave 3**。认证、文档（含预览/下载）、搜索、Run/SSE、导出/审计与会话 CRUD HTTP 已在 main；下一刀是 composition root（可启动 FastAPI）。不要冻结 `TBD-P0`，不要把 HTTP 装配标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 
@@ -23,7 +23,7 @@
 |---|---|---|---|---|---|
 | M00 契约治理 | integrated | `main` | `contract-v0.1` | `tests/contract`: 48 passed | 已完成契约、场景、矩阵 |
 | M01 身份授权 | integrated | `main`（tag `M01-v0.3.0`） | `contract-v0.1` | 27 单元 + 登录/改密/管理用户 HTTP | 限流与 PATCH 角色/重置仍待 |
-| M02 文档接入 | integrated | `main`（tag `M02-v0.3.0`） | `contract-v0.1` | 21 单元 + 上传/列表/详情/重试/删除 HTTP | 预览/下载 HTTP 仍待 |
+| M02 文档接入 | integrated | `main`（tag 目标 `M02-v0.4.0`） | `contract-v0.1` | 25 单元 + 上传/列表/详情/重试/删除/预览/下载 HTTP | 真实 MinIO 与解析执行仍待 |
 | M03 数据基础 | integrated | `main`（tag `M03-v0.1.0`） | `contract-v0.1` | M03 12 + M00 48 tests passed | PostgreSQL/外部存储客户端待主线切片 |
 | M04 检索 RAG | integrated | `main`（tag `M04-v0.2.0`） | `contract-v0.1` | 10 单元 + 搜索 HTTP | 真实 dense/BM25/rerank 与 Golden Set 待后续 |
 | M05 QA/Run/SSE | integrated | `main`（tag `M05-v0.3.0`） | `contract-v0.1` | 12 领域 + Run/SSE + 会话 CRUD HTTP | LangGraph extra 待后续 |
@@ -32,7 +32,7 @@
 | M08 Web 基础 | integrated | `main`（tag `M08-v0.1.0`） | `contract-v0.1` | M08 9 tests + typecheck/lint 通过 | 共享组件已被 M09/M10 消费 |
 | M09 员工前台 | integrated | `main`（tag `M09-v0.1.0`） | `wave-1-integrated` | 12 passed | Playwright / 真实 FastAPI 待 Wave 3 |
 | M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 passed | Playwright / 真实 FastAPI 待 Wave 3 |
-| M11 集成/质量/运维 | in_progress | `main` | `wave-2-integrated` | 分组 Python 227 passed / 2 skipped | 预览/下载 HTTP、Playwright、GATE-P0 仍待 |
+| M11 集成/质量/运维 | in_progress | `main` | `wave-2-integrated` | 分组 Python 236 passed / 2 skipped | composition root、Playwright、GATE-P0 仍待 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护。历史 `../Pivot-Mxx-*` worktree 不再使用。
 
@@ -43,8 +43,8 @@
 | 需求范围 | Accountable | 测试/场景入口 | 当前状态 | 验收证据 |
 |---|---|---|---|---|
 | FR-AUTH-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`tests/integration/pipeline/test_FR_AUTH_001_http_login.py`、`tests/integration/pipeline/test_FR_AUTH_004_http_admin_users.py` | implemented | 27 项单元/安全 + 登录/刷新/退出/改密/管理用户 HTTP；限流与 PATCH 角色未挂 |
-| FR-RBAC-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`spec/scenarios/auth.feature`、`tests/integration/pipeline/test_FR_RBAC_002_http_conversations.py` | implemented | 资源四重授权与会话隔离；会话 CRUD HTTP 仅 owner 可见 |
-| FR-DOC-001~008 | M02 | `tests/unit/documents/`、`tests/integration/pipeline/test_FR_DOC_001_http_upload.py`、`tests/integration/pipeline/test_FR_DOC_007_http_lifecycle.py` | implemented | 21 项 M02 单元 + 文档上传/列表/详情/版本/重试/删除 HTTP；无预览/下载 / 真实 MinIO |
+| FR-RBAC-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`spec/scenarios/auth.feature`、`tests/integration/pipeline/test_FR_RBAC_002_http_conversations.py`、`tests/integration/pipeline/test_FR_RBAC_003_http_preview.py` | implemented | 资源四重授权与会话隔离；会话 CRUD HTTP 仅 owner 可见；预览/下载按详情同等可见性 |
+| FR-DOC-001~008 | M02 | `tests/unit/documents/`、`tests/integration/pipeline/test_FR_DOC_001_http_upload.py`、`tests/integration/pipeline/test_FR_DOC_007_http_lifecycle.py`、`tests/integration/pipeline/test_FR_RBAC_003_http_preview.py` | implemented | 25 项 M02 单元 + 文档上传/列表/详情/版本/重试/删除/预览/下载 HTTP；无真实 MinIO |
 | FR-SEARCH-001~002 / FR-RAG-001~006 | M04 | `tests/unit/retrieval/`、`tests/security/retrieval/`、`tests/integration/pipeline/test_FR_SEARCH_001_http_search.py` | implemented | 10 项 M04 单元 + `GET /api/v1/search` HTTP；dense/BM25 为 Fake |
 | FR-QA-001~006 / FR-STREAM-001~005 | M05 | `tests/unit/qa/`、`tests/unit/runs/`、`tests/contract/stream/`、`tests/integration/pipeline/test_FR_STREAM_001_http_runs.py`、`tests/integration/pipeline/test_FR_RBAC_002_http_conversations.py` | implemented | 12 项 M05 领域 + Run/SSE + 会话 CRUD HTTP（消息由 Run 合成） |
 | FR-EXPORT-001~003 / FR-AUDIT-001~003 | M06 | `tests/unit/exports/`、`tests/unit/audit/`、`tests/security/export/`、`tests/integration/pipeline/test_FR_EXPORT_001_http_exports.py` | implemented | 26 项 M06 单元 + 导出/审计 HTTP；内存存储，无对象字节下载 |
@@ -53,7 +53,7 @@
 | §1.5 / NFR-UX 设计系统与 client | M08 | `tests/e2e/fixtures/web/test-foundation.mjs` | implemented | M08 9 项基础测试通过；产品页由 M09/M10 接管 |
 | 前台 6 页 | M09 | `tests/e2e/user/test_user_web.mjs` | implemented | 12 项 Fake fetch 测试通过；无 Playwright |
 | 后台 4 页 | M10 | `tests/e2e/admin/test_admin_web.mjs` | implemented | 8 项 Fake fetch 测试通过；无 Playwright |
-| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + Compose + health + auth/documents/search/runs/exports/conversations HTTP）；GATE-P0 unverified | TestClient；无预览/下载 HTTP；CI 不启动 Compose |
+| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + Compose + health + auth/documents/search/runs/exports/conversations/preview HTTP）；GATE-P0 unverified | TestClient；对象字节为内存 Fake；CI 不启动 Compose |
 
 ## 4. 当前波次计划
 
@@ -94,7 +94,8 @@
 - [x] 导出/审计 HTTP（`M06-v0.2.0`；短时 URL，非对象字节下载）
 - [x] 改密与管理员用户 HTTP（`M01-v0.3.0`；PATCH 仅 status）
 - [x] 会话 CRUD HTTP（`M05-v0.3.0`；删除为隐藏，消息由 Run 合成）
-- [ ] 预览/下载；Playwright、Golden Set、5 并发 / 100k Chunk、新 ECS 备份恢复
+- [x] 预览/下载 HTTP（`GET /documents/{id}/preview|download`；内存 Fake 对象字节）
+- [ ] Playwright、Golden Set、5 并发 / 100k Chunk、新 ECS 备份恢复
 - [ ] 任一 `GATE-P0-*` verified；未打 `wave-3-integrated`
 
 ## 5. 未完成项与已知差距
@@ -114,7 +115,8 @@
 - [x] FastAPI `POST /api/v1/exports`、`GET /exports/{id}`、`GET /admin/audit-events`（分别与 AuthService 同时注入才挂载）；
 - [x] FastAPI `POST /auth/change-password`、`GET/POST /admin/users`、`PATCH /admin/users/{id}`（status 停用/启用）；
 - [x] FastAPI `GET/POST /conversations`、`GET/DELETE /conversations/{id}`、`GET /conversations/{id}/messages`（与 AuthService 同时注入才挂载）；
-- [ ] 无预览/下载 HTTP；无 Celery；无 api/worker/web Compose 服务；
+- [x] FastAPI `GET /documents/{id}/preview`、`GET /documents/{id}/download`（与既有文档 router 同挂载；inline/attachment；不暴露 MinIO）；
+- [ ] 无 Celery；无 api/worker/web Compose 服务；无 composition root / uvicorn 入口；
 - [ ] PostgreSQL/Qdrant/MinIO/Redis **客户端适配**尚未建立；真实 PG Alembic 冒烟因无 Docker/psycopg 为 skip；
 - [ ] 所有 `TBD-P0` 均未冻结，禁止模块自行填默认值；
 - [ ] P0 八项门槛均未验证；
@@ -131,8 +133,16 @@
 - [x] Wave 3 改密/管理用户 HTTP 已批准并合入：`20260908-M01-auth-admin-users-http.md`。
 - [x] Wave 3 会话 CRUD HTTP 已批准并合入：`20260908-M11-api-v1-conversations-mount.md`。
 - [x] 主线开发流程已批准：`20260908-M00-mainline-development.md`（MODULE-SPEC-1.1）。历史 worktree 由 Owner 手动清理。
+- [x] Wave 3 预览/下载 HTTP 已批准：`20260908-M02-documents-preview-download-http.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-08 — Wave 3 文档预览/下载 HTTP
+
+- **完成**：批准 `20260908-M02-documents-preview-download-http.md`；M02 `ObjectStore.get` + `DocumentService.open_content`；`GET /api/v1/documents/{id}/preview|download`；M11 pipeline HTTP 测试。Accountable：M02 领域/router，M11 pipeline。
+- **验证**（main，2026-09-08，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6 / fastapi 0.141.1）：`python ops/run_grouped_tests.py --skip-web` → **236 passed, 2 skipped**；ruff / compileall 通过。
+- **限制**：内存 Fake 对象字节；无真实 MinIO；未启动 uvicorn；未打 `wave-3-integrated`；GATE-P0 全部 unverified。
+- **下一步**：composition root（可启动 FastAPI）或 Next 反代 `/api/v1`。
 
 ### 2026-09-08 — 改为主线开发（MODULE-SPEC-1.1）
 

@@ -8,7 +8,7 @@
 
 1. 工作区：`E:/AI Project/Pivot`，分支：`main`。不要新建 worktree。
 2. 读：`AGENTS.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. 下一刀：**预览/下载 HTTP**（M02 领域 + M11 挂载）。
+3. 下一刀：**composition root**（可启动 FastAPI，Argon2 + 可切换存储），随后 Next 反代 `/api/v1`。
 4. 不要冻结 `TBD-P0`，不要把 Fake HTTP 标成 `GATE-P0 verified`。
 
 ## 1. 工作区与流程
@@ -23,7 +23,7 @@
 
 ## 2. 产品现状（观感 vs 事实）
 
-测试约 **227 passed / 2 skipped** 是真的，测的是 **内存 Fake + TestClient**，不是可上线系统。
+测试约 **236 passed / 2 skipped** 是真的，测的是 **内存 Fake + TestClient**，不是可上线系统。
 
 | 层 | 实际 |
 |---|---|
@@ -39,9 +39,9 @@
 ## 3. 已合入 main 的能力（Wave 0–3 切片）
 
 - Wave 0–2 已打 `wave-0/1/2-integrated`
-- Wave 3 已合入：Compose 依赖 fixture、`/healthz` `/readyz`、认证、文档上传/列表/详情/重试/删除、搜索、Run/SSE、导出/审计、改密/管理用户、会话 CRUD
+- Wave 3 已合入：Compose 依赖 fixture、`/healthz` `/readyz`、认证、文档上传/列表/详情/重试/删除/预览/下载、搜索、Run/SSE、导出/审计、改密/管理用户、会话 CRUD
 - **未打** `wave-3-integrated`
-- main 合并终点（会话 CRUD 文档）：`b45fead`；其后主线协议文档可能尚未 commit
+- 主线协议：`ff1626a`（MODULE-SPEC-1.1）；预览/下载切片见 `PROGRESS.md`
 
 ## 4. 已知缺口 / 缺陷（按优先级）
 
@@ -50,8 +50,8 @@
 3. **PATCH `/admin/users/{id}`**：请求体允许 `role` / `reset_password`，实现只改 `status`，否则 404
 4. **登录限流空操作**：`InMemoryAttempts.is_blocked` 恒为 `False`
 5. **密码哈希双轨**：有 `Argon2idHasher`，HTTP 流水线用测试 PBKDF2
-6. **无预览/下载 HTTP**（当前下一刀）
-7. 无 Playwright、无真实 dense/BM25、无对象字节下载、无 PG/MinIO 客户端
+6. 预览/下载 HTTP 已挂（内存 Fake 对象字节；无真实 MinIO）
+7. 无 Playwright、无真实 dense/BM25、无导出对象字节下载、无 PG/MinIO 客户端
 
 ## 5. 下一刀建议
 
@@ -59,10 +59,9 @@
 
 1. composition root（可启动 FastAPI，Argon2 + 可切换存储）
 2. Next 反代 `/api/v1`，登录页能通
-3. 预览/下载 HTTP
-4. 再考虑 Playwright / 真实检索
+3. 再考虑 Playwright / 真实检索 / 真实 MinIO
 
-若仍按 `PROGRESS.md` 字面执行：先做第 3 项预览/下载。新会话应向 Owner 确认是否改为先做 1–2。
+预览/下载 HTTP 已完成。下一刀默认第 1 项 composition root。
 
 ## 6. 纪律（未改）
 

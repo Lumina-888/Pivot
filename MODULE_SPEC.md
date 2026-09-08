@@ -688,6 +688,6 @@ M11 按以下顺序验证，失败应退回对应 Accountable 模块：
 本文 1.1 将默认流程改为主线开发，不改变 SPEC 需求，也不把 Fake HTTP 标成 GATE verified。当前主线在 Wave 3：
 
 - 工作区仅为 `Pivot/` 的 `main`；不要在历史 worktree 继续开发；
-- HTTP 装配仍需注入才挂路由；无 uvicorn 入口、无预览/下载、无真实存储客户端；
+- HTTP 装配仍需注入才挂路由；无 uvicorn 入口、无真实存储客户端；预览/下载已挂内存 Fake 对象流；
 - `TBD-P0` 仍必须按原 SPEC 的 P0 流程冻结；
 - Docker/PG/Qdrant/MinIO/Redis 客户端、Golden Set、性能和灾备仍待后续主线切片。
