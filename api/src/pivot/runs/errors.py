@@ -14,6 +14,14 @@ class RunError(Exception):
     def __str__(self) -> str:
         return self.message
 
+    def to_envelope(self) -> dict[str, str | bool]:
+        return {
+            "code": self.code,
+            "message": self.message,
+            "request_id": self.request_id,
+            "retryable": False,
+        }
+
 
 def conflict(request_id: str) -> RunError:
     return RunError("IDEMPOTENCY_CONFLICT", "幂等键与参数不一致", request_id)

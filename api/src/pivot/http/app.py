@@ -11,7 +11,10 @@ from pivot.auth.errors import AuthError
 from pivot.auth.service import AuthService
 from pivot.documents.errors import DocumentError
 from pivot.documents.service import DocumentService
+from pivot.qa.orchestrator import QaOrchestrator
 from pivot.retrieval.service import RetrievalService
+from pivot.runs.errors import RunError
+from pivot.runs.service import RunService
 
 _CHECKS = ("postgres", "minio", "qdrant", "redis")
 
@@ -28,11 +31,13 @@ def create_app(
     auth: AuthService | None = None,
     documents: DocumentService | None = None,
     retrieval: RetrievalService | None = None,
+    runs: RunService | None = None,
+    qa: QaOrchestrator | None = None,
 ) -> FastAPI:
     """Create the HTTP assembly. Missing probes make /readyz fail closed.
 
     Domain routes are mounted only when their services are injected.
-    Document and search routes additionally require AuthService (fail closed).
+    Document, search and run routes additionally require AuthService (fail closed).
     """
 
     app = FastAPI(
@@ -53,6 +58,12 @@ def create_app(
         from pivot.documents.http import document_error_response
 
         return document_error_response(exc)
+
+    @app.exception_handler(RunError)
+    async def handle_run_error(_request: Request, exc: RunError) -> JSONResponse:
+        from pivot.runs.http import run_error_response
+
+        return run_error_response(exc)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -89,5 +100,10 @@ def create_app(
         from pivot.retrieval.http import build_search_router
 
         app.include_router(build_search_router(retrieval, auth), prefix="/api/v1")
+
+    if runs is not None and qa is not None and auth is not None:
+        from pivot.runs.http import build_runs_router
+
+        app.include_router(build_runs_router(runs, qa, auth), prefix="/api/v1")
 
     return app
