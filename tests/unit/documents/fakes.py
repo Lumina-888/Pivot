@@ -99,6 +99,9 @@ class MemoryObjects:
     def put(self, key: str, payload: bytes) -> None:
         self._items[key] = payload
 
+    def get(self, key: str) -> bytes | None:
+        return self._items.get(key)
+
     def exists(self, key: str) -> bool:
         return key in self._items
 

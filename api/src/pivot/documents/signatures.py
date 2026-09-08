@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import zipfile
 from io import BytesIO
 
@@ -23,12 +24,34 @@ OOXML_MARKERS = {
     ".xlsx": "xl/",
 }
 
+_UNSAFE_FILENAME = re.compile(r"[^\w\u4e00-\u9fff.-]+", re.UNICODE)
+KIND_MEDIA_TYPE = {
+    "pdf": ALLOWED_MIME[".pdf"],
+    "docx": ALLOWED_MIME[".docx"],
+    "pptx": ALLOWED_MIME[".pptx"],
+    "xlsx": ALLOWED_MIME[".xlsx"],
+}
+
 
 def normalize_filename(filename: str) -> str:
     name = filename.replace("\\", "/").split("/")[-1]
     if not name or name in {".", ".."} or ".." in filename:
         raise ValueError("unsafe filename")
     return name
+
+
+def download_filename(title: str, extension: str) -> str:
+    """Strip path segments and injection characters (SPEC §8.2, NFR-SEC-015)."""
+    base = str(title or "document").replace("\\", "/").split("/")[-1]
+    base = base.replace("..", "")
+    cleaned = _UNSAFE_FILENAME.sub("_", base).strip("._") or "document"
+    cleaned = cleaned[:120]
+    ext = extension.lower() if extension.startswith(".") else f".{extension.lower()}"
+    if ext not in ALLOWED_MIME:
+        ext = ".bin"
+    if not cleaned.lower().endswith(ext):
+        cleaned = f"{cleaned}{ext}"
+    return cleaned
 
 
 def extension_of(filename: str) -> str:

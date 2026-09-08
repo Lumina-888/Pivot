@@ -18,6 +18,7 @@ from pivot.documents.ports import (
     ChunkStore,
     DocumentRecord,
     DocumentStore,
+    FileContent,
     ObjectStore,
     ResourceLimits,
     TaskRecord,
@@ -25,7 +26,13 @@ from pivot.documents.ports import (
     VersionRecord,
     VersionStore,
 )
-from pivot.documents.signatures import normalize_filename, validate_upload
+from pivot.documents.signatures import (
+    KIND_MEDIA_TYPE,
+    download_filename,
+    normalize_filename,
+    sniff_kind,
+    validate_upload,
+)
 from pivot.domain.document_state import TERMINAL_FAILURE, is_searchable, next_state
 from pivot.shared.ids import new_id
 from pivot.shared.time import utc_now
@@ -220,14 +227,34 @@ class DocumentService:
             raise DocumentError("RESOURCE_FORBIDDEN", "没有可重试的失败版本", request_id)
         return self.retry(failed[-1].id, request_id, actor_id)
 
+    def open_content(
+        self,
+        document_id: str,
+        *,
+        viewer_role: str,
+        request_id: str,
+        purpose: str,
+        actor_id: str,
+    ) -> FileContent:
+        if purpose not in {"preview", "download"}:
+            raise DocumentError("RESOURCE_FORBIDDEN", "非法用途", request_id)
+        document = self._visible_document(document_id, viewer_role, request_id)
+        body = self._object_bytes(document.id, request_id)
+        kind = sniff_kind(body)
+        extension = f".{kind}" if kind in KIND_MEDIA_TYPE else ".bin"
+        payload = FileContent(
+            body=body,
+            filename=download_filename(document.title, extension),
+            media_type=KIND_MEDIA_TYPE.get(kind, "application/octet-stream"),
+            disposition="inline" if purpose == "preview" else "attachment",
+        )
+        self._audit(actor_id, f"doc.{purpose}", document.id, "ok", request_id)
+        return payload
+
     def get_detail(
         self, document_id: str, *, viewer_role: str, request_id: str
     ) -> dict[str, object]:
-        document = self._require_document(document_id, request_id)
-        if viewer_role != "admin" and (
-            document.deleted_at is not None or document.space != "shared"
-        ):
-            raise DocumentError("RESOURCE_NOT_FOUND", "资源不存在", request_id)
+        document = self._visible_document(document_id, viewer_role, request_id)
         created = document.created_at or self._now()
         return {
             "document_id": document.id,
@@ -377,6 +404,30 @@ class DocumentService:
         version.state = next_state(version.state, event, request_id)
         self._versions.save(version)
         return version
+
+    def _visible_document(
+        self, document_id: str, viewer_role: str, request_id: str
+    ) -> DocumentRecord:
+        document = self._require_document(document_id, request_id)
+        if viewer_role != "admin" and (
+            document.deleted_at is not None or document.space != "shared"
+        ):
+            raise DocumentError("RESOURCE_NOT_FOUND", "资源不存在", request_id)
+        return document
+
+    def _object_bytes(self, document_id: str, request_id: str) -> bytes:
+        versions = self._versions.list_for_document(document_id)
+        preferred = [version for version in versions if version.current]
+        ordered = (*preferred, *reversed(versions))
+        seen: set[str] = set()
+        for version in ordered:
+            if version.id in seen:
+                continue
+            seen.add(version.id)
+            payload = self._objects.get(version.storage_key)
+            if payload is not None:
+                return payload
+        raise DocumentError("RESOURCE_NOT_FOUND", "资源不存在", request_id)
 
     def _require_document(self, document_id: str, request_id: str) -> DocumentRecord:
         document = self._documents.get(document_id)

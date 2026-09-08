@@ -69,6 +69,16 @@ class ResourceLimits:
     max_zip_ratio: float | None = None
 
 
+@dataclass(frozen=True)
+class FileContent:
+    """Authorized original bytes. Never include storage_key or object URLs."""
+
+    body: bytes
+    filename: str
+    media_type: str
+    disposition: str
+
+
 class DocumentStore(Protocol):
     def get(self, document_id: str) -> DocumentRecord | None: ...
 
@@ -103,6 +113,8 @@ class TaskStore(Protocol):
 
 class ObjectStore(Protocol):
     def put(self, key: str, payload: bytes) -> None: ...
+
+    def get(self, key: str) -> bytes | None: ...
 
     def exists(self, key: str) -> bool: ...
 

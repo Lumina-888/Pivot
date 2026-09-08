@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from pivot.auth.errors import invalid_credentials
 from pivot.auth.http import resolve_request_id
 from pivot.auth.service import AuthService
 from pivot.documents.errors import DocumentError
+from pivot.documents.ports import FileContent
 from pivot.documents.service import DocumentService
 
 _STATUS = {
@@ -109,7 +112,54 @@ def build_documents_router(service: DocumentService, auth: AuthService) -> APIRo
         service.request_delete(id, request_id, principal.user_id)
         return JSONResponse({"document_id": id, "accepted": True}, status_code=202)
 
+    @router.get("/documents/{id}/preview")
+    def preview_document(request: Request, id: str) -> Response:
+        return _file_response(_open(request, auth, service, id, "preview"))
+
+    @router.get("/documents/{id}/download")
+    def download_document(request: Request, id: str) -> Response:
+        return _file_response(_open(request, auth, service, id, "download"))
+
     return router
+
+
+def _open(
+    request: Request,
+    auth: AuthService,
+    service: DocumentService,
+    document_id: str,
+    purpose: str,
+) -> FileContent:
+    request_id, principal = _principal(request, auth)
+    return service.open_content(
+        document_id,
+        viewer_role=principal.role,
+        request_id=request_id,
+        purpose=purpose,
+        actor_id=principal.user_id,
+    )
+
+
+def _file_response(payload: FileContent) -> Response:
+    return Response(
+        content=payload.body,
+        media_type=payload.media_type,
+        headers={
+            "Content-Disposition": _content_disposition(payload.disposition, payload.filename),
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+def _content_disposition(disposition: str, filename: str) -> str:
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii").strip() or "document"
+    if "." in filename and "." not in ascii_name:
+        ascii_name = f"document{filename[filename.rfind('.'):]}"
+    return (
+        f'{disposition}; filename="{ascii_name}"; '
+        f"filename*=UTF-8''{quote(filename, safe='')}"
+    )
 
 
 def _principal(request: Request, auth: AuthService):
