@@ -137,3 +137,10 @@ class InMemoryResources:
 
     def get_conversation_owner(self, conversation_id: str) -> str | None:
         return self.conversations.get(conversation_id)
+
+    def claim_conversation(self, conversation_id: str, owner_id: str) -> str:
+        current = self.conversations.get(conversation_id)
+        if current is None:
+            self.conversations[conversation_id] = owner_id
+            return owner_id
+        return current

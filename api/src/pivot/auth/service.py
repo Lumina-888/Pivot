@@ -244,6 +244,11 @@ class AuthService:
     ) -> None:
         self._access.authorize_conversation(principal, conversation_id, request_id)
 
+    def ensure_conversation_owner(
+        self, principal: Principal, conversation_id: str, request_id: str = "req_authz"
+    ) -> None:
+        self._access.ensure_conversation_owner(principal, conversation_id, request_id)
+
     def authorize_document(
         self,
         principal: Principal,

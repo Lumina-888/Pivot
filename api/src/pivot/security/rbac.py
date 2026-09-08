@@ -25,6 +25,16 @@ class AccessControl:
             raise resource_forbidden(request_id)
         raise not_found(request_id)
 
+    def ensure_conversation_owner(
+        self, principal: Principal, conversation_id: str, request_id: str
+    ) -> None:
+        claim = getattr(self._catalog, "claim_conversation", None)
+        if callable(claim):
+            owner = claim(conversation_id, principal.user_id)
+            if owner == principal.user_id:
+                return
+        self.authorize_conversation(principal, conversation_id, request_id)
+
     def authorize_document(
         self,
         principal: Principal,
