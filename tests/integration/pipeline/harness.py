@@ -199,6 +199,14 @@ class Pipeline:
                     status="active",
                     token_version=1,
                 ),
+                UserAccount(
+                    id="usr_admin",
+                    username="admin",
+                    password_hash=hasher.hash("admin-password"),
+                    role="admin",
+                    status="active",
+                    token_version=1,
+                ),
             ]
         )
         self.auth_audits = _auth_fakes.InMemoryAudit()
