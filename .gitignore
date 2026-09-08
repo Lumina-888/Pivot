@@ -40,6 +40,8 @@ logs/
 # ===== 工具工作痕迹（不入库）=====
 .zcode/
 .claude/
+.pi/sessions/
+.pi/artifacts/
 
 # ===== IDE / 系统 =====
 .idea/
