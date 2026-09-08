@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from pivot.auth.cookies import Cookie, clear_refresh_cookie, refresh_cookie
-from pivot.auth.errors import forbidden, invalid_credentials
+from pivot.auth.errors import forbidden, invalid_credentials, not_found
 from pivot.auth.ports import (
     AuditEventDraft,
     AuditSink,
@@ -151,6 +151,10 @@ class AuthService:
         self._rotate_password(user, new_password)
         self._audit(user.id, "auth.change_password", user.id, "ok", request_id)
 
+    def list_users(self, actor_id: str, request_id: str) -> tuple[dict[str, str], ...]:
+        self._require_admin_actor(actor_id, request_id)
+        return tuple(self.to_admin_user(user) for user in self._users.list())
+
     def create_user(
         self,
         actor_id: str,
@@ -160,6 +164,7 @@ class AuthService:
     ) -> CreatedUser:
         self._require_admin_actor(actor_id, request_id)
         password_hash = self._hasher.hash(initial_password)
+        now = self._clock.now()
         user = UserAccount(
             id=new_id("user"),
             username=username,
@@ -168,6 +173,8 @@ class AuthService:
             status="active",
             token_version=1,
             must_change_password=True,
+            created_at=now,
+            updated_at=now,
         )
         self._users.save(user)
         self._audit(
@@ -211,9 +218,10 @@ class AuthService:
 
     def disable_user(self, actor_id: str, user_id: str, request_id: str) -> UserAccount:
         self._require_admin_actor(actor_id, request_id)
-        user = self._require_user(user_id, request_id)
+        user = self._require_known_user(user_id, request_id)
         user.status = "disabled"
         user.token_version += 1
+        user.updated_at = self._clock.now()
         self._users.save(user)
         self._refresh_tokens.revoke_user(user.id)
         self._audit(actor_id, "auth.disable_user", user.id, "ok", request_id)
@@ -221,12 +229,37 @@ class AuthService:
 
     def enable_user(self, actor_id: str, user_id: str, request_id: str) -> UserAccount:
         self._require_admin_actor(actor_id, request_id)
-        user = self._require_user(user_id, request_id)
+        user = self._require_known_user(user_id, request_id)
         user.status = "active"
         user.token_version += 1
+        user.updated_at = self._clock.now()
         self._users.save(user)
         self._audit(actor_id, "auth.enable_user", user.id, "ok", request_id)
         return user
+
+    def set_user_status(
+        self, actor_id: str, user_id: str, status: str, request_id: str
+    ) -> UserAccount:
+        if status == "disabled":
+            return self.disable_user(actor_id, user_id, request_id)
+        if status == "active":
+            return self.enable_user(actor_id, user_id, request_id)
+        raise not_found(request_id)
+
+    def to_admin_user(self, user: UserAccount) -> dict[str, str]:
+        stamp = user.created_at or self._clock.now()
+        updated = user.updated_at or stamp
+        return {
+            "user_id": user.id,
+            "username": user.username,
+            "role": user.role,
+            "status": user.status,
+            "created_at": self._format_utc(stamp),
+            "updated_at": self._format_utc(updated),
+        }
+
+    def admin_user(self, user_id: str, request_id: str) -> dict[str, str]:
+        return self.to_admin_user(self._require_known_user(user_id, request_id))
 
     def require_admin(self, principal: Principal, path: str, request_id: str) -> None:
         if not self._access.require_admin(principal):
@@ -306,6 +339,7 @@ class AuthService:
         user.password_hash = self._hasher.hash(new_password)
         user.token_version += 1
         user.must_change_password = False
+        user.updated_at = self._clock.now()
         self._users.save(user)
         self._refresh_tokens.revoke_user(user.id)
 
@@ -314,6 +348,15 @@ class AuthService:
         if user is None:
             raise invalid_credentials(request_id)
         return user
+
+    def _require_known_user(self, user_id: str, request_id: str) -> UserAccount:
+        user = self._users.get_by_id(user_id)
+        if user is None:
+            raise not_found(request_id)
+        return user
+
+    def _format_utc(self, value) -> str:
+        return value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def _require_admin_actor(self, actor_id: str, request_id: str) -> UserAccount:
         actor = self._users.get_by_id(actor_id)
