@@ -17,6 +17,7 @@ from pivot.exports.errors import ExportError
 from pivot.exports.service import ExportService
 from pivot.qa.orchestrator import QaOrchestrator
 from pivot.retrieval.service import RetrievalService
+from pivot.runs.conversations import ConversationService
 from pivot.runs.errors import RunError
 from pivot.runs.service import RunService
 
@@ -37,14 +38,15 @@ def create_app(
     retrieval: RetrievalService | None = None,
     runs: RunService | None = None,
     qa: QaOrchestrator | None = None,
+    conversations: ConversationService | None = None,
     exports: ExportService | None = None,
     audits: AuditService | None = None,
 ) -> FastAPI:
     """Create the HTTP assembly. Missing probes make /readyz fail closed.
 
     Domain routes are mounted only when their services are injected.
-    Document, search, run, export and audit routes additionally require AuthService
-    (fail closed).
+    Document, search, run, conversation, export and audit routes additionally
+    require AuthService (fail closed).
     """
 
     app = FastAPI(
@@ -124,6 +126,11 @@ def create_app(
         from pivot.runs.http import build_runs_router
 
         app.include_router(build_runs_router(runs, qa, auth), prefix="/api/v1")
+
+    if conversations is not None and auth is not None:
+        from pivot.runs.conversations_http import build_conversations_router
+
+        app.include_router(build_conversations_router(conversations, auth), prefix="/api/v1")
 
     if exports is not None and auth is not None:
         from pivot.exports.http import build_exports_router

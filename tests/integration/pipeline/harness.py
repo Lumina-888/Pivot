@@ -27,6 +27,7 @@ from pivot.retrieval.models import ChunkRecord as RetrievalChunk
 from pivot.retrieval.models import RetrievalQuery
 from pivot.retrieval.policy import RetrievalPolicy
 from pivot.retrieval.service import RetrievalService
+from pivot.runs.conversations import ConversationService
 from pivot.runs.models import RunBundle
 from pivot.runs.service import RunService
 from pivot.security.rbac import AccessControl
@@ -238,6 +239,7 @@ class Pipeline:
             audits=_doc_fakes.MemoryAudits(),
         )
         self.runs = RunService()
+        self.conversations = ConversationService(runs=self.runs)
         self.export_clock = _export_fakes.FakeClock()
         self.export_repo = InMemoryExportRepository()
         self.export_access = _export_fakes.FakeAccess(self.export_repo)

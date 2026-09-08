@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import UTC, datetime
 
 from pivot.runs.errors import conflict, not_found
 from pivot.runs.machine import apply, is_terminal
@@ -59,6 +60,15 @@ class RunService:
         if bundle is None:
             raise not_found(request_id)
         return bundle
+
+    def list_for_conversation(self, conversation_id: str) -> tuple[RunBundle, ...]:
+        items = [
+            bundle
+            for bundle in self._runs.values()
+            if bundle.run.conversation_id == conversation_id
+        ]
+        items.sort(key=lambda bundle: bundle.run.created_at or datetime.min.replace(tzinfo=UTC))
+        return tuple(items)
 
     def cancel(self, run_id: str, request_id: str) -> RunBundle:
         bundle = self.get(run_id, request_id)
