@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import secrets
+from typing import Literal
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pivot.auth.cookies import REFRESH_COOKIE_NAME, Cookie
-from pivot.auth.errors import AuthError, invalid_credentials
+from pivot.auth.errors import AuthError, invalid_credentials, not_found
 from pivot.auth.service import AuthService
 
 _STATUS = {
@@ -24,6 +25,31 @@ class LoginBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     username: str = Field(min_length=1)
     password: str = Field(min_length=1)
+
+
+class ChangePasswordBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=8)
+
+
+class AdminUserCreateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    username: str = Field(min_length=1)
+    initial_password: str = Field(min_length=8)
+
+
+class AdminUserUpdateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    status: Literal["active", "disabled"] | None = None
+    role: Literal["admin", "user"] | None = None
+    reset_password: bool | None = None
+
+    @model_validator(mode="after")
+    def require_one_field(self) -> AdminUserUpdateBody:
+        if self.status is None and self.role is None and self.reset_password is None:
+            raise ValueError("status, role or reset_password required")
+        return self
 
 
 def resolve_request_id(request: Request) -> str:
@@ -59,10 +85,17 @@ def _bearer_token(request: Request, request_id: str) -> str:
     return token
 
 
-def build_auth_router(service: AuthService) -> APIRouter:
-    router = APIRouter(prefix="/auth")
+def _principal(request: Request, service: AuthService):
+    request_id = resolve_request_id(request)
+    principal = service.authenticate(_bearer_token(request, request_id), request_id)
+    return request_id, principal
 
-    @router.post("/login")
+
+def build_auth_router(service: AuthService) -> APIRouter:
+    router = APIRouter()
+    auth = APIRouter(prefix="/auth")
+
+    @auth.post("/login")
     def login(body: LoginBody, request: Request) -> JSONResponse:
         request_id = resolve_request_id(request)
         result = service.login(body.username, body.password, request_id)
@@ -70,7 +103,7 @@ def build_auth_router(service: AuthService) -> APIRouter:
         apply_cookie(response, result.cookie)
         return response
 
-    @router.post("/refresh")
+    @auth.post("/refresh")
     def refresh(request: Request) -> JSONResponse:
         request_id = resolve_request_id(request)
         token = request.cookies.get(REFRESH_COOKIE_NAME, "")
@@ -79,7 +112,7 @@ def build_auth_router(service: AuthService) -> APIRouter:
         apply_cookie(response, result.cookie)
         return response
 
-    @router.post("/logout")
+    @auth.post("/logout")
     def logout(request: Request) -> Response:
         request_id = resolve_request_id(request)
         access = _bearer_token(request, request_id)
@@ -89,4 +122,40 @@ def build_auth_router(service: AuthService) -> APIRouter:
         apply_cookie(response, cookie)
         return response
 
+    @auth.post("/change-password")
+    def change_password(body: ChangePasswordBody, request: Request) -> Response:
+        request_id = resolve_request_id(request)
+        access = _bearer_token(request, request_id)
+        service.change_password(access, body.current_password, body.new_password, request_id)
+        return Response(status_code=204)
+
+    @router.get("/admin/users")
+    def list_users(request: Request) -> dict[str, object]:
+        request_id, principal = _principal(request, service)
+        service.require_admin(principal, request.url.path, request_id)
+        items = service.list_users(principal.user_id, request_id)
+        return {"items": list(items), "pagination": None}
+
+    @router.post("/admin/users")
+    def create_user(body: AdminUserCreateBody, request: Request) -> JSONResponse:
+        request_id, principal = _principal(request, service)
+        service.require_admin(principal, request.url.path, request_id)
+        created = service.create_user(
+            principal.user_id,
+            body.username,
+            body.initial_password,
+            request_id,
+        )
+        return JSONResponse(service.admin_user(created.id, request_id), status_code=201)
+
+    @router.patch("/admin/users/{id}")
+    def update_user(id: str, body: AdminUserUpdateBody, request: Request) -> dict[str, str]:
+        request_id, principal = _principal(request, service)
+        service.require_admin(principal, request.url.path, request_id)
+        if body.status is None:
+            raise not_found(request_id)
+        user = service.set_user_status(principal.user_id, id, body.status, request_id)
+        return service.to_admin_user(user)
+
+    router.include_router(auth)
     return router

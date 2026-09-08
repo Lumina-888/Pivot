@@ -16,6 +16,8 @@ class UserAccount:
     status: str
     token_version: int = 0
     must_change_password: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 @dataclass(frozen=True)
