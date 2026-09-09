@@ -11,9 +11,9 @@
 | minio | 对象存储 | HTTP `/minio/health/live` | fixture 已钉镜像 |
 | qdrant | 向量索引 | HTTP `/readyz` | fixture 已钉镜像 |
 | redis | 缓存/队列辅助，**不是**业务事实源 | `redis-cli ping` | fixture 已钉镜像 |
-| api | FastAPI `/healthz` `/readyz`（尚无 `/api/v1`） | HTTP | 进程内装配已有；**Compose 服务未启用** |
+| api | FastAPI `/healthz` `/readyz` 与 composition root `/api/v1` | HTTP | 进程内装配已有；**Compose 服务未启用** |
 | worker | Celery 解析队列与在线队列隔离 | worker ping | **未启用**（非 Celery） |
-| web | Next.js | HTTP | **未启用**（无运行中 API） |
+| web | Next.js（`/api/v1` rewrite 到 `PIVOT_API_ORIGIN`） | HTTP | **Compose 服务未启用**；本地 `next dev` 需注入 origin |
 
 ## 明确约束
 

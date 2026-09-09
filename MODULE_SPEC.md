@@ -290,7 +290,7 @@ progress/modules/M07.md
 
 **覆盖**：SPEC §1.5、NFR-UX 和 S3 商务蓝灰原型。
 
-**责任**：Next.js + TypeScript + shadcn/ui 工程、全局 CSS 变量、Topbar/Page/AdminShell、共享 Button/Badge/Toast/Drawer/Modal/Table、API client、Cookie 认证、SSE client、无障碍基础。
+**责任**：Next.js + TypeScript + shadcn/ui 工程、全局 CSS 变量、Topbar/Page/AdminShell、共享 Button/Badge/Toast/Drawer/Modal/Table、API client、同源 `/api/v1` rewrite（注入 origin，禁止写死生产 URL）、Cookie 认证、SSE client、无障碍基础。
 
 **允许修改**：
 
@@ -688,6 +688,6 @@ M11 按以下顺序验证，失败应退回对应 Accountable 模块：
 本文 1.1 将默认流程改为主线开发，不改变 SPEC 需求，也不把 Fake HTTP 标成 GATE verified。当前主线在 Wave 3：
 
 - 工作区仅为 `Pivot/` 的 `main`；不要在历史 worktree 继续开发；
-- composition root 可 `uvicorn pivot.http.main:app --factory` 启动；默认存储为 memory 适配；无真实 PG/MinIO/Qdrant/Redis 客户端、无 Compose api 服务；预览/下载已挂内存对象流；
+- composition root 可 `uvicorn pivot.http.main:app --factory` 启动；Next 把同源 `/api/v1` rewrite 到注入的 `PIVOT_API_ORIGIN`；默认存储为 memory 适配；无真实 PG/MinIO/Qdrant/Redis 客户端、无 Compose api/web 服务；预览/下载已挂内存对象流；
 - `TBD-P0` 仍必须按原 SPEC 的 P0 流程冻结；
 - Docker/PG/Qdrant/MinIO/Redis 客户端、Golden Set、性能和灾备仍待后续主线切片。

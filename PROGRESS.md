@@ -3,7 +3,7 @@
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-09  
 > **当前状态**：主线开发（MODULE-SPEC-1.1）；Wave 3 进行中。工作区仅为 `Pivot/` 的 `main`。波次基线仍为 `wave-2-integrated`（未打 `wave-3-integrated`）。
-> **当前基线**：`wave-2-integrated` + Compose `c98b012` + 健康端点 `646ab12` + 认证 HTTP `f0f4352` + 文档 HTTP `7d4e8d9` + 搜索 HTTP `0750291` + Run/SSE HTTP `717b7ad` + 导出/审计 HTTP `35d37bc` + 改密/管理用户 HTTP `6cb9118` + 会话 CRUD HTTP `19da428` + 主线协议 `ff1626a` + 预览/下载 HTTP `4c69fd9` + composition root（本切片）。
+> **当前基线**：`wave-2-integrated` + Compose `c98b012` + 健康端点 `646ab12` + 认证 HTTP `f0f4352` + 文档 HTTP `7d4e8d9` + 搜索 HTTP `0750291` + Run/SSE HTTP `717b7ad` + 导出/审计 HTTP `35d37bc` + 改密/管理用户 HTTP `6cb9118` + 会话 CRUD HTTP `19da428` + 主线协议 `ff1626a` + 预览/下载 HTTP `4c69fd9` + composition root `c9e1c9d` + Next `/api/v1` 反代（本切片）。
 
 ## 1. 新会话恢复入口
 
@@ -13,7 +13,7 @@
 4. 读取本文件和本切片涉及的 `progress/modules/Mxx.md`；
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
 
-如果没有指定切片：继续 **Wave 3**。认证、文档（含预览/下载）、搜索、Run/SSE、导出/审计、会话 CRUD HTTP 与 composition root 已在 main；下一刀是 Next 反代 `/api/v1`。不要冻结 `TBD-P0`，不要把 HTTP 装配标成 GATE verified。不要新建 worktree。
+如果没有指定切片：继续 **Wave 3**。认证、文档、搜索、Run/SSE、导出/审计、会话 CRUD、composition root 与 Next `/api/v1` 反代已在 main；下一刀是 Playwright 浏览器登录或真实存储客户端。不要冻结 `TBD-P0`，不要把 HTTP 装配标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 
@@ -29,10 +29,10 @@
 | M05 QA/Run/SSE | integrated | `main`（tag `M05-v0.3.0`） | `contract-v0.1` | 12 领域 + Run/SSE + 会话 CRUD HTTP | LangGraph extra 待后续 |
 | M06 导出/审计 | integrated | `main`（tag `M06-v0.2.0`） | `contract-v0.1` | 26 单元 + 导出/审计 HTTP | PG/MinIO 持久化待后续 |
 | M07 Worker/解析/索引 | integrated | `main`（tag `M07-v0.1.0`） | `contract-v0.1` | 7 passed | Celery/真实解析库待依赖审核 |
-| M08 Web 基础 | integrated | `main`（tag `M08-v0.1.0`） | `contract-v0.1` | M08 9 tests + typecheck/lint 通过 | 共享组件已被 M09/M10 消费 |
-| M09 员工前台 | integrated | `main`（tag `M09-v0.1.0`） | `wave-1-integrated` | 12 passed | Playwright / 真实 FastAPI 待 Wave 3 |
-| M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 passed | Playwright / 真实 FastAPI 待 Wave 3 |
-| M11 集成/质量/运维 | in_progress | `main` | `wave-2-integrated` | 分组 Python 245 passed / 2 skipped | Next 反代、Playwright、GATE-P0 仍待 |
+| M08 Web 基础 | integrated | `main`（tag 目标 `M08-v0.2.0`） | `contract-v0.1` | M08 15 tests + typecheck/lint 通过 | Playwright 仍待 |
+| M09 员工前台 | integrated | `main`（tag `M09-v0.1.0`） | `wave-1-integrated` | 12 passed | Playwright 浏览器登录待后续 |
+| M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 passed | Playwright 浏览器登录待后续 |
+| M11 集成/质量/运维 | in_progress | `main` | `wave-2-integrated` | 分组 Python 245 passed / 2 skipped；web 15+12+8 | Playwright、GATE-P0 仍待 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护。历史 `../Pivot-Mxx-*` worktree 不再使用。
 
@@ -50,10 +50,10 @@
 | FR-EXPORT-001~003 / FR-AUDIT-001~003 | M06 | `tests/unit/exports/`、`tests/unit/audit/`、`tests/security/export/`、`tests/integration/pipeline/test_FR_EXPORT_001_http_exports.py` | implemented | 26 项 M06 单元 + 导出/审计 HTTP；内存存储，无对象字节下载 |
 | §2 存储不变量 | M03 | `tests/integration/db/`、`api/src/pivot/db/`、`migrations/` | implemented | M03 12 项测试 + 48 项 M00 契约回归通过；Compose Postgres Alembic 冒烟为 opt-in skip |
 | §6 解析/分块/索引执行 | M07 | `tests/unit/worker/` | implemented | 7 项 M07 测试通过；stdlib/Fake Embedding，非 Celery |
-| §1.5 / NFR-UX 设计系统与 client | M08 | `tests/e2e/fixtures/web/test-foundation.mjs` | implemented | M08 9 项基础测试通过；产品页由 M09/M10 接管 |
+| §1.5 / NFR-UX 设计系统与 client | M08 | `tests/e2e/fixtures/web/test-foundation.mjs` | implemented | M08 15 项基础测试通过（含 `/api/v1` rewrite）；产品页由 M09/M10 接管 |
 | 前台 6 页 | M09 | `tests/e2e/user/test_user_web.mjs` | implemented | 12 项 Fake fetch 测试通过；无 Playwright |
 | 后台 4 页 | M10 | `tests/e2e/admin/test_admin_web.mjs` | implemented | 8 项 Fake fetch 测试通过；无 Playwright |
-| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + Compose + health + auth/documents/search/runs/exports/conversations/preview HTTP + composition root）；GATE-P0 unverified | TestClient；对象字节为内存适配；CI 不启动 Compose |
+| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + Compose + HTTP + composition root + Next `/api/v1` rewrite）；GATE-P0 unverified | TestClient；对象字节为内存适配；CI 不启动 Compose/Next |
 
 ## 4. 当前波次计划
 
@@ -96,6 +96,7 @@
 - [x] 会话 CRUD HTTP（`M05-v0.3.0`；删除为隐藏，消息由 Run 合成）
 - [x] 预览/下载 HTTP（`GET /documents/{id}/preview|download`；内存 Fake 对象字节）
 - [x] composition root（`assemble_runtime_app`、Argon2id、memory 端口、`uvicorn pivot.http.main:app --factory`）
+- [x] Next 反代 `/api/v1`（`PIVOT_API_ORIGIN` 注入 rewrite；浏览器仍同源）
 - [ ] Playwright、Golden Set、5 并发 / 100k Chunk、新 ECS 备份恢复
 - [ ] 任一 `GATE-P0-*` verified；未打 `wave-3-integrated`
 
@@ -137,15 +138,23 @@
 - [x] 主线开发流程已批准：`20260908-M00-mainline-development.md`（MODULE-SPEC-1.1）。历史 worktree 由 Owner 手动清理。
 - [x] Wave 3 预览/下载 HTTP 已批准：`20260908-M02-documents-preview-download-http.md`。
 - [x] Wave 3 composition root 已批准：`progress/changes/20260909-M11-composition-root.md`。
+- [x] Wave 3 Next `/api/v1` 反代已批准：`progress/changes/20260909-M08-next-api-proxy.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-09 — Wave 3 Next `/api/v1` 反代
+
+- **完成**：批准 `20260909-M08-next-api-proxy.md`；`apiProxyRewrites` + `next.config.mjs` 把 `/api/v1/:path*` 转到注入的 `PIVOT_API_ORIGIN`；浏览器 `API_BASE` 仍为 `/api/v1`。Accountable：M08 next.config，M11 证据。
+- **验证**（main，2026-09-09，Node v24.15.0 / Next 14.2.15）：`npm --prefix web test` → **15 passed**；user E2E **12**；admin E2E **8**；typecheck/lint 通过。未启动 Next/uvicorn。
+- **限制**：无 Playwright；未设 origin 时登录仍 404；未打 `wave-3-integrated`；GATE-P0 全部 unverified。
+- **下一步**：Playwright 浏览器登录，或真实存储客户端。
 
 ### 2026-09-09 — Wave 3 composition root
 
 - **完成**：批准 `20260909-M11-composition-root.md`；M11 `assemble_runtime` / `assemble_runtime_app` / `uvicorn pivot.http.main:app --factory`；运行时 Argon2id + memory 端口；M03 将 `argon2-cffi` 写入 `api/pyproject.toml`。Accountable：M11 装配，M03 依赖锁。
 - **验证**（main，2026-09-09，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6 / fastapi 0.141.1 / argon2-cffi 25.1.0）：`python ops/run_grouped_tests.py --skip-web` → **245 passed, 2 skipped**；ruff / compileall 通过。
 - **限制**：memory 适配，非真实 PG/MinIO；未加 Dockerfile / Compose api；未打 `wave-3-integrated`；GATE-P0 全部 unverified。TTL/检索 k 仅注入，未冻结 TBD-P0。
-- **下一步**：Next 反代 `/api/v1`，登录页能通。
+- **下一步**：Next 反代已完成；再下一步为 Playwright 或真实存储客户端。
 
 ### 2026-09-08 — Wave 3 文档预览/下载 HTTP
 
