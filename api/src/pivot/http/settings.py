@@ -39,6 +39,19 @@ def _optional_int_or_none(environ: Mapping[str, str], key: str) -> int | None:
     return _positive_int(raw, key)
 
 
+def _optional_non_negative_int(environ: Mapping[str, str], key: str) -> int | None:
+    raw = (environ.get(key) or "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{key} must be a non-negative integer") from exc
+    if value < 0:
+        raise RuntimeError(f"{key} must be a non-negative integer")
+    return value
+
+
 def _positive_int(raw: str, key: str) -> int:
     try:
         value = int(raw)
@@ -82,6 +95,13 @@ class RuntimeSettings:
     qdrant_vector_size: int | None = None
     qdrant_distance: str | None = None
     vector_store_client: object | None = None
+    cache_store: str = "memory"
+    queue_store: str = "memory"
+    redis_endpoint: str | None = None
+    redis_password: str | None = None
+    redis_db: int | None = None
+    redis_key_prefix: str = "pivot:"
+    redis_client: object | None = None
 
     def __post_init__(self) -> None:
         if not self.token_secret.strip():
@@ -142,4 +162,11 @@ class RuntimeSettings:
             == "1",
             qdrant_vector_size=_optional_int_or_none(env, "PIVOT_QDRANT_VECTOR_SIZE"),
             qdrant_distance=(env.get("PIVOT_QDRANT_DISTANCE") or "").strip() or None,
+            cache_store=(env.get("PIVOT_CACHE_STORE") or "memory").strip() or "memory",
+            queue_store=(env.get("PIVOT_QUEUE_STORE") or "memory").strip() or "memory",
+            redis_endpoint=(env.get("PIVOT_REDIS_ENDPOINT") or "").strip() or None,
+            redis_password=(env.get("PIVOT_REDIS_PASSWORD") or "").strip() or None,
+            redis_db=_optional_non_negative_int(env, "PIVOT_REDIS_DB"),
+            redis_key_prefix=(env.get("PIVOT_REDIS_KEY_PREFIX") or "pivot:").strip()
+            or "pivot:",
         )

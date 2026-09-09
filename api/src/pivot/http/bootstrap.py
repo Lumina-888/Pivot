@@ -52,6 +52,7 @@ from pivot.security.rbac import AccessControl
 from pivot.shared.ids import new_id
 from pivot.storage.adapters.minio import MinioObjectStore, connect_minio_client
 from pivot.storage.adapters.qdrant import QdrantVectorStore, connect_qdrant_client
+from pivot.storage.adapters.redis import RedisCacheStore, RedisQueueStore, connect_redis_client
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,10 @@ class RuntimeAssembly:
     objects: object | None = None
     vector_store: str = "memory"
     vectors: object | None = None
+    cache_store: str = "memory"
+    queue_store: str = "memory"
+    cache: object | None = None
+    queue: object | None = None
 
 
 class _RuntimeProbes:
@@ -72,10 +77,12 @@ class _RuntimeProbes:
         postgres_engine: Engine | None = None,
         minio_store: MinioObjectStore | None = None,
         qdrant_store: QdrantVectorStore | None = None,
+        redis_store: RedisCacheStore | RedisQueueStore | None = None,
     ) -> None:
         self._postgres_engine = postgres_engine
         self._minio_store = minio_store
         self._qdrant_store = qdrant_store
+        self._redis_store = redis_store
 
     def postgres(self) -> bool:
         if self._postgres_engine is None:
@@ -98,7 +105,9 @@ class _RuntimeProbes:
         return bool(self._qdrant_store.healthy())
 
     def redis(self) -> bool:
-        return False
+        if self._redis_store is None:
+            return False
+        return bool(self._redis_store.healthy())
 
 
 def _engine_kwargs(database_url: str) -> dict[str, object]:
@@ -183,6 +192,33 @@ def _open_qdrant_store(settings: RuntimeSettings) -> QdrantVectorStore:
     return store
 
 
+def _open_redis_stores(
+    settings: RuntimeSettings,
+) -> tuple[RedisCacheStore | None, RedisQueueStore | None, RedisCacheStore | RedisQueueStore]:
+    if not settings.redis_endpoint:
+        raise RuntimeError(
+            "PIVOT_REDIS_ENDPOINT is required when PIVOT_CACHE_STORE=redis "
+            "or PIVOT_QUEUE_STORE=redis"
+        )
+    client = settings.redis_client
+    if client is None:
+        client = connect_redis_client(
+            endpoint=settings.redis_endpoint,
+            password=settings.redis_password,
+            db=settings.redis_db,
+        )
+    cache = None
+    queue = None
+    if settings.cache_store == "redis":
+        cache = RedisCacheStore(client, prefix=settings.redis_key_prefix)
+    if settings.queue_store == "redis":
+        queue = RedisQueueStore(client, prefix=settings.redis_key_prefix)
+    probe = cache or queue
+    if probe is None or not probe.healthy():
+        raise RuntimeError("redis is not reachable")
+    return cache, queue, probe
+
+
 class _RetrievalBridge:
     def __init__(self, retrieval: RetrievalService) -> None:
         self._retrieval = retrieval
@@ -241,6 +277,18 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             f"{resolved.vector_store!r}; this slice wires memory or qdrant. "
             "See progress/changes/20260909-M03-qdrant-vector-store.md"
         )
+    if resolved.cache_store not in {"memory", "redis"}:
+        raise RuntimeError(
+            "unsupported PIVOT_CACHE_STORE="
+            f"{resolved.cache_store!r}; this slice wires memory or redis. "
+            "See progress/changes/20260909-M03-redis-cache-queue.md"
+        )
+    if resolved.queue_store not in {"memory", "redis"}:
+        raise RuntimeError(
+            "unsupported PIVOT_QUEUE_STORE="
+            f"{resolved.queue_store!r}; this slice wires memory or redis. "
+            "See progress/changes/20260909-M03-redis-cache-queue.md"
+        )
     hasher = Argon2idHasher(
         time_cost=resolved.argon2_time_cost,
         memory_cost=resolved.argon2_memory_cost,
@@ -250,6 +298,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     postgres_engine = None
     minio_store = None
     qdrant_store = None
+    redis_probe = None
+    cache_port = None
+    queue_port = None
     if resolved.storage == "postgres":
         postgres_engine = _open_postgres_engine(resolved)
         users: UserDirectory = SqlAlchemyUserDirectory(session_factory(postgres_engine))
@@ -265,9 +316,16 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         vector_store = qdrant_store
     else:
         vector_store = None
+    if resolved.cache_store == "redis" or resolved.queue_store == "redis":
+        cache_port, queue_port, redis_probe = _open_redis_stores(resolved)
     probes = None
-    if postgres_engine is not None or minio_store is not None or qdrant_store is not None:
-        probes = _RuntimeProbes(postgres_engine, minio_store, qdrant_store)
+    if (
+        postgres_engine is not None
+        or minio_store is not None
+        or qdrant_store is not None
+        or redis_probe is not None
+    ):
+        probes = _RuntimeProbes(postgres_engine, minio_store, qdrant_store, redis_probe)
     if resolved.bootstrap_username and resolved.bootstrap_password:
         existing = users.get_by_username(resolved.bootstrap_username)
         if existing is None:
@@ -358,6 +416,10 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         objects=document_objects,
         vector_store=resolved.vector_store,
         vectors=vector_store,
+        cache_store=resolved.cache_store,
+        queue_store=resolved.queue_store,
+        cache=cache_port,
+        queue=queue_port,
     )
 
 

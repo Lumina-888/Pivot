@@ -15,6 +15,7 @@ from pivot.http import (
 )
 from pivot.storage.adapters.minio import MinioObjectStore
 from pivot.storage.adapters.qdrant import QdrantVectorStore
+from pivot.storage.adapters.redis import RedisCacheStore, RedisQueueStore
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "composition-root.md"
@@ -357,6 +358,64 @@ def test_NFR_OBS_runtime_qdrant_readyz_not_fully_ready():
 def test_NFR_OBS_runtime_rejects_unwired_vector_store():
     with pytest.raises(RuntimeError, match="unsupported PIVOT_VECTOR_STORE"):
         assemble_runtime_app(_settings(vector_store="redis"))
+
+
+class _FakeRedisClient:
+    def ping(self) -> bool:
+        return True
+
+    def get(self, name: str):
+        return None
+
+    def set(self, name: str, value, ex=None):
+        return True
+
+    def delete(self, *names: str) -> int:
+        return 0
+
+    def rpush(self, name: str, *values) -> int:
+        return 0
+
+    def lpop(self, name: str):
+        return None
+
+
+def _redis_settings(client: _FakeRedisClient) -> RuntimeSettings:
+    return _settings(
+        cache_store="redis",
+        queue_store="redis",
+        redis_endpoint="cache.test:6380",
+        redis_client=client,
+    )
+
+
+def test_NFR_OBS_runtime_redis_requires_endpoint():
+    with pytest.raises(RuntimeError, match="PIVOT_REDIS_ENDPOINT"):
+        assemble_runtime_app(_settings(cache_store="redis"))
+
+
+def test_NFR_OBS_runtime_redis_wires_cache_and_queue():
+    assembly = assemble_runtime(_redis_settings(_FakeRedisClient()))
+    assert assembly.cache_store == "redis"
+    assert assembly.queue_store == "redis"
+    assert isinstance(assembly.cache, RedisCacheStore)
+    assert isinstance(assembly.queue, RedisQueueStore)
+
+
+def test_NFR_OBS_runtime_redis_readyz_not_fully_ready():
+    response = _client(_redis_settings(_FakeRedisClient())).get("/readyz")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "not_ready"
+    assert body["checks"]["redis"] is True
+    assert body["checks"]["postgres"] is False
+    assert body["checks"]["minio"] is False
+    assert body["checks"]["qdrant"] is False
+
+
+def test_NFR_OBS_runtime_rejects_unwired_cache_store():
+    with pytest.raises(RuntimeError, match="unsupported PIVOT_CACHE_STORE"):
+        assemble_runtime_app(_settings(cache_store="minio"))
 
 
 def test_NFR_OBS_runtime_settings_fail_closed_without_token_secret():
