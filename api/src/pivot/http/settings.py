@@ -62,6 +62,32 @@ def _positive_int(raw: str, key: str) -> int:
     return value
 
 
+def _optional_positive_float(environ: Mapping[str, str], key: str) -> float | None:
+    raw = (environ.get(key) or "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{key} must be a positive number") from exc
+    if value <= 0:
+        raise RuntimeError(f"{key} must be a positive number")
+    return value
+
+
+def _optional_unit_float(environ: Mapping[str, str], key: str) -> float | None:
+    raw = (environ.get(key) or "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{key} must be between 0 and 1") from exc
+    if value < 0 or value > 1:
+        raise RuntimeError(f"{key} must be between 0 and 1")
+    return value
+
+
 @dataclass(frozen=True)
 class RuntimeSettings:
     storage: str
@@ -96,6 +122,9 @@ class RuntimeSettings:
     qdrant_distance: str | None = None
     vector_store_client: object | None = None
     query_embedder: object | None = None
+    bm25_k1: float | None = None
+    bm25_b: float | None = None
+    rerank: str = "none"
     cache_store: str = "memory"
     queue_store: str = "memory"
     redis_endpoint: str | None = None
@@ -121,6 +150,23 @@ class RuntimeSettings:
         if bool(self.bootstrap_username) != bool(self.bootstrap_password):
             raise RuntimeError(
                 "bootstrap username and password must both be set or both omitted"
+            )
+        if (self.bm25_k1 is None) != (self.bm25_b is None):
+            raise RuntimeError(
+                "PIVOT_BM25_K1 and PIVOT_BM25_B must both be set or both omitted"
+            )
+        if self.bm25_k1 is not None and self.bm25_k1 <= 0:
+            raise RuntimeError("PIVOT_BM25_K1 must be a positive number")
+        if self.bm25_b is not None and (self.bm25_b < 0 or self.bm25_b > 1):
+            raise RuntimeError("PIVOT_BM25_B must be between 0 and 1")
+        if self.rerank not in {"none", "overlap", "bm25"}:
+            raise RuntimeError(
+                "unsupported PIVOT_RERANK="
+                f"{self.rerank!r}; this slice wires none, overlap, or bm25"
+            )
+        if self.rerank == "bm25" and self.bm25_k1 is None:
+            raise RuntimeError(
+                "PIVOT_BM25_K1 and PIVOT_BM25_B are required when PIVOT_RERANK=bm25"
             )
 
     @classmethod
@@ -163,6 +209,9 @@ class RuntimeSettings:
             == "1",
             qdrant_vector_size=_optional_int_or_none(env, "PIVOT_QDRANT_VECTOR_SIZE"),
             qdrant_distance=(env.get("PIVOT_QDRANT_DISTANCE") or "").strip() or None,
+            bm25_k1=_optional_positive_float(env, "PIVOT_BM25_K1"),
+            bm25_b=_optional_unit_float(env, "PIVOT_BM25_B"),
+            rerank=(env.get("PIVOT_RERANK") or "none").strip() or "none",
             cache_store=(env.get("PIVOT_CACHE_STORE") or "memory").strip() or "memory",
             queue_store=(env.get("PIVOT_QUEUE_STORE") or "memory").strip() or "memory",
             redis_endpoint=(env.get("PIVOT_REDIS_ENDPOINT") or "").strip() or None,

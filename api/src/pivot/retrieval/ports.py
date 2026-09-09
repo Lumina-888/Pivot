@@ -1,4 +1,4 @@
-"""Dense/BM25/rerank ports. Implementations are fakes until M07/M11 wire real backends."""
+"""Dense/BM25/rerank ports. BM25 is stdlib; dense/rerank vendors stay injected fakes."""
 
 from __future__ import annotations
 

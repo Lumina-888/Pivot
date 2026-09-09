@@ -42,10 +42,12 @@ from pivot.http.memory import (
 from pivot.http.settings import RuntimeSettings
 from pivot.qa.orchestrator import QaOrchestrator
 from pivot.qa.ports import EvidenceHit, RetrievalResult
-from pivot.retrieval.fakes import HashingQueryEmbedder, KeywordRetriever
+from pivot.retrieval.bm25 import Bm25Reranker, Bm25Retriever
+from pivot.retrieval.fakes import HashingQueryEmbedder, KeywordRetriever, OverlapReranker
 from pivot.retrieval.models import RetrievalQuery
 from pivot.retrieval.policy import RetrievalPolicy
 from pivot.retrieval.service import RetrievalService
+from pivot.retrieval.tokenize import SimpleLexTokenizer
 from pivot.retrieval.vector import VectorStoreRetriever
 from pivot.runs.conversations import ConversationService
 from pivot.runs.service import RunService
@@ -76,6 +78,7 @@ class RuntimeAssembly:
     resources: object | None = None
     retrieval: object | None = None
     query_embedder: object | None = None
+    bm25: object | None = None
 
 
 class _RuntimeProbes:
@@ -404,11 +407,24 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         )
     else:
         dense_retriever = KeywordRetriever(empty_corpus, "dense")
+    tokenizer = SimpleLexTokenizer()
+    if resolved.bm25_k1 is not None and resolved.bm25_b is not None:
+        bm25_retriever: object = Bm25Retriever(
+            tokenizer, k1=resolved.bm25_k1, b=resolved.bm25_b, source="bm25"
+        )
+    else:
+        bm25_retriever = KeywordRetriever(empty_corpus, "bm25")
+    reranker = None
+    if resolved.rerank == "overlap":
+        reranker = OverlapReranker()
+    elif resolved.rerank == "bm25":
+        reranker = Bm25Reranker(tokenizer, k1=resolved.bm25_k1, b=resolved.bm25_b)
     retrieval = RetrievalService(
         corpus=empty_corpus,
         dense=dense_retriever,
-        bm25=KeywordRetriever(empty_corpus, "bm25"),
+        bm25=bm25_retriever,
         policy=policy,
+        reranker=reranker,
     )
     runs = RunService()
     conversations = ConversationService(runs=runs)
@@ -456,6 +472,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         resources=resources,
         retrieval=retrieval,
         query_embedder=query_embedder,
+        bm25=bm25_retriever,
     )
 
 
