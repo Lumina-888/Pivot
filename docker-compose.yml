@@ -1,10 +1,12 @@
-# Pivot Wave 3 dependency fixture. Not a production ECS publish stack.
+# Pivot Wave 3 dependency fixture plus opt-in api profile.
 # Image tags are fixture pins, not GATE-P0-008 verified.
 # Redis is cache/queue only — not a business fact store.
-# api/worker/web are omitted until Dockerfile/Compose app services exist.
-# FastAPI composition root (not started by this file):
+# Default `docker compose up` starts postgres/minio/qdrant/redis only.
+# api is profile `app`: `docker compose --profile app up`.
+# worker/web are omitted until those images exist.
+# FastAPI composition root:
 #   uvicorn pivot.http.main:app --factory
-# CI must not docker compose up.
+# CI must not docker compose up or docker build.
 
 name: pivot-deps
 
@@ -64,6 +66,57 @@ services:
       retries: 10
     volumes:
       - pivot_redis_data:/data
+
+  api:
+    profiles:
+      - app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pivot-api:0.1.0
+    environment:
+      PIVOT_TOKEN_SECRET: ${PIVOT_TOKEN_SECRET:?set PIVOT_TOKEN_SECRET}
+      PIVOT_ACCESS_TTL: ${PIVOT_ACCESS_TTL:?set PIVOT_ACCESS_TTL}
+      PIVOT_REFRESH_TTL: ${PIVOT_REFRESH_TTL:?set PIVOT_REFRESH_TTL}
+      PIVOT_EXPORT_TTL: ${PIVOT_EXPORT_TTL:?set PIVOT_EXPORT_TTL}
+      PIVOT_DOWNLOAD_TTL: ${PIVOT_DOWNLOAD_TTL:?set PIVOT_DOWNLOAD_TTL}
+      PIVOT_EXPORT_PUBLIC_BASE: ${PIVOT_EXPORT_PUBLIC_BASE:?set PIVOT_EXPORT_PUBLIC_BASE}
+      PIVOT_RETRIEVAL_K: ${PIVOT_RETRIEVAL_K:?set PIVOT_RETRIEVAL_K}
+      PIVOT_STORAGE: ${PIVOT_STORAGE:-memory}
+      PIVOT_OBJECT_STORE: ${PIVOT_OBJECT_STORE:-memory}
+      PIVOT_VECTOR_STORE: ${PIVOT_VECTOR_STORE:-memory}
+      PIVOT_CACHE_STORE: ${PIVOT_CACHE_STORE:-memory}
+      PIVOT_QUEUE_STORE: ${PIVOT_QUEUE_STORE:-memory}
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz').read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
 
 volumes:
   pivot_pg_data:

@@ -14,7 +14,7 @@ _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "compose-deps.md"
 _LIMITS = _ROOT / "evidence" / "wave2-m11" / "limits.md"
 
 _REQUIRED_SERVICES = ("postgres", "minio", "qdrant", "redis")
-_FORBIDDEN_SERVICES = ("api", "worker", "web")
+_FORBIDDEN_SERVICES = ("worker", "web")
 _PINNED_IMAGES = {
     "postgres": "postgres:16.4",
     "minio": "minio/minio:RELEASE.2024-10-02T17-50-41Z",

@@ -13,6 +13,6 @@
 
 ## 本波次限制
 
-- 本地可有依赖 Compose fixture；FastAPI 仅健康装配，冒烟仍以分组单元/契约与 Fake 领域链路为主；
+- 本地可有依赖 Compose fixture；api 为 opt-in profile `app`，冒烟仍以分组单元/契约与 Fake 领域链路为主；
 - 无自动升级通道；未做发布回滚演练，`GATE-P0-008` 仍 unverified；
 - CI 失败不得靠跳过授权或合并冲突来修绿。
