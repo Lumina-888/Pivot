@@ -1,0 +1,21 @@
+# 变更申请：M04 检索 dense 路消费 Qdrant VectorStore
+
+- **日期**：2026-09-09
+- **申请人**：Wave 3 主线会话（M04 检索消费 VectorStore + M11 composition root 接线）
+- **背景**：`PIVOT_VECTOR_STORE=qdrant` 已把向量端口接到 `QdrantVectorStore`；检索/问答仍为 Fake `KeywordRetriever`，runtime corpus 为空，HTTP 搜索恒为空。HANDOFF / PROGRESS 下一刀是把检索接到 Qdrant（不冻结 k/距离）。
+- **原契约/现状**：
+  - M04 `Retriever.search(query, k)` 与 `RetrievalService` 已冻结；dense/BM25 为 Fake Keyword；
+  - `search_documents` 只扫内存 corpus；composition root 注入空 corpus；
+  - M03 `VectorStore.search(vector, limit, filters)` 已可注入；payload 强制 `version_id + chunk_id`；
+  - 距离函数、维数、dense/BM25/RRF k、rerank 阈值仍为 `TBD-P0`；`GATE-P0-002` unverified。
+- **拟变更内容**（本切片）：
+  - M04 增加 `VectorStoreRetriever`：消费既有 `VectorStore` + 注入的 query embedder；`search(query, k)` 把查询向量化和 `limit=k` 交给向量端口，映射为 `RankedHit`；k 只来自 `RetrievalPolicy` / 调用方，适配器不写死 50；
+  - query embedder 为测试/runtime Fake（注入 dimension），**不是**生产 Embedding 供应商；不冻结距离函数；
+  - 从 Qdrant payload 水合 `ChunkRecord`（含 `document_id`/text/过滤字段）；缺 `ready/current/allowed` 时失败闭环（不当成可召回）；服务端过滤仍在 `RetrievalService`；
+  - `RetrievalService`：corpus 非空时行为不变；空 corpus 时 `search_documents` 走 retriever 水合结果；`retrieve` 可 `resolve` payload chunk；
+  - M11：`PIVOT_VECTOR_STORE=qdrant` 时 dense 接到 `VectorStoreRetriever`；缺注入维数且未注入 embedder 则失败闭环；BM25 仍为 Fake Keyword（空 corpus，不贡献命中）；**不** 接真实 Embedding/BM25/rerank；**不** 把 ingest/IndexPublisher 写入 Qdrant；**不** 把 `GATE-P0-002` 标 verified。
+- **影响模块**：M04（retriever 适配、RetrievalService 空 corpus 路径）；M11（bootstrap、pipeline 测试、证据）；M03（只消费既有 VectorStore）；M07（仍 Fake Embedding / 内存 IndexPublisher）；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：默认 `PIVOT_VECTOR_STORE=memory` 仍 KeywordRetriever；既有 M04 单元 corpus 测试不变；Golden Set 仍 Fake Keyword；CI 仍用内存 Qdrant client 子集。
+- **测试 ID**：`test_FR_RAG_001_vector_store_retriever_returns_ranked_hits`、`test_FR_RAG_001_vector_store_retriever_uses_injected_k`、`test_FR_RAG_001_vector_store_retriever_does_not_freeze_distance`、`test_FR_SEARCH_001_empty_corpus_uses_vector_store_payload`、`test_FR_RAG_002_vector_store_payload_not_ready_is_excluded`、`test_FR_RAG_004_vector_store_failure_falls_back_to_bm25`、`test_NFR_OBS_runtime_qdrant_wires_dense_retriever`、`test_FR_SEARCH_001_runtime_qdrant_search_roundtrip`、`test_FR_RAG_001_runtime_qdrant_retrieve_evidence`、`test_GATE_P0_002_not_verified_by_qdrant_retrieval`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不冻结 TBD-P0 k/距离/维数；不把 Fake embedder 标成生产 dense）。
+- **审核结果**：2026-09-09 Wave 3 主线会话 **批准**。
