@@ -1,0 +1,21 @@
+# 变更申请：M11 Dockerfile 与 Compose api 服务
+
+- **日期**：2026-09-09
+- **申请人**：Wave 3 主线会话（M11 运维装配）
+- **背景**：composition root 已可 `uvicorn pivot.http.main:app --factory`。`docker-compose.yml` 仅有 postgres/minio/qdrant/redis；依赖切片测试把 `api` 列为禁止服务。SPEC §9.1 要求 Compose、固定镜像 tag、healthcheck、启动依赖和资源 limits/reservations。CI 不得 `docker compose up` / `docker build`。不得把 fixture 标成 `GATE-P0-008` verified。本切片不做 100k Chunk、真实 Embedding/bge、Compose web/worker。
+- **原契约/现状**：
+  - 根目录无 `Dockerfile`；
+  - Compose 无 `api` 服务；`ops/compose-intent.md` 写明不得默认拉起 api；
+  - `tests/integration/pipeline/test_NFR_OBS_compose_deps.py` 禁止 `api`/`worker`/`web`。
+- **拟变更内容**（本切片）：
+  - 根 `Dockerfile`：钉 `python:3.12.10-slim-bookworm`（不是 `latest`），安装 `api[http,postgres,minio,qdrant,redis]`，`CMD` 为 `uvicorn pivot.http.main:app --factory --host 0.0.0.0 --port 8000`；不拷贝密钥/`.env`；
+  - `docker-compose.yml` 增加 `api` 服务：`profiles: [app]`，使默认 `docker compose up` 仍只起依赖；镜像 tag `pivot-api:0.1.0`；端口 `127.0.0.1:8000`；healthcheck `/healthz`；`depends_on` 四依赖 `service_healthy`；`deploy.resources` limits/reservations（fixture，不写死 ECS 4C8G）；TTL/检索 k 只做 `${PIVOT_*}` 注入，缺省失败闭环；
+  - 默认存储仍 `memory`；切换真实存储仍走既有 `PIVOT_*_STORE` 环境变量；
+  - `ops/compose.env.example` 补充运行时注入占位并标明不是冻结的 `TBD-P0`；
+  - 更新依赖切片测试：禁止列表改为 `worker`/`web`；
+  - **不** 新增 Compose `worker`/`web`；**不** 在 CI 构建或启动容器；**不** 做 100k Chunk；**不** 把 `GATE-P0-008` 标 verified。
+- **影响模块**：M11（Dockerfile、Compose、pipeline 测试、证据、intent/runbook）；M03 只被镜像安装 extras，不改 pyproject；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：未开 `app` profile 时依赖 fixture 行为不变；CI 默认 skip 对 `:8000` 的探测；`PIVOT_REQUIRE_COMPOSE_API=1` 时端口不可达失败闭环。
+- **测试 ID**：`test_NFR_OBS_api_dockerfile_pins_python_and_uvicorn_factory`、`test_NFR_OBS_compose_api_service_is_profiled_with_healthcheck`、`test_NFR_OBS_compose_api_env_injects_ttl_without_freezing_tbd`、`test_NFR_OBS_compose_does_not_start_worker_or_web`、`test_NFR_OBS_ci_does_not_build_or_start_compose_api`、`test_NFR_OBS_compose_api_healthz_when_running`、`test_GATE_P0_008_not_verified_by_compose_api`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不冻结 TTL/k/ECS 规格）。
+- **审核结果**：2026-09-09 Wave 3 主线会话 **批准**。
