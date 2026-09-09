@@ -1,0 +1,21 @@
+# 变更申请：M03 Redis CacheStore / QueueStore 客户端
+
+- **日期**：2026-09-09
+- **申请人**：Wave 3 主线会话（M03 缓存/队列客户端 + M11 composition root 接线）
+- **背景**：PG / MinIO / Qdrant 客户端已接线。SPEC §2.1 规定 Redis 只保存 Celery 队列、短期缓存和限流计数，**不是**业务事实源；丢失不得造成事实不可恢复。禁止写死生产 URL；不得把客户端接线标成 GATE verified。
+- **原契约/现状**：
+  - `CacheStore` / `QueueStore` 与 `CacheStoreConfig` / `QueueStoreConfig` 已冻结；`storage/adapters/redis.py` 仅为端口标记、不导入 SDK；
+  - composition root `/readyz` redis 探测恒为 False；登录限流仍为 `InMemoryAttempts`（阈值 TBD-P0，默认不锁定）；无 Celery；
+  - CI 不启动 Compose，不安装未声明 extra。
+- **拟变更内容**（本切片）：
+  - M03 实现 `RedisCacheStore` 与 `RedisQueueStore`（注入 client 或 endpoint）；cache `set` 必须带正 TTL；queue 为非阻塞 FIFO；键使用注入 prefix；不在适配器写死 endpoint；公开方法不含用户/文档/Run 等事实写入；
+  - M03 将 optional extra `redis`（`redis` 5.x，对齐 Compose `redis:7.4.1`）写入 `api/pyproject.toml`；默认 CI 不安装；测试用内存 client 子集，不依赖 SDK；
+  - M11：独立设置 `PIVOT_CACHE_STORE=memory|redis` 与 `PIVOT_QUEUE_STORE=memory|redis`（可与 postgres/minio/qdrant 组合）；任一为 `redis` 时要求 `PIVOT_REDIS_ENDPOINT`，缺则失败闭环，不回退 memory；
+  - composition root 把缓存/队列端口接到 Redis 适配并注入 `/readyz` ping 探测；**登录限流仍为 InMemoryAttempts**（不冻结 TBD-P0 阈值）；**不** 引入 Celery broker；导出对象/检索仍 Fake/memory；
+  - 可选 `PIVOT_REDIS_PASSWORD` / `PIVOT_REDIS_DB` / `PIVOT_REDIS_KEY_PREFIX` 注入；prefix 缺省沿用已冻结的 `CacheStoreConfig.key_prefix`（`pivot:`），不是生产 URL；
+  - **不** 新增 Dockerfile / Compose api；**不** 把 `GATE-P0-003` 标 verified。
+- **影响模块**：M03（适配器、pyproject、db 测试）；M11（settings/bootstrap、pipeline 测试、证据）；M01（只消费既有 Attempts 端口）；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：默认 cache/queue 均为 `memory`；既有认证/文档/检索单测与 Fake HTTP 不变；无 Docker/无 redis extra 时内存 client 覆盖适配器，Compose Redis 为 opt-in skip。
+- **测试 ID**：`test_M03_redis_cache_roundtrip_with_injected_client`、`test_M03_redis_cache_get_missing_returns_none`、`test_M03_redis_cache_requires_positive_ttl`、`test_M03_redis_cache_prefixes_keys`、`test_M03_redis_queue_enqueue_dequeue_fifo`、`test_M03_redis_queue_dequeue_empty_returns_none`、`test_M03_redis_stores_are_not_business_fact_store`、`test_M03_redis_adapter_source_has_no_hardcoded_endpoint`、`test_NFR_OBS_runtime_redis_requires_endpoint`、`test_NFR_OBS_runtime_redis_wires_cache_and_queue`、`test_NFR_OBS_runtime_redis_readyz_not_fully_ready`、`test_NFR_OBS_runtime_rejects_unwired_cache_store`、`test_M03_redis_cache_queue_when_compose_up`、`test_GATE_P0_003_not_verified_by_redis_cache_queue`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不把内存 client 标成生产队列；不冻结 TBD-P0 限流阈值）。
+- **审核结果**：2026-09-09 Wave 3 主线会话 **批准**。
