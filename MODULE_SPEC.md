@@ -688,6 +688,6 @@ M11 按以下顺序验证，失败应退回对应 Accountable 模块：
 本文 1.1 将默认流程改为主线开发，不改变 SPEC 需求，也不把 Fake HTTP 标成 GATE verified。当前主线在 Wave 3：
 
 - 工作区仅为 `Pivot/` 的 `main`；不要在历史 worktree 继续开发；
-- composition root 可 `uvicorn pivot.http.main:app --factory` 启动；Next 把同源 `/api/v1` rewrite 到注入的 `PIVOT_API_ORIGIN`；Playwright 登录为 opt-in（CI 不启动 uvicorn）；默认存储为 memory 适配；无真实 PG/MinIO/Qdrant/Redis 客户端、无 Compose api/web 服务；
+- composition root 可 `uvicorn pivot.http.main:app --factory` 启动；Next 把同源 `/api/v1` rewrite 到注入的 `PIVOT_API_ORIGIN`；Playwright 登录为 opt-in（CI 不启动 uvicorn）；默认存储为 memory 适配；`PIVOT_STORAGE=postgres` 可装配用户目录（URL 注入）；无 MinIO/Qdrant/Redis 客户端、无 Compose api/web 服务；
 - `TBD-P0` 仍必须按原 SPEC 的 P0 流程冻结；
-- Docker/PG/Qdrant/MinIO/Redis 客户端、Golden Set、性能和灾备仍待后续主线切片。
+- MinIO/Qdrant/Redis 客户端、Golden Set、性能和灾备仍待后续主线切片。

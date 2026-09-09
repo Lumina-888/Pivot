@@ -1,0 +1,25 @@
+# 变更申请：M03 PostgreSQL 用户事实源客户端
+
+- **日期**：2026-09-09
+- **申请人**：Wave 3 主线会话（M03 持久化客户端 + M11 composition root 接线）
+- **背景**：composition root 只装配 memory 端口；`PIVOT_STORAGE=postgres` 失败闭环。Alembic 与 `User` 模型已存在，`postgres` extra（psycopg）已声明，但没有把 PostgreSQL 接到 `UserDirectory`。HANDOFF / `PROGRESS.md` 下一刀为真实存储客户端，先 PG。
+- **原契约/现状**：
+  - SPEC §2.1：PostgreSQL 是业务事实源；用户属于 PG；
+  - SPEC §2.2 User 字段：`id, username, password_hash, role, status, token_version, created_at, updated_at`；
+  - M03 已有 SQLAlchemy 模型、Repository 端口、Memory fake，无 SQL 业务查询实现；
+  - M11 `assemble_runtime` 仅 `memory`；未注入探测时 `/readyz` 失败闭环；
+  - 禁止写死生产 URL；CI 不启动 Compose。
+- **拟变更内容**（本切片）：
+  - M03 新增 `SqlAlchemyUserDirectory`，实现 M01 `UserDirectory` 端口，读写 SPEC User 字段；配置/URL 一律注入；
+  - M11 composition root：`PIVOT_STORAGE=postgres` 时装配该目录，并要求 `PIVOT_DATABASE_URL`；缺 URL 或连不上则失败闭环，不回退 memory；
+  - `PIVOT_STORAGE=memory` 行为不变；`minio` / `qdrant` / `redis` 等仍 unsupported；
+  - 文档/检索/导出/会话等其余端口本切片仍为 memory；
+  - `/readyz`：postgres 存储下注入探测（`SELECT 1`）；minio/qdrant/redis 仍为 False，整体仍 not_ready；
+  - 可选 `PIVOT_DB_CREATE_SCHEMA=1` **仅允许 sqlite 测试 URL**（生产 schema 仍走 Alembic）；
+  - 本切片 **不** 新增 `must_change_password` 列（SPEC §2.2 User 无此字段；首次改密跨进程仍待后续 ADR/迁移）；
+  - **不** 引入 MinIO/Qdrant/Redis SDK；**不** 新增 Dockerfile / Compose api；**不** 把 `GATE-P0-003` 标 verified。
+- **影响模块**：M03（目录实现、db 测试）；M11（settings/bootstrap、pipeline 测试、证据）；M01（只消费端口，不改状态机）；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：默认 `PIVOT_STORAGE=memory`；既有 TestClient 注入装配与 M01 单元测试不变；无 Docker 时 SQLite 覆盖目录与接线，Compose Postgres 为 opt-in skip。
+- **测试 ID**：`test_M03_sqlalchemy_user_directory_persists_spec_user_fields`、`test_M03_sqlalchemy_user_directory_get_by_username`、`test_M03_sqlalchemy_user_directory_save_updates_same_id`、`test_M03_sqlalchemy_user_directory_rejects_duplicate_username`、`test_NFR_OBS_runtime_postgres_requires_database_url`、`test_NFR_OBS_runtime_postgres_wires_sqlalchemy_user_directory`、`test_FR_AUTH_001_runtime_postgres_login_survives_new_assembly`、`test_NFR_OBS_runtime_rejects_unwired_storage`、`test_NFR_OBS_runtime_postgres_readyz_not_fully_ready`、`test_M03_postgres_user_directory_when_compose_up`、`test_GATE_P0_003_not_verified_by_postgres_user_directory`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不把 sqlite 标成生产事实源；不冻结 TBD-P0）。
+- **审核结果**：2026-09-09 Wave 3 主线会话 **批准**。
