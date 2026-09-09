@@ -51,6 +51,7 @@ from pivot.security.passwords import Argon2idHasher
 from pivot.security.rbac import AccessControl
 from pivot.shared.ids import new_id
 from pivot.storage.adapters.minio import MinioObjectStore, connect_minio_client
+from pivot.storage.adapters.qdrant import QdrantVectorStore, connect_qdrant_client
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,8 @@ class RuntimeAssembly:
     storage: str
     object_store: str = "memory"
     objects: object | None = None
+    vector_store: str = "memory"
+    vectors: object | None = None
 
 
 class _RuntimeProbes:
@@ -68,9 +71,11 @@ class _RuntimeProbes:
         self,
         postgres_engine: Engine | None = None,
         minio_store: MinioObjectStore | None = None,
+        qdrant_store: QdrantVectorStore | None = None,
     ) -> None:
         self._postgres_engine = postgres_engine
         self._minio_store = minio_store
+        self._qdrant_store = qdrant_store
 
     def postgres(self) -> bool:
         if self._postgres_engine is None:
@@ -88,7 +93,9 @@ class _RuntimeProbes:
         return bool(self._minio_store.healthy())
 
     def qdrant(self) -> bool:
-        return False
+        if self._qdrant_store is None:
+            return False
+        return bool(self._qdrant_store.healthy())
 
     def redis(self) -> bool:
         return False
@@ -145,6 +152,37 @@ def _open_minio_store(settings: RuntimeSettings) -> MinioObjectStore:
     return store
 
 
+def _open_qdrant_store(settings: RuntimeSettings) -> QdrantVectorStore:
+    if not settings.qdrant_endpoint or not settings.qdrant_collection:
+        raise RuntimeError(
+            "PIVOT_QDRANT_ENDPOINT and PIVOT_QDRANT_COLLECTION are required "
+            "when PIVOT_VECTOR_STORE=qdrant"
+        )
+    if settings.qdrant_ensure_collection and (
+        settings.qdrant_vector_size is None or not settings.qdrant_distance
+    ):
+        raise RuntimeError(
+            "PIVOT_QDRANT_VECTOR_SIZE and PIVOT_QDRANT_DISTANCE are required "
+            "when PIVOT_QDRANT_ENSURE_COLLECTION=1"
+        )
+    client = settings.vector_store_client
+    if client is None:
+        client = connect_qdrant_client(
+            endpoint=settings.qdrant_endpoint,
+            api_key=settings.qdrant_api_key,
+        )
+    store = QdrantVectorStore(
+        client,
+        collection=settings.qdrant_collection,
+        ensure_collection=settings.qdrant_ensure_collection,
+        vector_size=settings.qdrant_vector_size,
+        distance=settings.qdrant_distance,
+    )
+    if not store.healthy():
+        raise RuntimeError("qdrant is not reachable")
+    return store
+
+
 class _RetrievalBridge:
     def __init__(self, retrieval: RetrievalService) -> None:
         self._retrieval = retrieval
@@ -197,6 +235,12 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             f"{resolved.object_store!r}; this slice wires memory or minio. "
             "See progress/changes/20260909-M03-minio-object-store.md"
         )
+    if resolved.vector_store not in {"memory", "qdrant"}:
+        raise RuntimeError(
+            "unsupported PIVOT_VECTOR_STORE="
+            f"{resolved.vector_store!r}; this slice wires memory or qdrant. "
+            "See progress/changes/20260909-M03-qdrant-vector-store.md"
+        )
     hasher = Argon2idHasher(
         time_cost=resolved.argon2_time_cost,
         memory_cost=resolved.argon2_memory_cost,
@@ -205,6 +249,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     clock = UtcClock()
     postgres_engine = None
     minio_store = None
+    qdrant_store = None
     if resolved.storage == "postgres":
         postgres_engine = _open_postgres_engine(resolved)
         users: UserDirectory = SqlAlchemyUserDirectory(session_factory(postgres_engine))
@@ -215,9 +260,14 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         document_objects = minio_store
     else:
         document_objects = MemoryDocumentObjects()
+    if resolved.vector_store == "qdrant":
+        qdrant_store = _open_qdrant_store(resolved)
+        vector_store = qdrant_store
+    else:
+        vector_store = None
     probes = None
-    if postgres_engine is not None or minio_store is not None:
-        probes = _RuntimeProbes(postgres_engine, minio_store)
+    if postgres_engine is not None or minio_store is not None or qdrant_store is not None:
+        probes = _RuntimeProbes(postgres_engine, minio_store, qdrant_store)
     if resolved.bootstrap_username and resolved.bootstrap_password:
         existing = users.get_by_username(resolved.bootstrap_username)
         if existing is None:
@@ -306,6 +356,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         storage=resolved.storage,
         object_store=resolved.object_store,
         objects=document_objects,
+        vector_store=resolved.vector_store,
+        vectors=vector_store,
     )
 
 

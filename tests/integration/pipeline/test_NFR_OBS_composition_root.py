@@ -14,6 +14,7 @@ from pivot.http import (
     create_app,
 )
 from pivot.storage.adapters.minio import MinioObjectStore
+from pivot.storage.adapters.qdrant import QdrantVectorStore
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "composition-root.md"
@@ -295,6 +296,67 @@ def test_NFR_OBS_runtime_minio_readyz_not_fully_ready():
     assert body["checks"]["postgres"] is False
     assert body["checks"]["qdrant"] is False
     assert body["checks"]["redis"] is False
+
+
+class _FakeQdrantClient:
+    def __init__(self) -> None:
+        self.collections: set[str] = set()
+
+    def collection_exists(self, collection_name: str) -> bool:
+        return collection_name in self.collections
+
+    def create_collection(self, collection_name: str, *, vector_size: int, distance: str) -> None:
+        self.collections.add(collection_name)
+
+    def upsert(self, collection_name: str, points) -> None:
+        return None
+
+    def search(self, collection_name, query_vector, limit=10, query_filter=None):
+        return []
+
+    def delete(self, collection_name, points_selector=None) -> None:
+        return None
+
+
+def _qdrant_settings(client: _FakeQdrantClient) -> RuntimeSettings:
+    return _settings(
+        vector_store="qdrant",
+        qdrant_endpoint="vectors.test:443",
+        qdrant_collection="pivot-chunks",
+        qdrant_ensure_collection=True,
+        qdrant_vector_size=4,
+        qdrant_distance="Cosine",
+        vector_store_client=client,
+    )
+
+
+def test_NFR_OBS_runtime_qdrant_requires_endpoint():
+    with pytest.raises(RuntimeError, match="PIVOT_QDRANT_ENDPOINT"):
+        assemble_runtime_app(_settings(vector_store="qdrant"))
+
+
+def test_NFR_OBS_runtime_qdrant_wires_vector_store():
+    assembly = assemble_runtime(_qdrant_settings(_FakeQdrantClient()))
+    assert assembly.vector_store == "qdrant"
+    assert assembly.storage == "memory"
+    assert assembly.object_store == "memory"
+    assert isinstance(assembly.vectors, QdrantVectorStore)
+
+
+def test_NFR_OBS_runtime_qdrant_readyz_not_fully_ready():
+    response = _client(_qdrant_settings(_FakeQdrantClient())).get("/readyz")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "not_ready"
+    assert body["checks"]["qdrant"] is True
+    assert body["checks"]["postgres"] is False
+    assert body["checks"]["minio"] is False
+    assert body["checks"]["redis"] is False
+
+
+def test_NFR_OBS_runtime_rejects_unwired_vector_store():
+    with pytest.raises(RuntimeError, match="unsupported PIVOT_VECTOR_STORE"):
+        assemble_runtime_app(_settings(vector_store="redis"))
 
 
 def test_NFR_OBS_runtime_settings_fail_closed_without_token_secret():

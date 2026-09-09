@@ -29,6 +29,17 @@ def _optional_int(environ: Mapping[str, str], key: str, default: int) -> int:
     raw = (environ.get(key) or "").strip()
     if not raw:
         return default
+    return _positive_int(raw, key)
+
+
+def _optional_int_or_none(environ: Mapping[str, str], key: str) -> int | None:
+    raw = (environ.get(key) or "").strip()
+    if not raw:
+        return None
+    return _positive_int(raw, key)
+
+
+def _positive_int(raw: str, key: str) -> int:
     try:
         value = int(raw)
     except ValueError as exc:
@@ -63,6 +74,14 @@ class RuntimeSettings:
     minio_secure: bool = False
     minio_ensure_bucket: bool = False
     object_store_client: object | None = None
+    vector_store: str = "memory"
+    qdrant_endpoint: str | None = None
+    qdrant_collection: str | None = None
+    qdrant_api_key: str | None = None
+    qdrant_ensure_collection: bool = False
+    qdrant_vector_size: int | None = None
+    qdrant_distance: str | None = None
+    vector_store_client: object | None = None
 
     def __post_init__(self) -> None:
         if not self.token_secret.strip():
@@ -113,4 +132,14 @@ class RuntimeSettings:
             minio_secret_key=(env.get("PIVOT_MINIO_SECRET_KEY") or "").strip() or None,
             minio_secure=(env.get("PIVOT_MINIO_SECURE") or "").strip() == "1",
             minio_ensure_bucket=(env.get("PIVOT_MINIO_ENSURE_BUCKET") or "").strip() == "1",
+            vector_store=(env.get("PIVOT_VECTOR_STORE") or "memory").strip() or "memory",
+            qdrant_endpoint=(env.get("PIVOT_QDRANT_ENDPOINT") or "").strip() or None,
+            qdrant_collection=(env.get("PIVOT_QDRANT_COLLECTION") or "").strip() or None,
+            qdrant_api_key=(env.get("PIVOT_QDRANT_API_KEY") or "").strip() or None,
+            qdrant_ensure_collection=(
+                env.get("PIVOT_QDRANT_ENSURE_COLLECTION") or ""
+            ).strip()
+            == "1",
+            qdrant_vector_size=_optional_int_or_none(env, "PIVOT_QDRANT_VECTOR_SIZE"),
+            qdrant_distance=(env.get("PIVOT_QDRANT_DISTANCE") or "").strip() or None,
         )
