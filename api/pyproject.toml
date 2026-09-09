@@ -27,6 +27,7 @@ test = [
   "aiosqlite>=0.20",
 ]
 lint = ["ruff>=0.6"]
+playwright = ["playwright>=1.47,<2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
