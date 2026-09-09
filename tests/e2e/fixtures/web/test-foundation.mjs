@@ -189,6 +189,65 @@ async function test_FR_STREAM_003_reconnects_from_last_event_id() {
   assert.equal(lastEventId, "17");
 }
 
+async function test_FR_AUTH_001_web_api_base_stays_same_origin() {
+  const { API_BASE } = await loadTs("lib/api/client.ts");
+  assert.equal(API_BASE, "/api/v1");
+  assert.doesNotMatch(API_BASE, /^https?:\/\//);
+}
+
+async function loadProxy() {
+  return import(pathToFileURL(path.join(webRoot, "lib/api/proxy.mjs")).href);
+}
+
+async function test_FR_AUTH_001_next_rewrites_api_v1_to_injected_origin() {
+  const { apiProxyRewrites, API_PROXY_SOURCE } = await loadProxy();
+  const rules = apiProxyRewrites("http://127.0.0.1:8000");
+  assert.deepEqual(rules, [
+    {
+      source: API_PROXY_SOURCE,
+      destination: "http://127.0.0.1:8000/api/v1/:path*",
+    },
+  ]);
+}
+
+function test_FR_AUTH_001_next_config_wires_injected_origin() {
+  const source = fs.readFileSync(path.join(webRoot, "next.config.mjs"), "utf8");
+  assert.match(source, /apiProxyRewrites/);
+  assert.match(source, /PIVOT_API_ORIGIN/);
+  assert.match(source, /rewrites\s*\(/);
+  assert.doesNotMatch(source, /minio|openai|qdrant|s3\.amazonaws/i);
+  assert.doesNotMatch(source, /127\.0\.0\.1|localhost/);
+}
+
+async function test_NFR_OBS_next_rewrites_omitted_when_origin_missing() {
+  const { apiProxyRewrites } = await loadProxy();
+  assert.deepEqual(apiProxyRewrites(undefined), []);
+  assert.deepEqual(apiProxyRewrites(""), []);
+  assert.deepEqual(apiProxyRewrites("   "), []);
+}
+
+async function test_NFR_SEC_next_proxy_rejects_non_http_origin() {
+  const { apiProxyRewrites } = await loadProxy();
+  assert.throws(() => apiProxyRewrites("ftp://127.0.0.1:8000"), /http/);
+  assert.throws(() => apiProxyRewrites("not-a-url"), /origin/);
+  assert.throws(() => apiProxyRewrites("http://127.0.0.1:8000/api/v1"), /path/);
+}
+
+function test_GATE_P0_005_not_verified_by_next_rewrite() {
+  const evidence = fs.readFileSync(
+    path.join(webRoot, "../evidence/wave3-m11/next-api-proxy.md"),
+    "utf8",
+  );
+  assert.match(evidence, /GATE-P0-005/);
+  assert.match(evidence, /unverified/i);
+  assert.match(evidence, /rewrite|proxy/i);
+  const limits = fs.readFileSync(path.join(webRoot, "../evidence/wave2-m11/limits.md"), "utf8");
+  const line = limits.split(/\r?\n/).find((item) => item.includes("GATE-P0-005"));
+  assert.ok(line);
+  assert.match(line, /unverified/i);
+  assert.doesNotMatch(line.replace(/unverified/gi, ""), /verified/i);
+}
+
 const tests = [
   ["test_NFR_UX_design_tokens_align_s3", test_NFR_UX_design_tokens_align_s3],
   ["test_NFR_UX_001_keyboard_and_focus_visible", test_NFR_UX_001_keyboard_and_focus_visible],
@@ -199,6 +258,12 @@ const tests = [
   ["test_contract_error_package_is_decoded", test_contract_error_package_is_decoded],
   ["test_FR_STREAM_002_seq_dedup_and_single_terminal", test_FR_STREAM_002_seq_dedup_and_single_terminal],
   ["test_FR_STREAM_003_reconnects_from_last_event_id", test_FR_STREAM_003_reconnects_from_last_event_id],
+  ["test_FR_AUTH_001_web_api_base_stays_same_origin", test_FR_AUTH_001_web_api_base_stays_same_origin],
+  ["test_FR_AUTH_001_next_rewrites_api_v1_to_injected_origin", test_FR_AUTH_001_next_rewrites_api_v1_to_injected_origin],
+  ["test_FR_AUTH_001_next_config_wires_injected_origin", test_FR_AUTH_001_next_config_wires_injected_origin],
+  ["test_NFR_OBS_next_rewrites_omitted_when_origin_missing", test_NFR_OBS_next_rewrites_omitted_when_origin_missing],
+  ["test_NFR_SEC_next_proxy_rejects_non_http_origin", test_NFR_SEC_next_proxy_rejects_non_http_origin],
+  ["test_GATE_P0_005_not_verified_by_next_rewrite", test_GATE_P0_005_not_verified_by_next_rewrite],
 ];
 
 let failed = 0;
