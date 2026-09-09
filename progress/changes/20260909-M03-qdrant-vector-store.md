@@ -1,0 +1,22 @@
+# 变更申请：M03 Qdrant VectorStore 客户端
+
+- **日期**：2026-09-09
+- **申请人**：Wave 3 主线会话（M03 向量存储客户端 + M11 composition root 接线）
+- **背景**：PostgreSQL 用户目录与 MinIO 文档对象已接线；检索仍为 Fake KeywordRetriever。SPEC §2.1 规定 Qdrant 是可重建检索副本，每个向量必须追溯 `version_id + chunk_id`；禁止写死生产 URL；不得把客户端接线标成 GATE verified。
+- **原契约/现状**：
+  - `pivot.storage.protocols.VectorStore` 与 `VectorStoreConfig(endpoint, collection)` 已冻结；`storage/adapters/qdrant.py` 仅 payload 校验（`build_payload` / `validate_payload`），不导入 SDK、无 upsert/search/delete；
+  - M07 `IndexPublisher` 只消费 payload 契约，不写真实 Qdrant；
+  - M04 检索仍为内存 `KeywordRetriever`；composition root 的 `/readyz` qdrant 探测恒为 False；
+  - CI 不启动 Compose，不安装未声明 extra。
+- **拟变更内容**（本切片）：
+  - M03 实现 `QdrantVectorStore`（注入 client 或 `VectorStoreConfig`）；upsert 强制 `validate_payload`；`delete` 必须带 `version_id` 和/或 `chunk_id`，禁止无选择器清空集合；不在适配器写死 endpoint/collection；
+  - M03 将 optional extra `qdrant`（`qdrant-client`，与 Compose 镜像 `qdrant/qdrant:v1.12.4` 对齐的 1.12 线）写入 `api/pyproject.toml`；默认 CI 不安装；测试用内存 client 子集，不依赖 SDK；
+  - M11：独立设置 `PIVOT_VECTOR_STORE=memory|qdrant`（可与 postgres/minio 组合）；`qdrant` 时要求 `PIVOT_QDRANT_ENDPOINT` / `PIVOT_QDRANT_COLLECTION`，缺则失败闭环，不回退 memory；
+  - composition root 把向量端口接到 `QdrantVectorStore` 并注入 `/readyz` 探测；**检索/问答仍为 Fake KeywordRetriever**，不在本切片冻结距离函数、向量维数或检索 k（ensure collection 仅测试/夹具注入 `vector_size`/`distance`）；
+  - 可选 `PIVOT_QDRANT_ENSURE_COLLECTION=1` 仅测试/夹具建集合，且必须同时注入 size 与 distance；生产默认不自动建集合；
+  - Redis 本切片仍 False / 无 SDK；导出对象仍 memory；**不** 新增 Dockerfile / Compose api；**不** 把 `GATE-P0-002` / `GATE-P0-003` 标 verified。
+- **影响模块**：M03（适配器、pyproject、db 测试）；M11（settings/bootstrap、pipeline 测试、证据）；M04/M07（只消费既有 Fake/payload 契约）；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：默认 `PIVOT_VECTOR_STORE=memory`；既有检索/索引单测与 Fake HTTP 不变；无 Docker/无 qdrant extra 时内存 client 覆盖适配器，Compose Qdrant 为 opt-in skip。
+- **测试 ID**：`test_M03_qdrant_vector_store_upsert_requires_version_and_chunk`、`test_M03_qdrant_vector_store_roundtrip_search_with_injected_client`、`test_M03_qdrant_vector_store_search_filter_by_version_id`、`test_M03_qdrant_vector_store_delete_by_chunk_id`、`test_M03_qdrant_vector_store_delete_requires_selector`、`test_M03_qdrant_vector_store_requires_injected_collection`、`test_M03_qdrant_adapter_source_has_no_hardcoded_endpoint`、`test_NFR_OBS_runtime_qdrant_requires_endpoint`、`test_NFR_OBS_runtime_qdrant_wires_vector_store`、`test_NFR_OBS_runtime_qdrant_readyz_not_fully_ready`、`test_M03_qdrant_vector_store_when_compose_up`、`test_GATE_P0_003_not_verified_by_qdrant_vector_store`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不把内存 client 标成生产向量索引；不冻结 TBD-P0 距离函数/维数/k）。
+- **审核结果**：2026-09-09 Wave 3 主线会话 **批准**。
