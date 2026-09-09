@@ -23,6 +23,5 @@ jobs:
           python -m pip install -e "./api[test,lint,http]"
           python -m pip install -e ./worker
           python -m pip install -r tests/contract/requirements.txt
-          python -m pip install argon2-cffi
       - name: Run grouped unit/contract/pipeline checks
         run: python ops/run_grouped_tests.py

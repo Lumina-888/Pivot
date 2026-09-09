@@ -11,6 +11,6 @@
 | GATE-P0-005 | unverified | 认证/RBAC 有单元证据，无上线传输层 |
 | GATE-P0-006 | unverified | 备份恢复未在新 ECS 演练 |
 | GATE-P0-007 | unverified | 5 并发 / 100k Chunk 未测；阈值仍 TBD-P0 |
-| GATE-P0-008 | unverified | 无健康检查 HTTP、无固定发布演练 |
+| GATE-P0-008 | unverified | composition root 可启动；无固定版本发布与回滚演练 |
 
 `implemented`（若有 Fake 链路测试）≠ `verified`。

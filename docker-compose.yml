@@ -1,7 +1,9 @@
 # Pivot Wave 3 dependency fixture. Not a production ECS publish stack.
 # Image tags are fixture pins, not GATE-P0-008 verified.
 # Redis is cache/queue only — not a business fact store.
-# api/worker/web are omitted until FastAPI/Celery HTTP assembly exists.
+# api/worker/web are omitted until Dockerfile/Compose app services exist.
+# FastAPI composition root (not started by this file):
+#   uvicorn pivot.http.main:app --factory
 # CI must not docker compose up.
 
 name: pivot-deps
