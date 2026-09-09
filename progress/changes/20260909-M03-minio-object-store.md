@@ -1,0 +1,23 @@
+# 变更申请：M03 MinIO ObjectStore 客户端
+
+- **日期**：2026-09-09
+- **申请人**：Wave 3 主线会话（M03 对象存储客户端 + M11 composition root 接线）
+- **背景**：PostgreSQL 用户目录已接线；文档预览/下载仍走内存 `MemoryDocumentObjects`。SPEC §2.1 规定 MinIO 存原文/中间物/导出物；禁止写死生产 URL；导出短时 URL 不得暴露 MinIO 内部地址。
+- **原契约/现状**：
+  - `pivot.storage.protocols.ObjectStore` 与 `ObjectStoreConfig(endpoint, bucket)` 已冻结；`storage/adapters/minio.py` 仅为端口标记、不导入 SDK；
+  - 文档 `ObjectStore`（`put/get/exists/delete/keys`）由 M02 消费；导出 `ObjectStorePort` 另有 `presign`，HTTP 下载走 `PublicDownloadSigner`；
+  - `PIVOT_STORAGE=minio` 仍为 unsupported（MinIO 不是业务事实源）；
+  - CI 不启动 Compose，不安装未声明 extra。
+- **拟变更内容**（本切片）：
+  - M03 实现 `MinioObjectStore`（注入 client 或 `ObjectStoreConfig` + 密钥）；`get` 缺失返回 `None` 以兼容文档端口；不在适配器写死 endpoint；
+  - M03 将 optional extra `minio` 写入 `api/pyproject.toml`；默认 CI 不安装；测试用内存 client 子集，不依赖 SDK；
+  - M11：独立设置 `PIVOT_OBJECT_STORE=memory|minio`（可与 `PIVOT_STORAGE=postgres` 组合）；`minio` 时要求 `PIVOT_MINIO_ENDPOINT` / `PIVOT_MINIO_BUCKET` / 密钥，缺则失败闭环，不回退 memory；
+  - composition root 把 **文档** 对象端口接到 `MinioObjectStore`；导出对象本切片仍为 memory + `PublicDownloadSigner`（不调用 `presign` 做公开下载）；
+  - `/readyz`：接通时探测 bucket；qdrant/redis 仍 False，整体仍 not_ready；
+  - 可选 `PIVOT_MINIO_ENSURE_BUCKET=1` 仅测试/夹具建桶；生产默认不自动建桶；
+  - **不** 引入 Qdrant/Redis SDK；**不** 新增 Dockerfile / Compose api；**不** 把 `GATE-P0-003` 标 verified。
+- **影响模块**：M03（适配器、pyproject、db 测试）；M11（settings/bootstrap、pipeline 测试、证据）；M02（只消费端口）；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：默认 `PIVOT_OBJECT_STORE=memory`；既有文档/导出单测与 Fake HTTP 不变；无 Docker/无 minio extra 时内存 client 覆盖适配器，Compose MinIO 为 opt-in skip。
+- **测试 ID**：`test_M03_minio_object_store_roundtrip_with_injected_client`、`test_M03_minio_object_store_get_missing_returns_none`、`test_M03_minio_adapter_source_has_no_hardcoded_endpoint`、`test_NFR_OBS_runtime_minio_requires_endpoint`、`test_NFR_OBS_runtime_minio_wires_object_store`、`test_FR_DOC_007_runtime_minio_preview_does_not_leak_endpoint`、`test_NFR_OBS_runtime_minio_readyz_not_fully_ready`、`test_M03_minio_object_store_when_compose_up`、`test_GATE_P0_003_not_verified_by_minio_object_store`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不把内存 client 标成生产对象存储；不冻结 TBD-P0）。
+- **审核结果**：2026-09-09 Wave 3 主线会话 **批准**。
