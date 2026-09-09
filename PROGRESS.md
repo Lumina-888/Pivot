@@ -3,7 +3,7 @@
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-09  
 > **当前状态**：主线开发（MODULE-SPEC-1.1）；Wave 3 进行中。工作区仅为 `Pivot/` 的 `main`。波次基线仍为 `wave-2-integrated`（未打 `wave-3-integrated`）。
-> **当前基线**：`wave-2-integrated` + HTTP 装配 + composition root + Next `/api/v1` 反代 + opt-in Playwright 登录 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.1-synthetic + 导出对象 MinIO + 检索 dense 消费 Qdrant（本切片）。
+> **当前基线**：`wave-2-integrated` + HTTP 装配 + composition root + Next `/api/v1` 反代 + opt-in Playwright 登录 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.1-synthetic + 导出对象 MinIO + 检索 dense 消费 Qdrant + 5 并发/进程内备份夹具（本切片）。
 
 ## 1. 新会话恢复入口
 
@@ -13,7 +13,7 @@
 4. 读取本文件和本切片涉及的 `progress/modules/Mxx.md`；
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
 
-如果没有指定切片：继续 **Wave 3**。存储客户端、Golden Set v0.1-synthetic、导出对象 MinIO 与检索 dense 消费 Qdrant 已在 main；下一刀是 5 并发 / 备份恢复，或真实 BM25/rerank。不要冻结 `TBD-P0`，不要把 HTTP 装配、存储客户端、合成 Golden Set 或 Fake embedder 标成 GATE verified。不要新建 worktree。
+如果没有指定切片：继续 **Wave 3**。存储客户端、Golden Set v0.1-synthetic、导出对象 MinIO、检索 dense 消费 Qdrant 与 5 并发/进程内备份夹具已在 main；下一刀是真实 BM25/rerank，或 100k Chunk / Compose api。不要冻结 `TBD-P0`，不要把 HTTP 装配、存储客户端、合成 Golden Set、Fake embedder 或进程内压测/恢复标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 
@@ -32,7 +32,7 @@
 | M08 Web 基础 | integrated | `main`（tag `M08-v0.2.0`） | `contract-v0.1` | M08 15 tests + typecheck/lint 通过 | SSE 缓冲/Compose web 仍待 |
 | M09 员工前台 | integrated | `main`（tag `M09-v0.1.0`） | `wave-1-integrated` | 12 Fake + opt-in Playwright 登录 | 完整十页 Playwright 待后续 |
 | M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 passed | Playwright 后台流程待后续 |
-| M11 集成/质量/运维 | in_progress | `main` | `wave-2-integrated` | 分组 Python 314 passed / 8 skipped | 5 并发 / 备份恢复、GATE-P0 仍待 |
+| M11 集成/质量/运维 | in_progress | `main` | `wave-2-integrated` | 分组 Python 323 passed / 8 skipped | 100k Chunk / 新 ECS 灾备、GATE-P0 仍待 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护。历史 `../Pivot-Mxx-*` worktree 不再使用。
 
@@ -53,7 +53,7 @@
 | §1.5 / NFR-UX 设计系统与 client | M08 | `tests/e2e/fixtures/web/test-foundation.mjs` | implemented | M08 15 项基础测试通过（含 `/api/v1` rewrite）；产品页由 M09/M10 接管 |
 | 前台 6 页 | M09 | `tests/e2e/user/test_user_web.mjs` | implemented | 12 项 Fake fetch + opt-in Playwright 登录；CI 默认 skip |
 | 后台 4 页 | M10 | `tests/e2e/admin/test_admin_web.mjs` | implemented | 8 项 Fake fetch 测试通过；无 Playwright |
-| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + HTTP + composition root + Next rewrite + opt-in Playwright + PG/MinIO/Qdrant/Redis + 合成 Golden Set + 导出 MinIO + 检索 dense 消费 Qdrant）；GATE-P0 unverified | TestClient；CI 不启动 Compose/uvicorn；Playwright/Compose 默认 skip |
+| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + HTTP + composition root + Next rewrite + opt-in Playwright + PG/MinIO/Qdrant/Redis + 合成 Golden Set + 导出 MinIO + 检索 dense 消费 Qdrant + 5 并发/进程内备份夹具）；GATE-P0 unverified | TestClient；CI 不启动 Compose/uvicorn；Playwright/Compose 默认 skip |
 
 ## 4. 当前波次计划
 
@@ -105,7 +105,8 @@
 - [x] Redis 缓存/队列客户端（`RedisCacheStore`/`RedisQueueStore`；`PIVOT_CACHE_STORE`/`PIVOT_QUEUE_STORE=redis`；endpoint 注入）
 - [x] Golden Set v0.1-synthetic 检索夹具（10 条分层，Fake KeywordRetriever）
 - [x] 检索 dense 路消费 Qdrant VectorStore（Fake query embedder；不冻结 k/距离）
-- [ ] 100~150 条 Golden Set、5 并发 / 100k Chunk、新 ECS 备份恢复
+- [x] 5 并发检索夹具与进程内事实备份/恢复（非 100k、非新 ECS）
+- [ ] 100~150 条 Golden Set、100k Chunk 实测、新 ECS 加密 OSS 备份恢复
 - [ ] 任一 `GATE-P0-*` verified；未打 `wave-3-integrated`
 
 ## 5. 未完成项与已知差距
@@ -159,15 +160,23 @@
 - [x] Wave 3 Golden Set v0.1-synthetic 已批准：`progress/changes/20260909-M11-golden-set-synthetic.md`。
 - [x] Wave 3 导出对象 MinIO 已批准：`progress/changes/20260909-M11-minio-export-objects.md`。
 - [x] Wave 3 检索接 Qdrant 已批准：`progress/changes/20260909-M04-qdrant-retrieval.md`。
+- [x] Wave 3 5 并发与进程内备份夹具已批准：`progress/changes/20260909-M11-capacity-backup-fixture.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-09 — Wave 3 5 并发夹具与进程内备份恢复
+
+- **完成**：批准 `20260909-M11-capacity-backup-fixture.md`；5 路并发 `retrieve` 全部完成；`ops/fact_backup.py` 对用户/对象/向量点/审计 roundtrip，Redis 不进事实包；恢复记 `ops.backup_restore`。不采集 P95，不冻结 RPO/RTO，CI 不生成 100k。Accountable：M11。
+- **验证**（main，2026-09-09，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）：`python ops/run_grouped_tests.py --skip-web` → **323 passed, 8 skipped**；ruff / compileall 通过。
+- **限制**：进程内 Fake，不是 ECS 压测/加密 OSS/新 ECS 演练；未打 `wave-3-integrated`；GATE-P0 全部 unverified。
+- **下一步**：真实 BM25/rerank，或 100k Chunk / Compose api。
 
 ### 2026-09-09 — Wave 3 检索 dense 路接到 Qdrant
 
 - **完成**：批准 `20260909-M04-qdrant-retrieval.md`；`PIVOT_VECTOR_STORE=qdrant` 时 dense 为 `VectorStoreRetriever` 消费 `QdrantVectorStore`；query embedder 为注入维数的 `HashingQueryEmbedder`；k 来自 `PIVOT_RETRIEVAL_K`，不写死 50/距离。空 corpus 的 `search_documents` 走 payload 水合；payload 缺 ready/current/allowed 失败闭环。BM25 仍 Fake Keyword。Accountable：M04 检索适配，M11 装配。
 - **验证**（main，2026-09-09，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6 / fastapi 0.141.1）：`python ops/run_grouped_tests.py --skip-web` → **314 passed, 8 skipped**；ruff / compileall 通过。
 - **限制**：Fake embedder 不是生产 Embedding；无 ingest→Qdrant；Golden Set 仍 Keyword；未打 `wave-3-integrated`；GATE-P0 全部 unverified。
-- **下一步**：5 并发 / 备份恢复，或真实 BM25/rerank。
+- **下一步**：5 并发 / 备份恢复夹具已完成；再下一步为真实 BM25/rerank 或 100k Chunk。
 
 ### 2026-09-09 — Wave 3 导出对象接到 MinIO
 
