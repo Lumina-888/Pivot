@@ -13,3 +13,4 @@
 - **测试 ID**：`test_NFR_SEC_004_argon2id_hasher_uses_expected_prefix`、`test_FR_AUTH_001_*`、`test_FR_AUTH_004_*`。
 - **是否触发 ADR**：否（算法已由 SPEC 指定；不改变状态机、权限或检索配置）。
 - **审核结果**：2026-09-06 Wave 1 退出评审 **暂缓写入 pyproject**。Argon2id 算法与测试已合并；`argon2-cffi` 仍由 M03 后续串行加入 `api/pyproject.toml`，本波次不把未批准依赖写进公共锁文件。集成回归仅在本地 venv 安装该包。
+- **后续**：2026-09-09 composition root 切片已将 `argon2-cffi` 写入 `api/pyproject.toml` 主依赖（见 `progress/changes/20260909-M11-composition-root.md`）。

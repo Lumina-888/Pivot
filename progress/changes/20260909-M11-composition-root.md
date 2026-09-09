@@ -1,0 +1,21 @@
+# 变更申请：M11 composition root（可启动 FastAPI）
+
+- **日期**：2026-09-09
+- **申请人**：Wave 3 主线会话（M11 薄装配 + M03 依赖锁）
+- **背景**：Wave 3 预览/下载 HTTP 已合入，但 `create_app()` 只在测试注入服务时挂路由，没有 uvicorn 入口。密码哈希双轨：`Argon2idHasher` 存在，HTTP 流水线仍用测试 PBKDF2。`argon2-cffi` 变更 `20260906-M01-auth-dependencies.md` 仍为暂缓写入 pyproject。
+- **原契约/现状**：`create_app()` 默认只挂 `/healthz` `/readyz`；领域路由需逐个注入。无 `main.py`。存储端口已有，无运行时装配。CI 另装 `argon2-cffi`，未写入 `api/pyproject.toml`。
+- **拟变更内容**（本切片）：
+  - M11 新增 composition root：`RuntimeSettings`（环境/注入，禁止写死生产 URL）、`assemble_runtime` / `assemble_runtime_app`、`uvicorn pivot.http.main:app --factory`；
+  - 默认 `create_app()` **仍不**挂 `/api/v1`（既有健康测试保持）；
+  - 运行时装配注入全部已有领域服务，使用 **Argon2id** 与 **memory** 端口适配（可切换缝；本切片不接真实 PG/MinIO/Qdrant/Redis SDK）；
+  - 未注入依赖探测时 `/readyz` 继续失败闭环；`/healthz` 仍不探依赖；
+  - 不支持的 `PIVOT_STORAGE`（例如 `postgres`）失败闭环，不静默回退；
+  - 可选 bootstrap 管理员（用户名+密码必须成对）；口令不得进入异常信息或审计 metadata；
+  - access/refresh/export TTL、检索 k 只接受注入值，不把 `TBD-P0` 写成冻结生产默认；
+  - M03 将 `argon2-cffi` 写入 `api/pyproject.toml` 主依赖，落实暂缓的 M01 申请；CI 不再单独 `pip install argon2-cffi`；
+  - **不**新增 Dockerfile / Compose api·web·worker；**不**做 Next 反代；**不**标 `GATE-P0 verified`。
+- **影响模块**：M11（装配、测试、证据）；M03（pyproject）；M01（运行时消费 Argon2id，不改登录状态机）；M00（MODULE_SPEC 注明 composition root 路径）。
+- **兼容方案**：既有 TestClient 注入装配与 PBKDF2 流水线测试不变；领域单测不依赖 composition root。
+- **测试 ID**：`test_NFR_OBS_001_runtime_app_is_alive_without_injected_services`、`test_NFR_OBS_002_runtime_readyz_fail_closed_without_infra_probes`、`test_NFR_SEC_004_runtime_bootstrap_password_is_argon2id`、`test_FR_AUTH_001_runtime_login_without_test_harness`、`test_NFR_OBS_runtime_rejects_unwired_storage`、`test_NFR_OBS_runtime_settings_fail_closed_without_token_secret`、`test_NFR_OBS_runtime_factory_reads_settings_from_env`、`test_NFR_OBS_default_create_app_does_not_mount_api_v1`、`test_NFR_OBS_health_app_does_not_mount_api_v1_routes`（默认仍成立）、`test_GATE_P0_008_not_verified_by_runtime_assembly`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；TTL/k 仍为注入的 TBD-P0）。
+- **审核结果**：2026-09-09 Wave 3 主线会话 **批准**。

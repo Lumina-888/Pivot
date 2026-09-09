@@ -1,6 +1,6 @@
 # 问枢 Pivot 会话交接清单
 
-> **日期**：2026-09-08  
+> **日期**：2026-09-09  
 > **性质**：聊天结论压缩。需求仍以 `SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 `MODULE_SPEC.md` 1.1 / `AGENTS.md` 为准。  
 > **本文件不是规范源。**
 
@@ -8,8 +8,8 @@
 
 1. 工作区：`E:/AI Project/Pivot`，分支：`main`。不要新建 worktree。
 2. 读：`AGENTS.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. 下一刀：**composition root**（可启动 FastAPI，Argon2 + 可切换存储），随后 Next 反代 `/api/v1`。
-4. 不要冻结 `TBD-P0`，不要把 Fake HTTP 标成 `GATE-P0 verified`。
+3. 下一刀：**Next 反代 `/api/v1`**（登录页能通），随后 Playwright / 真实存储客户端。
+4. 不要冻结 `TBD-P0`，不要把 Fake HTTP 或 composition root 标成 `GATE-P0 verified`。
 
 ## 1. 工作区与流程
 
@@ -23,12 +23,12 @@
 
 ## 2. 产品现状（观感 vs 事实）
 
-测试约 **236 passed / 2 skipped** 是真的，测的是 **内存 Fake + TestClient**，不是可上线系统。
+测试约 **245 passed / 2 skipped** 是真的，测的是 **内存适配 + TestClient**，不是可上线系统。
 
 | 层 | 实际 |
 |---|---|
-| HTTP | `create_app()` 注入才挂路由；无 `main.py` / Dockerfile / Compose 中的 api·web·worker |
-| 存储 | SQLAlchemy/Alembic 在；Auth/文档/导出/会话 HTTP 走内存 fake；MinIO/Qdrant/Redis 无 SDK 客户端 |
+| HTTP | `create_app()` 默认只健康检查；`assemble_runtime_app` / `uvicorn pivot.http.main:app --factory` 挂全部已有 `/api/v1`；无 Dockerfile / Compose api·web·worker |
+| 存储 | SQLAlchemy/Alembic 在；运行时默认 memory 端口；MinIO/Qdrant/Redis 无 SDK 客户端 |
 | 检索 | 搜索 HTTP 为内存子串匹配；dense/BM25 为 `KeywordRetriever` |
 | 问答 | 把命中 chunk 用 `。` 拼接；无 LLM / LangGraph |
 | Worker | 正则抽 PDF + `FakeEmbedding`；非 Celery |
@@ -39,29 +39,27 @@
 ## 3. 已合入 main 的能力（Wave 0–3 切片）
 
 - Wave 0–2 已打 `wave-0/1/2-integrated`
-- Wave 3 已合入：Compose 依赖 fixture、`/healthz` `/readyz`、认证、文档上传/列表/详情/重试/删除/预览/下载、搜索、Run/SSE、导出/审计、改密/管理用户、会话 CRUD
+- Wave 3 已合入：Compose 依赖 fixture、`/healthz` `/readyz`、认证、文档上传/列表/详情/重试/删除/预览/下载、搜索、Run/SSE、导出/审计、改密/管理用户、会话 CRUD、composition root
 - **未打** `wave-3-integrated`
-- 主线协议：`ff1626a`（MODULE-SPEC-1.1）；预览/下载切片见 `PROGRESS.md`
+- 主线协议：`ff1626a`（MODULE-SPEC-1.1）；composition root 见 `PROGRESS.md`
 
 ## 4. 已知缺口 / 缺陷（按优先级）
 
-1. **没有 composition root**：无法 `uvicorn` 拉起真实装配
-2. **前端未接到后端**：缺 Next 反代 `/api/v1`
-3. **PATCH `/admin/users/{id}`**：请求体允许 `role` / `reset_password`，实现只改 `status`，否则 404
-4. **登录限流空操作**：`InMemoryAttempts.is_blocked` 恒为 `False`
-5. **密码哈希双轨**：有 `Argon2idHasher`，HTTP 流水线用测试 PBKDF2
-6. 预览/下载 HTTP 已挂（内存 Fake 对象字节；无真实 MinIO）
-7. 无 Playwright、无真实 dense/BM25、无导出对象字节下载、无 PG/MinIO 客户端
+1. **前端未接到后端**：缺 Next 反代 `/api/v1`
+2. **PATCH `/admin/users/{id}`**：请求体允许 `role` / `reset_password`，实现只改 `status`，否则 404
+3. **登录限流空操作**：`InMemoryAttempts.is_blocked` 恒为 `False`
+4. **密码哈希双轨**：composition root 用 Argon2id；HTTP 流水线测试仍用 PBKDF2
+5. 预览/下载 HTTP 已挂（内存对象字节；无真实 MinIO）
+6. 无 Playwright、无真实 dense/BM25、无导出对象字节下载、无 PG/MinIO 客户端、无 Dockerfile/Compose api
 
 ## 5. 下一刀建议
 
 不要再加一条只在 TestClient 里绿的路由就当 Wave 3 完成。杠杆顺序：
 
-1. composition root（可启动 FastAPI，Argon2 + 可切换存储）
-2. Next 反代 `/api/v1`，登录页能通
-3. 再考虑 Playwright / 真实检索 / 真实 MinIO
+1. Next rewrite/proxy 使 `/api/v1` 从 web 应用可达，登录页能通
+2. 再考虑 Playwright / 真实检索 / 真实 MinIO
 
-预览/下载 HTTP 已完成。下一刀默认第 1 项 composition root。
+composition root 已完成。下一刀默认第 1 项 Next 反代。
 
 ## 6. 纪律（未改）
 

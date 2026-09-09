@@ -380,7 +380,7 @@ evidence/**
 progress/modules/M11.md
 ```
 
-`api/src/pivot/http/**` 仅允许薄 HTTP 装配（`create_app`、`/healthz`、`/readyz`，以及 `include_router` 注入的领域 router）。不得在此路径实现认证、文档、检索、问答、SSE 或导出业务逻辑；认证 HTTP 适配位于 `api/src/pivot/auth/http.py`（M01）；文档 HTTP 适配位于 `api/src/pivot/documents/http.py`（M02）；检索 HTTP 适配位于 `api/src/pivot/retrieval/http.py`（M04）；问答/SSE HTTP 适配位于 `api/src/pivot/runs/http.py`（M05）；会话 HTTP 适配位于 `api/src/pivot/runs/conversations_http.py`（M05）；导出 HTTP 适配位于 `api/src/pivot/exports/http.py`（M06）；审计 HTTP 适配位于 `api/src/pivot/audit/http.py`（M06）。FastAPI 依赖以 `api/pyproject.toml` 的 optional extra `http` 引入，由 M03 串行维护。
+`api/src/pivot/http/**` 仅允许薄 HTTP 装配（`create_app`、`/healthz`、`/readyz`、`include_router` 注入的领域 router，以及 composition root：`settings` / `memory` 适配 / `bootstrap` / `main` factory）。不得在此路径实现认证、文档、检索、问答、SSE 或导出业务逻辑；认证 HTTP 适配位于 `api/src/pivot/auth/http.py`（M01）；文档 HTTP 适配位于 `api/src/pivot/documents/http.py`（M02）；检索 HTTP 适配位于 `api/src/pivot/retrieval/http.py`（M04）；问答/SSE HTTP 适配位于 `api/src/pivot/runs/http.py`（M05）；会话 HTTP 适配位于 `api/src/pivot/runs/conversations_http.py`（M05）；导出 HTTP 适配位于 `api/src/pivot/exports/http.py`（M06）；审计 HTTP 适配位于 `api/src/pivot/audit/http.py`（M06）。FastAPI 依赖以 `api/pyproject.toml` 的 optional extra `http` 引入；`argon2-cffi` 为主依赖，由 M03 串行维护。
 
 **首批测试**：所有依赖服务 health/ready、跨模块认证→上传→ready→检索→问答→导出链路、安全负向清单、5 并发、100k Chunk 方案、备份恢复和回滚演练记录。
 
@@ -488,8 +488,8 @@ M11 组织 Golden Set、真实容器、5 并发/100k Chunk、供应商故障、�
 | `spec/contracts/**` | M00 | `progress/changes/` + 消费者确认 |
 | `spec/scenarios/**`、`spec/acceptance/**` | M00 | 提供场景/证据更新提案 |
 | `tests/contract/` 根级（`test_contract_*`、conftest、requirements） | M00 | M05 仍拥有 `tests/contract/stream/**` |
-| `api/pyproject.toml`、锁文件 | M03 | 提交依赖申请，由 M03 串行合并；`http` extra 仅含 FastAPI 健康装配依赖 |
-| `api/src/pivot/http/**` | M11（薄装配） | 不得挂 `/api/v1` 业务路由；健康探测必须注入，禁止写死生产 URL |
+| `api/pyproject.toml`、锁文件 | M03 | 提交依赖申请，由 M03 串行合并；`http` extra 含 FastAPI/uvicorn；`argon2-cffi` 为主依赖 |
+| `api/src/pivot/http/**` | M11（薄装配） | 默认 `create_app()` 不挂 `/api/v1`；composition root 经注入挂载；健康探测必须注入，禁止写死生产 URL |
 | `api/src/pivot/shared/**` | M03 | 变更申请，禁止复制到其他模块 |
 | `api/src/pivot/errors.py` / 公共错误码 | M00 规范、M03 基础实现 | 变更申请 + 契约测试 |
 | `migrations/**` | M03 | 每个迁移唯一编号、禁止并行重编号 |
@@ -688,6 +688,6 @@ M11 按以下顺序验证，失败应退回对应 Accountable 模块：
 本文 1.1 将默认流程改为主线开发，不改变 SPEC 需求，也不把 Fake HTTP 标成 GATE verified。当前主线在 Wave 3：
 
 - 工作区仅为 `Pivot/` 的 `main`；不要在历史 worktree 继续开发；
-- HTTP 装配仍需注入才挂路由；无 uvicorn 入口、无真实存储客户端；预览/下载已挂内存 Fake 对象流；
+- composition root 可 `uvicorn pivot.http.main:app --factory` 启动；默认存储为 memory 适配；无真实 PG/MinIO/Qdrant/Redis 客户端、无 Compose api 服务；预览/下载已挂内存对象流；
 - `TBD-P0` 仍必须按原 SPEC 的 P0 流程冻结；
 - Docker/PG/Qdrant/MinIO/Redis 客户端、Golden Set、性能和灾备仍待后续主线切片。
