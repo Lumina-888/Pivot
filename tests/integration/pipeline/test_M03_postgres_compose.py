@@ -90,11 +90,69 @@ def test_M03_postgres_alembic_upgrade_head_when_compose_up():
         engine.dispose()
 
 
+def test_M03_postgres_user_directory_when_compose_up():
+    if not _postgres_reachable():
+        _skip_or_fail("compose postgres is not reachable on 127.0.0.1:5432")
+    if not _psycopg_available():
+        _skip_or_fail("psycopg extra is not installed; pip install -e ./api[postgres]")
+
+    from pivot.auth.ports import UserAccount
+    from pivot.db.models import User
+    from pivot.db.session import session_factory
+    from pivot.db.users import SqlAlchemyUserDirectory
+    from pivot.shared.time import utc_now
+
+    database_url = _database_url()
+    assert database_url.startswith("postgresql"), "fixture smoke must use PostgreSQL, not SQLite"
+    command.upgrade(_alembic_config(database_url), "head")
+
+    engine = create_engine(database_url, future=True)
+    try:
+        directory = SqlAlchemyUserDirectory(session_factory(engine))
+        now = utc_now()
+        directory.save(
+            UserAccount(
+                id="usr_compose_dir",
+                username="compose_dir",
+                password_hash="$argon2id$v=19$m=8,t=1,p=1$c2FsdHNhbHQ$hash",
+                role="user",
+                status="active",
+                token_version=1,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        loaded = directory.get_by_username("compose_dir")
+        assert loaded is not None
+        assert loaded.id == "usr_compose_dir"
+        assert loaded.password_hash.startswith("$argon2id$")
+        with session_factory(engine)() as session:
+            row = session.get(User, "usr_compose_dir")
+            assert row is not None
+            session.delete(row)
+            session.commit()
+    finally:
+        engine.dispose()
+
+
 def test_GATE_P0_003_not_verified_by_alembic_smoke_alone():
     evidence = _EVIDENCE.read_text(encoding="utf-8")
     assert "GATE-P0-003" in evidence
     assert "unverified" in evidence.lower()
     assert "atomic" in evidence.lower() or "原子" in evidence
+    limits = _LIMITS.read_text(encoding="utf-8")
+    line = next(item for item in limits.splitlines() if "GATE-P0-003" in item)
+    assert "unverified" in line.lower()
+    assert "verified" not in line.lower().replace("unverified", "")
+
+
+def test_GATE_P0_003_not_verified_by_postgres_user_directory():
+    evidence = (_ROOT / "evidence" / "wave3-m11" / "postgres-user-directory.md").read_text(
+        encoding="utf-8"
+    )
+    assert "GATE-P0-003" in evidence
+    assert "unverified" in evidence.lower()
+    assert "user directory" in evidence.lower() or "用户目录" in evidence
     limits = _LIMITS.read_text(encoding="utf-8")
     line = next(item for item in limits.splitlines() if "GATE-P0-003" in item)
     assert "unverified" in line.lower()

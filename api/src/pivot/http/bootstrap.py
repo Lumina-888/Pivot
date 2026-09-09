@@ -5,12 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fastapi import FastAPI
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from pivot.audit.service import AuditService
 from pivot.audit.store import AppendOnlyAuditStore
 from pivot.auth.ports import UserAccount, UserDirectory
 from pivot.auth.service import AuthService
 from pivot.auth.tokens import TokenService
+from pivot.db.models import Base
+from pivot.db.session import create_db_engine, session_factory
+from pivot.db.users import SqlAlchemyUserDirectory
 from pivot.documents.service import DocumentService
 from pivot.exports.repository import InMemoryExportRepository
 from pivot.exports.service import ExportService
@@ -55,6 +60,52 @@ class RuntimeAssembly:
     storage: str
 
 
+class _RuntimeProbes:
+    def __init__(self, postgres_engine: Engine | None = None) -> None:
+        self._postgres_engine = postgres_engine
+
+    def postgres(self) -> bool:
+        if self._postgres_engine is None:
+            return False
+        try:
+            with self._postgres_engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+            return True
+        except Exception:
+            return False
+
+    def minio(self) -> bool:
+        return False
+
+    def qdrant(self) -> bool:
+        return False
+
+    def redis(self) -> bool:
+        return False
+
+
+def _engine_kwargs(database_url: str) -> dict[str, object]:
+    if database_url.startswith("sqlite"):
+        return {"connect_args": {"check_same_thread": False}}
+    return {}
+
+
+def _open_postgres_engine(settings: RuntimeSettings) -> Engine:
+    if not settings.database_url:
+        raise RuntimeError("PIVOT_DATABASE_URL is required when PIVOT_STORAGE=postgres")
+    engine = create_db_engine(settings.database_url, **_engine_kwargs(settings.database_url))
+    if settings.create_schema:
+        if not settings.database_url.startswith("sqlite"):
+            raise RuntimeError("PIVOT_DB_CREATE_SCHEMA is only allowed for sqlite test URLs")
+        Base.metadata.create_all(engine)
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception as exc:
+        raise RuntimeError("postgres is not reachable") from exc
+    return engine
+
+
 class _RetrievalBridge:
     def __init__(self, retrieval: RetrievalService) -> None:
         self._retrieval = retrieval
@@ -95,11 +146,11 @@ class _RetrievalBridge:
 
 def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly:
     resolved = settings or RuntimeSettings.from_env()
-    if resolved.storage != "memory":
+    if resolved.storage not in {"memory", "postgres"}:
         raise RuntimeError(
             "unsupported PIVOT_STORAGE="
-            f"{resolved.storage!r}; this slice only wires memory adapters. "
-            "See progress/changes/20260909-M11-composition-root.md"
+            f"{resolved.storage!r}; this slice wires memory or postgres. "
+            "See progress/changes/20260909-M03-postgres-user-directory.md"
         )
     hasher = Argon2idHasher(
         time_cost=resolved.argon2_time_cost,
@@ -107,21 +158,29 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         parallelism=resolved.argon2_parallelism,
     )
     clock = UtcClock()
-    users = InMemoryUserDirectory()
+    probes = None
+    if resolved.storage == "postgres":
+        postgres_engine = _open_postgres_engine(resolved)
+        users: UserDirectory = SqlAlchemyUserDirectory(session_factory(postgres_engine))
+        probes = _RuntimeProbes(postgres_engine)
+    else:
+        users = InMemoryUserDirectory()
     if resolved.bootstrap_username and resolved.bootstrap_password:
-        now = clock.now()
-        users.save(
-            UserAccount(
-                id=new_id("user"),
-                username=resolved.bootstrap_username,
-                password_hash=hasher.hash(resolved.bootstrap_password),
-                role="admin",
-                status="active",
-                token_version=1,
-                created_at=now,
-                updated_at=now,
+        existing = users.get_by_username(resolved.bootstrap_username)
+        if existing is None:
+            now = clock.now()
+            users.save(
+                UserAccount(
+                    id=new_id("user"),
+                    username=resolved.bootstrap_username,
+                    password_hash=hasher.hash(resolved.bootstrap_password),
+                    role="admin",
+                    status="active",
+                    token_version=1,
+                    created_at=now,
+                    updated_at=now,
+                )
             )
-        )
     resources = InMemoryResources()
     auth = AuthService(
         users=users,
@@ -177,6 +236,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         download_ttl_seconds=resolved.download_ttl,
     )
     app = create_app(
+        probes=probes,
         auth=auth,
         documents=documents,
         retrieval=retrieval,

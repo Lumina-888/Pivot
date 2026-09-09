@@ -119,8 +119,67 @@ def test_FR_AUTH_001_runtime_login_without_test_harness():
 
 
 def test_NFR_OBS_runtime_rejects_unwired_storage():
-    with pytest.raises(RuntimeError, match="memory"):
+    with pytest.raises(RuntimeError, match="unsupported PIVOT_STORAGE"):
+        assemble_runtime_app(_settings(storage="minio"))
+
+
+def test_NFR_OBS_runtime_postgres_requires_database_url():
+    with pytest.raises(RuntimeError, match="PIVOT_DATABASE_URL"):
         assemble_runtime_app(_settings(storage="postgres"))
+
+
+def test_NFR_OBS_runtime_postgres_wires_sqlalchemy_user_directory(tmp_path):
+    from pivot.db.users import SqlAlchemyUserDirectory
+
+    url = f"sqlite+pysqlite:///{(tmp_path / 'pivot.db').as_posix()}"
+    assembly = assemble_runtime(
+        _settings(storage="postgres", database_url=url, create_schema=True)
+    )
+    assert isinstance(assembly.users, SqlAlchemyUserDirectory)
+    user = assembly.users.get_by_username("admin")
+    assert user is not None
+    assert user.password_hash.startswith("$argon2id$")
+
+
+def test_FR_AUTH_001_runtime_postgres_login_survives_new_assembly(tmp_path):
+    url = f"sqlite+pysqlite:///{(tmp_path / 'pivot.db').as_posix()}"
+    first = _client(_settings(storage="postgres", database_url=url, create_schema=True))
+    created = first.post(
+        "/api/v1/auth/login",
+        json={"username": "admin", "password": "runtime-admin-password"},
+        headers={"X-Request-ID": "req_pg_login_1"},
+    )
+    assert created.status_code == 200
+    second = _client(_settings(storage="postgres", database_url=url, create_schema=True))
+    replayed = second.post(
+        "/api/v1/auth/login",
+        json={"username": "admin", "password": "runtime-admin-password"},
+        headers={"X-Request-ID": "req_pg_login_2"},
+    )
+    assert replayed.status_code == 200
+    assert replayed.json()["token_type"] == "Bearer"
+    listed = second.get(
+        "/api/v1/documents",
+        headers={
+            "Authorization": f"Bearer {replayed.json()['access_token']}",
+            "X-Request-ID": "req_pg_docs",
+        },
+    )
+    assert listed.status_code == 200
+
+
+def test_NFR_OBS_runtime_postgres_readyz_not_fully_ready(tmp_path):
+    url = f"sqlite+pysqlite:///{(tmp_path / 'pivot.db').as_posix()}"
+    response = _client(
+        _settings(storage="postgres", database_url=url, create_schema=True)
+    ).get("/readyz")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "not_ready"
+    assert body["checks"]["postgres"] is True
+    assert body["checks"]["minio"] is False
+    assert body["checks"]["qdrant"] is False
+    assert body["checks"]["redis"] is False
 
 
 def test_NFR_OBS_runtime_settings_fail_closed_without_token_secret():

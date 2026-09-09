@@ -53,6 +53,8 @@ class RuntimeSettings:
     argon2_time_cost: int = 3
     argon2_memory_cost: int = 65536
     argon2_parallelism: int = 4
+    database_url: str | None = None
+    create_schema: bool = False
 
     def __post_init__(self) -> None:
         if not self.token_secret.strip():
@@ -94,4 +96,6 @@ class RuntimeSettings:
             argon2_time_cost=_optional_int(env, "PIVOT_ARGON2_TIME_COST", 3),
             argon2_memory_cost=_optional_int(env, "PIVOT_ARGON2_MEMORY_COST", 65536),
             argon2_parallelism=_optional_int(env, "PIVOT_ARGON2_PARALLELISM", 4),
+            database_url=(env.get("PIVOT_DATABASE_URL") or "").strip() or None,
+            create_schema=(env.get("PIVOT_DB_CREATE_SCHEMA") or "").strip() == "1",
         )
