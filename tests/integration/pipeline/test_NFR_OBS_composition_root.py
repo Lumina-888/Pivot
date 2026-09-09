@@ -7,12 +7,15 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from pivot.exports.models import PersistedAnswer
 from pivot.http import (
     RuntimeSettings,
     assemble_runtime,
     assemble_runtime_app,
     create_app,
 )
+from pivot.http.export_objects import ExportObjectAdapter
+from pivot.http.memory import MemoryExportObjects
 from pivot.storage.adapters.minio import MinioObjectStore
 from pivot.storage.adapters.qdrant import QdrantVectorStore
 from pivot.storage.adapters.redis import RedisCacheStore, RedisQueueStore
@@ -297,6 +300,85 @@ def test_NFR_OBS_runtime_minio_readyz_not_fully_ready():
     assert body["checks"]["postgres"] is False
     assert body["checks"]["qdrant"] is False
     assert body["checks"]["redis"] is False
+
+
+def test_NFR_OBS_runtime_minio_wires_export_object_store():
+    assembly = assemble_runtime(_minio_settings(_FakeMinioClient()))
+    assert isinstance(assembly.objects, MinioObjectStore)
+    assert isinstance(assembly.export_objects, ExportObjectAdapter)
+    assert not isinstance(assembly.export_objects, MemoryExportObjects)
+
+
+def test_FR_EXPORT_001_runtime_minio_export_bytes_roundtrip():
+    fake = _FakeMinioClient()
+    assembly = assemble_runtime(_minio_settings(fake))
+    assembly.export_objects.put(
+        "exports/exp_runtime/a.md", b"hello export", content_type="text/markdown"
+    )
+    assert assembly.export_objects.exists("exports/exp_runtime/a.md") is True
+    assert assembly.export_objects.get("exports/exp_runtime/a.md") == b"hello export"
+    assert fake.objects[("pivot-docs", "exports/exp_runtime/a.md")][0] == b"hello export"
+
+
+def test_FR_EXPORT_001_runtime_minio_export_presign_is_forbidden():
+    assembly = assemble_runtime(_minio_settings(_FakeMinioClient()))
+    with pytest.raises(RuntimeError, match="PublicDownloadSigner"):
+        assembly.export_objects.presign("exports/exp_runtime/a.md", expires_seconds=60)
+
+
+def test_FR_EXPORT_001_runtime_minio_download_url_does_not_leak_endpoint():
+    fake = _FakeMinioClient()
+    assembly = assemble_runtime(_minio_settings(fake))
+    user = assembly.users.get_by_username("admin")
+    assert user is not None
+    assembly.resources.conversations["conv_admin"] = user.id
+    assembly.answers.answers["conv_admin"] = PersistedAnswer(
+        conversation_id="conv_admin",
+        run_id="run_admin",
+        state="answered",
+        answer_markdown="late three times written warning.",
+        title="policy",
+    )
+    client = TestClient(assembly.app, base_url="https://testserver")
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "admin", "password": "runtime-admin-password"},
+        headers={"X-Request-ID": "req_exp_login"},
+    )
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    created = client.post(
+        "/api/v1/exports",
+        json={
+            "source_type": "conversation",
+            "source_id": "conv_admin",
+            "format": "markdown",
+        },
+        headers={"Authorization": f"Bearer {token}", "X-Request-ID": "req_exp_create"},
+    )
+    assert created.status_code == 202
+    export_id = created.json()["export_id"]
+    status = client.get(
+        f"/api/v1/exports/{export_id}",
+        headers={"Authorization": f"Bearer {token}", "X-Request-ID": "req_exp_status"},
+    )
+    assert status.status_code == 200
+    payload = status.json()
+    assert payload["state"] == "ready"
+    url = payload["download_url"]
+    assert url.startswith("https://files.pivot.test/")
+    assert "storage_key" not in payload
+    dumped = url.lower() + str(status.headers).lower()
+    assert "objects.test" not in dumped
+    assert "minio" not in dumped
+    assert ":9000" not in dumped
+    assert "x-amz" not in dumped
+    assert "pivotminio" not in dumped
+    export_keys = [key for (_bucket, key) in fake.objects if key.startswith("exports/")]
+    assert export_keys
+    body = fake.objects[("pivot-docs", export_keys[0])][0]
+    assert b"written warning" in body
+    assert b"minio" not in body.lower()
 
 
 class _FakeQdrantClient:

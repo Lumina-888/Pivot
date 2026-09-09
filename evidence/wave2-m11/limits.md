@@ -6,7 +6,7 @@
 |---|---|---|
 | GATE-P0-001 | unverified | 无真实企业文档准入流程 |
 | GATE-P0-002 | unverified | Golden Set v0.1-synthetic 仅 Fake KeywordRetriever；未达 100~150 条；NFR-QUAL 仍 TBD-P0 |
-| GATE-P0-003 | unverified | PG/MinIO/Qdrant/Redis 客户端已接线；无索引原子发布与完整存储一致性环境 |
+| GATE-P0-003 | unverified | PG/MinIO（含导出字节）/Qdrant/Redis 已接线；无索引原子发布与完整存储一致性环境 |
 | GATE-P0-004 | unverified | 仅 Fake 领域编排，无 HTTP/SSE |
 | GATE-P0-005 | unverified | opt-in Playwright 登录；CI 不启动 uvicorn；无上线传输验证 |
 | GATE-P0-006 | unverified | 备份恢复未在新 ECS 演练 |

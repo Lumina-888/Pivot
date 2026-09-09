@@ -21,6 +21,7 @@ from pivot.exports.repository import InMemoryExportRepository
 from pivot.exports.service import ExportService
 from pivot.exports.signer import PublicDownloadSigner
 from pivot.http.app import create_app
+from pivot.http.export_objects import ExportObjectAdapter
 from pivot.http.memory import (
     InMemoryAttempts,
     InMemoryAuthAudit,
@@ -69,6 +70,9 @@ class RuntimeAssembly:
     queue_store: str = "memory"
     cache: object | None = None
     queue: object | None = None
+    export_objects: object | None = None
+    answers: object | None = None
+    resources: object | None = None
 
 
 class _RuntimeProbes:
@@ -367,6 +371,10 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         objects=document_objects,
         audits=MemoryDocumentAudits(),
     )
+    if minio_store is not None:
+        export_object_store: object = ExportObjectAdapter(minio_store)
+    else:
+        export_object_store = MemoryExportObjects(resolved.export_public_base)
     policy = RetrievalPolicy(
         dense_k=resolved.retrieval_k,
         bm25_k=resolved.retrieval_k,
@@ -385,11 +393,12 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     export_repo = InMemoryExportRepository()
     export_clock = UtcClock()
     audits = AuditService(AppendOnlyAuditStore(), export_clock)
+    answers = MemoryAnswerStore()
     exports = ExportService(
         access=MemoryExportAccess(export_repo, resources),
-        answers=MemoryAnswerStore(),
+        answers=answers,
         exports=export_repo,
-        objects=MemoryExportObjects(resolved.export_public_base),
+        objects=export_object_store,
         audits=audits,
         clock=export_clock,
         signer=PublicDownloadSigner(resolved.export_public_base, resolved.token_secret),
@@ -420,6 +429,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         queue_store=resolved.queue_store,
         cache=cache_port,
         queue=queue_port,
+        export_objects=export_object_store,
+        answers=answers,
+        resources=resources,
     )
 
 
