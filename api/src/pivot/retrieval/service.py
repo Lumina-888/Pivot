@@ -41,6 +41,13 @@ class RetrievalService:
     def search_documents(
         self, query: RetrievalQuery, limit: int | None = None
     ) -> tuple[SearchHit, ...]:
+        if self._all:
+            return self._search_corpus(query, limit)
+        return self._search_from_retrievers(query, limit)
+
+    def _search_corpus(
+        self, query: RetrievalQuery, limit: int | None
+    ) -> tuple[SearchHit, ...]:
         allowed = filter_corpus(self._all, query)
         needle = query.text.lower()
         hits: list[SearchHit] = []
@@ -54,16 +61,34 @@ class RetrievalService:
             if chunk.document_id in seen:
                 continue
             seen.add(chunk.document_id)
+            hits.append(_search_hit(chunk))
+        if limit is not None:
+            return tuple(hits[:limit])
+        return tuple(hits)
+
+    def _search_from_retrievers(
+        self, query: RetrievalQuery, limit: int | None
+    ) -> tuple[SearchHit, ...]:
+        outcome = self.retrieve(query)
+        if outcome.status != "ok":
+            return ()
+        hits: list[SearchHit] = []
+        seen: set[str] = set()
+        for item in outcome.evidence:
+            if item.document_id in seen:
+                continue
+            seen.add(item.document_id)
+            chunk = self._resolve(item.chunk_id)
             hits.append(
                 SearchHit(
-                    document_id=chunk.document_id,
-                    version_id=chunk.version_id,
-                    title=chunk.title,
-                    snippet=chunk.text[:180],
-                    space=chunk.space,
-                    index_generation=chunk.index_generation,
-                    embedding_model_version=chunk.embedding_model_version,
-                    retrieval_config_version=chunk.retrieval_config_version,
+                    document_id=item.document_id,
+                    version_id=item.version_id,
+                    title=chunk.title if chunk is not None else "",
+                    snippet=item.text[:180],
+                    space=chunk.space if chunk is not None else "",
+                    index_generation=item.index_generation,
+                    embedding_model_version=item.embedding_model_version,
+                    retrieval_config_version=item.retrieval_config_version,
                 )
             )
         if limit is not None:
@@ -99,7 +124,7 @@ class RetrievalService:
         fused = fuse(lists, self._policy.rrf_k)
         filtered_ids = []
         for hit in fused:
-            chunk = self._corpus.get(hit.chunk_id)
+            chunk = self._resolve(hit.chunk_id)
             if chunk is None:
                 continue
             if not passes_filters(chunk, query):
@@ -109,7 +134,11 @@ class RetrievalService:
             return RetrievalOutcome(status="empty", evidence=(), warnings=tuple(warnings))
         ordered_ids = tuple(filtered_ids)
         if self._reranker is not None:
-            texts = {chunk_id: self._corpus[chunk_id].text for chunk_id in ordered_ids}
+            texts = {
+                chunk_id: self._resolve(chunk_id).text
+                for chunk_id in ordered_ids
+                if self._resolve(chunk_id) is not None
+            }
             reranked = self._reranker.rerank(
                 query.text, ordered_ids, texts, self._policy.evidence_limit
             )
@@ -117,7 +146,9 @@ class RetrievalService:
         evidence = []
         fused_scores = {hit.chunk_id: hit.score for hit in fused}
         for chunk_id in ordered_ids[: self._policy.evidence_limit]:
-            chunk = self._corpus[chunk_id]
+            chunk = self._resolve(chunk_id)
+            if chunk is None:
+                continue
             evidence.append(
                 Evidence(
                     chunk_id=chunk.chunk_id,
@@ -160,6 +191,18 @@ class RetrievalService:
             )
             return None
 
+    def _resolve(self, chunk_id: str) -> ChunkRecord | None:
+        chunk = self._corpus.get(chunk_id)
+        if chunk is not None:
+            return chunk
+        for retriever in (self._dense, self._bm25):
+            resolve = getattr(retriever, "resolve", None)
+            if callable(resolve):
+                found = resolve(chunk_id)
+                if found is not None:
+                    return found
+        return None
+
     def _conflicts(self, evidence: tuple[Evidence, ...]) -> tuple[VersionConflict, ...]:
         grouped: dict[str, set[str]] = defaultdict(set)
         for item in evidence:
@@ -169,3 +212,16 @@ class RetrievalService:
             for document_id, version_ids in grouped.items()
             if len(version_ids) > 1
         )
+
+
+def _search_hit(chunk: ChunkRecord) -> SearchHit:
+    return SearchHit(
+        document_id=chunk.document_id,
+        version_id=chunk.version_id,
+        title=chunk.title,
+        snippet=chunk.text[:180],
+        space=chunk.space,
+        index_generation=chunk.index_generation,
+        embedding_model_version=chunk.embedding_model_version,
+        retrieval_config_version=chunk.retrieval_config_version,
+    )

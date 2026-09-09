@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol
 
 from pivot.retrieval.models import RankedHit
@@ -9,6 +10,10 @@ from pivot.retrieval.models import RankedHit
 
 class Retriever(Protocol):
     def search(self, query: str, k: int) -> tuple[RankedHit, ...]: ...
+
+
+class QueryEmbedder(Protocol):
+    def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
 
 
 class Reranker(Protocol):

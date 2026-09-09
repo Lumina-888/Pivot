@@ -95,6 +95,7 @@ class RuntimeSettings:
     qdrant_vector_size: int | None = None
     qdrant_distance: str | None = None
     vector_store_client: object | None = None
+    query_embedder: object | None = None
     cache_store: str = "memory"
     queue_store: str = "memory"
     redis_endpoint: str | None = None

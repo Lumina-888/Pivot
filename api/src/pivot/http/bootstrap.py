@@ -42,10 +42,11 @@ from pivot.http.memory import (
 from pivot.http.settings import RuntimeSettings
 from pivot.qa.orchestrator import QaOrchestrator
 from pivot.qa.ports import EvidenceHit, RetrievalResult
-from pivot.retrieval.fakes import KeywordRetriever
+from pivot.retrieval.fakes import HashingQueryEmbedder, KeywordRetriever
 from pivot.retrieval.models import RetrievalQuery
 from pivot.retrieval.policy import RetrievalPolicy
 from pivot.retrieval.service import RetrievalService
+from pivot.retrieval.vector import VectorStoreRetriever
 from pivot.runs.conversations import ConversationService
 from pivot.runs.service import RunService
 from pivot.security.passwords import Argon2idHasher
@@ -73,6 +74,8 @@ class RuntimeAssembly:
     export_objects: object | None = None
     answers: object | None = None
     resources: object | None = None
+    retrieval: object | None = None
+    query_embedder: object | None = None
 
 
 class _RuntimeProbes:
@@ -196,6 +199,17 @@ def _open_qdrant_store(settings: RuntimeSettings) -> QdrantVectorStore:
     return store
 
 
+def _query_embedder(settings: RuntimeSettings):
+    if settings.query_embedder is not None:
+        return settings.query_embedder
+    if settings.qdrant_vector_size is None:
+        raise RuntimeError(
+            "PIVOT_QDRANT_VECTOR_SIZE is required when PIVOT_VECTOR_STORE=qdrant "
+            "so query embedding dimension can be injected"
+        )
+    return HashingQueryEmbedder(settings.qdrant_vector_size)
+
+
 def _open_redis_stores(
     settings: RuntimeSettings,
 ) -> tuple[RedisCacheStore | None, RedisQueueStore | None, RedisCacheStore | RedisQueueStore]:
@@ -315,9 +329,11 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         document_objects = minio_store
     else:
         document_objects = MemoryDocumentObjects()
+    query_embedder = None
     if resolved.vector_store == "qdrant":
         qdrant_store = _open_qdrant_store(resolved)
         vector_store = qdrant_store
+        query_embedder = _query_embedder(resolved)
     else:
         vector_store = None
     if resolved.cache_store == "redis" or resolved.queue_store == "redis":
@@ -382,9 +398,15 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         evidence_limit=resolved.retrieval_k,
     )
     empty_corpus: tuple = ()
+    if qdrant_store is not None and query_embedder is not None:
+        dense_retriever: object = VectorStoreRetriever(
+            qdrant_store, query_embedder, source="dense"
+        )
+    else:
+        dense_retriever = KeywordRetriever(empty_corpus, "dense")
     retrieval = RetrievalService(
         corpus=empty_corpus,
-        dense=KeywordRetriever(empty_corpus, "dense"),
+        dense=dense_retriever,
         bm25=KeywordRetriever(empty_corpus, "bm25"),
         policy=policy,
     )
@@ -432,6 +454,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         export_objects=export_object_store,
         answers=answers,
         resources=resources,
+        retrieval=retrieval,
+        query_embedder=query_embedder,
     )
 
 

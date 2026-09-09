@@ -2,8 +2,26 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from pivot.retrieval.models import ChunkRecord, RankedHit
 from pivot.retrieval.ports import RetrieverError
+
+
+class HashingQueryEmbedder:
+    """Injected Fake query embedder. Dimension is not a frozen production default."""
+
+    def __init__(self, dimension: int) -> None:
+        if dimension <= 0:
+            raise ValueError("dimension must be positive")
+        self.dimension = dimension
+
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        vectors: list[list[float]] = []
+        for text in texts:
+            seed = float((len(text) + sum(ord(ch) for ch in text[:8])) % 97 or 1)
+            vectors.append([seed / (index + 1) for index in range(self.dimension)])
+        return vectors
 
 
 class KeywordRetriever:
