@@ -13,6 +13,8 @@
 
 ## 本波次
 
-- 无真实 Qdrant/PG；
-- CI 只断言本方案存在且声明 unverified；
+- 进程内 5 并发 `retrieve` 夹具已有（`test_NFR_CAP_002_five_concurrent_retrieves_complete`）；不采集延迟，不标 verified；
+- 合成 Chunk 生成器按注入 count 工作；CI 不生成 100k；
+- 无真实 ECS 4C8G 压测；无 100k 索引峰值；
+- CI 断言本方案存在且声明 unverified；
 - 禁止把 Fake 链路耗时写成容量门禁。
