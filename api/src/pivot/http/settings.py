@@ -55,6 +55,14 @@ class RuntimeSettings:
     argon2_parallelism: int = 4
     database_url: str | None = None
     create_schema: bool = False
+    object_store: str = "memory"
+    minio_endpoint: str | None = None
+    minio_bucket: str | None = None
+    minio_access_key: str | None = None
+    minio_secret_key: str | None = None
+    minio_secure: bool = False
+    minio_ensure_bucket: bool = False
+    object_store_client: object | None = None
 
     def __post_init__(self) -> None:
         if not self.token_secret.strip():
@@ -98,4 +106,11 @@ class RuntimeSettings:
             argon2_parallelism=_optional_int(env, "PIVOT_ARGON2_PARALLELISM", 4),
             database_url=(env.get("PIVOT_DATABASE_URL") or "").strip() or None,
             create_schema=(env.get("PIVOT_DB_CREATE_SCHEMA") or "").strip() == "1",
+            object_store=(env.get("PIVOT_OBJECT_STORE") or "memory").strip() or "memory",
+            minio_endpoint=(env.get("PIVOT_MINIO_ENDPOINT") or "").strip() or None,
+            minio_bucket=(env.get("PIVOT_MINIO_BUCKET") or "").strip() or None,
+            minio_access_key=(env.get("PIVOT_MINIO_ACCESS_KEY") or "").strip() or None,
+            minio_secret_key=(env.get("PIVOT_MINIO_SECRET_KEY") or "").strip() or None,
+            minio_secure=(env.get("PIVOT_MINIO_SECURE") or "").strip() == "1",
+            minio_ensure_bucket=(env.get("PIVOT_MINIO_ENSURE_BUCKET") or "").strip() == "1",
         )

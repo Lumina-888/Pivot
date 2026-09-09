@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,6 +13,7 @@ from pivot.http import (
     assemble_runtime_app,
     create_app,
 )
+from pivot.storage.adapters.minio import MinioObjectStore
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "composition-root.md"
@@ -178,6 +180,119 @@ def test_NFR_OBS_runtime_postgres_readyz_not_fully_ready(tmp_path):
     assert body["status"] == "not_ready"
     assert body["checks"]["postgres"] is True
     assert body["checks"]["minio"] is False
+    assert body["checks"]["qdrant"] is False
+    assert body["checks"]["redis"] is False
+
+
+class _FakeMinioClient:
+    def __init__(self) -> None:
+        self.buckets: set[str] = set()
+        self.objects: dict[tuple[str, str], tuple[bytes, str | None]] = {}
+
+    def bucket_exists(self, bucket: str) -> bool:
+        return bucket in self.buckets
+
+    def make_bucket(self, bucket: str) -> None:
+        self.buckets.add(bucket)
+
+    def put_object(self, bucket, object_name, data, length, content_type=None):
+        payload = data.read(length) if hasattr(data, "read") else data
+        self.objects[(bucket, object_name)] = (payload, content_type)
+
+    def get_object(self, bucket, object_name):
+        payload, _ = self.objects[(bucket, object_name)]
+        return SimpleNamespace(
+            read=lambda *args: payload, close=lambda: None, release_conn=lambda: None
+        )
+
+    def remove_object(self, bucket, object_name):
+        self.objects.pop((bucket, object_name), None)
+
+    def stat_object(self, bucket, object_name):
+        if (bucket, object_name) not in self.objects:
+            raise KeyError(object_name)
+        return SimpleNamespace(size=len(self.objects[(bucket, object_name)][0]))
+
+    def list_objects(self, bucket, prefix="", recursive=True):
+        for stored_bucket, key in self.objects:
+            if stored_bucket == bucket and key.startswith(prefix):
+                yield SimpleNamespace(object_name=key)
+
+    def presigned_get_object(self, bucket, object_name, expires=None):
+        return f"https://objects.test/{bucket}/{object_name}"
+
+
+def _minio_settings(client: _FakeMinioClient) -> RuntimeSettings:
+    return _settings(
+        object_store="minio",
+        minio_endpoint="objects.test:443",
+        minio_bucket="pivot-docs",
+        minio_access_key="pivotminio",
+        minio_secret_key="pivot_dev_only",
+        minio_ensure_bucket=True,
+        object_store_client=client,
+    )
+
+
+def test_NFR_OBS_runtime_minio_requires_endpoint():
+    with pytest.raises(RuntimeError, match="PIVOT_MINIO_ENDPOINT"):
+        assemble_runtime_app(_settings(object_store="minio"))
+
+
+def test_NFR_OBS_runtime_minio_wires_object_store():
+    assembly = assemble_runtime(_minio_settings(_FakeMinioClient()))
+    assert assembly.object_store == "minio"
+    assert assembly.storage == "memory"
+    assert isinstance(assembly.objects, MinioObjectStore)
+
+
+def test_FR_DOC_007_runtime_minio_preview_does_not_leak_endpoint():
+    client = _client(_minio_settings(_FakeMinioClient()))
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "admin", "password": "runtime-admin-password"},
+        headers={"X-Request-ID": "req_minio_login"},
+    )
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    pdf = b"%PDF-1.4\n(policy) Tj\n%%EOF\n"
+    uploaded = client.post(
+        "/api/v1/documents",
+        data={"title": "policy", "space": "shared"},
+        files={"file": ("policy.pdf", pdf, "application/pdf")},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Request-ID": "req_minio_up",
+        },
+    )
+    assert uploaded.status_code == 201
+    body = uploaded.json()
+    assert "storage_key" not in body
+    document_id = body["document_id"]
+    preview = client.get(
+        f"/api/v1/documents/{document_id}/preview",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Request-ID": "req_minio_preview",
+        },
+    )
+    assert preview.status_code == 200
+    assert preview.content.startswith(b"%PDF")
+    dumped = str(preview.headers).lower() + preview.content.decode("latin-1", errors="ignore")
+    assert "objects.test" not in dumped
+    assert "minio" not in dumped
+    assert "pivotminio" not in dumped
+    assert "pivot_dev_only" not in dumped
+    assert ":9000" not in dumped
+
+
+def test_NFR_OBS_runtime_minio_readyz_not_fully_ready():
+    response = _client(_minio_settings(_FakeMinioClient())).get("/readyz")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "not_ready"
+    assert body["checks"]["minio"] is True
+    assert body["checks"]["postgres"] is False
     assert body["checks"]["qdrant"] is False
     assert body["checks"]["redis"] is False
 

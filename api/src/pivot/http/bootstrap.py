@@ -50,6 +50,7 @@ from pivot.runs.service import RunService
 from pivot.security.passwords import Argon2idHasher
 from pivot.security.rbac import AccessControl
 from pivot.shared.ids import new_id
+from pivot.storage.adapters.minio import MinioObjectStore, connect_minio_client
 
 
 @dataclass(frozen=True)
@@ -58,11 +59,18 @@ class RuntimeAssembly:
     hasher: Argon2idHasher
     users: UserDirectory
     storage: str
+    object_store: str = "memory"
+    objects: object | None = None
 
 
 class _RuntimeProbes:
-    def __init__(self, postgres_engine: Engine | None = None) -> None:
+    def __init__(
+        self,
+        postgres_engine: Engine | None = None,
+        minio_store: MinioObjectStore | None = None,
+    ) -> None:
         self._postgres_engine = postgres_engine
+        self._minio_store = minio_store
 
     def postgres(self) -> bool:
         if self._postgres_engine is None:
@@ -75,7 +83,9 @@ class _RuntimeProbes:
             return False
 
     def minio(self) -> bool:
-        return False
+        if self._minio_store is None:
+            return False
+        return bool(self._minio_store.healthy())
 
     def qdrant(self) -> bool:
         return False
@@ -104,6 +114,35 @@ def _open_postgres_engine(settings: RuntimeSettings) -> Engine:
     except Exception as exc:
         raise RuntimeError("postgres is not reachable") from exc
     return engine
+
+
+def _open_minio_store(settings: RuntimeSettings) -> MinioObjectStore:
+    if not settings.minio_endpoint or not settings.minio_bucket:
+        raise RuntimeError(
+            "PIVOT_MINIO_ENDPOINT and PIVOT_MINIO_BUCKET are required "
+            "when PIVOT_OBJECT_STORE=minio"
+        )
+    client = settings.object_store_client
+    if client is None:
+        if not settings.minio_access_key or not settings.minio_secret_key:
+            raise RuntimeError(
+                "PIVOT_MINIO_ACCESS_KEY and PIVOT_MINIO_SECRET_KEY are required "
+                "when PIVOT_OBJECT_STORE=minio"
+            )
+        client = connect_minio_client(
+            endpoint=settings.minio_endpoint,
+            access_key=settings.minio_access_key,
+            secret_key=settings.minio_secret_key,
+            secure=settings.minio_secure,
+        )
+    store = MinioObjectStore(
+        client,
+        bucket=settings.minio_bucket,
+        ensure_bucket=settings.minio_ensure_bucket,
+    )
+    if not store.healthy():
+        raise RuntimeError("minio is not reachable")
+    return store
 
 
 class _RetrievalBridge:
@@ -152,19 +191,33 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             f"{resolved.storage!r}; this slice wires memory or postgres. "
             "See progress/changes/20260909-M03-postgres-user-directory.md"
         )
+    if resolved.object_store not in {"memory", "minio"}:
+        raise RuntimeError(
+            "unsupported PIVOT_OBJECT_STORE="
+            f"{resolved.object_store!r}; this slice wires memory or minio. "
+            "See progress/changes/20260909-M03-minio-object-store.md"
+        )
     hasher = Argon2idHasher(
         time_cost=resolved.argon2_time_cost,
         memory_cost=resolved.argon2_memory_cost,
         parallelism=resolved.argon2_parallelism,
     )
     clock = UtcClock()
-    probes = None
+    postgres_engine = None
+    minio_store = None
     if resolved.storage == "postgres":
         postgres_engine = _open_postgres_engine(resolved)
         users: UserDirectory = SqlAlchemyUserDirectory(session_factory(postgres_engine))
-        probes = _RuntimeProbes(postgres_engine)
     else:
         users = InMemoryUserDirectory()
+    if resolved.object_store == "minio":
+        minio_store = _open_minio_store(resolved)
+        document_objects = minio_store
+    else:
+        document_objects = MemoryDocumentObjects()
+    probes = None
+    if postgres_engine is not None or minio_store is not None:
+        probes = _RuntimeProbes(postgres_engine, minio_store)
     if resolved.bootstrap_username and resolved.bootstrap_password:
         existing = users.get_by_username(resolved.bootstrap_username)
         if existing is None:
@@ -203,7 +256,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         versions=MemoryVersions(),
         chunks=MemoryChunks(),
         tasks=MemoryTasks(),
-        objects=MemoryDocumentObjects(),
+        objects=document_objects,
         audits=MemoryDocumentAudits(),
     )
     policy = RetrievalPolicy(
@@ -246,7 +299,14 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         exports=exports,
         audits=audits,
     )
-    return RuntimeAssembly(app=app, hasher=hasher, users=users, storage=resolved.storage)
+    return RuntimeAssembly(
+        app=app,
+        hasher=hasher,
+        users=users,
+        storage=resolved.storage,
+        object_store=resolved.object_store,
+        objects=document_objects,
+    )
 
 
 def assemble_runtime_app(settings: RuntimeSettings | None = None) -> FastAPI:
