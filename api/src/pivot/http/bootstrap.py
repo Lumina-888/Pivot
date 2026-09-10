@@ -14,6 +14,12 @@ from pivot.auth.attempts import CacheLoginAttempts
 from pivot.auth.ports import UserAccount, UserDirectory
 from pivot.auth.service import AuthService
 from pivot.auth.tokens import TokenService
+from pivot.db.documents import (
+    SqlAlchemyChunkStore,
+    SqlAlchemyDocumentStore,
+    SqlAlchemyTaskStore,
+    SqlAlchemyVersionStore,
+)
 from pivot.db.models import Base
 from pivot.db.session import create_db_engine, session_factory
 from pivot.db.users import SqlAlchemyUserDirectory
@@ -85,6 +91,7 @@ class RuntimeAssembly:
     ingest_embedding: object | None = None
     ingest: object | None = None
     attempts: object | None = None
+    document_rows: object | None = None
 
 
 class _RuntimeProbes:
@@ -376,11 +383,24 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     redis_probe = None
     cache_port = None
     queue_port = None
+    document_rows: object
+    version_rows: object
+    chunk_rows: object
+    task_rows: object
     if resolved.storage == "postgres":
         postgres_engine = _open_postgres_engine(resolved)
-        users: UserDirectory = SqlAlchemyUserDirectory(session_factory(postgres_engine))
+        sessions = session_factory(postgres_engine)
+        users: UserDirectory = SqlAlchemyUserDirectory(sessions)
+        document_rows = SqlAlchemyDocumentStore(sessions)
+        version_rows = SqlAlchemyVersionStore(sessions)
+        chunk_rows = SqlAlchemyChunkStore(sessions)
+        task_rows = SqlAlchemyTaskStore(sessions)
     else:
         users = InMemoryUserDirectory()
+        document_rows = MemoryDocuments()
+        version_rows = MemoryVersions()
+        chunk_rows = MemoryChunks()
+        task_rows = MemoryTasks()
     if resolved.object_store == "minio":
         minio_store = _open_minio_store(resolved)
         document_objects = minio_store
@@ -453,10 +473,10 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         refresh_ttl=resolved.refresh_ttl,
     )
     documents = DocumentService(
-        documents=MemoryDocuments(),
-        versions=MemoryVersions(),
-        chunks=MemoryChunks(),
-        tasks=MemoryTasks(),
+        documents=document_rows,
+        versions=version_rows,
+        chunks=chunk_rows,
+        tasks=task_rows,
         objects=document_objects,
         audits=MemoryDocumentAudits(),
     )
@@ -562,6 +582,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         ingest_embedding=ingest_embedding,
         ingest=ingest_runner,
         attempts=attempts,
+        document_rows=document_rows,
     )
 
 

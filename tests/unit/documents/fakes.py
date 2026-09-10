@@ -75,6 +75,7 @@ class MemoryChunks:
         self._items: list[ChunkRecord] = []
 
     def add(self, chunk: ChunkRecord) -> None:
+        self._items = [item for item in self._items if item.id != chunk.id]
         self._items.append(chunk)
 
     def list_for_version(self, version_id: str) -> tuple[ChunkRecord, ...]:

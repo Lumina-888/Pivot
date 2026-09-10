@@ -241,6 +241,7 @@ class DocumentService:
         version.current = True
         for chunk in self._chunks.list_for_version(version.id):
             chunk.published = True
+            self._chunks.add(chunk)
         self._versions.save(version)
         return version
 
