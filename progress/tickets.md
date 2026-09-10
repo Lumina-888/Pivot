@@ -248,20 +248,20 @@
 ### ND-STG-01 ingest 与检索共用 HTTP Embedding
 
 - **依赖**：ND-W3-01（worker 已能接 VectorStore）
-- **范围**：`PIVOT_EMBEDDING=http` 时 ingest 与 query 用同一注入 embedder；维数仍注入不写死；失败不 published。
+- **范围**：`PIVOT_EMBEDDING=http` 时 ingest 与 query 用同一注入 embedder（硅基 `BAAI/bge-m3` 与现有 OpenAI embeddings 形状兼容）；维数仍注入不写死；失败不 published。Rerank 硅基 `BAAI/bge-reranker-v2-m3` 与现有 `/rerank` 适配器兼容，本票可顺带接到 worker/runtime。
 - **不做**：不冻模型名/维数。
 
 ### ND-STG-02 Deepseek-Flash Draft Writer
 
 - **范围**：注入 endpoint/model/api_key 的 HTTP Writer，替换证据拼接；Citation 仍必须落在检索候选；`external_llm_allowed` 为 false 不得外发；失败闭环（超时/429→既有错误码）。
 - **不做**：不写死 DeepSeek/硅基 URL；CI Fake transport；不把 LangGraph 绑死本票。
-- **Owner 需提供**：实际 **model id**、API 基址（官方 / 硅基 / 阿里）、是否 OpenAI chat/completions 兼容。
+- **Owner 已给**：主模型 `deepseek-flash`；备用 `mimo-v2.5`。实现时以控制台完整 model 字符串注入（硅基可能带 `deepseek-ai/` 前缀）。备用可能走小米 OpenAI 兼容口，鉴权头可能不是 Bearer，适配器必须可注入。CI Fake。
 
 ### ND-STG-03 MinerU 云 API 解析器
 
 - **范围**：可插拔解析器；CI 默认启发式/stdlib；`PIVOT_PARSER=mineru` 时注入云 API；加密/空文本/失败码沿用既有契约。
 - **不做**：不在 4C8G 上自建 MinerU；不把 MinerU 标成 MVP 唯一解析器（SPEC 仍写 V2）。
-- **Owner 需提供**：MinerU 云 endpoint、鉴权方式、同步还是异步任务。
+- **Owner 已给**：MinerU **官方云**。公开文档为 Bearer JWT、异步任务（`mineru.net`）。实现时注入 endpoint/token；轮询超时不冻死。不在 4C8G 自建。
 
 ### ND-STG-04 阿里云 4C8G Compose 部署
 
