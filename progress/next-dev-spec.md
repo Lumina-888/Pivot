@@ -14,7 +14,7 @@ Owner 已确认近期目标是 **`dev-staging`（开发者调试环境）**，�
 
 ## 0. 当前判断
 
-产品处于 **Wave 3 进行中**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO 注入）已在 `main`。分组 Python **445 passed / 12 skipped**。
+产品处于 **Wave 3 进行中**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO 注入；worker 可接 Qdrant）已在 `main`。分组 Python **453 passed / 12 skipped**。
 
 这不等于可上线：
 
@@ -137,7 +137,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. 默认下一刀：**ND-W3-01**（worker 接 Qdrant）或 **ND-W3-02**（Compose api celery ingest）。
+2. 默认下一刀：**ND-W3-02**（Compose api celery ingest）或 **ND-W3-12**（Compose 注入 Qdrant/Redis）。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。

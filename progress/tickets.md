@@ -12,7 +12,7 @@
 
 | ID | 标题 | 阶段 | 规模 | Accountable | SPEC | 依赖 | 状态 |
 |---|---|---|---|---|---|---|---|
-| ND-W3-01 | worker 装配 Qdrant IndexPublisher | A1 | S | M07 | FR-DOC-006, FR-RAG-001 | 无 | ready |
+| ND-W3-01 | worker 装配 Qdrant IndexPublisher | A1 | S | M07 | FR-DOC-006, FR-RAG-001 | 无 | done |
 | ND-W3-02 | Compose api 注入 `PIVOT_INGEST=celery` | A1 | S | M11 | FR-DOC-005, NFR-OBS | ND-W3-01 建议先 | ready |
 | ND-W3-12 | Compose api/worker 注入 Qdrant/Redis | A1 | S | M11 | §2.1, NFR-OBS | ND-W3-01 | ready |
 | ND-W3-03 | 真实解析库 extra（PyMuPDF/docx/pptx/xlsx） | A3 | M | M07 | FR-DOC-004, §6.1 | `20260906-M07-worker-dependencies.md` | ready |
@@ -59,6 +59,7 @@
 - **不做**：不冻维数/距离；不标 GATE-P0-002/003 verified；不改 HTTP 缺省 sync。
 - **测试**：`test_FR_DOC_006_worker_qdrant_publish_*`、`test_NFR_OBS_compose_worker_injects_qdrant_*`、`test_GATE_P0_002_not_verified_by_worker_qdrant`。
 - **DoD**：worker 装配可写入与 API 相同的 VectorStore 端口；分组回归绿；证据写明 Fake client。
+- **完成**：2026-09-10。`assemble_ingest_runtime` 在 `PIVOT_VECTOR_STORE=qdrant` 时装配 `IndexPublisher` + Hashing embedder；Compose worker 注入 `PIVOT_VECTOR_STORE` / `PIVOT_QDRANT_*`；CI Fake client。变更 `progress/changes/20260910-M07-worker-qdrant-index.md`。
 
 ### ND-W3-02 Compose api 注入 `PIVOT_INGEST=celery`
 
