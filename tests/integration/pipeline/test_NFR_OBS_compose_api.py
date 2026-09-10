@@ -136,6 +136,58 @@ def test_NFR_OBS_compose_api_env_injects_ttl_without_freezing_tbd():
     assert "TBD-P0" in evidence
 
 
+_SHARED_STORE_ENV = (
+    "PIVOT_STORAGE",
+    "PIVOT_DATABASE_URL",
+    "PIVOT_OBJECT_STORE",
+    "PIVOT_MINIO_ENDPOINT",
+    "PIVOT_MINIO_BUCKET",
+    "PIVOT_MINIO_ACCESS_KEY",
+    "PIVOT_MINIO_SECRET_KEY",
+)
+
+
+def test_NFR_OBS_compose_api_injects_shared_storage_and_minio():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    api = services["api"]
+    worker = services["worker"]
+    for key in _SHARED_STORE_ENV:
+        assert f"{key}:" in api
+        assert "${" + key in api
+        assert f"{key}:" in worker
+        assert "${" + key in worker
+    assert re.search(r"PIVOT_DATABASE_URL:\s*postgres", api, re.I) is None
+    assert "postgresql://" not in api.lower()
+    assert "minio:9000" not in api.lower()
+    example = _ENV_EXAMPLE.read_text(encoding="utf-8")
+    assert "PIVOT_DATABASE_URL=" in example
+    assert "PIVOT_MINIO_ENDPOINT=" in example
+    storage = next(
+        line.split("=", 1)[1].strip()
+        for line in example.splitlines()
+        if line.startswith("PIVOT_STORAGE=")
+    )
+    objects = next(
+        line.split("=", 1)[1].strip()
+        for line in example.splitlines()
+        if line.startswith("PIVOT_OBJECT_STORE=")
+    )
+    assert storage == "postgres"
+    assert objects == "minio"
+    assert "TBD-P0" in example
+
+
+def test_NFR_OBS_compose_api_does_not_default_storage_to_memory():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    api = services["api"]
+    assert "${PIVOT_STORAGE:-memory}" not in api
+    assert "${PIVOT_OBJECT_STORE:-memory}" not in api
+    assert "${PIVOT_STORAGE:?" in api
+    assert "${PIVOT_OBJECT_STORE:?" in api
+
+
 def test_NFR_OBS_ci_does_not_build_or_start_compose_api():
     workflow = _WORKFLOW.read_text(encoding="utf-8").lower()
     assert "docker compose" not in workflow
