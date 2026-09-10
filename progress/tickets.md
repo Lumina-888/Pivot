@@ -13,7 +13,7 @@
 | ID | 标题 | 阶段 | 规模 | Accountable | SPEC | 依赖 | 状态 |
 |---|---|---|---|---|---|---|---|
 | ND-W3-01 | worker 装配 Qdrant IndexPublisher | A1 | S | M07 | FR-DOC-006, FR-RAG-001 | 无 | done |
-| ND-W3-02 | Compose api 注入 `PIVOT_INGEST=celery` | A1 | S | M11 | FR-DOC-005, NFR-OBS | ND-W3-01 建议先 | ready |
+| ND-W3-02 | Compose api 注入 `PIVOT_INGEST=celery` | A1 | S | M11 | FR-DOC-005, NFR-OBS | ND-W3-01 建议先 | done |
 | ND-W3-12 | Compose api/worker 注入 Qdrant/Redis | A1 | S | M11 | §2.1, NFR-OBS | ND-W3-01 | ready |
 | ND-W3-03 | 真实解析库 extra（PyMuPDF/docx/pptx/xlsx） | A3 | M | M07 | FR-DOC-004, §6.1 | `20260906-M07-worker-dependencies.md` | ready |
 | ND-W3-04 | 导出任务 PostgreSQL 持久化 | A2 | S | M06 | FR-EXPORT-001 | 无 | ready |
@@ -73,6 +73,7 @@
 - **不做**：CI 不 up；不把 eager 当生产队列；不标 GATE-P0-003 verified。
 - **测试**：`test_NFR_OBS_compose_api_injects_celery_ingest_*`、`test_FR_DOC_001_http_celery_envelope_stays_uploaded`（已有，保持）。
 - **DoD**：yml 不写死 `redis://`；缺变量失败闭环；HTTP 非 Compose 缺省仍 sync。
+- **完成**：2026-09-10。Compose api 注入 `PIVOT_INGEST` / 队列 / concurrency / `PIVOT_CELERY_BROKER`（`${:?}`）；example 占位 celery；Dockerfile 安装 `worker[celery]`；不注入 eager。变更 `progress/changes/20260910-M11-compose-api-celery-ingest.md`。
 
 ### ND-W3-12 Compose 注入 Qdrant/Redis（api+worker）
 
@@ -156,7 +157,7 @@
 
 ### ND-W3-13 Wave 3 收口评审
 
-- **状态**：blocked until A1（至少 ND-W3-01 + ND-W3-02）完成
+- **状态**：blocked until remaining A1（ND-W3-12 Compose Qdrant/Redis）完成
 - **Owner**：M11
 - **DoD**：分组回归绿；更新矩阵；证据写明 **全部 GATE-P0 仍 unverified**；tag `wave-3-integrated` 仅表示夹具收口，不等于 P0 通过。
 

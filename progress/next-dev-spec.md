@@ -14,7 +14,7 @@ Owner 已确认近期目标是 **`dev-staging`（开发者调试环境）**，�
 
 ## 0. 当前判断
 
-产品处于 **Wave 3 进行中**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO 注入；worker 可接 Qdrant）已在 `main`。分组 Python **453 passed / 12 skipped**。
+产品处于 **Wave 3 进行中**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO 注入；api 注入 celery ingest；worker 可接 Qdrant）已在 `main`。分组 Python **457 passed / 12 skipped**。
 
 这不等于可上线：
 
@@ -103,7 +103,7 @@ Phase A 可以与规章制度样本准备并行。**B 未完成前禁止把系�
 | SPEC 范围 | 已有 | 缺口 | 阶段 |
 |---|---|---|---|
 | 文档事实 PG、对象 MinIO | HTTP/worker 可装配；Compose 已注入变量 | Compose 缺省仍 sync ingest；worker 未必选 Qdrant；无 live 一致性环境 | A1, B2 |
-| Celery parse 队列 | extra + eager + Compose worker 只听 parse | api 未注入 `PIVOT_INGEST=celery`；非 eager、非真实 Redis broker | A1, B2 |
+| Celery parse 队列 | extra + eager + Compose worker 只听 parse；Compose api 注入 celery ingest | 非 eager、非真实 Redis broker；CI 不 up | A1, B2 |
 | 检索 dense+BM25 | Qdrant 端口 + stdlib BM25 + Fake/HTTP 适配 | worker 发布未强制同一 Qdrant；无 live embedding；Golden Set 合成 | A1, B1 |
 | 解析 | 启发式 PDF + stdlib OOXML | PyMuPDF/python-docx 等仍暂缓 | A3 |
 | 导出 | HTTP + MinIO 字节 + signer | 任务仍内存；无对象字节下载路由（契约如此，不单开破坏契约的票） | A2 |
@@ -137,7 +137,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. 默认下一刀：**ND-W3-02**（Compose api celery ingest）或 **ND-W3-12**（Compose 注入 Qdrant/Redis）。
+2. 默认下一刀：**ND-W3-12**（Compose 注入 Qdrant/Redis）。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。
@@ -148,7 +148,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 
 ```text
 ND-W3-01 worker Qdrant
-    → ND-W3-02 Compose celery ingest
+    → ND-W3-02 Compose celery ingest（已完成）
         → ND-W3-12 Compose 注入 Qdrant/Redis（api+worker）
             → ND-W3-03 真实解析库
 ND-W3-04 导出任务 PG    ∥ 可与 A1 并行
