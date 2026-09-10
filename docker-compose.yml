@@ -3,7 +3,7 @@
 # Redis is cache/queue only — not a business fact store.
 # Default `docker compose up` starts postgres/minio/qdrant/redis only.
 # api, web and worker are profile `app`: `docker compose --profile app up`.
-# worker is not Celery; it serves a fixture ping with isolated parse/online queues.
+# worker runs Celery on the injected parse queue; broker URL is injected, not hard-coded.
 # FastAPI composition root:
 #   uvicorn pivot.http.main:app --factory
 # Worker process:
@@ -165,6 +165,7 @@ services:
       PIVOT_PARSE_QUEUE: ${PIVOT_PARSE_QUEUE:?set PIVOT_PARSE_QUEUE}
       PIVOT_ONLINE_QUEUE: ${PIVOT_ONLINE_QUEUE:?set PIVOT_ONLINE_QUEUE}
       PIVOT_WORKER_CONCURRENCY: ${PIVOT_WORKER_CONCURRENCY:?set PIVOT_WORKER_CONCURRENCY}
+      PIVOT_CELERY_BROKER: ${PIVOT_CELERY_BROKER:?set PIVOT_CELERY_BROKER}
     ports:
       - "127.0.0.1:8001:8001"
     healthcheck:

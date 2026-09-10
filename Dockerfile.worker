@@ -15,7 +15,7 @@ COPY api/src /app/api/src
 COPY worker/pyproject.toml /app/worker/pyproject.toml
 COPY worker/src /app/worker/src
 
-RUN pip install "./api[postgres,minio,qdrant,redis]" "./worker"
+RUN pip install "./api[postgres,minio,qdrant,redis]" "./worker[celery]"
 
 EXPOSE 8001
 

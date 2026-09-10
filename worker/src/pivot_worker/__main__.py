@@ -1,9 +1,8 @@
-"""Start the ingest worker ping process. Queue execution is still not Celery."""
+"""Start the ingest Celery worker. Health ping remains on /healthz."""
 
 from __future__ import annotations
 
-import time
-
+from pivot_worker.celery_app import start_celery_worker
 from pivot_worker.health import start_health_server
 from pivot_worker.settings import WorkerSettings
 
@@ -11,8 +10,7 @@ from pivot_worker.settings import WorkerSettings
 def main() -> None:
     settings = WorkerSettings.from_env()
     start_health_server(host=settings.health_host, port=settings.health_port)
-    while True:
-        time.sleep(1)
+    start_celery_worker(settings, block=True)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Compose worker fixture. Not GATE-P0-008 verified, not Celery, not started by CI."""
+"""Compose worker fixture. Celery + injected broker; not GATE-P0-008 verified; not started by CI."""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ _REQUIRED_ENV = (
     "PIVOT_PARSE_QUEUE",
     "PIVOT_ONLINE_QUEUE",
     "PIVOT_WORKER_CONCURRENCY",
+    "PIVOT_CELERY_BROKER",
 )
 
 
@@ -85,8 +86,14 @@ def test_NFR_OBS_worker_dockerfile_pins_python_and_module_entrypoint():
     assert "8001" in text
     assert ".env" not in text
     assert "PIVOT_TOKEN_SECRET" not in text
-    assert "celery" not in text.lower()
     assert "siliconflow" not in text.lower()
+    assert "redis://" not in text.lower()
+
+
+def test_NFR_OBS_worker_dockerfile_installs_celery_extra():
+    text = _DOCKERFILE.read_text(encoding="utf-8")
+    assert "worker[celery]" in text
+    assert "./worker[celery]" in text or '\"worker[celery]\"' in text
 
 
 def test_NFR_OBS_compose_worker_service_is_profiled_with_healthcheck():
@@ -110,7 +117,6 @@ def test_NFR_OBS_compose_worker_service_is_profiled_with_healthcheck():
     assert "cpus:" in body
     assert "4C8G" not in text
     assert "4c8g" not in text.lower()
-    assert "celery" not in body.lower()
 
 
 def test_NFR_OBS_compose_worker_isolates_parse_and_online_queues():
@@ -142,7 +148,6 @@ def test_NFR_OBS_compose_worker_isolates_parse_and_online_queues():
     intent = _INTENT.read_text(encoding="utf-8")
     assert "worker" in intent.lower()
     assert "隔离" in intent or "isolate" in intent.lower()
-    assert "celery" not in example.lower()
 
 
 def test_NFR_OBS_compose_worker_injects_concurrency_without_freezing_tbd():
@@ -158,7 +163,25 @@ def test_NFR_OBS_compose_worker_injects_concurrency_without_freezing_tbd():
     assert "PIVOT_WORKER_CONCURRENCY=" in example
     evidence = _EVIDENCE.read_text(encoding="utf-8")
     assert "TBD-P0" in evidence or "unverified" in evidence.lower()
-    assert "celery" not in evidence.lower() or "非 celery" in evidence.lower()
+
+
+def test_NFR_OBS_compose_worker_injects_celery_broker_without_hardcoding():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    body = services["worker"]
+    assert "PIVOT_CELERY_BROKER:" in body
+    assert "${PIVOT_CELERY_BROKER" in body
+    assert re.search(r"PIVOT_CELERY_BROKER:\s*redis://", body) is None
+    assert "redis://" not in body.lower()
+    example = _ENV_EXAMPLE.read_text(encoding="utf-8")
+    assert "PIVOT_CELERY_BROKER=" in example
+    broker = next(
+        line.split("=", 1)[1].strip()
+        for line in example.splitlines()
+        if line.startswith("PIVOT_CELERY_BROKER=")
+    )
+    assert broker
+    assert "TBD-P0" in example
 
 
 def test_NFR_OBS_ci_does_not_build_or_start_compose_worker():

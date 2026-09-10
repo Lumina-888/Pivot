@@ -7,6 +7,7 @@ from typing import Any
 from celery import Celery
 
 from pivot_worker.queue import IngestRunner
+from pivot_worker.settings import WorkerSettings
 
 
 def build_ingest_celery(
@@ -69,6 +70,10 @@ class CeleryIngestSubmitter:
         self._task = ingest_document
 
     @property
+    def app(self) -> Celery:
+        return self._app
+
+    @property
     def task_queue(self) -> str:
         queue = getattr(self._task, "queue", None)
         return str(queue or self.parse_queue)
@@ -78,3 +83,44 @@ class CeleryIngestSubmitter:
         if self._app.conf.task_always_eager:
             return result.get()
         return result
+
+
+def worker_listen_queues(parse_queue: str, online_queue: str) -> tuple[str, ...]:
+    if not parse_queue.strip() or not online_queue.strip():
+        raise RuntimeError("parse and online queues are required")
+    if parse_queue == online_queue:
+        raise RuntimeError("parse and online queues must be isolated")
+    return (parse_queue,)
+
+
+def _unassembled_runner(version_id: str, request_id: str, actor_id: str) -> None:
+    raise RuntimeError(
+        "ingest runner is not assembled; object bytes still require a shared ObjectStore"
+    )
+
+
+def start_celery_worker(
+    settings: WorkerSettings,
+    runner: IngestRunner | None = None,
+    *,
+    block: bool = True,
+) -> CeleryIngestSubmitter:
+    submitter = CeleryIngestSubmitter(
+        runner or _unassembled_runner,
+        parse_queue=settings.parse_queue,
+        online_queue=settings.online_queue,
+        concurrency=settings.concurrency,
+        broker_url=settings.celery_broker,
+        always_eager=False,
+    )
+    if not block:
+        return submitter
+    queues = worker_listen_queues(settings.parse_queue, settings.online_queue)
+    submitter.app.worker_main(
+        [
+            "worker",
+            f"--queues={queues[0]}",
+            f"--concurrency={settings.concurrency}",
+        ]
+    )
+    return submitter

@@ -11,6 +11,6 @@
 | GATE-P0-005 | unverified | opt-in Playwright 登录；CI 不启动 uvicorn；无上线传输验证 |
 | GATE-P0-006 | unverified | 进程内事实 roundtrip 已有；无加密 OSS / 新 ECS 演练；RPO/RTO 仍 TBD-P0 |
 | GATE-P0-007 | unverified | 5 路 Fake 检索 + opt-in 100k 夹具；CI 不跑 100k；非 ECS 峰值；P95 仍 TBD-P0 |
-| GATE-P0-008 | unverified | Dockerfile/Compose api+web+worker 为 opt-in profile `app`（worker 非 Celery）；无固定版本发布与回滚演练 |
+| GATE-P0-008 | unverified | Dockerfile/Compose api+web+worker 为 opt-in profile `app`（worker 为注入 broker 的 Celery fixture，CI 不启动）；无固定版本发布与回滚演练 |
 
 `implemented`（若有 Fake 链路测试）≠ `verified`。

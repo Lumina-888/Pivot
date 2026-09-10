@@ -30,6 +30,7 @@ class WorkerSettings:
     parse_queue: str
     online_queue: str
     concurrency: int
+    celery_broker: str
     health_host: str = "0.0.0.0"
     health_port: int = 8001
 
@@ -40,6 +41,8 @@ class WorkerSettings:
             raise RuntimeError("parse and online queues must be isolated")
         if self.concurrency <= 0:
             raise RuntimeError("worker concurrency must be a positive integer")
+        if not self.celery_broker.strip():
+            raise RuntimeError("PIVOT_CELERY_BROKER is required for the worker process")
         if self.health_port <= 0:
             raise RuntimeError("worker health port must be a positive integer")
 
@@ -53,6 +56,7 @@ class WorkerSettings:
             parse_queue=_require(env, "PIVOT_PARSE_QUEUE"),
             online_queue=_require(env, "PIVOT_ONLINE_QUEUE"),
             concurrency=_require_positive_int(env, "PIVOT_WORKER_CONCURRENCY"),
+            celery_broker=_require(env, "PIVOT_CELERY_BROKER"),
             health_host=host,
             health_port=health_port,
         )
