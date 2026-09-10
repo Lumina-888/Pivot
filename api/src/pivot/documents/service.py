@@ -20,6 +20,7 @@ from pivot.documents.ports import (
     DocumentStore,
     FileContent,
     ObjectStore,
+    PreparedIngest,
     ResourceLimits,
     TaskRecord,
     TaskStore,
@@ -142,6 +143,40 @@ class DocumentService:
             self._tasks.save(task)
         self._versions.save(version)
         return version
+
+    def prepare_ingest(
+        self, version_id: str, request_id: str, actor_id: str
+    ) -> PreparedIngest | None:
+        version = self._require_version(version_id, request_id)
+        if version.state not in {"uploaded", "queued"}:
+            return None
+        try:
+            if version.state == "uploaded":
+                task = self.enqueue(version_id, request_id, actor_id)
+            else:
+                task = TaskRecord(
+                    id=new_id("task"),
+                    entity_id=version.id,
+                    entity_type="document_version",
+                    attempt=1,
+                    state="queued",
+                )
+                self._tasks.save(task)
+            version = self.worker_started(version_id, task.id, request_id)
+        except DocumentError:
+            return None
+        document = self._require_document(version.document_id, request_id)
+        content = self._objects.get(version.storage_key)
+        if not content:
+            raise DocumentError("RESOURCE_NOT_FOUND", "资源不存在", request_id)
+        kind = sniff_kind(content)
+        return PreparedIngest(
+            version=version,
+            document=document,
+            content=content,
+            kind=kind,
+            task_id=task.id,
+        )
 
     def parse_ok(self, version_id: str, request_id: str) -> VersionRecord:
         return self._advance(version_id, "parse_ok", request_id)

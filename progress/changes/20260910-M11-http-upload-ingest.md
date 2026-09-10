@@ -1,0 +1,21 @@
+# 变更申请：HTTP 上传后进程内自动 ingest（非 Celery）
+
+- **日期**：2026-09-10
+- **申请人**：Wave 3 主线会话（M02 上传后交给 M07 ingest + M11 composition root 接线）
+- **背景**：ingest `IndexPublisher` 已能写入注入 VectorStore，但 `POST /api/v1/documents` 只落到 `uploaded`，不 enqueue、不跑 Worker。SPEC 要求受理返回 `uploaded`，随后 queued → ready。Celery 依赖仍暂缓，不得把进程内执行标成 `GATE-P0-003` verified。
+- **原契约/现状**：
+  - `build_documents_router` 上传后直接 201，`state=uploaded`；
+  - `assemble_runtime` 有 `IndexPublisher` / query embedder，但 HTTP 不调用；
+  - 既有上传 HTTP 测试断言信封为 `uploaded`；
+  - 无 Compose worker / Celery。
+- **拟变更内容**（本切片）：
+  - M02 `DocumentService.prepare_ingest`：仅 `uploaded`/`queued` 可进入 enqueue + `worker_started`，已 `ready` 跳过；返回 version/document/bytes/kind/task_id；
+  - M07 `DocumentIngestSink` + `DocumentIngestRunner`：消费 `prepare_ingest`，跑既有 `IngestWorker`（默认 Fake Embedding；qdrant 时复用 query embedder 与 IndexPublisher）；
+  - M02/M11 HTTP：`create_app(..., ingest=)` 可选；上传（及管理员 retry）在**快照** `uploaded` 信封后同步调用 ingest；无 ingest 时行为不变；
+  - M11：`assemble_runtime` 始终注入 runner；`PIVOT_VECTOR_STORE=qdrant` 时写入同一 VectorStore，HTTP 搜索可召回；
+  - **不** 引入 Celery / Compose worker；**不** 把响应改成 `ready`；**不** 冻结 TBD-P0；**不** 把 `GATE-P0-003` 标 verified。
+- **影响模块**：M02（prepare_ingest、router 可选 ingest）；M07（runner/sink）；M11（create_app/bootstrap、pipeline 测试、证据）；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：未注入 ingest 的 `create_app(auth, documents)` 测试保持 `uploaded`；重复 SHA 已 ready 不重入。
+- **测试 ID**：`test_FR_DOC_006_prepare_ingest_starts_from_uploaded`、`test_FR_DOC_006_prepare_ingest_skips_ready`、`test_FR_DOC_001_ingest_runner_reaches_ready`、`test_FR_DOC_001_http_upload_envelope_stays_uploaded`、`test_FR_DOC_001_runtime_upload_detail_is_ready`、`test_FR_DOC_006_runtime_upload_search_roundtrip`、`test_FR_DOC_005_runtime_duplicate_upload_skips_reingest`、`test_GATE_P0_003_not_verified_by_http_ingest`。
+- **是否触发 ADR**：否（不改变状态机合法转移；不冻结队列实现；不把进程内 ingest 标成 Celery）。
+- **审核结果**：2026-09-10 Wave 3 主线会话 **批准**。

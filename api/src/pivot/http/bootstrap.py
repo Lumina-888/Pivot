@@ -82,6 +82,7 @@ class RuntimeAssembly:
     bm25: object | None = None
     index: object | None = None
     ingest_embedding: object | None = None
+    ingest: object | None = None
 
 
 class _RuntimeProbes:
@@ -213,6 +214,27 @@ def _index_publisher(store: QdrantVectorStore) -> object:
             "pivot_worker is required when PIVOT_VECTOR_STORE=qdrant so ingest can publish"
         ) from exc
     return IndexPublisher(store=store)
+
+
+def _ingest_runner(
+    documents,
+    *,
+    embedding,
+    index,
+    dimension: int | None,
+) -> object | None:
+    try:
+        from pivot_worker.runtime import DocumentIngestRunner
+    except ImportError:
+        return None
+    kwargs: dict[str, object] = {}
+    if embedding is not None:
+        kwargs["embedding"] = embedding
+    if index is not None:
+        kwargs["index"] = index
+    if dimension is not None:
+        kwargs["dimension"] = dimension
+    return DocumentIngestRunner(documents, **kwargs)
 
 
 def _json_http_client(settings: RuntimeSettings):
@@ -424,6 +446,12 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         objects=document_objects,
         audits=MemoryDocumentAudits(),
     )
+    ingest_runner = _ingest_runner(
+        documents,
+        embedding=ingest_embedding,
+        index=index_publisher,
+        dimension=resolved.qdrant_vector_size,
+    )
     if minio_store is not None:
         export_object_store: object = ExportObjectAdapter(minio_store)
     else:
@@ -495,6 +523,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         conversations=conversations,
         exports=exports,
         audits=audits,
+        ingest=ingest_runner,
     )
     return RuntimeAssembly(
         app=app,
@@ -517,6 +546,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         bm25=bm25_retriever,
         index=index_publisher,
         ingest_embedding=ingest_embedding,
+        ingest=ingest_runner,
     )
 
 

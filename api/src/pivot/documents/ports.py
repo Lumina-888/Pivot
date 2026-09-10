@@ -52,6 +52,15 @@ class TaskRecord:
 
 
 @dataclass(frozen=True)
+class PreparedIngest:
+    version: VersionRecord
+    document: DocumentRecord
+    content: bytes
+    kind: str
+    task_id: str
+
+
+@dataclass(frozen=True)
 class AuditDraft:
     actor: str
     action: str

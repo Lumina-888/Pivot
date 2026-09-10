@@ -41,6 +41,7 @@ def create_app(
     conversations: ConversationService | None = None,
     exports: ExportService | None = None,
     audits: AuditService | None = None,
+    ingest=None,
 ) -> FastAPI:
     """Create the HTTP assembly. Missing probes make /readyz fail closed.
 
@@ -115,7 +116,9 @@ def create_app(
     if documents is not None and auth is not None:
         from pivot.documents.http import build_documents_router
 
-        app.include_router(build_documents_router(documents, auth), prefix="/api/v1")
+        app.include_router(
+            build_documents_router(documents, auth, ingest=ingest), prefix="/api/v1"
+        )
 
     if retrieval is not None and auth is not None:
         from pivot.retrieval.http import build_search_router

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Protocol
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile
@@ -13,6 +14,10 @@ from pivot.auth.service import AuthService
 from pivot.documents.errors import DocumentError
 from pivot.documents.ports import FileContent
 from pivot.documents.service import DocumentService
+
+
+class IngestSubmitter(Protocol):
+    def __call__(self, version_id: str, request_id: str, actor_id: str) -> object: ...
 
 _STATUS = {
     "UNSUPPORTED_EXTENSION": 400,
@@ -37,7 +42,11 @@ def _bearer_token(request: Request, request_id: str) -> str:
     return token
 
 
-def build_documents_router(service: DocumentService, auth: AuthService) -> APIRouter:
+def build_documents_router(
+    service: DocumentService,
+    auth: AuthService,
+    ingest: IngestSubmitter | None = None,
+) -> APIRouter:
     router = APIRouter()
 
     @router.get("/documents")
@@ -78,14 +87,14 @@ def build_documents_router(service: DocumentService, auth: AuthService) -> APIRo
             space=space or "shared",
             classification=classification,
         )
-        return JSONResponse(
-            {
-                "document_id": version.document_id,
-                "version_id": version.id,
-                "state": version.state,
-            },
-            status_code=201,
-        )
+        envelope = {
+            "document_id": version.document_id,
+            "version_id": version.id,
+            "state": version.state,
+        }
+        if ingest is not None:
+            ingest(version.id, request_id, principal.user_id)
+        return JSONResponse(envelope, status_code=201)
 
     @router.get("/documents/{id}")
     def get_document(request: Request, id: str) -> dict[str, object]:
@@ -102,7 +111,9 @@ def build_documents_router(service: DocumentService, auth: AuthService) -> APIRo
     def retry_document(request: Request, id: str) -> JSONResponse:
         request_id, principal = _principal(request, auth)
         auth.require_admin(principal, request.url.path, request_id)
-        service.retry_document(id, request_id, principal.user_id)
+        version = service.retry_document(id, request_id, principal.user_id)
+        if ingest is not None:
+            ingest(version.id, request_id, principal.user_id)
         return JSONResponse({"document_id": id, "accepted": True}, status_code=202)
 
     @router.post("/documents/{id}/delete")
