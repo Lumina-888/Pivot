@@ -10,7 +10,7 @@ from pivot.parsing import ParseError, ParserRegistry
 from pivot.parsing.errors import RETRYABLE_CODES
 from pivot.shared.ids import new_id
 
-from pivot_worker.embedding import FakeEmbedding, assert_dimension
+from pivot_worker.embedding import EmbeddingPort, FakeEmbedding, assert_dimension
 from pivot_worker.index import IndexPublisher
 from pivot_worker.isolation import isolated_workspace
 from pivot_worker.output import worker_failed, worker_insufficient, worker_ok
@@ -71,6 +71,11 @@ class IngestRequest:
     message_id: str
     embedding_model_version: str = "fake-embed-v1"
     dimension: int = 8
+    document_id: str = ""
+    title: str = ""
+    space: str = ""
+    tags: tuple[str, ...] = ()
+    retrieval_config_version: str = ""
 
 
 class IngestWorker:
@@ -79,7 +84,7 @@ class IngestWorker:
         *,
         parsers: ParserRegistry | None = None,
         splitter: ChunkSplitter | None = None,
-        embedding: FakeEmbedding | None = None,
+        embedding: EmbeddingPort | None = None,
         index: IndexPublisher | None = None,
         sink: IngestSink | None = None,
         dimension: int = 8,
@@ -137,8 +142,26 @@ class IngestWorker:
                 chunk_id=chunk_id,
                 vector=vector,
                 text_hash=draft.text_hash,
+                document_id=request.document_id,
+                text=draft.text,
+                title=request.title,
+                space=request.space,
+                tags=request.tags,
+                ready=True,
+                current=True,
+                allowed=True,
+                expired=False,
+                deleted=False,
+                index_generation=generation_id,
+                embedding_model_version=request.embedding_model_version,
+                retrieval_config_version=request.retrieval_config_version,
+                locator=draft.locator,
             )
-        published = self._index.publish(generation_id)
+        try:
+            published = self._index.publish(generation_id)
+        except ParseError as error:
+            self._index.abort(generation_id)
+            return worker_failed(error.code, "index")
         self._sink.on_publish(request.version_id)
         return worker_ok(
             {

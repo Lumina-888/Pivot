@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from pivot.parsing.errors import ParseError, parse_error
 from pivot.storage.adapters.qdrant import build_payload, validate_payload
+from pivot.storage.protocols import VectorStore
 
 
 @dataclass
@@ -24,8 +26,15 @@ class IndexGeneration:
     vectors: list[VectorRecord] = field(default_factory=list)
 
 
+def _metadata_value(value: object) -> object:
+    if isinstance(value, tuple):
+        return [item for item in value]
+    return value
+
+
 class IndexPublisher:
-    def __init__(self) -> None:
+    def __init__(self, store: VectorStore | None = None) -> None:
+        self._store = store
         self._generations: dict[str, IndexGeneration] = {}
         self._published: dict[str, IndexGeneration] = {}
 
@@ -48,11 +57,19 @@ class IndexPublisher:
         chunk_id: str,
         vector: list[float],
         text_hash: str,
+        **metadata: object,
     ) -> None:
         generation = self._generations[generation_id]
         if generation.status != "building":
             raise RuntimeError("generation is not writable")
-        payload = build_payload(version_id=version_id, chunk_id=chunk_id, text_hash=text_hash)
+        extra = {
+            key: _metadata_value(value)
+            for key, value in metadata.items()
+            if value is not None
+        }
+        payload = build_payload(
+            version_id=version_id, chunk_id=chunk_id, text_hash=text_hash, **extra
+        )
         validate_payload(payload)
         generation.vectors.append(
             VectorRecord(
@@ -62,6 +79,20 @@ class IndexPublisher:
 
     def publish(self, generation_id: str) -> IndexGeneration:
         generation = self._generations[generation_id]
+        if generation.status != "building":
+            raise RuntimeError("generation is not writable")
+        if self._store is not None:
+            self._require_document_ids(generation)
+            try:
+                self._store.upsert(
+                    ({"vector": record.vector, **record.payload} for record in generation.vectors)
+                )
+            except ParseError:
+                generation.status = "failed"
+                raise
+            except Exception as exc:
+                generation.status = "failed"
+                raise parse_error("PROVIDER_TEMPORARY_ERROR", "vector store upsert failed") from exc
         generation.status = "published"
         self._published[generation_id] = generation
         return generation
@@ -78,3 +109,12 @@ class IndexPublisher:
         if generation is None:
             return ()
         return tuple(generation.vectors)
+
+    def _require_document_ids(self, generation: IndexGeneration) -> None:
+        for record in generation.vectors:
+            document_id = record.payload.get("document_id")
+            if not isinstance(document_id, str) or not document_id.strip():
+                generation.status = "failed"
+                raise parse_error(
+                    "RESOURCE_LIMIT", "document_id is required to publish to VectorStore"
+                )

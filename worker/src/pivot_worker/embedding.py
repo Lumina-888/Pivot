@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Protocol
 
 from pivot.parsing.errors import parse_error
 
 
-class EmbeddingPort:
-    def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        raise NotImplementedError
+class EmbeddingPort(Protocol):
+    def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
 
 
 class FakeEmbedding:

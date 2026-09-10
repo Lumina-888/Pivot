@@ -80,6 +80,8 @@ class RuntimeAssembly:
     retrieval: object | None = None
     query_embedder: object | None = None
     bm25: object | None = None
+    index: object | None = None
+    ingest_embedding: object | None = None
 
 
 class _RuntimeProbes:
@@ -201,6 +203,16 @@ def _open_qdrant_store(settings: RuntimeSettings) -> QdrantVectorStore:
     if not store.healthy():
         raise RuntimeError("qdrant is not reachable")
     return store
+
+
+def _index_publisher(store: QdrantVectorStore) -> object:
+    try:
+        from pivot_worker.index import IndexPublisher
+    except ImportError as exc:
+        raise RuntimeError(
+            "pivot_worker is required when PIVOT_VECTOR_STORE=qdrant so ingest can publish"
+        ) from exc
+    return IndexPublisher(store=store)
 
 
 def _json_http_client(settings: RuntimeSettings):
@@ -351,10 +363,14 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     else:
         document_objects = MemoryDocumentObjects()
     query_embedder = None
+    index_publisher = None
+    ingest_embedding = None
     if resolved.vector_store == "qdrant":
         qdrant_store = _open_qdrant_store(resolved)
         vector_store = qdrant_store
         query_embedder = _query_embedder(resolved)
+        index_publisher = _index_publisher(qdrant_store)
+        ingest_embedding = query_embedder
     else:
         vector_store = None
     if resolved.cache_store == "redis" or resolved.queue_store == "redis":
@@ -499,6 +515,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         retrieval=retrieval,
         query_embedder=query_embedder,
         bm25=bm25_retriever,
+        index=index_publisher,
+        ingest_embedding=ingest_embedding,
     )
 
 
