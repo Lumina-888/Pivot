@@ -8,5 +8,8 @@ version = "0.1.0"
 description = "Pivot ingest worker adapters"
 requires-python = ">=3.12,<3.13"
 
+[project.optional-dependencies]
+celery = ["celery>=5.4,<5.6"]
+
 [tool.setuptools.packages.find]
 where = ["src"]

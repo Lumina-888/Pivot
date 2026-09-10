@@ -144,6 +144,12 @@ class RuntimeSettings:
     redis_client: object | None = None
     login_max_failures: int | None = None
     login_window_seconds: int | None = None
+    ingest_backend: str = "sync"
+    parse_queue: str | None = None
+    online_queue: str | None = None
+    worker_concurrency: int | None = None
+    celery_broker: str | None = None
+    celery_always_eager: bool = False
 
     def __post_init__(self) -> None:
         if not self.token_secret.strip():
@@ -208,6 +214,29 @@ class RuntimeSettings:
             raise RuntimeError(
                 "PIVOT_LOGIN_MAX_FAILURES requires PIVOT_CACHE_STORE=redis"
             )
+        if self.ingest_backend not in {"sync", "celery"}:
+            raise RuntimeError(
+                "unsupported PIVOT_INGEST="
+                f"{self.ingest_backend!r}; this slice wires sync or celery"
+            )
+        if self.ingest_backend == "celery":
+            parse_queue = (self.parse_queue or "").strip()
+            online_queue = (self.online_queue or "").strip()
+            if not parse_queue or not online_queue:
+                raise RuntimeError(
+                    "PIVOT_PARSE_QUEUE and PIVOT_ONLINE_QUEUE are required "
+                    "when PIVOT_INGEST=celery"
+                )
+            if parse_queue == online_queue:
+                raise RuntimeError("parse and online queues must be isolated")
+            if self.worker_concurrency is None or self.worker_concurrency < 1:
+                raise RuntimeError(
+                    "PIVOT_WORKER_CONCURRENCY is required when PIVOT_INGEST=celery"
+                )
+            if not (self.celery_broker or "").strip():
+                raise RuntimeError(
+                    "PIVOT_CELERY_BROKER is required when PIVOT_INGEST=celery"
+                )
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> RuntimeSettings:
@@ -272,4 +301,10 @@ class RuntimeSettings:
             login_window_seconds=_optional_int_or_none(
                 env, "PIVOT_LOGIN_WINDOW_SECONDS"
             ),
+            ingest_backend=(env.get("PIVOT_INGEST") or "sync").strip() or "sync",
+            parse_queue=(env.get("PIVOT_PARSE_QUEUE") or "").strip() or None,
+            online_queue=(env.get("PIVOT_ONLINE_QUEUE") or "").strip() or None,
+            worker_concurrency=_optional_int_or_none(env, "PIVOT_WORKER_CONCURRENCY"),
+            celery_broker=(env.get("PIVOT_CELERY_BROKER") or "").strip() or None,
+            celery_always_eager=(env.get("PIVOT_CELERY_EAGER") or "").strip() == "1",
         )

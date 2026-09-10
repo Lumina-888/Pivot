@@ -90,6 +90,7 @@ class RuntimeAssembly:
     index: object | None = None
     ingest_embedding: object | None = None
     ingest: object | None = None
+    ingest_backend: str = "sync"
     attempts: object | None = None
     document_rows: object | None = None
 
@@ -244,6 +245,25 @@ def _ingest_runner(
     if dimension is not None:
         kwargs["dimension"] = dimension
     return DocumentIngestRunner(documents, **kwargs)
+
+
+def _celery_submitter(runner, settings: RuntimeSettings):
+    if runner is None:
+        raise RuntimeError("pivot_worker is required when PIVOT_INGEST=celery")
+    try:
+        from pivot_worker.celery_app import CeleryIngestSubmitter
+    except ImportError as exc:
+        raise RuntimeError(
+            "pivot_worker[celery] is required when PIVOT_INGEST=celery"
+        ) from exc
+    return CeleryIngestSubmitter(
+        runner,
+        parse_queue=settings.parse_queue or "",
+        online_queue=settings.online_queue or "",
+        concurrency=settings.worker_concurrency or 0,
+        broker_url=settings.celery_broker,
+        always_eager=settings.celery_always_eager,
+    )
 
 
 def _json_http_client(settings: RuntimeSettings):
@@ -486,6 +506,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         index=index_publisher,
         dimension=resolved.qdrant_vector_size,
     )
+    ingest_submitter = ingest_runner
+    if resolved.ingest_backend == "celery":
+        ingest_submitter = _celery_submitter(ingest_runner, resolved)
     if minio_store is not None:
         export_object_store: object = ExportObjectAdapter(minio_store)
     else:
@@ -557,7 +580,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         conversations=conversations,
         exports=exports,
         audits=audits,
-        ingest=ingest_runner,
+        ingest=ingest_submitter,
     )
     return RuntimeAssembly(
         app=app,
@@ -580,7 +603,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         bm25=bm25_retriever,
         index=index_publisher,
         ingest_embedding=ingest_embedding,
-        ingest=ingest_runner,
+        ingest=ingest_submitter,
+        ingest_backend=resolved.ingest_backend,
         attempts=attempts,
         document_rows=document_rows,
     )
