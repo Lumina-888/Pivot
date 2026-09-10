@@ -16,8 +16,9 @@ from pivot.retrieval.service import RetrievalService
 
 _ROOT = Path(__file__).resolve().parents[3]
 DATASET_PATH = (
-    _ROOT / "spec" / "fixtures" / "golden-set" / "retrieval" / "v0.1-synthetic.json"
+    _ROOT / "spec" / "fixtures" / "golden-set" / "retrieval" / "v0.2-synthetic.json"
 )
+GENERATOR_PATH = _ROOT / "ops" / "golden_set_synthetic.py"
 SPEC_STRATA = frozenset(
     {
         "fact",

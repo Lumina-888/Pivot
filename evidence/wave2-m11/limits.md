@@ -5,7 +5,7 @@
 | ID | 状态 | 原因 |
 |---|---|---|
 | GATE-P0-001 | unverified | 无真实企业文档准入流程 |
-| GATE-P0-002 | unverified | dense 可消费 VectorStore；可注入 HTTP Embedding/bge rerank（CI Fake transport，非 live 供应商）；stdlib BM25 可注入；Golden Set 仍 Fake Keyword；未达 100~150；NFR-QUAL 仍 TBD-P0 |
+| GATE-P0-002 | unverified | dense 可消费 VectorStore；可注入 HTTP Embedding/bge rerank（CI Fake transport，非 live 供应商）；stdlib BM25 可注入；Golden Set v0.2 为 120 条合成 Fake Keyword，非企业标注；NFR-QUAL 仍 TBD-P0 |
 | GATE-P0-003 | unverified | PG/MinIO（含导出字节）/Qdrant/Redis 已接线；无索引原子发布与完整存储一致性环境 |
 | GATE-P0-004 | unverified | 仅 Fake 领域编排，无 HTTP/SSE |
 | GATE-P0-005 | unverified | opt-in Playwright 登录；CI 不启动 uvicorn；无上线传输验证 |

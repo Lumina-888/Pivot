@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections import Counter
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
-from golden_set import DATASET_PATH, SPEC_STRATA, evaluate, load_dataset
+from golden_set import DATASET_PATH, GENERATOR_PATH, SPEC_STRATA, evaluate, load_dataset
 from pivot.retrieval.policy import RetrievalPolicy
 
 _ROOT = Path(__file__).resolve().parents[3]
@@ -22,8 +24,19 @@ def test_NFR_QUAL_golden_set_covers_spec_strata():
     dataset = load_dataset()
     strata = {case["stratum"] for case in dataset["cases"]}
     assert strata == SPEC_STRATA
-    assert dataset["dataset_version"] == "golden-set-retrieval-v0.1-synthetic"
-    assert len(dataset["cases"]) < 100
+    assert dataset["dataset_version"] == "golden-set-retrieval-v0.2-synthetic"
+    assert 100 <= len(dataset["cases"]) <= 150
+    counts = Counter(case["stratum"] for case in dataset["cases"])
+    for stratum in SPEC_STRATA:
+        assert counts[stratum] >= 10, stratum
+
+
+def test_NFR_QUAL_golden_set_v02_is_reproducible():
+    spec = spec_from_file_location("golden_set_synthetic", GENERATOR_PATH)
+    assert spec is not None and spec.loader is not None
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert load_dataset() == module.build_dataset()
 
 
 def test_NFR_QUAL_golden_set_is_synthetic_not_enterprise():
