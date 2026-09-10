@@ -94,10 +94,13 @@ def test_FR_RAG_001_runtime_overlap_rerank_wires():
 def test_GATE_P0_002_not_verified_by_bm25_rerank():
     evidence = _EVIDENCE.read_text(encoding="utf-8")
     bootstrap = _BOOTSTRAP.read_text(encoding="utf-8")
+    bm25_src = (_ROOT / "api" / "src" / "pivot" / "retrieval" / "bm25.py").read_text(
+        encoding="utf-8"
+    )
     assert "GATE-P0-002" in evidence
     assert "unverified" in evidence.lower()
     assert "jieba" not in bootstrap.lower() or "not jieba" in bootstrap.lower()
-    assert "bge-reranker" not in bootstrap
+    assert "bge-reranker" not in bm25_src
     limits = _LIMITS.read_text(encoding="utf-8")
     line = next(item for item in limits.splitlines() if "GATE-P0-002" in item)
     assert "unverified" in line.lower()

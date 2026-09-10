@@ -139,10 +139,28 @@ class RetrievalService:
                 for chunk_id in ordered_ids
                 if self._resolve(chunk_id) is not None
             }
-            reranked = self._reranker.rerank(
-                query.text, ordered_ids, texts, self._policy.evidence_limit
-            )
-            ordered_ids = tuple(hit.chunk_id for hit in reranked)
+            try:
+                reranked = self._reranker.rerank(
+                    query.text, ordered_ids, texts, self._policy.evidence_limit
+                )
+                reranked_ids = tuple(hit.chunk_id for hit in reranked)
+                if reranked_ids:
+                    ordered_ids = reranked_ids
+                self.provider_calls.append(
+                    ProviderCallNote(
+                        provider="rerank", operation="rerank", status="ok"
+                    )
+                )
+            except RetrieverError as error:
+                warnings.append("rerank_failed")
+                self.provider_calls.append(
+                    ProviderCallNote(
+                        provider="rerank",
+                        operation="rerank",
+                        status="failed",
+                        error_code=error.code,
+                    )
+                )
         evidence = []
         fused_scores = {hit.chunk_id: hit.score for hit in fused}
         for chunk_id in ordered_ids[: self._policy.evidence_limit]:

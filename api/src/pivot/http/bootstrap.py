@@ -46,6 +46,7 @@ from pivot.retrieval.bm25 import Bm25Reranker, Bm25Retriever
 from pivot.retrieval.fakes import HashingQueryEmbedder, KeywordRetriever, OverlapReranker
 from pivot.retrieval.models import RetrievalQuery
 from pivot.retrieval.policy import RetrievalPolicy
+from pivot.retrieval.providers import HttpBgeReranker, HttpQueryEmbedder, StdlibJsonHttpClient
 from pivot.retrieval.service import RetrievalService
 from pivot.retrieval.tokenize import SimpleLexTokenizer
 from pivot.retrieval.vector import VectorStoreRetriever
@@ -202,9 +203,24 @@ def _open_qdrant_store(settings: RuntimeSettings) -> QdrantVectorStore:
     return store
 
 
+def _json_http_client(settings: RuntimeSettings):
+    if settings.json_http_client is not None:
+        return settings.json_http_client
+    return StdlibJsonHttpClient()
+
+
 def _query_embedder(settings: RuntimeSettings):
     if settings.query_embedder is not None:
         return settings.query_embedder
+    if settings.embedding == "http":
+        return HttpQueryEmbedder(
+            _json_http_client(settings),
+            endpoint=settings.embedding_endpoint or "",
+            model=settings.embedding_model or "",
+            api_key=settings.embedding_api_key or "",
+            timeout_seconds=settings.embedding_timeout,
+            expected_dimension=settings.qdrant_vector_size,
+        )
     if settings.qdrant_vector_size is None:
         raise RuntimeError(
             "PIVOT_QDRANT_VECTOR_SIZE is required when PIVOT_VECTOR_STORE=qdrant "
@@ -310,6 +326,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             f"{resolved.queue_store!r}; this slice wires memory or redis. "
             "See progress/changes/20260909-M03-redis-cache-queue.md"
         )
+    if resolved.embedding == "http" and resolved.vector_store != "qdrant":
+        raise RuntimeError("PIVOT_EMBEDDING=http requires PIVOT_VECTOR_STORE=qdrant")
     hasher = Argon2idHasher(
         time_cost=resolved.argon2_time_cost,
         memory_cost=resolved.argon2_memory_cost,
@@ -419,6 +437,14 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         reranker = OverlapReranker()
     elif resolved.rerank == "bm25":
         reranker = Bm25Reranker(tokenizer, k1=resolved.bm25_k1, b=resolved.bm25_b)
+    elif resolved.rerank == "bge":
+        reranker = HttpBgeReranker(
+            _json_http_client(resolved),
+            endpoint=resolved.rerank_endpoint or "",
+            model=resolved.rerank_model or "",
+            api_key=resolved.rerank_api_key or "",
+            timeout_seconds=resolved.rerank_timeout,
+        )
     retrieval = RetrievalService(
         corpus=empty_corpus,
         dense=dense_retriever,

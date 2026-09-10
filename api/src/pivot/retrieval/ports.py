@@ -1,4 +1,4 @@
-"""Dense/BM25/rerank ports. BM25 is stdlib; dense/rerank vendors stay injected fakes."""
+"""Dense/BM25/rerank ports. Vendor HTTP clients are injected; tests use Fake transport."""
 
 from __future__ import annotations
 

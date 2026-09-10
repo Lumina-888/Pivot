@@ -8,6 +8,39 @@ from pivot.retrieval.models import ChunkRecord, RankedHit
 from pivot.retrieval.ports import RetrieverError
 
 
+class ScriptedJsonHttpClient:
+    """Injected Fake JSON transport. No network and no provider URLs."""
+
+    def __init__(
+        self,
+        responses: list[dict] | None = None,
+        *,
+        error: Exception | None = None,
+        handler=None,
+    ) -> None:
+        self.calls: list[dict] = []
+        self._responses = list(responses or [])
+        self._error = error
+        self._handler = handler
+
+    def post_json(self, url: str, payload: dict, headers, timeout: float | None = None) -> dict:
+        self.calls.append(
+            {
+                "url": url,
+                "payload": payload,
+                "headers": dict(headers),
+                "timeout": timeout,
+            }
+        )
+        if self._error is not None:
+            raise self._error
+        if self._handler is not None:
+            return self._handler(url, payload, headers, timeout)
+        if not self._responses:
+            raise RuntimeError("no scripted JSON response")
+        return self._responses.pop(0)
+
+
 class HashingQueryEmbedder:
     """Injected Fake query embedder. Dimension is not a frozen production default."""
 
@@ -51,6 +84,16 @@ class FailingRetriever:
 
     def search(self, query: str, k: int) -> tuple[RankedHit, ...]:
         raise RetrieverError(self._code, f"{self._code} from {query[:12]}")
+
+
+class FailingReranker:
+    def __init__(self, code: str = "PROVIDER_TEMPORARY_ERROR") -> None:
+        self._code = code
+
+    def rerank(
+        self, query: str, chunk_ids: tuple[str, ...], texts: dict[str, str], limit: int
+    ) -> tuple[RankedHit, ...]:
+        raise RetrieverError(self._code, "rerank unavailable")
 
 
 class OverlapReranker:

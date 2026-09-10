@@ -122,9 +122,19 @@ class RuntimeSettings:
     qdrant_distance: str | None = None
     vector_store_client: object | None = None
     query_embedder: object | None = None
+    embedding: str = "hash"
+    embedding_endpoint: str | None = None
+    embedding_model: str | None = None
+    embedding_api_key: str | None = None
+    embedding_timeout: float | None = None
+    json_http_client: object | None = None
     bm25_k1: float | None = None
     bm25_b: float | None = None
     rerank: str = "none"
+    rerank_endpoint: str | None = None
+    rerank_model: str | None = None
+    rerank_api_key: str | None = None
+    rerank_timeout: float | None = None
     cache_store: str = "memory"
     queue_store: str = "memory"
     redis_endpoint: str | None = None
@@ -159,14 +169,33 @@ class RuntimeSettings:
             raise RuntimeError("PIVOT_BM25_K1 must be a positive number")
         if self.bm25_b is not None and (self.bm25_b < 0 or self.bm25_b > 1):
             raise RuntimeError("PIVOT_BM25_B must be between 0 and 1")
-        if self.rerank not in {"none", "overlap", "bm25"}:
+        if self.embedding not in {"hash", "http"}:
+            raise RuntimeError(
+                "unsupported PIVOT_EMBEDDING="
+                f"{self.embedding!r}; this slice wires hash or http"
+            )
+        if self.embedding == "http" and not (
+            self.embedding_endpoint and self.embedding_model and self.embedding_api_key
+        ):
+            raise RuntimeError(
+                "PIVOT_EMBEDDING_ENDPOINT, PIVOT_EMBEDDING_MODEL, and "
+                "PIVOT_EMBEDDING_API_KEY are required when PIVOT_EMBEDDING=http"
+            )
+        if self.rerank not in {"none", "overlap", "bm25", "bge"}:
             raise RuntimeError(
                 "unsupported PIVOT_RERANK="
-                f"{self.rerank!r}; this slice wires none, overlap, or bm25"
+                f"{self.rerank!r}; this slice wires none, overlap, bm25, or bge"
             )
         if self.rerank == "bm25" and self.bm25_k1 is None:
             raise RuntimeError(
                 "PIVOT_BM25_K1 and PIVOT_BM25_B are required when PIVOT_RERANK=bm25"
+            )
+        if self.rerank == "bge" and not (
+            self.rerank_endpoint and self.rerank_model and self.rerank_api_key
+        ):
+            raise RuntimeError(
+                "PIVOT_RERANK_ENDPOINT, PIVOT_RERANK_MODEL, and "
+                "PIVOT_RERANK_API_KEY are required when PIVOT_RERANK=bge"
             )
 
     @classmethod
@@ -209,9 +238,18 @@ class RuntimeSettings:
             == "1",
             qdrant_vector_size=_optional_int_or_none(env, "PIVOT_QDRANT_VECTOR_SIZE"),
             qdrant_distance=(env.get("PIVOT_QDRANT_DISTANCE") or "").strip() or None,
+            embedding=(env.get("PIVOT_EMBEDDING") or "hash").strip() or "hash",
+            embedding_endpoint=(env.get("PIVOT_EMBEDDING_ENDPOINT") or "").strip() or None,
+            embedding_model=(env.get("PIVOT_EMBEDDING_MODEL") or "").strip() or None,
+            embedding_api_key=(env.get("PIVOT_EMBEDDING_API_KEY") or "").strip() or None,
+            embedding_timeout=_optional_positive_float(env, "PIVOT_EMBEDDING_TIMEOUT"),
             bm25_k1=_optional_positive_float(env, "PIVOT_BM25_K1"),
             bm25_b=_optional_unit_float(env, "PIVOT_BM25_B"),
             rerank=(env.get("PIVOT_RERANK") or "none").strip() or "none",
+            rerank_endpoint=(env.get("PIVOT_RERANK_ENDPOINT") or "").strip() or None,
+            rerank_model=(env.get("PIVOT_RERANK_MODEL") or "").strip() or None,
+            rerank_api_key=(env.get("PIVOT_RERANK_API_KEY") or "").strip() or None,
+            rerank_timeout=_optional_positive_float(env, "PIVOT_RERANK_TIMEOUT"),
             cache_store=(env.get("PIVOT_CACHE_STORE") or "memory").strip() or "memory",
             queue_store=(env.get("PIVOT_QUEUE_STORE") or "memory").strip() or "memory",
             redis_endpoint=(env.get("PIVOT_REDIS_ENDPOINT") or "").strip() or None,
