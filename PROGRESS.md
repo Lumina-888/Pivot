@@ -2,8 +2,8 @@
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-10  
-> **当前状态**：主线开发（MODULE-SPEC-1.1）；Wave 3 进行中。工作区仅为 `Pivot/` 的 `main`。波次基线仍为 `wave-2-integrated`（未打 `wave-3-integrated`）。
-> **当前基线**：`wave-2-integrated` + HTTP 装配 + composition root + Next `/api/v1` 反代 + opt-in Playwright 登录 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条） + 导出对象 MinIO + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口（本切片）。
+> **当前状态**：主线开发（MODULE-SPEC-1.1）；Wave 3 夹具已收口。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
+> **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 登录 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条） + 导出对象 MinIO + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口。GATE-P0 全部 unverified。
 
 ## 1. 新会话恢复入口
 
@@ -14,7 +14,7 @@
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
 6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)（不是需求源）。Owner 近期目标 `dev-staging`：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
 
-如果没有指定切片：继续 **Wave 3**。默认下一刀 **ND-W3-13**（Wave 3 收口评审），或 **ND-W3-04** / **ND-W3-07**，或人工标注企业 Golden Set。存储客户端、Golden Set v0.2（120 条合成）、导出 MinIO、检索 dense 消费 Qdrant、ingest→Qdrant、HTTP 上传进程内 ingest、5 并发/进程内备份、stdlib BM25、Compose api+web+worker（profile `app`，api 与 worker 注入共享 PG/MinIO/Qdrant/Redis；api 注入 `PIVOT_INGEST=celery`；worker 为注入 broker 的 Celery fixture）、100k opt-in 夹具、HTTP Embedding/bge 适配器、可注入 Redis 登录限流、PG 文档事实、`PIVOT_INGEST=celery` eager、Compose Celery worker 与 worker 共享 MinIO/PG ingest runner、worker 装配 Qdrant IndexPublisher、Compose api celery ingest、Compose api/worker Qdrant/Redis、Compose api 登录限流阈值/窗口已在 main；下一刀是 Wave 3 收口评审，或导出任务 PG / PATCH 角色，或人工标注企业 Golden Set。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 标成 GATE verified。不要新建 worktree。
+如果没有指定切片：默认下一刀 **ND-W3-04** 导出任务 PG，或 **ND-W3-07** PATCH 角色，或 **ND-STG-01** ingest/检索共用 HTTP Embedding，或人工标注企业 Golden Set。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 
@@ -33,7 +33,7 @@
 | M08 Web 基础 | integrated | `main`（tag `M08-v0.2.0`） | `contract-v0.1` | M08 15 tests + typecheck/lint 通过 | SSE 缓冲仍待；Compose web 由 M11 装配 |
 | M09 员工前台 | integrated | `main`（tag `M09-v0.1.0`） | `wave-1-integrated` | 12 Fake + opt-in Playwright 登录 | 完整十页 Playwright 待后续 |
 | M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 passed | Playwright 后台流程待后续 |
-| M11 集成/质量/运维 | in_progress | `main` | `wave-2-integrated` | 分组 Python 463 passed / 12 skipped | GATE-P0 仍待；企业 Golden Set 仍待 |
+| M11 集成/质量/运维 | in_progress | `main`（tag 目标 `M11-v0.21.0` / `wave-3-integrated`） | `wave-3-integrated` | 分组 Python 469 passed / 12 skipped | GATE-P0 仍全部 unverified；A2 导出 PG / PATCH 角色仍待 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护。历史 `../Pivot-Mxx-*` worktree 不再使用。
 
@@ -82,7 +82,7 @@
 - [x] M11：分组 CI、进程内 Fake 认证→导出链路、Compose 意图与 Runbook 草稿（`M11-v0.1.0`）；
 - [x] Wave 2 退出评审：三模块非快进合入；装配页测试适配；页面 Fake E2E 接入分组 CI；标签 `wave-2-integrated`。
 
-### Wave 3 — P0/P1 门禁（进行中）
+### Wave 3 — P0/P1 门禁（夹具已收口；GATE 仍 unverified）
 
 - [x] 依赖 Compose fixture：postgres / minio / qdrant / redis（钉镜像 + healthcheck + localhost；`M11-v0.2.0`）
 - [x] Compose Postgres 的 opt-in Alembic 冒烟（默认 skip；`M11-v0.2.1`）
@@ -126,8 +126,9 @@
 - [x] Compose api 注入 `PIVOT_INGEST=celery`（队列/concurrency/broker `${:?}`；Dockerfile 装 worker[celery]；CI 不 build/up）
 - [x] Compose api/worker 注入 Qdrant/Redis（`${}`，store 不静默 memory；example 占位 qdrant/redis；CI 不 build/up）
 - [x] Compose api 注入登录限流阈值/窗口（`${:?}`，不写死次数；example fixture 占位；进程外缺省仍永不锁定；CI 不 build/up）
+- [x] Wave 3 夹具收口评审（ND-W3-13；A1 完成 + 回归绿；tag `wave-3-integrated` ≠ P0 通过）
 - [ ] 人工标注企业 Golden Set、Qdrant 100k 索引峰值、新 ECS 加密 OSS 备份恢复、live Embedding/rerank 冒烟
-- [ ] 任一 `GATE-P0-*` verified；未打 `wave-3-integrated`
+- [ ] 任一 `GATE-P0-*` verified
 
 ## 5. 未完成项与已知差距
 
@@ -204,8 +205,16 @@
 - [x] Wave 3 Compose api celery ingest 已批准：`progress/changes/20260910-M11-compose-api-celery-ingest.md`。
 - [x] Wave 3 Compose api/worker Qdrant/Redis 已批准：`progress/changes/20260910-M11-compose-api-worker-qdrant-redis.md`。
 - [x] Wave 3 Compose api 登录限流已批准：`progress/changes/20260910-M01-compose-login-rate.md`。
+- [x] Wave 3 夹具收口评审已批准：`progress/changes/20260910-M11-wave3-closeout.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-10 — Wave 3 夹具收口评审（ND-W3-13）
+
+- **完成**：批准 `20260910-M11-wave3-closeout.md`；核对 A1（ND-W3-01/02/12）与 ND-W3-06 已合入；回填矩阵为 Wave 3 夹具基线；证据写明八项 GATE-P0 仍 unverified；`wave-3-integrated` 仅表示夹具收口，不等于 P0 通过。Accountable：M11 收口，M00 矩阵/MODULE_SPEC 现状。
+- **验证**（main，2026-09-10，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6 / celery 5.5.3）：`python ops/run_grouped_tests.py --skip-web` → **469 passed, 12 skipped**（pipeline 202 passed / 11 skipped；perf 11 passed / 1 skipped）；ruff / compileall 通过。
+- **限制**：CI 不 build/up；HTTP 缺省仍请求内 ingest；导出任务仍内存；PATCH 角色未挂；Golden Set 仍为合成；未冻结 TBD-P0；GATE-P0 全部 unverified。
+- **下一步**：导出任务 PG（ND-W3-04），或 PATCH 角色（ND-W3-07），或 staging Embedding（ND-STG-01），或人工标注企业 Golden Set。
 
 ### 2026-09-10 — Wave 3 Compose api 注入登录限流阈值/窗口
 

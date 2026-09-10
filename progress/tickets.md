@@ -1,7 +1,7 @@
 # 问枢 Pivot 后续工单
 
 > 配套 [`next-dev-spec.md`](next-dev-spec.md)。需求源仍是 [`SPEC.md`](../SPEC.md)。  
-> **基线**：`main` @ `e06a869` / `M11-v0.16.0`。  
+> **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，≠ P0 通过）。  
 > 状态：`ready` → `blocked` → `done`。本文件开写时除特别注明外均为 `ready` 或 `blocked`。
 
 图例：`S` 约 1 个主线切片；`M` 约 2–3 切片；`L` 多会话或必须人工/受控环境。
@@ -24,7 +24,7 @@
 | ND-W3-09 | LangGraph extra（原暂缓变更） | A3 | M | M05 | FR-QA-001 | `20260906-M05-langgraph.md` | blocked |
 | ND-W3-10 | Playwright 十页 opt-in | A3/C | M | M09/M10/M11 | NFR-UX, GATE-P1 | ND-W3-02 建议 | ready |
 | ND-W3-11 | version.idempotency_key 入库 | A2 | S | M03/M02 | FR-DOC-005 | 需变更申请；SPEC 字段确认 | blocked |
-| ND-W3-13 | Wave 3 收口评审 / tag | A | S | M11 | — | A1 完成 | ready |
+| ND-W3-13 | Wave 3 收口评审 / tag | A | S | M11 | — | A1 完成 | done |
 | ND-P0-01 | 企业人工标注 Golden Set | B1 | L | 业务/M04/M11 | GATE-P0-002, NFR-QUAL | 人 | ready |
 | ND-STG-01 | ingest 与检索共用注入 HTTP Embedding | STG | S | M07/M04 | FR-RAG-001, FR-DOC-006 | ND-W3-01 | ready |
 | ND-STG-02 | Deepseek-Flash Draft Writer 适配器 | STG | M | M05 | FR-QA-001/002, DR-007 | ND-STG-01 | ready |
@@ -159,9 +159,10 @@
 
 ### ND-W3-13 Wave 3 收口评审
 
-- **状态**：ready（A1 ND-W3-01/02/12 已完成；GATE-P0 仍全部 unverified）
+- **状态**：done（2026-09-10；A1 ND-W3-01/02/12 已完成；GATE-P0 仍全部 unverified）
 - **Owner**：M11
 - **DoD**：分组回归绿；更新矩阵；证据写明 **全部 GATE-P0 仍 unverified**；tag `wave-3-integrated` 仅表示夹具收口，不等于 P0 通过。
+- **完成**：2026-09-10。`evidence/wave3-m11/wave3-closeout.md` + 矩阵 Wave 3 夹具基线；分组 Python 469 passed / 12 skipped。变更 `progress/changes/20260910-M11-wave3-closeout.md`。
 
 ---
 

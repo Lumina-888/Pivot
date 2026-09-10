@@ -2,7 +2,7 @@
 
 > **文档 ID**：`NEXT-DEV-1.1`  
 > **日期**：2026-09-10  
-> **基线**：`main` @ `e06a869` / tag `M11-v0.16.0`；波次基线仍为 `wave-2-integrated`。  
+> **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，**不等于** P0 通过）。  
 > **性质**：开发计划与工单拆分。  
 > **本文件不是需求源。** 需求、状态机、错误码、API/SSE/Worker、GATE、`TBD-P0` 仍以 [`SPEC.md`](../SPEC.md) 为准；模块边界以 [`MODULE_SPEC.md`](../MODULE_SPEC.md) 为准；进度以 [`PROGRESS.md`](../PROGRESS.md) 为准。工单目录见 [`tickets.md`](tickets.md)。
 
@@ -14,7 +14,7 @@ Owner 已确认近期目标是 **`dev-staging`（开发者调试环境）**，�
 
 ## 0. 当前判断
 
-产品处于 **Wave 3 进行中**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO/Qdrant/Redis 注入；api 注入 celery ingest 与登录限流阈值/窗口；worker 可接 Qdrant）已在 `main`。分组 Python **463 passed / 12 skipped**。
+产品处于 **Wave 3 夹具已收口**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO/Qdrant/Redis 注入；api 注入 celery ingest 与登录限流阈值/窗口；worker 可接 Qdrant）已在 `main`。分组 Python **469 passed / 12 skipped**。
 
 这不等于可上线：
 
@@ -23,7 +23,7 @@ Owner 已确认近期目标是 **`dev-staging`（开发者调试环境）**，�
 | Fake/夹具实现 | 大量 `implemented` |
 | Compose 本机 fixture | 文件在；CI 不 build/up |
 | 真实 PG/MinIO/Qdrant/Redis/Celery 端到端 | 未验证 |
-| `wave-3-integrated` | 未打 |
+| `wave-3-integrated` | 夹具收口（≠ P0 通过） |
 | `GATE-P0-001~008` | 全部 **unverified** |
 | P1 进入 | 被 P0 八项阻断 |
 
@@ -137,7 +137,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. 默认下一刀：**ND-W3-13** Wave 3 收口评审，或 **ND-W3-04** / **ND-W3-07**。
+2. 默认下一刀：**ND-W3-04** 导出任务 PG，或 **ND-W3-07** PATCH 角色，或 **ND-STG-01**。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。
@@ -151,13 +151,14 @@ ND-W3-01 worker Qdrant
     → ND-W3-02 Compose celery ingest（已完成）
         → ND-W3-12 Compose 注入 Qdrant/Redis（api+worker，已完成）
             → ND-W3-06 登录限流缺省接到 Redis（已完成）
-            → ND-W3-13 Wave 3 收口评审
+            → ND-W3-13 Wave 3 收口评审（已完成；tag ≠ P0）
             → ND-W3-03 真实解析库
-ND-W3-04 导出任务 PG    ∥ 可与 A1 并行
-ND-W3-07 PATCH 角色     ∥ 可与 A1 并行
+ND-W3-04 导出任务 PG    ← 默认下一刀
+ND-W3-07 PATCH 角色     ∥ 可并行
+ND-STG-01 ingest/检索共用 HTTP Embedding
 ND-P0-01 企业 Golden Set（人工，随时可开，不阻塞 A1）
 ND-P0-02 外发审批（人工，阻塞真实企业文档）
-A1+A2 完成后考虑 wave-3-integrated（仍全部 GATE unverified）
+wave-3-integrated 已打（仍全部 GATE unverified）
 然后才排 B2/B3 受控环境票
 ```
 
@@ -169,3 +170,4 @@ A1+A2 完成后考虑 wave-3-integrated（仍全部 GATE unverified）
 |---|---|---|
 | 1.0 | 2026-09-10 | 按 `SPEC.md` + `PROGRESS.md` + `HANDOFF.md` 从 `M11-v0.16.0` 拆出后续票 |
 | 1.1 | 2026-09-10 | Owner 确认 `dev-staging`：低敏规章制度、live API、阿里云 4C8G；外发审批延期企业化 |
+| 1.2 | 2026-09-10 | ND-W3-13 夹具收口：`wave-3-integrated` ≠ P0 通过；默认下一刀 ND-W3-04 / ND-W3-07 / ND-STG-01 |
