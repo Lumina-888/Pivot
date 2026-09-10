@@ -255,7 +255,7 @@
 
 - **范围**：注入 endpoint/model/api_key 的 HTTP Writer，替换证据拼接；Citation 仍必须落在检索候选；`external_llm_allowed` 为 false 不得外发；失败闭环（超时/429→既有错误码）。
 - **不做**：不写死 DeepSeek/硅基 URL；CI Fake transport；不把 LangGraph 绑死本票。
-- **Owner 已给**：主模型 `deepseek-flash`；备用 `mimo-v2.5`。实现时以控制台完整 model 字符串注入（硅基可能带 `deepseek-ai/` 前缀）。备用可能走小米 OpenAI 兼容口，鉴权头可能不是 Bearer，适配器必须可注入。CI Fake。
+- **Owner 已给**：主模型 **DeepSeek 官方** `deepseek-flash`；备用 **小米官方** `mimo-v2.5`。**不走硅基。** 两套 endpoint/key 分开注入；鉴权头可注入（小米可能非 Bearer）。CI Fake。
 
 ### ND-STG-03 MinerU 云 API 解析器
 

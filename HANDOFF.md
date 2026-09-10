@@ -9,7 +9,7 @@
 
 1. 工作区：`E:/AI Project/Pivot`，分支：`main`。不要新建 worktree。
 2. 读：`AGENTS.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. 下一刀：**ND-W3-01** worker 接 Qdrant。staging 供应商清单见 `progress/changes/20260910-M00-dev-staging-vendors.md`（硅基 bge-m3 / bge-reranker-v2-m3，LLM `deepseek-flash` + 备用 `mimo-v2.5`，MinerU 官方云）。阿里云 OS 等 ND-STG-04 再确认。
+3. 下一刀：**ND-W3-01** worker 接 Qdrant。staging：硅基仅 embedding/rerank；DeepSeek 官方 `deepseek-flash`；小米官方 `mimo-v2.5`；MinerU 官方云。见 `progress/changes/20260910-M00-dev-staging-vendors.md`。阿里云 OS 等 ND-STG-04 再确认。
 4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 标成 `GATE-P0 verified`。
 
 ## 1. 产品现状
