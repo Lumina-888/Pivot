@@ -1,0 +1,23 @@
+# Pivot web fixture image. The tag is not GATE-P0-008 verified.
+FROM node:20.19.0-bookworm-slim
+
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
+
+WORKDIR /app
+
+COPY web/package.json web/package-lock.json /app/
+RUN npm ci
+
+COPY web /app
+
+RUN npm run build
+
+ENV NODE_ENV=production
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=5s --timeout=3s --retries=10 \
+    CMD node -e "fetch('http://127.0.0.1:3000/login').then((r)=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+
+CMD ["npm", "exec", "--", "next", "start", "--hostname", "0.0.0.0", "--port", "3000"]

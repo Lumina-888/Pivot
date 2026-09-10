@@ -2,8 +2,8 @@
 # Image tags are fixture pins, not GATE-P0-008 verified.
 # Redis is cache/queue only — not a business fact store.
 # Default `docker compose up` starts postgres/minio/qdrant/redis only.
-# api is profile `app`: `docker compose --profile app up`.
-# worker/web are omitted until those images exist.
+# api and web are profile `app`: `docker compose --profile app up`.
+# worker is omitted until a Celery image exists.
 # FastAPI composition root:
 #   uvicorn pivot.http.main:app --factory
 # CI must not docker compose up or docker build.
@@ -108,6 +108,40 @@ services:
       qdrant:
         condition: service_healthy
       redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  web:
+    profiles:
+      - app
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    image: pivot-web:0.1.0
+    environment:
+      PIVOT_API_ORIGIN: ${PIVOT_API_ORIGIN:?set PIVOT_API_ORIGIN}
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/login').then((r)=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      api:
         condition: service_healthy
     deploy:
       resources:

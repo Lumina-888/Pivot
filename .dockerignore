@@ -9,6 +9,7 @@
 **/__pycache__
 **/*.pyc
 **/.env
+**/.env.local
 web/node_modules
 web/.next
 evidence
