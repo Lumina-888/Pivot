@@ -1,0 +1,24 @@
+# 变更申请：Wave 3 夹具收口评审（ND-W3-13）
+
+- **日期**：2026-09-10
+- **申请人**：Wave 3 主线会话（M11 集成收口；M00 矩阵/MODULE_SPEC 现状一句）
+- **工单**：ND-W3-13
+- **背景**：A1（ND-W3-01 worker Qdrant、ND-W3-02 Compose celery ingest、ND-W3-12 Compose Qdrant/Redis）已合入 `main`；ND-W3-06 登录限流接到 Redis 亦已完成。`NEXT-DEV-1.1` 与工单 DoD 要求：A1 完成 + 分组回归绿 + 证据写明全部 `GATE-P0` 仍 unverified 后，可打 `wave-3-integrated`。该 tag **仅**表示工程夹具收口，**不等于** P0 通过，不得宣称 production-ready，不得冻结 `TBD-P0`。
+- **原契约/现状**：
+  - 波次基线仍为 `wave-2-integrated`；未打 `wave-3-integrated`；
+  - `spec/acceptance/matrix.md` 页眉仍写 Wave 2 退出基线；
+  - 八项 GATE 登记在 `evidence/wave2-m11/limits.md`，全部 unverified；
+  - Compose api/web/worker（profile `app`）已注入共享 PG/MinIO/Qdrant/Redis、celery ingest 与登录限流阈值/窗口；CI 不 build/up；
+  - HTTP 缺省仍进程内 ingest；导出任务仍内存；PATCH 角色/重置未挂；Golden Set 仍为 v0.2-synthetic 120 条。
+- **拟变更内容**（本切片）：
+  - 写 `evidence/wave3-m11/wave3-closeout.md`：核对 A1 完成、回归命令、剩余 A2/A3、八项 GATE-P0 仍 unverified；明确 `wave-3-integrated` ≠ P0 通过；
+  - 同步 `evidence/wave2-m11/limits.md` 的 GATE 原因（尤其 `GATE-P0-004`：已有 Run/SSE HTTP，仍无 Verifier 实测/盲评）；
+  - 回填 `spec/acceptance/matrix.md` 为 Wave 3 **夹具**基线（状态保持 `implemented`，不标 `verified`）；
+  - `MODULE_SPEC.md` §4.5 / §11 写明夹具收口与 P0 门禁分离；
+  - 分组回归绿后创建 tag `wave-3-integrated`（以及可选 `M11-v0.21.0`）；
+  - **不** 冻结任何 `TBD-P0`；**不** 把 Fake/Compose fixture/合成 Golden Set/eager Celery 标成 `GATE-P0-*` verified；**不** 把剩余 A2（导出任务 PG、PATCH 角色、会话跨进程）或 A3 写成已完成；**不** 在 CI `docker compose up`。
+- **影响模块**：M11（证据、pipeline 测试、进度）；M00（验收矩阵、MODULE_SPEC 现状）；不改业务语义、状态机、契约字段。
+- **兼容方案**：既有 `test_GATE_P0_*_not_verified_by_*` 继续读 `evidence/wave2-m11/limits.md`；新测试只断言收口证据与矩阵，不把 tag 解释为 P0 通过。
+- **测试 ID**：`test_NFR_OBS_wave3_closeout_records_a1_complete`、`test_NFR_OBS_wave3_closeout_lists_remaining_a2`、`test_GATE_P0_wave3_closeout_marks_all_gates_unverified`、`test_GATE_P0_not_verified_by_wave3_integrated`、`test_NFR_OBS_wave3_matrix_is_fixture_baseline_not_gate_verified`、`test_NFR_OBS_wave3_closeout_change_does_not_freeze_tbd`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不冻结 TBD-P0）。
+- **审核结果**：2026-09-10 Wave 3 主线会话 **批准**。
