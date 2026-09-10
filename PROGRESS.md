@@ -3,7 +3,7 @@
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-09  
 > **当前状态**：主线开发（MODULE-SPEC-1.1）；Wave 3 进行中。工作区仅为 `Pivot/` 的 `main`。波次基线仍为 `wave-2-integrated`（未打 `wave-3-integrated`）。
-> **当前基线**：`wave-2-integrated` + HTTP 装配 + composition root + Next `/api/v1` 反代 + opt-in Playwright 登录 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.1-synthetic + 导出对象 MinIO + 检索 dense 消费 Qdrant + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器（本切片）。
+> **当前基线**：`wave-2-integrated` + HTTP 装配 + composition root + Next `/api/v1` 反代 + opt-in Playwright 登录 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.1-synthetic + 导出对象 MinIO + 检索 dense 消费 Qdrant + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器（本切片）。
 
 ## 1. 新会话恢复入口
 
@@ -13,7 +13,7 @@
 4. 读取本文件和本切片涉及的 `progress/modules/Mxx.md`；
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
 
-如果没有指定切片：继续 **Wave 3**。存储客户端、Golden Set、导出 MinIO、检索 dense 消费 Qdrant、5 并发/进程内备份、stdlib BM25、Compose api（profile `app`）、100k opt-in 夹具与 HTTP Embedding/bge 适配器已在 main；下一刀是 Compose web，或 Golden Set 100~150，或 ingest→Qdrant。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve 标成 GATE verified。不要新建 worktree。
+如果没有指定切片：继续 **Wave 3**。存储客户端、Golden Set、导出 MinIO、检索 dense 消费 Qdrant、5 并发/进程内备份、stdlib BM25、Compose api+web（profile `app`）、100k opt-in 夹具与 HTTP Embedding/bge 适配器已在 main；下一刀是 Golden Set 100~150，或 ingest→Qdrant，或 Compose worker。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web 文件 标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 
@@ -29,10 +29,10 @@
 | M05 QA/Run/SSE | integrated | `main`（tag `M05-v0.3.0`） | `contract-v0.1` | 12 领域 + Run/SSE + 会话 CRUD HTTP | LangGraph extra 待后续 |
 | M06 导出/审计 | integrated | `main`（tag `M06-v0.2.0`） | `contract-v0.1` | 26 单元 + 导出/审计 HTTP | 导出任务 PG 持久化与对象字节下载仍待 |
 | M07 Worker/解析/索引 | integrated | `main`（tag `M07-v0.1.0`） | `contract-v0.1` | 7 passed | Celery/真实解析库待依赖审核 |
-| M08 Web 基础 | integrated | `main`（tag `M08-v0.2.0`） | `contract-v0.1` | M08 15 tests + typecheck/lint 通过 | SSE 缓冲/Compose web 仍待 |
+| M08 Web 基础 | integrated | `main`（tag `M08-v0.2.0`） | `contract-v0.1` | M08 15 tests + typecheck/lint 通过 | SSE 缓冲仍待；Compose web 由 M11 装配 |
 | M09 员工前台 | integrated | `main`（tag `M09-v0.1.0`） | `wave-1-integrated` | 12 Fake + opt-in Playwright 登录 | 完整十页 Playwright 待后续 |
 | M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 passed | Playwright 后台流程待后续 |
-| M11 集成/质量/运维 | in_progress | `main` | `wave-2-integrated` | 分组 Python 363 passed / 10 skipped | Compose web/worker、GATE-P0 仍待 |
+| M11 集成/质量/运维 | in_progress | `main` | `wave-2-integrated` | 分组 Python 368 passed / 11 skipped | Compose worker、GATE-P0 仍待 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护。历史 `../Pivot-Mxx-*` worktree 不再使用。
 
@@ -53,7 +53,7 @@
 | §1.5 / NFR-UX 设计系统与 client | M08 | `tests/e2e/fixtures/web/test-foundation.mjs` | implemented | M08 15 项基础测试通过（含 `/api/v1` rewrite）；产品页由 M09/M10 接管 |
 | 前台 6 页 | M09 | `tests/e2e/user/test_user_web.mjs` | implemented | 12 项 Fake fetch + opt-in Playwright 登录；CI 默认 skip |
 | 后台 4 页 | M10 | `tests/e2e/admin/test_admin_web.mjs` | implemented | 8 项 Fake fetch 测试通过；无 Playwright |
-| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + HTTP + composition root + Next rewrite + opt-in Playwright + PG/MinIO/Qdrant/Redis + 合成 Golden Set + 导出 MinIO + 检索 dense 消费 Qdrant + 5 并发/进程内备份 + stdlib BM25 + Dockerfile/Compose api + 100k opt-in + HTTP Embedding/bge Fake transport）；GATE-P0 unverified | TestClient；CI 不 build/up Compose、不跑 100k、不打真实供应商；Playwright/Compose/100k 默认 skip |
+| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + HTTP + composition root + Next rewrite + opt-in Playwright + PG/MinIO/Qdrant/Redis + 合成 Golden Set + 导出 MinIO + 检索 dense 消费 Qdrant + 5 并发/进程内备份 + stdlib BM25 + Dockerfile/Compose api+web + 100k opt-in + HTTP Embedding/bge Fake transport）；GATE-P0 unverified | TestClient；CI 不 build/up Compose、不跑 100k、不打真实供应商；Playwright/Compose/100k 默认 skip |
 
 ## 4. 当前波次计划
 
@@ -110,7 +110,8 @@
 - [x] Dockerfile + Compose api（profile `app`；CI 不 build/up）
 - [x] 100k Chunk opt-in 夹具（`PIVOT_REQUIRE_100K=1`；CI 默认 skip）
 - [x] HTTP Embedding / bge-reranker 可注入适配器（CI Fake transport；非 live 供应商）
-- [ ] 100~150 条 Golden Set、Qdrant 100k 索引峰值、新 ECS 加密 OSS 备份恢复、Compose web/worker、live Embedding/rerank 冒烟
+- [x] Dockerfile.web + Compose web（profile `app`；CI 不 build/up）
+- [ ] 100~150 条 Golden Set、Qdrant 100k 索引峰值、新 ECS 加密 OSS 备份恢复、Compose worker、live Embedding/rerank 冒烟
 - [ ] 任一 `GATE-P0-*` verified；未打 `wave-3-integrated`
 
 ## 5. 未完成项与已知差距
@@ -132,7 +133,8 @@
 - [x] FastAPI `GET/POST /conversations`、`GET/DELETE /conversations/{id}`、`GET /conversations/{id}/messages`（与 AuthService 同时注入才挂载）；
 - [x] FastAPI `GET /documents/{id}/preview`、`GET /documents/{id}/download`（与既有文档 router 同挂载；inline/attachment；不暴露 MinIO）；
 - [x] Dockerfile + Compose api（profile `app`；默认 `docker compose up` 不起 api）；
-- [ ] 无 Celery；无 Compose worker/web 服务；
+- [x] Dockerfile.web + Compose web（profile `app`；默认 `docker compose up` 不起 web）；
+- [ ] 无 Celery；无 Compose worker 服务；
 - [x] PostgreSQL 用户目录客户端（SQLAlchemy；默认 CI 用 sqlite；Compose Postgres 为 opt-in skip）；
 - [x] MinIO 文档与导出对象（默认 CI 用内存 client；公开导出 URL 仍为 signer；Compose MinIO 为 opt-in skip）；会话仍为 memory；
 - [x] Qdrant 向量客户端（默认 CI 用内存 client；Compose Qdrant 为 opt-in skip）；dense 检索可消费 VectorStore；`PIVOT_EMBEDDING=http` / `PIVOT_RERANK=bge` 可注入（CI Fake HTTP，非 live 供应商）；stdlib BM25 可注入；
@@ -170,8 +172,16 @@
 - [x] Wave 3 Dockerfile / Compose api 已批准：`progress/changes/20260909-M11-compose-api.md`。
 - [x] Wave 3 100k Chunk opt-in 夹具已批准：`progress/changes/20260909-M11-chunk-capacity.md`。
 - [x] Wave 3 HTTP Embedding / bge-reranker 适配器已批准：`progress/changes/20260909-M04-http-embedding-bge-rerank.md`。
+- [x] Wave 3 Dockerfile.web / Compose web 已批准：`progress/changes/20260909-M11-compose-web.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-09 — Wave 3 Dockerfile.web 与 Compose web
+
+- **完成**：批准 `20260909-M11-compose-web.md`；`Dockerfile.web` 钉 `node:20.19.0-bookworm-slim`，`next start --hostname 0.0.0.0 --port 3000`；Compose `web` 为 profile `app`，端口 `127.0.0.1:3000`，healthcheck `/login`，`PIVOT_API_ORIGIN` 注入，依赖 api healthy。Accountable：M11。
+- **验证**（main，2026-09-09，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）：`python ops/run_grouped_tests.py --skip-web` → **368 passed, 11 skipped**；ruff / compileall 通过。
+- **限制**：CI 不 build/up；本机未强制拉起容器；无 worker；未打 `wave-3-integrated`；GATE-P0 全部 unverified。未冻结 ECS 4C8G / 浏览器版本。
+- **下一步**：Golden Set 100~150，或 ingest→Qdrant，或 Compose worker。
 
 ### 2026-09-09 — Wave 3 HTTP Embedding / bge-reranker 适配器
 

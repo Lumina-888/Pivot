@@ -8,19 +8,19 @@
 
 1. 工作区：`E:/AI Project/Pivot`，分支：`main`。不要新建 worktree。
 2. 读：`AGENTS.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. 下一刀：**Compose web**，或 Golden Set 100~150，或 ingest→Qdrant。
-4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport 标成 `GATE-P0 verified`。
+3. 下一刀：**Golden Set 100~150**，或 ingest→Qdrant，或 Compose worker。
+4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web 文件 标成 `GATE-P0 verified`。
 
 ## 1. 产品现状
 
-Python **363 passed / 10 skipped**；web foundation **15**。四类存储可注入客户端；导出字节可走 MinIO；dense 检索可消费 Qdrant；BM25 为 stdlib；Compose `api` 为 profile `app`；100k 为 opt-in 夹具；query Embedding / bge rerank 可注入 HTTP（CI Fake）。
+Python **368 passed / 11 skipped**；web foundation **15**。四类存储可注入客户端；导出字节可走 MinIO；dense 检索可消费 Qdrant；BM25 为 stdlib；Compose `api`+`web` 为 profile `app`；100k 为 opt-in 夹具；query Embedding / bge rerank 可注入 HTTP（CI Fake）。
 
 - `PIVOT_OBJECT_STORE=minio` 装配文档 **与导出** 对象；`presign` 不做公开下载
 - `PIVOT_VECTOR_STORE=qdrant` 时 dense 为 `VectorStoreRetriever`
 - `PIVOT_EMBEDDING=hash|http`（默认 hash）；`http` 需 endpoint/model/key 且要求 qdrant
 - `PIVOT_BM25_K1`/`PIVOT_BM25_B` 同时注入时 BM25 为 `Bm25Retriever`；`PIVOT_RERANK=none|overlap|bm25|bge`
 - 5 路 Fake `retrieve` 可并发完成；进程内备份 roundtrip 已有
-- Dockerfile 钉 `python:3.12.10-slim-bookworm`；`docker compose --profile app up` 才起 api；CI 不 build/up
+- Dockerfile 钉 `python:3.12.10-slim-bookworm`；`Dockerfile.web` 钉 `node:20.19.0-bookworm-slim`；`docker compose --profile app up` 才起 api+web；CI 不 build/up
 - `PIVOT_REQUIRE_100K=1` + `PIVOT_CHUNK_COUNT=100000` 才跑 100k Fake retrieve；CI 默认 skip
 - GATE-P0 全部 unverified；未打 `wave-3-integrated`
 
@@ -29,11 +29,11 @@ Python **363 passed / 10 skipped**；web foundation **15**。四类存储可注�
 1. 登录限流未接 Redis；无 Celery；导出任务仍内存；无 ingest→Qdrant
 2. Golden Set 未达 100~150；无 Qdrant 100k 索引峰值；无新 ECS 备份恢复；无 live Embedding/rerank 冒烟
 3. PATCH `/admin/users/{id}` 只改 status；`must_change_password` 不入库
-4. 无 Compose web·worker
+4. 无 Compose worker
 
 ## 3. 下一刀建议
 
-HTTP Embedding / bge-reranker 适配器已落地（CI Fake transport，不冻结模型/维数/阈值）。下一刀 Compose web，或 Golden Set 100~150，或 ingest→Qdrant。
+Compose web 已落地（profile `app`，CI 不 build/up，不冻结 ECS/浏览器版本）。下一刀 Golden Set 100~150，或 ingest→Qdrant，或 Compose worker。
 
 ## 4. 纪律（未改）
 
