@@ -1,12 +1,14 @@
 # 问枢 Pivot 后续开发规格（Wave 3 收口 → P0 闸门）
 
-> **文档 ID**：`NEXT-DEV-1.0`  
+> **文档 ID**：`NEXT-DEV-1.1`  
 > **日期**：2026-09-10  
 > **基线**：`main` @ `e06a869` / tag `M11-v0.16.0`；波次基线仍为 `wave-2-integrated`。  
 > **性质**：开发计划与工单拆分。  
 > **本文件不是需求源。** 需求、状态机、错误码、API/SSE/Worker、GATE、`TBD-P0` 仍以 [`SPEC.md`](../SPEC.md) 为准；模块边界以 [`MODULE_SPEC.md`](../MODULE_SPEC.md) 为准；进度以 [`PROGRESS.md`](../PROGRESS.md) 为准。工单目录见 [`tickets.md`](tickets.md)。
 
 与 SPEC 冲突时以 SPEC 为准。不得把本文件解释为已冻结 `TBD-P0`，不得把 Fake/夹具标成 `GATE-P0-*` verified。
+
+Owner 已确认近期目标是 **`dev-staging`（开发者调试环境）**，不是 SPEC 生产上线。范围见 [`changes/20260910-M00-dev-staging-scope.md`](changes/20260910-M00-dev-staging-scope.md)。
 
 ---
 
@@ -75,7 +77,24 @@ Phase B  P0 闸门（人审 + 受控环境 + 实测冻 TBD）
 Phase C  P1（10 页真实系统 + 矩阵）
 ```
 
-Phase A 可以与 B1 的「人工标注」并行，但 **B 未完成前禁止把系统当生产/正式试用**。
+### 3.1 `dev-staging` 轨道（Owner 当前目标）
+
+```text
+A1 跨进程 ingest（Qdrant + Celery）     ← 现在就编码，不需要云主机
+    → STG live Embedding/Rerank（注入 HTTP，已有适配器）
+    → STG Deepseek-Flash Writer（新适配器）
+    → STG MinerU 解析器（SPEC V2 提前到 staging，CI 仍 Fake）
+    → 阿里云 4C8G 部署 Compose           ← 这时才需要你租机器
+```
+
+约束：
+
+- 用户仅 Owner/开发者；文档仅规章制度等低敏测试材料；**禁止**企业合同。
+- 外发审批（`DR-001`）延期到企业化；**不**因此把 `GATE-P0-001/005` 标 verified。
+- 密钥只进服务器 env；CI 仍 Fake；4C8G 不是 GATE 已验证规格。
+- MinerU / LLM / Embedding / Rerank 全部走**外部 API**，不要装在 4C8G 上。
+
+Phase A 可以与规章制度样本准备并行。**B 未完成前禁止把系统当 SPEC 生产上线 / 正式企业试用。**
 
 ---
 
@@ -147,3 +166,4 @@ A1+A2 完成后考虑 wave-3-integrated（仍全部 GATE unverified）
 | 版本 | 日期 | 说明 |
 |---|---|---|
 | 1.0 | 2026-09-10 | 按 `SPEC.md` + `PROGRESS.md` + `HANDOFF.md` 从 `M11-v0.16.0` 拆出后续票 |
+| 1.1 | 2026-09-10 | Owner 确认 `dev-staging`：低敏规章制度、live API、阿里云 4C8G；外发审批延期企业化 |

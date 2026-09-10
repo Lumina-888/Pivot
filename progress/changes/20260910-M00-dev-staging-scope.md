@@ -1,0 +1,22 @@
+# 变更申请：开发调试环境范围（非 SPEC 生产上线）
+
+- **日期**：2026-09-10
+- **申请人**：Owner 口头确认 + Wave 3 主线会话记录
+- **背景**：Owner 需要一套**仅开发者使用**的可访问环境：规章制度等低敏测试文档、直连外部 API（MinerU、Embedding、Rerank、Agent 用 Deepseek-Flash）。企业合同与外发审批放到后期企业化再做。目标主机是阿里云 4C8G，不是本机 Docker 作为最终运行处。SPEC `DR-001` / `GATE-P0-001` 仍约束**生产上线**；本切片只定义开发调试环境，避免后续会话继续按「无审批就不能接 live API」卡住调试。
+- **原契约/现状**：
+  - SPEC §6.1：MVP 解析为 PyMuPDF 等；MinerU 云 API 标为 V2（OCR/复杂表）；
+  - Embedding/rerank 已有注入 HTTP 适配器（CI Fake）；Draft 仍为证据拼接，无 LLM Writer；
+  - Compose 为 opt-in fixture；CI 不 build/up；GATE-P0 全部 unverified；
+  - `DR-001` 阻断性写的是「上线」。
+- **拟变更内容**（范围决策，本文件不写业务代码）：
+  - 新增环境等级 **`dev-staging`**：仅 Owner/开发者调试；文档限于规章制度等低敏测试材料；**禁止**企业合同/人事薪酬等进入该环境；
+  - `dev-staging` **允许**注入外部 MinerU / Embedding / Rerank / LLM（Deepseek-Flash）endpoint 与密钥；密钥只进服务器 env，不入库；
+  - 企业外发审批（`DR-001`）与 `GATE-P0-001` verified **延期到企业化部署**，不在 `dev-staging` 上关闭；
+  - MinerU 作为 `dev-staging` 可插拔解析器提前接入（SPEC 仍写 V2；不把 MinerU 标成 MVP 唯一解析器，stdlib/启发式保留为 CI Fake）；
+  - 阿里云 4C8G 是 `dev-staging` 主机，**不是** `GATE-P0-007/008` 已验证的生产 ECS；不冻 4C8G 为 TBD-P0 结论；
+  - **不** 把该环境称为 SPEC「上线」；**不** 把任一 `GATE-P0-*` 标 verified；**不** 在代码写死供应商 URL/模型名。
+- **影响模块**：M00（范围记录）；后续工单 ND-STG-*、ND-W3-01/02/12；M07 解析、M04 检索、M05 Draft、M11 部署。
+- **兼容方案**：CI 默认仍 Fake；`assemble_runtime` 缺省 memory/hash/sync；live 仅 opt-in 环境变量。
+- **测试 ID**：本决策无新测试。后续 live 适配器测试仍 Fake HTTP；冒烟 opt-in skip。
+- **是否触发 ADR**：否（不改状态机/权限/引用删除语义；不冻模型名/维数；生产 `DR-001` 仍有效）。企业化上线前必须回头补审批。
+- **审核结果**：2026-09-10 Owner 确认范围，主线会话 **批准记录**。

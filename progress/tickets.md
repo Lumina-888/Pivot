@@ -26,8 +26,12 @@
 | ND-W3-11 | version.idempotency_key 入库 | A2 | S | M03/M02 | FR-DOC-005 | 需变更申请；SPEC 字段确认 | blocked |
 | ND-W3-13 | Wave 3 收口评审 / tag | A | S | M11 | — | A1 完成 | blocked |
 | ND-P0-01 | 企业人工标注 Golden Set | B1 | L | 业务/M04/M11 | GATE-P0-002, NFR-QUAL | 人 | ready |
-| ND-P0-02 | 外发/留存/训练审批 | B1 | L | 法务/安全 | GATE-P0-001, DR-001 | 人 | ready |
-| ND-P0-03 | live Embedding/rerank 冒烟 | B1 | S | M04 | FR-RAG-001, GATE-P0-002 | ND-P0-02, 密钥 | blocked |
+| ND-STG-01 | ingest 与检索共用注入 HTTP Embedding | STG | S | M07/M04 | FR-RAG-001, FR-DOC-006 | ND-W3-01 | ready |
+| ND-STG-02 | Deepseek-Flash Draft Writer 适配器 | STG | M | M05 | FR-QA-001/002, DR-007 | ND-STG-01 | ready |
+| ND-STG-03 | MinerU 云 API 解析器（staging） | STG | M | M07 | §6.1 V2 | ND-W3-01 | ready |
+| ND-STG-04 | 阿里云 4C8G Compose 部署 | STG | M | M11 | NFR-OBS | A1+STG-01~03 | blocked |
+| ND-P0-02 | 外发/留存/训练审批 | B1 | L | 法务/安全 | GATE-P0-001, DR-001 | 人 | deferred（企业化；staging 不挡） |
+| ND-P0-03 | live Embedding/rerank 冒烟 | B1/STG | S | M04 | FR-RAG-001, GATE-P0-002 | 密钥（staging 不挡在 ND-P0-02） | ready |
 | ND-P0-04 | Verifier 阈值与盲评 | B1 | L | 算法/M05 | GATE-P0-004, DR-004 | ND-P0-01 | blocked |
 | ND-P0-05 | 共享库准入规则 | B1 | S | 业务 | DR-005, FR-RBAC-004 | 人 | ready |
 | ND-P0-06 | 真实存储一致性与原子发布环境 | B2 | L | M02/M07/M11 | GATE-P0-003 | ND-W3-01, ND-W3-02, Compose 真跑 | blocked |
@@ -168,14 +172,16 @@
 
 ### ND-P0-02 外发/留存/训练审批
 
+- **状态**：deferred for `dev-staging`；企业化部署前必须重开
 - **映射**：GATE-P0-001、DR-001
-- **产物**：审批记录（区域、留存、不训练、删除）。无此票不得接真实企业文档与 live 供应商。
+- **staging**：规章制度等低敏测试文档 + 注入外部 API 不挡。仍禁止企业合同/人事材料。
+- **产物（企业化）**：审批记录（区域、留存、不训练、删除）。
 
 ### ND-P0-03 live Embedding / rerank 冒烟
 
-- **状态**：blocked on ND-P0-02
+- **状态**：ready（staging 用 Owner 注入的密钥；CI 仍 Fake）
 - **映射**：FR-RAG-001、GATE-P0-002
-- **范围**：opt-in 环境变量；CI 默认 skip；不提交 URL/密钥。
+- **范围**：opt-in 环境变量；CI 默认 skip；不提交 URL/密钥。可与 ND-STG-01 同一切片。
 - **不做**：不标 GATE verified（冒烟 ≠ 评测通过）。
 
 ### ND-P0-04 Verifier 阈值与模型盲评
@@ -232,6 +238,37 @@
 
 - **映射**：SPEC §12.3 退出、GATE-P1-001~004（SPEC 仅索引，细则以当时 SPEC 为准）
 - **范围**：前台 6 + 后台 4 真实后端；功能/安全/性能/可靠性/灾备矩阵；低敏内测可回放。
+
+---
+
+## Phase STG — 开发调试环境（非生产上线）
+
+范围：[`changes/20260910-M00-dev-staging-scope.md`](changes/20260910-M00-dev-staging-scope.md)。
+
+### ND-STG-01 ingest 与检索共用 HTTP Embedding
+
+- **依赖**：ND-W3-01（worker 已能接 VectorStore）
+- **范围**：`PIVOT_EMBEDDING=http` 时 ingest 与 query 用同一注入 embedder；维数仍注入不写死；失败不 published。
+- **不做**：不冻模型名/维数。
+
+### ND-STG-02 Deepseek-Flash Draft Writer
+
+- **范围**：注入 endpoint/model/api_key 的 HTTP Writer，替换证据拼接；Citation 仍必须落在检索候选；`external_llm_allowed` 为 false 不得外发；失败闭环（超时/429→既有错误码）。
+- **不做**：不写死 DeepSeek/硅基 URL；CI Fake transport；不把 LangGraph 绑死本票。
+- **Owner 需提供**：实际 **model id**、API 基址（官方 / 硅基 / 阿里）、是否 OpenAI chat/completions 兼容。
+
+### ND-STG-03 MinerU 云 API 解析器
+
+- **范围**：可插拔解析器；CI 默认启发式/stdlib；`PIVOT_PARSER=mineru` 时注入云 API；加密/空文本/失败码沿用既有契约。
+- **不做**：不在 4C8G 上自建 MinerU；不把 MinerU 标成 MVP 唯一解析器（SPEC 仍写 V2）。
+- **Owner 需提供**：MinerU 云 endpoint、鉴权方式、同步还是异步任务。
+
+### ND-STG-04 阿里云 4C8G Compose 部署
+
+- **状态**：blocked until A1 + STG-01~03 可在 Fake/注入下绿
+- **范围**：服务器 Docker Compose；env 文件 gitignore；只暴露 80/443 或 SSH 隧道；资源 limits 适配 8G（外部模型，不跑 MinerU）。
+- **不做**：不标 GATE-P0-007/008 verified；不把 4C8G 写成已冻生产规格。
+- **何时找 Owner**：见该票 Ready 之后，需要 root/SSH、安全组、磁盘、是否要域名。
 
 ---
 
