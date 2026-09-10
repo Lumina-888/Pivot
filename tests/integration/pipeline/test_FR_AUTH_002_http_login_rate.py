@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -12,8 +13,13 @@ from pivot.http.memory import InMemoryAttempts
 from pivot.storage.adapters.redis import RedisCacheStore
 
 _ROOT = Path(__file__).resolve().parents[3]
+_COMPOSE = _ROOT / "docker-compose.yml"
 _ENV_EXAMPLE = _ROOT / "ops" / "compose.env.example"
+_INTENT = _ROOT / "ops" / "compose-intent.md"
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "login-rate-limit.md"
+_COMPOSE_EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "compose-login-rate.md"
+_LIMITS = _ROOT / "evidence" / "wave2-m11" / "limits.md"
+_LOGIN_LIMIT_ENV = ("PIVOT_LOGIN_MAX_FAILURES", "PIVOT_LOGIN_WINDOW_SECONDS")
 
 
 class _FakeRedisClient:
@@ -145,3 +151,80 @@ def test_FR_AUTH_002_http_runtime_lockout_same_error():
     assert first.status_code == second.status_code == locked.status_code == 401
     assert first.json()["code"] == locked.json()["code"] == "AUTH_INVALID_CREDENTIALS"
     assert first.json()["message"] == locked.json()["message"] == "账号或密码错误"
+
+
+def _service_blocks(text: str) -> dict[str, str]:
+    blocks: dict[str, list[str]] = {}
+    in_services = False
+    current: str | None = None
+    for line in text.splitlines():
+        if line.startswith("services:"):
+            in_services = True
+            continue
+        if not in_services:
+            continue
+        if (
+            line
+            and not line[:1].isspace()
+            and line.rstrip().endswith(":")
+            and not line.startswith("#")
+        ):
+            break
+        stripped = line.strip()
+        if (
+            line.startswith("  ")
+            and not line.startswith("    ")
+            and stripped.endswith(":")
+            and not stripped.startswith("#")
+        ):
+            current = stripped[:-1]
+            blocks[current] = []
+            continue
+        if current is not None:
+            blocks[current].append(line)
+    return {name: "\n".join(body) for name, body in blocks.items()}
+
+
+def _example_assignment(example: str, key: str) -> str:
+    return next(
+        line.split("=", 1)[1].strip()
+        for line in example.splitlines()
+        if line.startswith(f"{key}=")
+    )
+
+
+def test_NFR_OBS_compose_api_injects_login_limit_without_hardcoding():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    api = services["api"]
+    worker = services["worker"]
+    for key in _LOGIN_LIMIT_ENV:
+        assert f"{key}:" in api
+        assert "${" + key in api
+        assert f"${{{key}:?" in api
+        assert f"${{{key}:-" not in api
+        assert re.search(rf"{key}:\s*\d+", api) is None
+        assert f"{key}:" not in worker
+    example = _ENV_EXAMPLE.read_text(encoding="utf-8")
+    failures = _example_assignment(example, "PIVOT_LOGIN_MAX_FAILURES")
+    window = _example_assignment(example, "PIVOT_LOGIN_WINDOW_SECONDS")
+    assert failures.isdigit() and int(failures) > 0
+    assert window.isdigit() and int(window) > 0
+    assert "TBD-P0" in example
+    intent = _INTENT.read_text(encoding="utf-8")
+    assert "PIVOT_LOGIN_MAX_FAILURES" in intent
+    assert "PIVOT_LOGIN_WINDOW_SECONDS" in intent
+    evidence = _COMPOSE_EVIDENCE.read_text(encoding="utf-8")
+    assert "TBD-P0" in evidence
+    assert "不写死" in evidence or "禁止写死" in evidence
+
+
+def test_GATE_P0_005_not_verified_by_compose_login_rate():
+    evidence = _COMPOSE_EVIDENCE.read_text(encoding="utf-8")
+    assert "GATE-P0-005" in evidence
+    assert "unverified" in evidence.lower()
+    assert "TBD-P0" in evidence
+    limits = _LIMITS.read_text(encoding="utf-8")
+    line = next(item for item in limits.splitlines() if "GATE-P0-005" in item)
+    assert "unverified" in line.lower()
+    assert "verified" not in line.lower().replace("unverified", "")

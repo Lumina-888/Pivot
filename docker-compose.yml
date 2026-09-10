@@ -5,6 +5,7 @@
 # api, web and worker are profile `app`: `docker compose --profile app up`.
 # api and worker inject shared PG/MinIO/Qdrant/Redis vars (not hard-coded).
 # api injects PIVOT_INGEST / queues / concurrency / Celery broker (not hard-coded).
+# api injects login lockout threshold/window (not hard-coded; both required together).
 # worker Celery broker URL is injected, not hard-coded.
 # FastAPI composition root:
 #   uvicorn pivot.http.main:app --factory
@@ -111,6 +112,8 @@ services:
       PIVOT_REDIS_PASSWORD: ${PIVOT_REDIS_PASSWORD:-}
       PIVOT_REDIS_DB: ${PIVOT_REDIS_DB:-}
       PIVOT_REDIS_KEY_PREFIX: ${PIVOT_REDIS_KEY_PREFIX:-}
+      PIVOT_LOGIN_MAX_FAILURES: ${PIVOT_LOGIN_MAX_FAILURES:?set PIVOT_LOGIN_MAX_FAILURES}
+      PIVOT_LOGIN_WINDOW_SECONDS: ${PIVOT_LOGIN_WINDOW_SECONDS:?set PIVOT_LOGIN_WINDOW_SECONDS}
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:

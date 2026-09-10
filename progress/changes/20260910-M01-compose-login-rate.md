@@ -1,0 +1,21 @@
+# 变更申请：Compose api 注入登录限流阈值/窗口（接到 Redis）
+
+- **日期**：2026-09-10
+- **申请人**：Wave 3 主线会话（M01 限流端口 + M11 Compose 装配）
+- **工单**：ND-W3-06
+- **背景**：登录失败计数已可写入注入 Redis CacheStore，但 Compose api 未注入 `PIVOT_LOGIN_MAX_FAILURES` / `PIVOT_LOGIN_WINDOW_SECONDS`，profile `app` 下缺省仍永不锁定。SPEC §2.1 规定 Redis 保存限流计数；`FR-AUTH-002` 要求失败登录触发限流，阈值/窗口为 `TBD-P0`。不得把 Compose 注入标成 GATE verified，不得在代码或 yml 写死次数。
+- **原契约/现状**：
+  - `CacheLoginAttempts` 已冻结：同时注入阈值/窗口且 `PIVOT_CACHE_STORE=redis` 才锁定；缺一失败闭环；两者都缺则永不锁定；
+  - Compose `api` 已注入 `PIVOT_CACHE_STORE` / `PIVOT_REDIS_ENDPOINT`，未注入登录失败阈值/窗口；
+  - `ops/compose.env.example` 仅注释占位 `PIVOT_LOGIN_*`；
+  - 进程外 `assemble_runtime` 缺省仍 `InMemoryAttempts`（永不锁定）。
+- **拟变更内容**（本切片）：
+  - Compose `api` 同时注入 `PIVOT_LOGIN_MAX_FAILURES` 与 `PIVOT_LOGIN_WINDOW_SECONDS`（`${:?}`，不写死次数，不静默 `:-N`）；worker 不注入（登录只在 HTTP）；
+  - `ops/compose.env.example` 的 app profile 给出 fixture 占位（不是冻结的 `TBD-P0`）；两者一起出现；
+  - 进程外 `assemble_runtime` 两者都缺时仍永不锁定；锁定后仍统一 `AUTH_INVALID_CREDENTIALS`；
+  - **不** 在代码里写死失败次数或窗口；**不** 在 CI `docker compose up` / `docker build`；**不** 把 Redis 当会话/文档事实源；**不** 冻结 TBD-P0；**不** 把 `GATE-P0-005` 标 verified。
+- **影响模块**：M11（Compose api 环境、pipeline 测试、证据、intent）；M01（只消费既有 `CacheLoginAttempts` 端口）；M03 只被消费既有 CacheStore；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：未开 `app` profile 时依赖 fixture 不变；进程外 `assemble_runtime` 缺省仍永不锁定；Compose app 缺阈值/窗口失败闭环，不回退静默永不锁定、不写死默认次数。
+- **测试 ID**：`test_NFR_OBS_compose_api_injects_login_limit_without_hardcoding`、`test_NFR_OBS_runtime_default_login_limiter_never_locks`、`test_FR_AUTH_002_http_runtime_lockout_same_error`、`test_GATE_P0_005_not_verified_by_compose_login_rate`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不冻结 TBD-P0 限流阈值）。
+- **审核结果**：2026-09-10 Wave 3 主线会话 **批准**。
