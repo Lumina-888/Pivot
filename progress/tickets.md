@@ -14,7 +14,7 @@
 |---|---|---|---|---|---|---|---|
 | ND-W3-01 | worker 装配 Qdrant IndexPublisher | A1 | S | M07 | FR-DOC-006, FR-RAG-001 | 无 | done |
 | ND-W3-02 | Compose api 注入 `PIVOT_INGEST=celery` | A1 | S | M11 | FR-DOC-005, NFR-OBS | ND-W3-01 建议先 | done |
-| ND-W3-12 | Compose api/worker 注入 Qdrant/Redis | A1 | S | M11 | §2.1, NFR-OBS | ND-W3-01 | ready |
+| ND-W3-12 | Compose api/worker 注入 Qdrant/Redis | A1 | S | M11 | §2.1, NFR-OBS | ND-W3-01 | done |
 | ND-W3-03 | 真实解析库 extra（PyMuPDF/docx/pptx/xlsx） | A3 | M | M07 | FR-DOC-004, §6.1 | `20260906-M07-worker-dependencies.md` | ready |
 | ND-W3-04 | 导出任务 PostgreSQL 持久化 | A2 | S | M06 | FR-EXPORT-001 | 无 | ready |
 | ND-W3-05 | 会话/refresh 跨进程存储 | A2 | M | M01/M05 | FR-AUTH-001, FR-RBAC-002 | 无 | ready |
@@ -24,7 +24,7 @@
 | ND-W3-09 | LangGraph extra（原暂缓变更） | A3 | M | M05 | FR-QA-001 | `20260906-M05-langgraph.md` | blocked |
 | ND-W3-10 | Playwright 十页 opt-in | A3/C | M | M09/M10/M11 | NFR-UX, GATE-P1 | ND-W3-02 建议 | ready |
 | ND-W3-11 | version.idempotency_key 入库 | A2 | S | M03/M02 | FR-DOC-005 | 需变更申请；SPEC 字段确认 | blocked |
-| ND-W3-13 | Wave 3 收口评审 / tag | A | S | M11 | — | A1 完成 | blocked |
+| ND-W3-13 | Wave 3 收口评审 / tag | A | S | M11 | — | A1 完成 | ready |
 | ND-P0-01 | 企业人工标注 Golden Set | B1 | L | 业务/M04/M11 | GATE-P0-002, NFR-QUAL | 人 | ready |
 | ND-STG-01 | ingest 与检索共用注入 HTTP Embedding | STG | S | M07/M04 | FR-RAG-001, FR-DOC-006 | ND-W3-01 | ready |
 | ND-STG-02 | Deepseek-Flash Draft Writer 适配器 | STG | M | M05 | FR-QA-001/002, DR-007 | ND-STG-01 | ready |
@@ -83,6 +83,7 @@
 - **范围**：api/worker 注入 `PIVOT_VECTOR_STORE` / Qdrant / `PIVOT_CACHE_STORE` / `PIVOT_QUEUE_STORE` / Redis endpoint（`${}`）。vector/cache 仍允许 memory，但 app profile example 写明 fixture 值。
 - **不做**：不冻距离/TTL；不把 Redis 当业务事实源。
 - **测试**：`test_NFR_OBS_compose_api_injects_qdrant_redis_*`。
+- **完成**：2026-09-10。Compose api/worker 注入同一套 `PIVOT_VECTOR_STORE` / `PIVOT_QDRANT_*` / `PIVOT_CACHE_STORE` / `PIVOT_QUEUE_STORE` / `PIVOT_REDIS_ENDPOINT`（`${}`，store 选择不静默 `:-memory`）；example 占位 qdrant/redis。变更 `progress/changes/20260910-M11-compose-api-worker-qdrant-redis.md`。
 
 ### ND-W3-03 真实解析库 extra
 
@@ -157,7 +158,7 @@
 
 ### ND-W3-13 Wave 3 收口评审
 
-- **状态**：blocked until remaining A1（ND-W3-12 Compose Qdrant/Redis）完成
+- **状态**：ready（A1 ND-W3-01/02/12 已完成；GATE-P0 仍全部 unverified）
 - **Owner**：M11
 - **DoD**：分组回归绿；更新矩阵；证据写明 **全部 GATE-P0 仍 unverified**；tag `wave-3-integrated` 仅表示夹具收口，不等于 P0 通过。
 
