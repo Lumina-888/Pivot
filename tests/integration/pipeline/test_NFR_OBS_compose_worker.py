@@ -184,6 +184,31 @@ def test_NFR_OBS_compose_worker_injects_celery_broker_without_hardcoding():
     assert "TBD-P0" in example
 
 
+def test_NFR_OBS_compose_worker_injects_shared_storage_and_minio():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    body = services["worker"]
+    for key in (
+        "PIVOT_STORAGE",
+        "PIVOT_DATABASE_URL",
+        "PIVOT_OBJECT_STORE",
+        "PIVOT_MINIO_ENDPOINT",
+        "PIVOT_MINIO_BUCKET",
+        "PIVOT_MINIO_ACCESS_KEY",
+        "PIVOT_MINIO_SECRET_KEY",
+    ):
+        assert f"{key}:" in body
+        assert "${" + key in body
+    assert re.search(r"PIVOT_DATABASE_URL:\s*postgres", body, re.I) is None
+    assert "postgresql://" not in body.lower()
+    assert "minio:9000" not in body.lower()
+    example = _ENV_EXAMPLE.read_text(encoding="utf-8")
+    assert "PIVOT_DATABASE_URL=" in example
+    assert "PIVOT_OBJECT_STORE=" in example
+    assert "PIVOT_MINIO_ENDPOINT=" in example
+    assert "TBD-P0" in example
+
+
 def test_NFR_OBS_ci_does_not_build_or_start_compose_worker():
     workflow = _WORKFLOW.read_text(encoding="utf-8").lower()
     assert "docker compose" not in workflow

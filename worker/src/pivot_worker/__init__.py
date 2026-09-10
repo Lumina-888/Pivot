@@ -1,5 +1,6 @@
 """Offline ingest worker (M07)."""
 
+from pivot_worker.assembly import IngestAssembly, assemble_ingest_runtime
 from pivot_worker.ingest import IngestRequest, IngestWorker
 from pivot_worker.output import worker_failed, worker_ok
 from pivot_worker.queue import IngestQueueConsumer
@@ -8,10 +9,12 @@ from pivot_worker.settings import WorkerSettings
 
 __all__ = [
     "DocumentIngestRunner",
+    "IngestAssembly",
     "IngestQueueConsumer",
     "IngestRequest",
     "IngestWorker",
     "WorkerSettings",
+    "assemble_ingest_runtime",
     "worker_failed",
     "worker_ok",
 ]
