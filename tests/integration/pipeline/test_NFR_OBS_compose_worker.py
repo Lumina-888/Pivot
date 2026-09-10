@@ -184,6 +184,31 @@ def test_NFR_OBS_compose_worker_injects_celery_broker_without_hardcoding():
     assert "TBD-P0" in example
 
 
+def test_NFR_OBS_compose_worker_injects_qdrant():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    body = services["worker"]
+    for key in (
+        "PIVOT_VECTOR_STORE",
+        "PIVOT_QDRANT_ENDPOINT",
+        "PIVOT_QDRANT_COLLECTION",
+        "PIVOT_QDRANT_VECTOR_SIZE",
+        "PIVOT_QDRANT_DISTANCE",
+        "PIVOT_QDRANT_ENSURE_COLLECTION",
+    ):
+        assert f"{key}:" in body
+        assert "${" + key in body
+    assert re.search(r"PIVOT_QDRANT_ENDPOINT:\s*https?://", body, re.I) is None
+    assert "qdrant:6333" not in body.lower()
+    assert re.search(r"PIVOT_QDRANT_VECTOR_SIZE:\s*\d+", body) is None
+    assert re.search(r"PIVOT_QDRANT_DISTANCE:\s*Cosine", body) is None
+    example = _ENV_EXAMPLE.read_text(encoding="utf-8")
+    assert "PIVOT_VECTOR_STORE=" in example
+    assert "PIVOT_QDRANT_ENDPOINT=" in example
+    assert "PIVOT_QDRANT_COLLECTION=" in example
+    assert "TBD-P0" in example
+
+
 def test_NFR_OBS_compose_worker_injects_shared_storage_and_minio():
     compose = _COMPOSE.read_text(encoding="utf-8")
     services = _service_blocks(compose)

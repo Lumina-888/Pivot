@@ -3,7 +3,8 @@
 # Redis is cache/queue only — not a business fact store.
 # Default `docker compose up` starts postgres/minio/qdrant/redis only.
 # api, web and worker are profile `app`: `docker compose --profile app up`.
-# api and worker inject shared PG/MinIO vars; worker Celery broker URL is injected, not hard-coded.
+# api and worker inject shared PG/MinIO vars; worker also injects Qdrant vars.
+# worker Celery broker URL is injected, not hard-coded.
 # FastAPI composition root:
 #   uvicorn pivot.http.main:app --factory
 # Worker process:
@@ -178,6 +179,13 @@ services:
       PIVOT_MINIO_BUCKET: ${PIVOT_MINIO_BUCKET:?set PIVOT_MINIO_BUCKET}
       PIVOT_MINIO_ACCESS_KEY: ${PIVOT_MINIO_ACCESS_KEY:?set PIVOT_MINIO_ACCESS_KEY}
       PIVOT_MINIO_SECRET_KEY: ${PIVOT_MINIO_SECRET_KEY:?set PIVOT_MINIO_SECRET_KEY}
+      PIVOT_VECTOR_STORE: ${PIVOT_VECTOR_STORE:-memory}
+      PIVOT_QDRANT_ENDPOINT: ${PIVOT_QDRANT_ENDPOINT:-}
+      PIVOT_QDRANT_COLLECTION: ${PIVOT_QDRANT_COLLECTION:-}
+      PIVOT_QDRANT_VECTOR_SIZE: ${PIVOT_QDRANT_VECTOR_SIZE:-}
+      PIVOT_QDRANT_DISTANCE: ${PIVOT_QDRANT_DISTANCE:-}
+      PIVOT_QDRANT_ENSURE_COLLECTION: ${PIVOT_QDRANT_ENSURE_COLLECTION:-}
+      PIVOT_QDRANT_API_KEY: ${PIVOT_QDRANT_API_KEY:-}
     ports:
       - "127.0.0.1:8001:8001"
     healthcheck:
