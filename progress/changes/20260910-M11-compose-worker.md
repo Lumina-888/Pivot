@@ -1,0 +1,21 @@
+# 变更申请：M11 Dockerfile.worker 与 Compose worker 服务
+
+- **日期**：2026-09-10
+- **申请人**：Wave 3 主线会话（M11 运维装配 + M07 worker 进程入口）
+- **背景**：Compose 已有四依赖 + profile `app` 的 `api`/`web`。SPEC §9.1 要求 Compose、固定镜像 tag、healthcheck、启动依赖、资源 limits/reservations，以及解析队列与在线队列隔离并明确 worker concurrency。Celery 依赖仍暂缓（`20260906-M07-worker-dependencies.md`）。HTTP 上传仍为进程内 ingest。CI 不得 `docker compose up` / `docker build`。不得把 fixture 标成 `GATE-P0-008` verified。
+- **原契约/现状**：
+  - 根目录无 `Dockerfile.worker`；
+  - Compose 无 `worker` 服务；`ops/compose-intent.md` 写明 worker 未启用（非 Celery）；
+  - `tests/integration/pipeline/test_NFR_OBS_compose_deps.py` / compose-api / compose-web 禁止 `worker`。
+- **拟变更内容**（本切片）：
+  - 根 `Dockerfile.worker`：钉 `python:3.12.10-slim-bookworm`（不是 `latest`），安装 `api[postgres,minio,qdrant,redis]` 与 `worker`，`CMD` 为 `python -m pivot_worker`；health 为 stdlib `/healthz`（fixture 端口 8001）；不拷贝密钥/`.env`；不引入 Celery；
+  - `docker-compose.yml` 增加 `worker` 服务：`profiles: [app]`，默认 `docker compose up` 仍只起依赖；镜像 tag `pivot-worker:0.1.0`；端口 `127.0.0.1:8001`；healthcheck 探测 `/healthz`；`depends_on` 四依赖 `service_healthy`；`deploy.resources` limits/reservations（fixture，不写死 ECS 4C8G）；`PIVOT_PARSE_QUEUE` / `PIVOT_ONLINE_QUEUE` / `PIVOT_WORKER_CONCURRENCY` 只做 `${}` 注入，缺省失败闭环，解析队列与在线队列必须隔离；
+  - M07：`IngestQueueConsumer` 只消费 parse 队列并调用既有 `DocumentIngestRunner`；同名队列失败闭环；`python -m pivot_worker` 提供 worker ping；
+  - `ops/compose.env.example` 补充队列名与 concurrency 占位，标明不是冻结的 `TBD-P0`、不是 Celery；
+  - 更新依赖/api/web 切片测试：去掉对 `worker` 服务的禁止；
+  - **不** 引入 Celery / PyMuPDF；**不** 把 HTTP 上传从进程内 ingest 改成入队；**不** 在 CI 构建或启动容器；**不** 把 `GATE-P0-008` 标 verified。
+- **影响模块**：M11（Dockerfile.worker、Compose、pipeline 测试、证据、intent/runbook）；M07（worker 进程入口与队列消费）；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：未开 `app` profile 时依赖 fixture 行为不变；CI 默认 skip 对 `:8001` 的探测；`PIVOT_REQUIRE_COMPOSE_WORKER=1` 时端口不可达失败闭环。
+- **测试 ID**：`test_NFR_OBS_worker_dockerfile_pins_python_and_module_entrypoint`、`test_NFR_OBS_compose_worker_service_is_profiled_with_healthcheck`、`test_NFR_OBS_compose_worker_isolates_parse_and_online_queues`、`test_NFR_OBS_compose_worker_injects_concurrency_without_freezing_tbd`、`test_NFR_OBS_ci_does_not_build_or_start_compose_worker`、`test_NFR_OBS_compose_worker_healthz_when_running`、`test_GATE_P0_008_not_verified_by_compose_worker`、`test_FR_DOC_006_queue_consumer_runs_parse_queue_ingest`、`test_FR_DOC_006_queue_consumer_ignores_online_queue`、`test_FR_DOC_006_worker_settings_reject_shared_parse_and_online_queue`、`test_NFR_OBS_worker_ping_serves_healthz`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不冻结 concurrency/队列名/ECS 规格；不把 stdlib 队列消费标成 Celery）。
+- **审核结果**：2026-09-10 Wave 3 主线会话 **批准**。

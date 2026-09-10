@@ -104,7 +104,6 @@ def test_NFR_OBS_compose_web_service_is_profiled_with_healthcheck():
     assert "cpus:" in body
     assert "4C8G" not in text
     assert "4c8g" not in text.lower()
-    assert "worker" not in services
 
 
 def test_NFR_OBS_compose_web_injects_api_origin_without_production_url():

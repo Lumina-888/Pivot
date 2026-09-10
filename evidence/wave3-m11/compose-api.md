@@ -6,7 +6,7 @@
 - Compose `api` 镜像 tag `pivot-api:0.1.0`，端口 `127.0.0.1:8000`，healthcheck `/healthz`，依赖四存储 `service_healthy`。
 - 默认 `docker compose up` 仍只起依赖；`docker compose --profile app up` 才起 api。
 - TTL/检索 k 由环境注入，fixture 占位不是冻结的 `TBD-P0`；未写 ECS 4C8G。
-- 无 worker Compose 服务；无固定生产发布；无回滚演练。
+- worker Compose 服务见 `compose-worker.md`（非 Celery）；无固定生产发布；无回滚演练。
 
 | ID | 状态 | 原因 |
 |---|---|---|

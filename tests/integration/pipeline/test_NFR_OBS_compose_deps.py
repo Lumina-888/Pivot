@@ -14,7 +14,6 @@ _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "compose-deps.md"
 _LIMITS = _ROOT / "evidence" / "wave2-m11" / "limits.md"
 
 _REQUIRED_SERVICES = ("postgres", "minio", "qdrant", "redis")
-_FORBIDDEN_SERVICES = ("worker",)
 _PINNED_IMAGES = {
     "postgres": "postgres:16.4",
     "minio": "minio/minio:RELEASE.2024-10-02T17-50-41Z",
@@ -91,10 +90,6 @@ def test_NFR_OBS_compose_file_pins_dependency_images_and_healthchecks():
         assert _HEALTH_MARKERS[name] in body, f"{name} healthcheck must use {_HEALTH_MARKERS[name]}"
         assert _PINNED_IMAGES[name] in body, f"{name} must pin {_PINNED_IMAGES[name]}"
         assert "127.0.0.1:" in body, f"{name} must bind published ports to localhost"
-    for name in _FORBIDDEN_SERVICES:
-        assert name not in services, (
-            f"{name} compose service needs a Celery image; not this slice"
-        )
 
 
 def test_NFR_OBS_ci_does_not_start_compose():

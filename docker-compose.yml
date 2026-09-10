@@ -1,11 +1,13 @@
-# Pivot Wave 3 dependency fixture plus opt-in api profile.
+# Pivot Wave 3 dependency fixture plus opt-in app profile.
 # Image tags are fixture pins, not GATE-P0-008 verified.
 # Redis is cache/queue only — not a business fact store.
 # Default `docker compose up` starts postgres/minio/qdrant/redis only.
-# api and web are profile `app`: `docker compose --profile app up`.
-# worker is omitted until a Celery image exists.
+# api, web and worker are profile `app`: `docker compose --profile app up`.
+# worker is not Celery; it serves a fixture ping with isolated parse/online queues.
 # FastAPI composition root:
 #   uvicorn pivot.http.main:app --factory
+# Worker process:
+#   python -m pivot_worker
 # CI must not docker compose up or docker build.
 
 name: pivot-deps
@@ -142,6 +144,48 @@ services:
       retries: 10
     depends_on:
       api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  worker:
+    profiles:
+      - app
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: pivot-worker:0.1.0
+    environment:
+      PIVOT_PARSE_QUEUE: ${PIVOT_PARSE_QUEUE:?set PIVOT_PARSE_QUEUE}
+      PIVOT_ONLINE_QUEUE: ${PIVOT_ONLINE_QUEUE:?set PIVOT_ONLINE_QUEUE}
+      PIVOT_WORKER_CONCURRENCY: ${PIVOT_WORKER_CONCURRENCY:?set PIVOT_WORKER_CONCURRENCY}
+    ports:
+      - "127.0.0.1:8001:8001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz').read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     deploy:
       resources:
