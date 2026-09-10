@@ -18,7 +18,7 @@
 | ND-W3-03 | 真实解析库 extra（PyMuPDF/docx/pptx/xlsx） | A3 | M | M07 | FR-DOC-004, §6.1 | `20260906-M07-worker-dependencies.md` | ready |
 | ND-W3-04 | 导出任务 PostgreSQL 持久化 | A2 | S | M06 | FR-EXPORT-001 | 无 | ready |
 | ND-W3-05 | 会话/refresh 跨进程存储 | A2 | M | M01/M05 | FR-AUTH-001, FR-RBAC-002 | 无 | ready |
-| ND-W3-06 | 登录限流缺省接到 Redis（仍不冻阈值） | A2 | S | M01 | FR-AUTH-002 | ND-W3-12 | ready |
+| ND-W3-06 | 登录限流缺省接到 Redis（仍不冻阈值） | A2 | S | M01 | FR-AUTH-002 | ND-W3-12 | done |
 | ND-W3-07 | PATCH 角色 / 重置密码 HTTP | A2 | S | M01 | FR-AUTH-003 | 无 | ready |
 | ND-W3-08 | SSE 长连接推送与缓冲 | A3 | M | M05/M08 | FR-STREAM-001~003 | 无 | ready |
 | ND-W3-09 | LangGraph extra（原暂缓变更） | A3 | M | M05 | FR-QA-001 | `20260906-M05-langgraph.md` | blocked |
@@ -118,6 +118,7 @@
 - **范围**：Compose 同时注入阈值/窗口 **或** 保持「两者都缺则永不锁定」。禁止在代码里写死次数。
 - **不做**：不冻 TBD-P0 阈值；失败仍统一 `AUTH_INVALID_CREDENTIALS`。
 - **测试**：沿用 `test_FR_AUTH_002_http_login_rate.py`；新增 compose 注入断言。
+- **完成**：2026-09-10。Compose api 注入 `PIVOT_LOGIN_MAX_FAILURES` / `PIVOT_LOGIN_WINDOW_SECONDS`（`${:?}`，不写死次数）；example fixture 占位；进程外缺省仍永不锁定。变更 `progress/changes/20260910-M01-compose-login-rate.md`。
 
 ### ND-W3-07 PATCH 角色 / 重置密码 HTTP
 

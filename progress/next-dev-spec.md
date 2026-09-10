@@ -14,7 +14,7 @@ Owner 已确认近期目标是 **`dev-staging`（开发者调试环境）**，�
 
 ## 0. 当前判断
 
-产品处于 **Wave 3 进行中**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO/Qdrant/Redis 注入；api 注入 celery ingest；worker 可接 Qdrant）已在 `main`。分组 Python **461 passed / 12 skipped**。
+产品处于 **Wave 3 进行中**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO/Qdrant/Redis 注入；api 注入 celery ingest 与登录限流阈值/窗口；worker 可接 Qdrant）已在 `main`。分组 Python **463 passed / 12 skipped**。
 
 这不等于可上线：
 
@@ -137,7 +137,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. 默认下一刀：**ND-W3-06**（登录限流缺省接到 Redis），或 **ND-W3-13** Wave 3 收口评审。
+2. 默认下一刀：**ND-W3-13** Wave 3 收口评审，或 **ND-W3-04** / **ND-W3-07**。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。
@@ -150,7 +150,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ND-W3-01 worker Qdrant
     → ND-W3-02 Compose celery ingest（已完成）
         → ND-W3-12 Compose 注入 Qdrant/Redis（api+worker，已完成）
-            → ND-W3-06 登录限流缺省接到 Redis
+            → ND-W3-06 登录限流缺省接到 Redis（已完成）
             → ND-W3-13 Wave 3 收口评审
             → ND-W3-03 真实解析库
 ND-W3-04 导出任务 PG    ∥ 可与 A1 并行
