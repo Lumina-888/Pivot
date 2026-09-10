@@ -5,7 +5,7 @@
 - Dockerfile 钉 `python:3.12.10-slim-bookworm`，`CMD` 为 `uvicorn pivot.http.main:app --factory`。
 - Compose `api` 镜像 tag `pivot-api:0.1.0`，端口 `127.0.0.1:8000`，healthcheck `/healthz`，依赖四存储 `service_healthy`。
 - 默认 `docker compose up` 仍只起依赖；`docker compose --profile app up` 才起 api。
-- TTL/检索 k、共享 PG/MinIO 与 celery ingest 变量由环境注入，fixture 占位不是冻结的 `TBD-P0`；未写 ECS 4C8G。
+- TTL/检索 k、共享 PG/MinIO/Qdrant/Redis 与 celery ingest 变量由环境注入，fixture 占位不是冻结的 `TBD-P0`；未写 ECS 4C8G。Qdrant/Redis 切片限制见 `compose-qdrant-redis.md`。
 - Dockerfile 安装 `./worker[celery]` 以便入队；不注入 `PIVOT_CELERY_EAGER`。celery 切片限制见 `compose-api-celery.md`。
 - worker Compose 服务见 `compose-worker.md`；无固定生产发布；无回滚演练。
 

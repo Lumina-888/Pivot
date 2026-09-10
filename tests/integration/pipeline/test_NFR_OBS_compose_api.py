@@ -17,6 +17,7 @@ _DOCKERFILE = _ROOT / "Dockerfile"
 _ENV_EXAMPLE = _ROOT / "ops" / "compose.env.example"
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "compose-api.md"
 _CELERY_EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "compose-api-celery.md"
+_QDRANT_REDIS_EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "compose-qdrant-redis.md"
 _LIMITS = _ROOT / "evidence" / "wave2-m11" / "limits.md"
 _INTENT = _ROOT / "ops" / "compose-intent.md"
 _WORKFLOW = _ROOT / ".github" / "workflows" / "ci.yml"
@@ -270,6 +271,94 @@ def test_NFR_OBS_compose_api_does_not_default_ingest_to_sync():
     assert "${PIVOT_INGEST:-celery}" not in api
     assert "${PIVOT_INGEST:?" in api
     assert "${PIVOT_CELERY_BROKER:?" in api
+
+
+_QDRANT_REDIS_ENV = (
+    "PIVOT_VECTOR_STORE",
+    "PIVOT_QDRANT_ENDPOINT",
+    "PIVOT_QDRANT_COLLECTION",
+    "PIVOT_QDRANT_VECTOR_SIZE",
+    "PIVOT_QDRANT_DISTANCE",
+    "PIVOT_QDRANT_ENSURE_COLLECTION",
+    "PIVOT_CACHE_STORE",
+    "PIVOT_QUEUE_STORE",
+    "PIVOT_REDIS_ENDPOINT",
+)
+
+
+def _example_assignment(example: str, key: str) -> str:
+    return next(
+        line.split("=", 1)[1].strip()
+        for line in example.splitlines()
+        if line.startswith(f"{key}=")
+    )
+
+
+def test_NFR_OBS_compose_api_injects_qdrant_redis_without_hardcoding():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    api = services["api"]
+    worker = services["worker"]
+    for key in _QDRANT_REDIS_ENV:
+        assert f"{key}:" in api
+        assert "${" + key in api
+        assert f"{key}:" in worker
+        assert "${" + key in worker
+    for body in (api, worker):
+        assert re.search(r"PIVOT_QDRANT_ENDPOINT:\s*https?://", body, re.I) is None
+        assert "qdrant:6333" not in body.lower()
+        assert re.search(r"PIVOT_QDRANT_VECTOR_SIZE:\s*\d+", body) is None
+        assert re.search(r"PIVOT_QDRANT_DISTANCE:\s*Cosine", body) is None
+        assert re.search(r"PIVOT_REDIS_ENDPOINT:\s*redis://", body) is None
+        assert "redis:6379" not in body.lower()
+        assert "redis://" not in body.lower()
+    example = _ENV_EXAMPLE.read_text(encoding="utf-8")
+    assert _example_assignment(example, "PIVOT_VECTOR_STORE") == "qdrant"
+    assert _example_assignment(example, "PIVOT_CACHE_STORE") == "redis"
+    assert _example_assignment(example, "PIVOT_QUEUE_STORE") == "redis"
+    assert _example_assignment(example, "PIVOT_QDRANT_ENDPOINT")
+    assert _example_assignment(example, "PIVOT_QDRANT_COLLECTION")
+    assert _example_assignment(example, "PIVOT_REDIS_ENDPOINT")
+    assert "TBD-P0" in example
+    intent = _INTENT.read_text(encoding="utf-8")
+    assert "qdrant" in intent.lower()
+    assert "redis" in intent.lower()
+
+
+def test_NFR_OBS_compose_api_does_not_default_vector_cache_to_memory():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    for name in ("api", "worker"):
+        body = services[name]
+        assert "${PIVOT_VECTOR_STORE:-memory}" not in body
+        assert "${PIVOT_CACHE_STORE:-memory}" not in body
+        assert "${PIVOT_QUEUE_STORE:-memory}" not in body
+        assert "${PIVOT_VECTOR_STORE:?" in body
+        assert "${PIVOT_CACHE_STORE:?" in body
+        assert "${PIVOT_QUEUE_STORE:?" in body
+
+
+def test_NFR_OBS_compose_redis_is_not_business_fact_store():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    intent = _INTENT.read_text(encoding="utf-8")
+    example = _ENV_EXAMPLE.read_text(encoding="utf-8")
+    evidence = _QDRANT_REDIS_EVIDENCE.read_text(encoding="utf-8")
+    for text in (compose, intent, example, evidence):
+        assert "不是" in text and "业务事实" in text
+    assert "PIVOT_STORAGE" in compose
+    assert "postgres" in example
+
+
+def test_GATE_P0_003_not_verified_by_compose_qdrant_redis():
+    evidence = _QDRANT_REDIS_EVIDENCE.read_text(encoding="utf-8")
+    assert "GATE-P0-003" in evidence
+    assert "unverified" in evidence.lower()
+    assert "qdrant" in evidence.lower()
+    assert "redis" in evidence.lower()
+    limits = _LIMITS.read_text(encoding="utf-8")
+    line = next(item for item in limits.splitlines() if "GATE-P0-003" in item)
+    assert "unverified" in line.lower()
+    assert "verified" not in line.lower().replace("unverified", "")
 
 
 def test_NFR_OBS_ci_does_not_build_or_start_compose_api():

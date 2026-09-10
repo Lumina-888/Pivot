@@ -1,0 +1,21 @@
+# 变更申请：Compose api/worker 注入 Qdrant/Redis
+
+- **日期**：2026-09-10
+- **申请人**：Wave 3 主线会话（M11 Compose 装配）
+- **工单**：ND-W3-12
+- **背景**：Compose api 与 worker 已共享 PG/MinIO，worker 已可注入 Qdrant 并装配 IndexPublisher，api 已注入 celery ingest。Compose api 的 vector/cache/queue 仍静默 `:-memory`，未注入 Qdrant/Redis 业务端口；worker 未注入 cache/queue/Redis endpoint。profile `app` 下检索与限流/缓存无法默认指向同一 VectorStore / 缓存端口。SPEC §2.1：Qdrant 是可重建检索副本，Redis 只保存队列/短期缓存/限流计数，不是业务事实源。CI 不得 `docker compose up` / `docker build`。不得把 fixture 标成 `GATE-P0-002` / `GATE-P0-003` / `GATE-P0-008` verified，不得冻结距离/TTL/维数。
+- **原契约/现状**：
+  - Compose `api`：`PIVOT_VECTOR_STORE` / `PIVOT_CACHE_STORE` / `PIVOT_QUEUE_STORE` 缺省 `memory`，无 `PIVOT_QDRANT_*` / `PIVOT_REDIS_ENDPOINT`；
+  - Compose `worker`：已注入 `PIVOT_VECTOR_STORE` / `PIVOT_QDRANT_*`（可静默 `:-memory`），无 cache/queue/Redis endpoint；
+  - `ops/compose.env.example` 仍写 `memory`，Qdrant 变量为注释占位；
+  - HTTP `assemble_runtime` 缺省仍 `memory`；选中 qdrant/redis 时已失败闭环。
+- **拟变更内容**（本切片）：
+  - Compose `api` 与 `worker` 注入同一套 `PIVOT_VECTOR_STORE` / `PIVOT_QDRANT_*` / `PIVOT_CACHE_STORE` / `PIVOT_QUEUE_STORE` / `PIVOT_REDIS_ENDPOINT`（`${}`，不写死 URL/维数/距离）；store 选择不静默 `:-memory`（`${:?}`），值仍允许 `memory`；
+  - `ops/compose.env.example` 的 app profile 占位改为 `qdrant` + `redis` 及 fixture 主机名（不是冻结 TBD-P0）；
+  - 证据与 intent 写明 Redis 不是业务事实源；
+  - **不** 改进程外 `assemble_runtime` 缺省 memory；**不** 在 CI `docker compose up` / `docker build`；**不** 把 Redis 当会话/文档事实源；**不** 冻结距离/TTL/维数；**不** 注入登录失败阈值（属 ND-W3-06）；**不** 把 `GATE-P0-002` / `GATE-P0-003` / `GATE-P0-008` 标 verified。
+- **影响模块**：M11（Compose api/worker 环境、pipeline 测试、证据、intent）；M03（只消费既有 VectorStore / CacheStore / QueueStore 端口）；M04/M07（只消费既有检索/IndexPublisher 接线）；M01（只消费既有 Redis 限流端口）；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：未开 `app` profile 时依赖 fixture 不变；进程外 `assemble_runtime` 缺省仍 memory；Compose app 缺 store 选择变量失败闭环；选中 qdrant/redis 而缺 endpoint 时运行时失败闭环，不回退静默 memory。
+- **测试 ID**：`test_NFR_OBS_compose_api_injects_qdrant_redis_without_hardcoding`、`test_NFR_OBS_compose_api_does_not_default_vector_cache_to_memory`、`test_NFR_OBS_compose_redis_is_not_business_fact_store`、`test_GATE_P0_003_not_verified_by_compose_qdrant_redis`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不冻结距离/TTL/维数；不把 Compose fixture 标成生产向量索引或缓存）。
+- **审核结果**：2026-09-10 Wave 3 主线会话 **批准**。
