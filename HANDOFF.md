@@ -1,6 +1,6 @@
 # 问枢 Pivot 会话交接清单
 
-> **日期**：2026-09-09  
+> **日期**：2026-09-10  
 > **性质**：聊天结论压缩。需求仍以 `SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 `MODULE_SPEC.md` 1.1 / `AGENTS.md` 为准。  
 > **本文件不是规范源。**
 
@@ -8,15 +8,15 @@
 
 1. 工作区：`E:/AI Project/Pivot`，分支：`main`。不要新建 worktree。
 2. 读：`AGENTS.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. 下一刀：**ingest→Qdrant**，或 Compose worker，或人工标注企业 Golden Set。
-4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web 文件 标成 `GATE-P0 verified`。
+3. 下一刀：**Compose worker**，或人工标注企业 Golden Set，或 HTTP 上传自动 ingest。
+4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web 文件 / Fake ingest upsert 标成 `GATE-P0 verified`。
 
 ## 1. 产品现状
 
-Python **369 passed / 11 skipped**；web foundation **15**。四类存储可注入客户端；导出字节可走 MinIO；dense 检索可消费 Qdrant；BM25 为 stdlib；Compose `api`+`web` 为 profile `app`；100k 为 opt-in 夹具；query Embedding / bge rerank 可注入 HTTP（CI Fake）；Golden Set v0.2 为 120 条合成样本。
+Python **379 passed / 11 skipped**；web foundation **15**。四类存储可注入客户端；导出字节可走 MinIO；dense 检索可消费 Qdrant；ingest `IndexPublisher` 可写入同一 VectorStore；BM25 为 stdlib；Compose `api`+`web` 为 profile `app`；100k 为 opt-in 夹具；query Embedding / bge rerank 可注入 HTTP（CI Fake）；Golden Set v0.2 为 120 条合成样本。
 
 - `PIVOT_OBJECT_STORE=minio` 装配文档 **与导出** 对象；`presign` 不做公开下载
-- `PIVOT_VECTOR_STORE=qdrant` 时 dense 为 `VectorStoreRetriever`
+- `PIVOT_VECTOR_STORE=qdrant` 时 dense 为 `VectorStoreRetriever`；ingest 写入该端口（CI 内存 client）
 - `PIVOT_EMBEDDING=hash|http`（默认 hash）；`http` 需 endpoint/model/key 且要求 qdrant
 - `PIVOT_BM25_K1`/`PIVOT_BM25_B` 同时注入时 BM25 为 `Bm25Retriever`；`PIVOT_RERANK=none|overlap|bm25|bge`
 - 5 路 Fake `retrieve` 可并发完成；进程内备份 roundtrip 已有
@@ -26,14 +26,14 @@ Python **369 passed / 11 skipped**；web foundation **15**。四类存储可注�
 
 ## 2. 已知缺口（按优先级）
 
-1. 登录限流未接 Redis；无 Celery；导出任务仍内存；无 ingest→Qdrant
+1. 登录限流未接 Redis；无 Celery；导出任务仍内存；HTTP 上传不自动跑 ingest
 2. Golden Set 120 条仍为合成，非企业人工标注；无 Qdrant 100k 索引峰值；无新 ECS 备份恢复；无 live Embedding/rerank 冒烟
 3. PATCH `/admin/users/{id}` 只改 status；`must_change_password` 不入库
 4. 无 Compose worker
 
 ## 3. 下一刀建议
 
-合成 Golden Set 已扩到 120 条（不冻结 NFR-QUAL，不标 GATE verified）。下一刀 ingest→Qdrant，或 Compose worker，或人工标注企业 Golden Set。
+ingest→Qdrant 已接线（Fake upsert，不冻结维数，不标 GATE verified）。下一刀 Compose worker，或人工标注企业 Golden Set，或 HTTP 上传自动 ingest。
 
 ## 4. 纪律（未改）
 
