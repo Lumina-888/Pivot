@@ -16,6 +16,7 @@ _COMPOSE = _ROOT / "docker-compose.yml"
 _DOCKERFILE = _ROOT / "Dockerfile"
 _ENV_EXAMPLE = _ROOT / "ops" / "compose.env.example"
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "compose-api.md"
+_CELERY_EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "compose-api-celery.md"
 _LIMITS = _ROOT / "evidence" / "wave2-m11" / "limits.md"
 _INTENT = _ROOT / "ops" / "compose-intent.md"
 _WORKFLOW = _ROOT / ".github" / "workflows" / "ci.yml"
@@ -91,6 +92,19 @@ def test_NFR_OBS_api_dockerfile_pins_python_and_uvicorn_factory():
     assert "8000" in text
     assert ".env" not in text
     assert "PIVOT_TOKEN_SECRET" not in text
+    assert "redis://" not in text.lower()
+    assert "PIVOT_INGEST" not in text
+
+
+def test_NFR_OBS_api_dockerfile_installs_celery_extra():
+    text = _DOCKERFILE.read_text(encoding="utf-8")
+    assert "COPY worker" in text or "COPY worker/" in text
+    assert "worker[celery]" in text
+    assert "./worker[celery]" in text or '"worker[celery]"' in text
+    assert "uvicorn" in text
+    assert "pivot.http.main:app" in text
+    assert "--factory" in text
+    assert "celery worker" not in text.lower()
 
 
 def test_NFR_OBS_compose_api_service_is_profiled_with_healthcheck():
@@ -188,6 +202,76 @@ def test_NFR_OBS_compose_api_does_not_default_storage_to_memory():
     assert "${PIVOT_OBJECT_STORE:?" in api
 
 
+_CELERY_INGEST_ENV = (
+    "PIVOT_INGEST",
+    "PIVOT_PARSE_QUEUE",
+    "PIVOT_ONLINE_QUEUE",
+    "PIVOT_WORKER_CONCURRENCY",
+    "PIVOT_CELERY_BROKER",
+)
+
+
+def test_NFR_OBS_compose_api_injects_celery_ingest_without_hardcoding():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    api = services["api"]
+    worker = services["worker"]
+    for key in _CELERY_INGEST_ENV:
+        assert f"{key}:" in api
+        assert "${" + key in api
+    for key in (
+        "PIVOT_PARSE_QUEUE",
+        "PIVOT_ONLINE_QUEUE",
+        "PIVOT_WORKER_CONCURRENCY",
+        "PIVOT_CELERY_BROKER",
+    ):
+        assert f"{key}:" in worker
+        assert "${" + key in worker
+    assert re.search(r"PIVOT_CELERY_BROKER:\s*redis://", api) is None
+    assert "redis://" not in api.lower()
+    assert re.search(r"PIVOT_INGEST:\s*celery\s*$", api, re.M) is None
+    assert re.search(r"PIVOT_WORKER_CONCURRENCY:\s*\d+", api) is None
+    assert "PIVOT_CELERY_EAGER" not in api
+    example = _ENV_EXAMPLE.read_text(encoding="utf-8")
+    ingest = next(
+        line.split("=", 1)[1].strip()
+        for line in example.splitlines()
+        if line.startswith("PIVOT_INGEST=")
+    )
+    assert ingest == "celery"
+    parse_value = next(
+        line.split("=", 1)[1].strip()
+        for line in example.splitlines()
+        if line.startswith("PIVOT_PARSE_QUEUE=")
+    )
+    online_value = next(
+        line.split("=", 1)[1].strip()
+        for line in example.splitlines()
+        if line.startswith("PIVOT_ONLINE_QUEUE=")
+    )
+    assert parse_value
+    assert online_value
+    assert parse_value != online_value
+    assert "PIVOT_CELERY_BROKER=" in example
+    assert "TBD-P0" in example
+    eager_lines = [
+        line
+        for line in example.splitlines()
+        if line.startswith("PIVOT_CELERY_EAGER=")
+    ]
+    assert eager_lines == []
+
+
+def test_NFR_OBS_compose_api_does_not_default_ingest_to_sync():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    api = services["api"]
+    assert "${PIVOT_INGEST:-sync}" not in api
+    assert "${PIVOT_INGEST:-celery}" not in api
+    assert "${PIVOT_INGEST:?" in api
+    assert "${PIVOT_CELERY_BROKER:?" in api
+
+
 def test_NFR_OBS_ci_does_not_build_or_start_compose_api():
     workflow = _WORKFLOW.read_text(encoding="utf-8").lower()
     assert "docker compose" not in workflow
@@ -227,5 +311,17 @@ def test_GATE_P0_008_not_verified_by_compose_api():
     assert "Dockerfile" in evidence or "dockerfile" in evidence.lower()
     limits = _LIMITS.read_text(encoding="utf-8")
     line = next(item for item in limits.splitlines() if "GATE-P0-008" in item)
+    assert "unverified" in line.lower()
+    assert "verified" not in line.lower().replace("unverified", "")
+
+
+def test_GATE_P0_003_not_verified_by_compose_api_celery():
+    evidence = _CELERY_EVIDENCE.read_text(encoding="utf-8")
+    assert "GATE-P0-003" in evidence
+    assert "unverified" in evidence.lower()
+    assert "PIVOT_INGEST" in evidence
+    assert "eager" in evidence.lower()
+    limits = _LIMITS.read_text(encoding="utf-8")
+    line = next(item for item in limits.splitlines() if "GATE-P0-003" in item)
     assert "unverified" in line.lower()
     assert "verified" not in line.lower().replace("unverified", "")

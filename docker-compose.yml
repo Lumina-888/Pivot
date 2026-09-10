@@ -4,6 +4,7 @@
 # Default `docker compose up` starts postgres/minio/qdrant/redis only.
 # api, web and worker are profile `app`: `docker compose --profile app up`.
 # api and worker inject shared PG/MinIO vars; worker also injects Qdrant vars.
+# api injects PIVOT_INGEST / queues / concurrency / Celery broker (not hard-coded).
 # worker Celery broker URL is injected, not hard-coded.
 # FastAPI composition root:
 #   uvicorn pivot.http.main:app --factory
@@ -92,6 +93,11 @@ services:
       PIVOT_MINIO_BUCKET: ${PIVOT_MINIO_BUCKET:?set PIVOT_MINIO_BUCKET}
       PIVOT_MINIO_ACCESS_KEY: ${PIVOT_MINIO_ACCESS_KEY:?set PIVOT_MINIO_ACCESS_KEY}
       PIVOT_MINIO_SECRET_KEY: ${PIVOT_MINIO_SECRET_KEY:?set PIVOT_MINIO_SECRET_KEY}
+      PIVOT_INGEST: ${PIVOT_INGEST:?set PIVOT_INGEST}
+      PIVOT_PARSE_QUEUE: ${PIVOT_PARSE_QUEUE:?set PIVOT_PARSE_QUEUE}
+      PIVOT_ONLINE_QUEUE: ${PIVOT_ONLINE_QUEUE:?set PIVOT_ONLINE_QUEUE}
+      PIVOT_WORKER_CONCURRENCY: ${PIVOT_WORKER_CONCURRENCY:?set PIVOT_WORKER_CONCURRENCY}
+      PIVOT_CELERY_BROKER: ${PIVOT_CELERY_BROKER:?set PIVOT_CELERY_BROKER}
       PIVOT_VECTOR_STORE: ${PIVOT_VECTOR_STORE:-memory}
       PIVOT_CACHE_STORE: ${PIVOT_CACHE_STORE:-memory}
       PIVOT_QUEUE_STORE: ${PIVOT_QUEUE_STORE:-memory}

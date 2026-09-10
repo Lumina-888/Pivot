@@ -10,8 +10,10 @@ WORKDIR /app
 
 COPY api/pyproject.toml /app/api/pyproject.toml
 COPY api/src /app/api/src
+COPY worker/pyproject.toml /app/worker/pyproject.toml
+COPY worker/src /app/worker/src
 
-RUN pip install "./api[http,postgres,minio,qdrant,redis]"
+RUN pip install "./api[http,postgres,minio,qdrant,redis]" "./worker[celery]"
 
 EXPOSE 8000
 
