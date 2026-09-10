@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-09-10  
-> **HEAD**：`main`，tag 目标 `wave-3-integrated` / `M11-v0.21.0`  
+> **HEAD**：`aa7a4ca`（`main`，tag `wave-3-integrated` / `M11-v0.21.0`）  
 > **性质**：聊天结论压缩。需求仍以 `SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 `MODULE_SPEC.md` 1.1 / `AGENTS.md` 为准。  
 > **本文件不是规范源。**
 
