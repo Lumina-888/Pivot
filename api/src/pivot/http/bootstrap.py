@@ -10,6 +10,7 @@ from sqlalchemy.engine import Engine
 
 from pivot.audit.service import AuditService
 from pivot.audit.store import AppendOnlyAuditStore
+from pivot.auth.attempts import CacheLoginAttempts
 from pivot.auth.ports import UserAccount, UserDirectory
 from pivot.auth.service import AuthService
 from pivot.auth.tokens import TokenService
@@ -83,6 +84,7 @@ class RuntimeAssembly:
     index: object | None = None
     ingest_embedding: object | None = None
     ingest: object | None = None
+    attempts: object | None = None
 
 
 class _RuntimeProbes:
@@ -422,6 +424,18 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
                 )
             )
     resources = InMemoryResources()
+    if (
+        resolved.login_max_failures is not None
+        and resolved.login_window_seconds is not None
+        and cache_port is not None
+    ):
+        attempts: object = CacheLoginAttempts(
+            cache_port,
+            max_failures=resolved.login_max_failures,
+            window_seconds=resolved.login_window_seconds,
+        )
+    else:
+        attempts = InMemoryAttempts()
     auth = AuthService(
         users=users,
         hasher=hasher,
@@ -432,7 +446,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         ),
         refresh_tokens=InMemoryRefreshStore(),
         audits=InMemoryAuthAudit(),
-        attempts=InMemoryAttempts(),
+        attempts=attempts,
         access=AccessControl(resources),
         clock=clock,
         access_ttl=resolved.access_ttl,
@@ -547,6 +561,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         index=index_publisher,
         ingest_embedding=ingest_embedding,
         ingest=ingest_runner,
+        attempts=attempts,
     )
 
 

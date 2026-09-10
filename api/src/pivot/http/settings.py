@@ -142,6 +142,8 @@ class RuntimeSettings:
     redis_db: int | None = None
     redis_key_prefix: str = "pivot:"
     redis_client: object | None = None
+    login_max_failures: int | None = None
+    login_window_seconds: int | None = None
 
     def __post_init__(self) -> None:
         if not self.token_secret.strip():
@@ -196,6 +198,15 @@ class RuntimeSettings:
             raise RuntimeError(
                 "PIVOT_RERANK_ENDPOINT, PIVOT_RERANK_MODEL, and "
                 "PIVOT_RERANK_API_KEY are required when PIVOT_RERANK=bge"
+            )
+        if (self.login_max_failures is None) != (self.login_window_seconds is None):
+            raise RuntimeError(
+                "PIVOT_LOGIN_MAX_FAILURES and PIVOT_LOGIN_WINDOW_SECONDS "
+                "must both be set or both omitted"
+            )
+        if self.login_max_failures is not None and self.cache_store != "redis":
+            raise RuntimeError(
+                "PIVOT_LOGIN_MAX_FAILURES requires PIVOT_CACHE_STORE=redis"
             )
 
     @classmethod
@@ -257,4 +268,8 @@ class RuntimeSettings:
             redis_db=_optional_non_negative_int(env, "PIVOT_REDIS_DB"),
             redis_key_prefix=(env.get("PIVOT_REDIS_KEY_PREFIX") or "pivot:").strip()
             or "pivot:",
+            login_max_failures=_optional_int_or_none(env, "PIVOT_LOGIN_MAX_FAILURES"),
+            login_window_seconds=_optional_int_or_none(
+                env, "PIVOT_LOGIN_WINDOW_SECONDS"
+            ),
         )
