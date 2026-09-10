@@ -12,8 +12,9 @@
 3. 读取 `MODULE_SPEC.md`；
 4. 读取本文件和本切片涉及的 `progress/modules/Mxx.md`；
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
+6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)（不是需求源）。
 
-如果没有指定切片：继续 **Wave 3**。存储客户端、Golden Set v0.2（120 条合成）、导出 MinIO、检索 dense 消费 Qdrant、ingest→Qdrant、HTTP 上传进程内 ingest、5 并发/进程内备份、stdlib BM25、Compose api+web+worker（profile `app`，api 与 worker 注入共享 PG/MinIO；worker 为注入 broker 的 Celery fixture）、100k opt-in 夹具、HTTP Embedding/bge 适配器、可注入 Redis 登录限流、PG 文档事实、`PIVOT_INGEST=celery` eager、Compose Celery worker 与 worker 共享 MinIO/PG ingest runner 已在 main；下一刀是人工标注企业 Golden Set，或 worker 接 Qdrant，或 Compose api 注入 `PIVOT_INGEST=celery`。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 标成 GATE verified。不要新建 worktree。
+如果没有指定切片：继续 **Wave 3**。默认下一刀 **ND-W3-01**（worker 接 Qdrant）或 **ND-W3-02**（Compose api celery ingest）。存储客户端、Golden Set v0.2（120 条合成）、导出 MinIO、检索 dense 消费 Qdrant、ingest→Qdrant、HTTP 上传进程内 ingest、5 并发/进程内备份、stdlib BM25、Compose api+web+worker（profile `app`，api 与 worker 注入共享 PG/MinIO；worker 为注入 broker 的 Celery fixture）、100k opt-in 夹具、HTTP Embedding/bge 适配器、可注入 Redis 登录限流、PG 文档事实、`PIVOT_INGEST=celery` eager、Compose Celery worker 与 worker 共享 MinIO/PG ingest runner 已在 main；下一刀是人工标注企业 Golden Set，或 worker 接 Qdrant，或 Compose api 注入 `PIVOT_INGEST=celery`。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 

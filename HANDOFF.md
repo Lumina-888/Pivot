@@ -9,7 +9,7 @@
 
 1. 工作区：`E:/AI Project/Pivot`，分支：`main`。不要新建 worktree。
 2. 读：`AGENTS.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. 下一刀：**人工标注企业 Golden Set**（人才能做），或 **worker 接 Qdrant**，或 **Compose api 注入 `PIVOT_INGEST=celery`**。
+3. 下一刀：见 [`progress/tickets.md`](progress/tickets.md)。默认工程刀 **ND-W3-01**（worker 接 Qdrant）或 **ND-W3-02**（Compose api celery ingest）；人工刀 **ND-P0-01** 企业 Golden Set。
 4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 标成 `GATE-P0 verified`。
 
 ## 1. 产品现状
