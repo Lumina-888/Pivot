@@ -33,7 +33,7 @@
 | M08 Web 基础 | integrated | `main`（tag `M08-v0.3.0`） | `contract-v0.1` | M08 18 tests + SSE 去缓冲 Route Handler + typecheck/lint 通过 | Compose web 由 M11 装配 |
 | M09 员工前台 | integrated | `main`（tag 目标 `M09-v0.2.0`） | `wave-1-integrated` | 13 Fake + followRunEvents + opt-in Playwright 十页 | Chrome/Edge 版本仍 TBD-P0 |
 | M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 Fake + opt-in Playwright 后台页 | `/admin/metrics` `/admin/tasks` HTTP 仍未挂 |
-| M11 集成/质量/运维 | in_progress | `main`（tag 目标 `M11-v0.24.0` / `wave-3-integrated`） | `wave-3-integrated` | 分组回归见本切片日志 | GATE-P0 仍全部 unverified；SSE 长连接为夹具；staging overlay 已入库，ECS apply 待 Owner SSH/安全组/磁盘 |
+| M11 集成/质量/运维 | in_progress | `main`（tag `M11-v0.24.0` / `wave-3-integrated`） | `wave-3-integrated` | 分组回归见本切片日志 | GATE-P0 仍全部 unverified；SSE 长连接为夹具；staging overlay 已入库，ECS apply 待 Owner SSH/安全组/磁盘 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护。历史 `../Pivot-Mxx-*` worktree 不再使用。
 
