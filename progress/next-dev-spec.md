@@ -1,6 +1,6 @@
 # 问枢 Pivot 后续开发规格（Wave 3 收口 → P0 闸门）
 
-> **文档 ID**：`NEXT-DEV-1.8`  
+> **文档 ID**：`NEXT-DEV-1.9`  
 > **日期**：2026-09-14  
 > **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，**不等于** P0 通过）。  
 > **性质**：开发计划与工单拆分。  
@@ -14,7 +14,7 @@ Owner 已确认近期目标是 **`dev-staging`（开发者调试环境）**，�
 
 ## 0. 当前判断
 
-产品处于 **Wave 3 夹具已收口**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO/Qdrant/Redis 注入；api 注入 celery ingest 与登录限流阈值/窗口；worker 可接 Qdrant；导出任务可走 SQLAlchemy；PATCH 角色/重置密码 HTTP；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；dev-staging Compose overlay 已入库）已在 `main`。分组 Python 以本切片回归为准。
+产品处于 **Wave 3 夹具已收口**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO/Qdrant/Redis 注入；api 注入 celery ingest 与登录限流阈值/窗口；worker 可接 Qdrant；导出任务可走 SQLAlchemy；PATCH 角色/重置密码 HTTP；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；dev-staging Compose overlay 已入库；hashed refresh 与 Conversation 可跨装配）已在 `main`。分组 Python 以本切片回归为准。
 
 这不等于可上线：
 
@@ -107,8 +107,8 @@ Phase A 可以与规章制度样本准备并行。**B 未完成前禁止把系�
 | 检索 dense+BM25 | Qdrant 端口 + stdlib BM25 + Fake/HTTP 适配；ingest/检索可共用注入 HTTP Embedding | 无 live embedding；Golden Set 合成 | A1, B1 |
 | 解析 | 启发式 PDF + stdlib OOXML | PyMuPDF/python-docx 等仍暂缓 | A3 |
 | 导出 | HTTP + MinIO 字节 + signer；任务可走 SQLAlchemy（CI sqlite） | 无对象字节下载路由（契约如此，不单开破坏契约的票） | A2 |
-| 认证 | 登录/改密/用户 HTTP；Redis 限流可注入；PATCH 角色/重置 | refresh 仍 memory；阈值 TBD-P0；初始密码传递机制 TBD-P0 | A2, B2 |
-| QA/SSE | 主图 + Run/SSE HTTP | 同步补发非长连接；LangGraph extra 暂缓；Verifier 阈值未冻 | A3, B1 |
+| 认证 | 登录/改密/用户 HTTP；Redis 限流可注入；PATCH 角色/重置；hashed refresh 可走 SQLAlchemy（CI sqlite） | Run/EventLog 仍 memory；阈值 TBD-P0；初始密码传递机制 TBD-P0 | A2, B2 |
+| QA/SSE | 主图 + Run/SSE HTTP；Conversation 可走 SQLAlchemy（CI sqlite） | Run/EventLog 仍 memory；同步补发非长连接；LangGraph extra 暂缓；Verifier 阈值未冻 | A2, A3, B1 |
 | Web | 10 页 Fake fetch；opt-in Playwright 登录 | 完整十页 Playwright；SSE 缓冲 | A3, C |
 | 运维 | Dockerfile/Compose profile `app` | CI 不启动；无固定发布/回滚；无新 ECS/加密 OSS | B3 |
 | 质量 | Golden Set v0.2-synthetic 120 | 企业标注、盲评、NFR-QUAL 实测 | B1 |
@@ -137,7 +137,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. 默认下一刀：**ND-W3-05** 会话/refresh 跨进程。ND-STG-04 overlay 已入库；ECS apply 待 Owner SSH/安全组/磁盘/域名。
+2. 默认下一刀：**Run/EventLog 跨进程**（ND-W3-05 余量），或 ND-W3-08 SSE，或 ND-W3-03 真实解析库。ND-STG-04 overlay 已入库；ECS apply 待 Owner SSH/安全组/磁盘/域名。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。
@@ -159,7 +159,10 @@ ND-STG-01 ingest/检索共用 HTTP Embedding（已完成）
 ND-STG-02 Deepseek-Flash Writer（已完成）
 ND-STG-03 MinerU 云解析器（已完成）
 ND-STG-04 overlay 已入库；ECS apply 待 Owner
-ND-W3-05 会话/refresh 跨进程  ← 默认下一刀
+ND-W3-05 会话/refresh 跨进程（已完成；Run/EventLog 仍 memory）
+Run/EventLog 跨进程  ← 默认下一刀（A2 余量）
+ND-W3-08 SSE 长连接
+ND-W3-03 真实解析库
 ND-P0-01 企业 Golden Set（人工，随时可开，不阻塞 A1）
 ND-P0-02 外发审批（人工，阻塞真实企业文档）
 wave-3-integrated 已打（仍全部 GATE unverified）
@@ -181,3 +184,4 @@ wave-3-integrated 已打（仍全部 GATE unverified）
 | 1.6 | 2026-09-14 | ND-STG-02 Deepseek-Flash Writer 已完成；默认下一刀 ND-STG-03 / ND-W3-05 |
 | 1.7 | 2026-09-14 | ND-STG-03 MinerU 云解析器已完成；默认下一刀 ND-STG-04 / ND-W3-05 |
 | 1.8 | 2026-09-14 | ND-STG-04 staging Compose overlay 已入库；ECS apply 待 Owner；默认下一刀 ND-W3-05 |
+| 1.9 | 2026-09-14 | ND-W3-05 refresh/Conversation 跨进程已完成；Run 仍 memory；默认下一刀 Run/EventLog 或 ND-W3-08 / ND-W3-03 |

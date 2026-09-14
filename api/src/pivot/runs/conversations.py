@@ -1,9 +1,10 @@
-"""In-memory conversation directory used by HTTP CRUD (FR-RBAC-002)."""
+"""Conversation directory used by HTTP CRUD (FR-RBAC-002)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Protocol
 
 from pivot.runs.errors import not_found
 from pivot.runs.service import RunService
@@ -29,9 +30,37 @@ class ConversationRecord:
     hidden: bool = False
 
 
-class ConversationService:
-    def __init__(self, runs: RunService | None = None) -> None:
+class ConversationStore(Protocol):
+    def save(self, record: ConversationRecord) -> None: ...
+
+    def get(self, conversation_id: str) -> ConversationRecord | None: ...
+
+    def list_for_owner(self, owner_id: str) -> tuple[ConversationRecord, ...]: ...
+
+
+class InMemoryConversationStore:
+    def __init__(self) -> None:
         self._items: dict[str, ConversationRecord] = {}
+
+    def save(self, record: ConversationRecord) -> None:
+        self._items[record.id] = record
+
+    def get(self, conversation_id: str) -> ConversationRecord | None:
+        return self._items.get(conversation_id)
+
+    def list_for_owner(self, owner_id: str) -> tuple[ConversationRecord, ...]:
+        items = [record for record in self._items.values() if record.owner_id == owner_id]
+        items.sort(key=lambda item: item.updated_at, reverse=True)
+        return tuple(items)
+
+
+class ConversationService:
+    def __init__(
+        self,
+        runs: RunService | None = None,
+        store: ConversationStore | None = None,
+    ) -> None:
+        self._store = store or InMemoryConversationStore()
         self._runs = runs
 
     def create(
@@ -60,28 +89,28 @@ class ConversationService:
             created_at=now,
             updated_at=now,
         )
-        self._items[record.id] = record
+        self._store.save(record)
         return record
 
+    def lookup(self, conversation_id: str) -> ConversationRecord | None:
+        return self._store.get(conversation_id)
+
     def get(self, conversation_id: str, request_id: str) -> ConversationRecord:
-        record = self._items.get(conversation_id)
+        record = self.lookup(conversation_id)
         if record is None or record.hidden:
             raise not_found(request_id)
         return record
 
     def list_for_owner(self, owner_id: str) -> tuple[ConversationRecord, ...]:
-        items = [
-            record
-            for record in self._items.values()
-            if record.owner_id == owner_id and not record.hidden
-        ]
-        items.sort(key=lambda item: item.updated_at, reverse=True)
-        return tuple(items)
+        return tuple(
+            record for record in self._store.list_for_owner(owner_id) if not record.hidden
+        )
 
     def hide(self, conversation_id: str, request_id: str) -> None:
         record = self.get(conversation_id, request_id)
         record.hidden = True
         record.updated_at = utc_now()
+        self._store.save(record)
 
     def to_summary(self, record: ConversationRecord) -> dict[str, str | None]:
         return {

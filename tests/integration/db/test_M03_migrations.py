@@ -22,6 +22,8 @@ def test_M03_migrations_upgrade_and_downgrade(tmp_path):
     assert "users" in tables
     assert "document_versions" in tables
     assert "audit_events" in tables
+    assert "refresh_sessions" in tables
+    assert "conversations" in tables
     command.downgrade(config, "base")
     # Alembic keeps its version bookkeeping table after downgrade; business tables are gone.
     assert inspect(engine).get_table_names() == ["alembic_version"]

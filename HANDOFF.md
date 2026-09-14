@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-09-14  
-> **HEAD**：`1bfc5d3`（`main`，tag `M11-v0.23.0`）。  
+> **HEAD**：待本切片提交（`main`）。  
 > **性质**：聊天结论压缩。需求仍以 `SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 `MODULE_SPEC.md` 1.1 / `AGENTS.md` 为准。  
 > **本文件不是规范源。**
 
@@ -9,18 +9,18 @@
 
 1. 工作区：`E:/AI Project/Pivot`，分支：`main`。不要新建 worktree。
 2. 读：`AGENTS.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. 下一刀：**ND-W3-05** 会话/refresh 跨进程。ND-STG-04 overlay 已入库；**ECS apply 仍要 Owner 的 SSH/安全组/磁盘/域名**，编码会话不得冒充上机。staging：硅基仅 embedding/rerank；DeepSeek 官方 `deepseek-flash`；小米官方 `mimo-v2.5`；MinerU 官方云。见 `progress/changes/20260910-M00-dev-staging-vendors.md`。
-4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / **Wave 3 夹具收口** / PATCH 角色 HTTP / **ingest 共用 HTTP Embedding** / **Fake HTTP Writer** / **Fake MinerU 解析器** / **staging Compose overlay** 标成 `GATE-P0 verified`。`wave-3-integrated` **不等于** P0 通过。
+3. 下一刀：**Run/EventLog 跨进程**（ND-W3-05 余量），或 ND-W3-08 SSE，或 ND-W3-03 真实解析库。ND-STG-04 overlay 已入库；**ECS apply 仍要 Owner 的 SSH/安全组/磁盘/域名**，编码会话不得冒充上机。staging：硅基仅 embedding/rerank；DeepSeek 官方 `deepseek-flash`；小米官方 `mimo-v2.5`；MinerU 官方云。见 `progress/changes/20260910-M00-dev-staging-vendors.md`。
+4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / **Wave 3 夹具收口** / PATCH 角色 HTTP / **ingest 共用 HTTP Embedding** / **Fake HTTP Writer** / **Fake MinerU 解析器** / **staging Compose overlay** / **sqlite refresh/Conversation** 标成 `GATE-P0 verified`。`wave-3-integrated` **不等于** P0 通过。
 
 ## 1. 产品现状
 
-Python **557 passed / 13 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）。
+Python **565 passed / 13 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）。
 
 - Wave 3 夹具已收口：Compose api/web/worker（profile `app`）共享 PG/MinIO/Qdrant/Redis；api 注入 celery ingest 与登录限流阈值/窗口；worker 可接 Qdrant。
+- `PIVOT_STORAGE=postgres` 时用户目录、文档事实、导出任务、hashed refresh 与 Conversation 可跨装配（CI sqlite）；Run/EventLog 仍 memory。
 - `PIVOT_EMBEDDING=http` 时 ingest 与检索共用注入 `HttpQueryEmbedder`；Compose api/worker 注入同一套 `PIVOT_EMBEDDING*`；缺省仍 hash。
 - `PIVOT_LLM=http` 时装配注入 OpenAI 兼容 Draft Writer；主失败才切 `PIVOT_LLM_FALLBACK_*`；`external_llm_allowed=false` 不得外发；Compose 仅 api 注入 `PIVOT_LLM*`；缺省仍 local 证据拼接。
 - `PIVOT_PARSER=mineru` 时装配注入云 API 的 `MinerUCloudParser`；加密/损坏本地拦截；扫描件走云 OCR；Compose api/worker 注入同一套 `PIVOT_PARSER*`；缺省仍启发式/stdlib。
-- `PIVOT_STORAGE=postgres` 时导出任务可跨装配存活（CI sqlite）；公开 URL 仍 `PublicDownloadSigner`。
 - HTTP 缺省仍进程内 ingest。
 - `PATCH /admin/users/{id}` 已处理 `status` / `role` / `reset_password`。
 - Golden Set 仍为 v0.2-synthetic 120 条。GATE-P0 全部 unverified。
@@ -29,20 +29,20 @@ Python **557 passed / 13 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 2. 本会话完成的一刀
 
-1. ND-STG-04 阿里云 4C8G Compose overlay（未上机）
-   - 变更：`progress/changes/20260914-M11-compose-staging.md`
-   - 证据：`evidence/wave3-m11/compose-staging.md`
-   - 测试：`tests/integration/pipeline/test_NFR_OBS_compose_staging.py`
+1. ND-W3-05 会话/refresh 跨进程存储
+   - 变更：`progress/changes/20260914-M01-postgres-refresh-conversations.md`
+   - 证据：`evidence/wave3-m11/postgres-refresh-conversations.md`
+   - 测试：`tests/integration/pipeline/test_FR_AUTH_001_http_postgres_sessions.py`、`tests/integration/db/test_M03_refresh_store.py`、`tests/integration/db/test_M03_conversation_store.py`
 
 ## 3. 已知缺口（按优先级）
 
-1. HTTP 缺省仍请求内同步；无对象字节下载 HTTP（契约如此）；refresh/会话仍 memory
+1. HTTP 缺省仍请求内同步；无对象字节下载 HTTP（契约如此）；Run/EventLog 仍 memory（消息不跨装配）
 2. Golden Set 120 条仍为合成；无 Qdrant 100k 索引峰值；无新 ECS 备份恢复；无 live Embedding/rerank/Writer/MinerU 冒烟；staging ECS 未 apply
 3. `must_change_password` 不入库；version.idempotency_key 未入库；初始密码传递机制仍 TBD-P0
 
 ## 4. 下一刀建议（技术刀）
 
-**ND-W3-05** 会话/refresh 跨进程存储。
+**Run/EventLog 跨进程**（ND-W3-05 余量），或 ND-W3-08 SSE，或 ND-W3-03 真实解析库 extra。
 
 Owner 若提供 SSH/安全组/磁盘/域名，再实施 ND-STG-04 ECS apply（不得把 overlay 文件当成已部署）。
 

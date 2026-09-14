@@ -11,12 +11,13 @@ from pivot.db.models.conversations import (
     Run,
 )
 from pivot.db.models.documents import Chunk, Document, DocumentVersion, IndexGeneration
-from pivot.db.models.identity import User
+from pivot.db.models.identity import RefreshToken, User
 from pivot.db.models.operations import CeleryTask, ExportTask, ParseError, ProviderCall
 
 __all__ = [
     "Base",
     "User",
+    "RefreshToken",
     "Document",
     "DocumentVersion",
     "Chunk",

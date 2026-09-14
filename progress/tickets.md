@@ -17,7 +17,7 @@
 | ND-W3-12 | Compose api/worker 注入 Qdrant/Redis | A1 | S | M11 | §2.1, NFR-OBS | ND-W3-01 | done |
 | ND-W3-03 | 真实解析库 extra（PyMuPDF/docx/pptx/xlsx） | A3 | M | M07 | FR-DOC-004, §6.1 | `20260906-M07-worker-dependencies.md` | ready |
 | ND-W3-04 | 导出任务 PostgreSQL 持久化 | A2 | S | M06 | FR-EXPORT-001 | 无 | done |
-| ND-W3-05 | 会话/refresh 跨进程存储 | A2 | M | M01/M05 | FR-AUTH-001, FR-RBAC-002 | 无 | ready |
+| ND-W3-05 | 会话/refresh 跨进程存储 | A2 | M | M01/M05 | FR-AUTH-001, FR-RBAC-002 | 无 | done |
 | ND-W3-06 | 登录限流缺省接到 Redis（仍不冻阈值） | A2 | S | M01 | FR-AUTH-002 | ND-W3-12 | done |
 | ND-W3-07 | PATCH 角色 / 重置密码 HTTP | A2 | S | M01 | FR-AUTH-003 | 无 | done |
 | ND-W3-08 | SSE 长连接推送与缓冲 | A3 | M | M05/M08 | FR-STREAM-001~003 | 无 | ready |
@@ -110,6 +110,7 @@
 - **范围**：refresh 与会话/Run 在 `PIVOT_STORAGE=postgres` 时跨 api 实例存活；多 worker/api 不丢登录态。
 - **不做**：不把 Redis 当会话事实源（SPEC：Redis 非业务事实）。
 - **测试**：`test_FR_AUTH_001_refresh_survives_new_assembly`、`test_FR_RBAC_002_conversation_survives_new_assembly`。
+- **完成**：2026-09-14。`PIVOT_STORAGE=postgres` 时 hashed refresh 与 Conversation 跨装配存活；SQL 隐藏删除映射为删行；不新增 hidden 列；不把 Redis 当事实源。Run/EventLog 仍 memory。变更 `progress/changes/20260914-M01-postgres-refresh-conversations.md`。
 
 ### ND-W3-06 登录限流缺省接到 Redis
 
@@ -304,6 +305,6 @@
 工作区 E:/AI Project/Pivot，分支 main。
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
-本切片只做 <TICKET-ID>。默认下一刀 ND-W3-05。STG-04 ECS apply 待 Owner SSH/安全组/磁盘。先写 progress/changes/，再 Red。
+本切片只做 <TICKET-ID>。默认下一刀 Run/EventLog 跨进程，或 ND-W3-08 / ND-W3-03。STG-04 ECS apply 待 Owner SSH/安全组/磁盘。先写 progress/changes/，再 Red。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```

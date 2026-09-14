@@ -1,0 +1,23 @@
+# 变更申请：会话 / refresh 跨进程存储
+
+- **日期**：2026-09-14
+- **申请人**：Wave 3 主线会话（M03 持久化客户端 + M01 refresh 端口 + M05 会话端口 + M11 composition root）
+- **工单**：ND-W3-05
+- **背景**：`PIVOT_STORAGE=postgres` 已装配用户目录、文档事实与导出任务，但 `AuthService` 的 refresh 与 `ConversationService` 仍为进程内字典。多 api 实例会丢登录态与会话列表。SPEC §2.1 规定 PostgreSQL 是业务事实源，Redis 只作队列/短期状态，不得保存唯一业务事实。不得把 sqlite 标成生产事实源，不得冻结 access/refresh TTL（`TBD-P0`）。
+- **原契约/现状**：
+  - M01 `RefreshTokenStore` 端口已冻结（`save/get/revoke/revoke_user`）；refresh 仅存 SHA-256 哈希；HTTP 为 HttpOnly/Secure/SameSite Cookie；composition root 仍 `InMemoryRefreshStore()`；
+  - SPEC §2.2 无独立 Refresh 对象；会话对象为 `Conversation(conversation_id, owner_id, title, scope_type, scope_document_id, created_at, updated_at)`；
+  - M03 已有 `conversations` 模型与迁移；M05 HTTP 删除为隐藏（内存 `hidden` 标志）；composition root 仍内存 `ConversationService`；授权 catalog 的 conversation owner 也在内存；
+  - Run/EventLog/Claim/Citation 仍为内存；消息由已持久化 Run 合成。
+- **拟变更内容**（本切片）：
+  - M03 `refresh_sessions` 表 + `SqlAlchemyRefreshTokenStore`：只存 `token_hash/user_id/token_version/expires_at/revoked`；明文 refresh 不入库；`user_id` 依赖已有 User 行；
+  - M03 `SqlAlchemyConversationStore`：按现有 `conversations` 读写 SPEC §2.2 字段；**不** 新增 `hidden` / `deleted_at` 列；SQL 上将 HTTP 隐藏删除映射为删除该会话行（HTTP 仍 204/404）；内存实现仍用 `hidden`，以免改既有单测；
+  - M05 `ConversationService` 注入 `ConversationStore` 端口；缺省仍内存 store；
+  - M11：`PIVOT_STORAGE=postgres` 时 refresh 与会话与用户目录共用同一 session factory；授权 catalog 从会话 store 读取 owner，使第二装配仍能做归属校验；缺 URL 仍失败闭环；默认 `PIVOT_STORAGE=memory` 仍内存；
+  - **不** 把 Redis 当 refresh/会话事实源；**不** 冻结 TTL；**不** 把 `GATE-P0-003/005` 标 verified；
+  - **不** 本切片接入 Run/EventLog/Claim/Citation SQL（消息跨装配仍为空，直到后续切片）。
+- **影响模块**：M03（SQL 适配、迁移、db 测试）；M01（只消费既有 RefreshTokenStore 端口）；M05（会话 store 端口）；M11（bootstrap、pipeline 测试、证据）；M00（MODULE_SPEC §11 现状一句、矩阵认证/会话行）。
+- **兼容方案**：默认 `PIVOT_STORAGE=memory`；既有认证/会话单元与 HTTP 测试仍走内存 fake；CI sqlite 覆盖跨装配存活。
+- **测试 ID**：`test_M03_sqlalchemy_refresh_store_persists_hashed_session`、`test_M03_sqlalchemy_refresh_store_revoke_and_revoke_user`、`test_M03_sqlalchemy_conversation_store_persists_spec_fields`、`test_M03_sqlalchemy_conversation_store_hide_deletes_row`、`test_NFR_OBS_runtime_postgres_wires_refresh_and_conversations`、`test_FR_AUTH_001_refresh_survives_new_assembly`、`test_FR_RBAC_002_conversation_survives_new_assembly`、`test_GATE_P0_003_not_verified_by_postgres_sessions`。
+- **是否触发 ADR**：否（不改变登录/会话状态机、权限或引用/删除语义；不把 sqlite 标成生产事实源；不冻结 TBD-P0 TTL；不把 Redis 当事实源）。
+- **审核结果**：2026-09-14 Wave 3 主线会话 **批准**。

@@ -14,6 +14,7 @@ from pivot.auth.attempts import CacheLoginAttempts
 from pivot.auth.ports import UserAccount, UserDirectory
 from pivot.auth.service import AuthService
 from pivot.auth.tokens import TokenService
+from pivot.db.conversations import SqlAlchemyConversationStore
 from pivot.db.documents import (
     SqlAlchemyChunkStore,
     SqlAlchemyDocumentStore,
@@ -22,6 +23,7 @@ from pivot.db.documents import (
 )
 from pivot.db.exports import SqlAlchemyExportRepository
 from pivot.db.models import Base
+from pivot.db.refresh import SqlAlchemyRefreshTokenStore
 from pivot.db.session import create_db_engine, session_factory
 from pivot.db.users import SqlAlchemyUserDirectory
 from pivot.documents.service import DocumentService
@@ -60,7 +62,7 @@ from pivot.retrieval.providers import HttpBgeReranker, HttpQueryEmbedder, Stdlib
 from pivot.retrieval.service import RetrievalService
 from pivot.retrieval.tokenize import SimpleLexTokenizer
 from pivot.retrieval.vector import VectorStoreRetriever
-from pivot.runs.conversations import ConversationService
+from pivot.runs.conversations import ConversationService, InMemoryConversationStore
 from pivot.runs.service import RunService
 from pivot.security.passwords import Argon2idHasher
 from pivot.security.rbac import AccessControl
@@ -97,8 +99,34 @@ class RuntimeAssembly:
     attempts: object | None = None
     document_rows: object | None = None
     export_rows: object | None = None
+    refresh_tokens: object | None = None
+    conversation_rows: object | None = None
+    conversations: object | None = None
     draft_writer: object | None = None
     parsers: ParserRegistry | None = None
+
+
+class _ConversationBoundCatalog:
+    """Resource catalog that reads conversation owners from the session store."""
+
+    def __init__(self, inner: InMemoryResources, conversations: ConversationService) -> None:
+        self._inner = inner
+        self._conversations = conversations
+
+    def __getattr__(self, name: str):
+        return getattr(self._inner, name)
+
+    def get_conversation_owner(self, conversation_id: str) -> str | None:
+        record = self._conversations.lookup(conversation_id)
+        if record is not None:
+            return record.owner_id
+        return self._inner.get_conversation_owner(conversation_id)
+
+    def claim_conversation(self, conversation_id: str, owner_id: str) -> str:
+        record = self._conversations.lookup(conversation_id)
+        if record is not None:
+            return record.owner_id
+        return self._inner.claim_conversation(conversation_id, owner_id)
 
 
 class _RuntimeProbes:
@@ -505,6 +533,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     chunk_rows: object
     task_rows: object
     export_rows: object
+    refresh_tokens: object
+    conversation_rows: object
     if resolved.storage == "postgres":
         postgres_engine = _open_postgres_engine(resolved)
         sessions = session_factory(postgres_engine)
@@ -514,6 +544,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         chunk_rows = SqlAlchemyChunkStore(sessions)
         task_rows = SqlAlchemyTaskStore(sessions)
         export_rows = SqlAlchemyExportRepository(sessions)
+        refresh_tokens = SqlAlchemyRefreshTokenStore(sessions)
+        conversation_rows = SqlAlchemyConversationStore(sessions)
     else:
         users = InMemoryUserDirectory()
         document_rows = MemoryDocuments()
@@ -521,6 +553,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         chunk_rows = MemoryChunks()
         task_rows = MemoryTasks()
         export_rows = InMemoryExportRepository()
+        refresh_tokens = InMemoryRefreshStore()
+        conversation_rows = InMemoryConversationStore()
     if resolved.object_store == "minio":
         minio_store = _open_minio_store(resolved)
         document_objects = minio_store
@@ -564,6 +598,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
                 )
             )
     resources = InMemoryResources()
+    runs = RunService()
+    conversations = ConversationService(runs=runs, store=conversation_rows)
+    catalog = _ConversationBoundCatalog(resources, conversations)
     if (
         resolved.login_max_failures is not None
         and resolved.login_window_seconds is not None
@@ -584,10 +621,10 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             access_ttl=resolved.access_ttl,
             clock=clock,
         ),
-        refresh_tokens=InMemoryRefreshStore(),
+        refresh_tokens=refresh_tokens,
         audits=InMemoryAuthAudit(),
         attempts=attempts,
-        access=AccessControl(resources),
+        access=AccessControl(catalog),
         clock=clock,
         access_ttl=resolved.access_ttl,
         refresh_ttl=resolved.refresh_ttl,
@@ -658,13 +695,11 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         policy=policy,
         reranker=reranker,
     )
-    runs = RunService()
-    conversations = ConversationService(runs=runs)
     export_clock = UtcClock()
     audits = AuditService(AppendOnlyAuditStore(), export_clock)
     answers = MemoryAnswerStore()
     exports = ExportService(
-        access=MemoryExportAccess(export_rows, resources),
+        access=MemoryExportAccess(export_rows, catalog),
         answers=answers,
         exports=export_rows,
         objects=export_object_store,
@@ -716,6 +751,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         attempts=attempts,
         document_rows=document_rows,
         export_rows=export_rows,
+        refresh_tokens=refresh_tokens,
+        conversation_rows=conversation_rows,
+        conversations=conversations,
         draft_writer=draft_writer,
         parsers=parsers,
     )
