@@ -22,7 +22,7 @@
 | ND-W3-07 | PATCH 角色 / 重置密码 HTTP | A2 | S | M01 | FR-AUTH-003 | 无 | done |
 | ND-W3-08 | SSE 长连接推送与缓冲 | A3 | M | M05/M08 | FR-STREAM-001~003 | 无 | done |
 | ND-W3-09 | LangGraph extra（原暂缓变更） | A3 | M | M05 | FR-QA-001 | `20260906-M05-langgraph.md` | blocked |
-| ND-W3-10 | Playwright 十页 opt-in | A3/C | M | M09/M10/M11 | NFR-UX, GATE-P1 | ND-W3-02 建议 | ready |
+| ND-W3-10 | Playwright 十页 opt-in | A3/C | M | M09/M10/M11 | NFR-UX, GATE-P1 | ND-W3-02 建议 | done |
 | ND-W3-11 | version.idempotency_key 入库 | A2 | S | M03/M02 | FR-DOC-005 | 需变更申请；SPEC 字段确认 | blocked |
 | ND-W3-13 | Wave 3 收口评审 / tag | A | S | M11 | — | A1 完成 | done |
 | ND-W3-14 | Run/EventLog 跨进程存储 | A2 | S | M05/M03 | FR-STREAM-001~004 | ND-W3-05 | done |
@@ -162,10 +162,12 @@
 
 ### ND-W3-10 Playwright 十页 opt-in
 
+- **状态**：done（2026-09-14）
 - **规模 / Owner**：M / M09+M10，M11 装配
 - **映射**：NFR-UX、§12.3 P1 退出（10 页）
 - **范围**：`PIVOT_REQUIRE_PLAYWRIGHT=1` 覆盖前台 6 + 后台 4；CI 默认 skip。
 - **不做**：不把 Fake fetch 当浏览器证据；不标 GATE-P0-005 verified。
+- **完成**：2026-09-14。opt-in Chromium 覆盖 SPEC 十页；夹具播种共享文档与普通用户；UserShell 增加 sr-only「管理后台」供键盘/客户端跳转。变更 `progress/changes/20260914-M11-playwright-ten-pages.md`。
 
 ### ND-W3-11 version.idempotency_key 入库
 
@@ -318,6 +320,6 @@
 工作区 E:/AI Project/Pivot，分支 main。
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
-本切片只做 <TICKET-ID>。默认下一刀 ND-W3-10 Playwright 十页。STG-04 ECS apply 待 Owner SSH/安全组/磁盘。先写 progress/changes/，再 Red。
+本切片只做 <TICKET-ID>。默认下一刀人工标注企业 Golden Set，或 Owner 提供 SSH/安全组/磁盘后 ND-STG-04 ECS apply。先写 progress/changes/，再 Red。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```

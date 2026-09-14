@@ -1,0 +1,22 @@
+# 变更申请：opt-in Playwright 十页
+
+- **日期**：2026-09-14
+- **申请人**：Wave 3 主线会话（M11 E2E 装配 + M09/M10 只消费既有十页）
+- **工单**：ND-W3-10
+- **背景**：opt-in Playwright 仅覆盖登录进首页。SPEC §1.1 固定 10 个产品页面；§10.1 E2E 要求 10 页用户链路；§12.3 P1 退出写「10 页真实系统可用」。MODULE_SPEC / CI 禁止默认启动 uvicorn/Next/Compose。Cookie `Secure` 与 Chrome/Edge 版本仍不得冻结。
+- **原契约/现状**：
+  - 前台 6 页 + 后台 4 页 Fake fetch E2E 已绿；
+  - `PIVOT_REQUIRE_PLAYWRIGHT=1` 仅跑 `test_FR_AUTH_001_browser_login_reaches_home` 与错误口令文案；
+  - CI 默认 skip，不安装浏览器、不启动 uvicorn；
+  - `GATE-P0-005` unverified。
+- **拟变更内容**（本切片）：
+  - M11：同一 opt-in 开关覆盖 SPEC 十页（`/login`、`/`、`/library`、`/library/[id]`、`/search?q=`、`/chat`、`/admin`、`/admin/docs`、`/admin/users`、`/admin/audit`）；本机 `127.0.0.1` composition root + Next rewrite（不 Compose）；
+  - 夹具经 API 播种一篇共享文档与一名普通用户，供知识库/详情/后台列表与 RBAC 403 使用；
+  - M09：UserShell 增加 sr-only「管理后台」链接（隐藏入口仍由服务端 RBAC 决定；供键盘与客户端跳转，不改 Cookie `Secure`）；
+  - `ops/run_playwright_login.py` 同时跑登录与十页测试；
+  - **不**把 Fake fetch 当浏览器证据；**不**改 Cookie `Secure` / 登录状态机；**不**冻结 `NFR-UX-005` Chrome/Edge 版本；**不**标 `GATE-P0-005 verified`；**不**实现未挂载的 `/admin/metrics` `/admin/tasks` HTTP。
+- **影响模块**：M11（pipeline/ops/证据）；M09（sr-only 管理入口，不改路由语义）；M10（只消费既有页面）；M03（既有 `playwright` extra，不新增依赖）；M00（矩阵/MODULE_SPEC 现状一句）。
+- **兼容方案**：分组 CI 行为不变（仅增加默认 skip 的 opt-in 用例）；既有 Fake fetch 与登录 2 项保持。
+- **测试 ID**：`test_NFR_OBS_playwright_ten_pages_runner_is_opt_in`、`test_GATE_P0_005_not_verified_by_playwright_ten_pages`、`test_NFR_UX_browser_ten_pages_are_reachable`、`test_FR_SEARCH_001_browser_library_search_and_document`、`test_FR_QA_001_browser_chat_keeps_question_and_document_scope`、`test_FR_RBAC_001_browser_regular_user_admin_is_forbidden`、`test_FR_DOC_006_browser_admin_docs_users_and_audit`。
+- **是否触发 ADR**：否（不改变状态机、权限或引用/删除语义；不冻结 TBD-P0）。
+- **审核结果**：2026-09-14 Wave 3 主线会话 **批准**。

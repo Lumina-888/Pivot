@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Topbar } from "../../../components/layouts/Topbar";
 import { logout } from "../../../lib/auth/session";
@@ -27,6 +28,9 @@ export function UserShell({ children }: { children: ReactNode }) {
           router.push(searchPageHref(query));
         }}
       >
+        <Link href="/admin" className="sr-only">
+          管理后台
+        </Link>
         <button
           type="button"
           className="user-btn"

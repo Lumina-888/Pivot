@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Opt-in Playwright login through Next rewrite + composition root.
+"""Opt-in Playwright login and ten product pages through Next rewrite + composition root.
 
 Does not start Compose. Starts local uvicorn/Next only when this script is run.
 Does not mark GATE-P0 verified.
@@ -28,6 +28,7 @@ def main() -> int:
         "pytest",
         "-q",
         "tests/integration/pipeline/test_FR_AUTH_001_browser_login.py",
+        "tests/integration/pipeline/test_NFR_UX_browser_ten_pages.py",
     ]
     print("+", " ".join(command), flush=True)
     return subprocess.run(command, cwd=ROOT, env=env, check=False).returncode
