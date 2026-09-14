@@ -10,6 +10,12 @@ requires-python = ">=3.12,<3.13"
 
 [project.optional-dependencies]
 celery = ["celery>=5.4,<5.6"]
+parse = [
+  "pymupdf>=1.24,<1.27",
+  "python-docx>=1.1,<2.0",
+  "python-pptx>=1.0,<2.0",
+  "openpyxl>=3.1,<4.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

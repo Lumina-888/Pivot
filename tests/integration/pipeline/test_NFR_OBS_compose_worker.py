@@ -92,8 +92,8 @@ def test_NFR_OBS_worker_dockerfile_pins_python_and_module_entrypoint():
 
 def test_NFR_OBS_worker_dockerfile_installs_celery_extra():
     text = _DOCKERFILE.read_text(encoding="utf-8")
-    assert "worker[celery]" in text
-    assert "./worker[celery]" in text or '\"worker[celery]\"' in text
+    assert "worker[celery,parse]" in text
+    assert "./worker[celery,parse]" in text or '\"worker[celery,parse]\"' in text
 
 
 def test_NFR_OBS_compose_worker_service_is_profiled_with_healthcheck():

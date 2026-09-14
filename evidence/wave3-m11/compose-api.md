@@ -6,7 +6,7 @@
 - Compose `api` 镜像 tag `pivot-api:0.1.0`，端口 `127.0.0.1:8000`，healthcheck `/healthz`，依赖四存储 `service_healthy`。
 - 默认 `docker compose up` 仍只起依赖；`docker compose --profile app up` 才起 api。
 - TTL/检索 k、共享 PG/MinIO/Qdrant/Redis、celery ingest 与登录限流阈值/窗口由环境注入，fixture 占位不是冻结的 `TBD-P0`；未写 ECS 4C8G。Qdrant/Redis 切片限制见 `compose-qdrant-redis.md`；登录限流切片限制见 `compose-login-rate.md`。
-- Dockerfile 安装 `./worker[celery]` 以便入队；不注入 `PIVOT_CELERY_EAGER`。celery 切片限制见 `compose-api-celery.md`。
+- Dockerfile 安装 `./worker[celery,parse]` 以便入队并可选 native 解析；不注入 `PIVOT_CELERY_EAGER`。celery 切片限制见 `compose-api-celery.md`。
 - worker Compose 服务见 `compose-worker.md`；无固定生产发布；无回滚演练。
 
 | ID | 状态 | 原因 |

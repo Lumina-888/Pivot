@@ -15,7 +15,12 @@ from pivot.db.documents import (
 from pivot.db.models import Base
 from pivot.db.session import create_db_engine, session_factory
 from pivot.documents.service import DocumentService
-from pivot.parsing import ParserRegistry, StdlibMinerUHttpClient, mineru_parser_registry
+from pivot.parsing import (
+    ParserRegistry,
+    StdlibMinerUHttpClient,
+    mineru_parser_registry,
+    native_parser_registry,
+)
 from pivot.retrieval.fakes import HashingQueryEmbedder
 from pivot.retrieval.providers import HttpQueryEmbedder, StdlibJsonHttpClient
 from pivot.storage.adapters.minio import MinioObjectStore, connect_minio_client
@@ -161,10 +166,10 @@ class IngestAssemblySettings:
                     "PIVOT_EMBEDDING_ENDPOINT, PIVOT_EMBEDDING_MODEL, and "
                     "PIVOT_EMBEDDING_API_KEY are required when PIVOT_EMBEDDING=http"
                 )
-        if self.parser not in {"local", "mineru"}:
+        if self.parser not in {"local", "mineru", "native"}:
             raise RuntimeError(
                 "unsupported PIVOT_PARSER="
-                f"{self.parser!r}; this slice wires local or mineru"
+                f"{self.parser!r}; this slice wires local, mineru, or native"
             )
         if self.parser == "mineru" and not (
             self.parser_endpoint and self.parser_token
@@ -319,6 +324,8 @@ def _parser_http_client(settings: IngestAssemblySettings):
 
 
 def _ingest_parsers(settings: IngestAssemblySettings) -> ParserRegistry | None:
+    if settings.parser == "native":
+        return native_parser_registry()
     if settings.parser != "mineru":
         return None
     return mineru_parser_registry(

@@ -15,7 +15,7 @@
 | ND-W3-01 | worker 装配 Qdrant IndexPublisher | A1 | S | M07 | FR-DOC-006, FR-RAG-001 | 无 | done |
 | ND-W3-02 | Compose api 注入 `PIVOT_INGEST=celery` | A1 | S | M11 | FR-DOC-005, NFR-OBS | ND-W3-01 建议先 | done |
 | ND-W3-12 | Compose api/worker 注入 Qdrant/Redis | A1 | S | M11 | §2.1, NFR-OBS | ND-W3-01 | done |
-| ND-W3-03 | 真实解析库 extra（PyMuPDF/docx/pptx/xlsx） | A3 | M | M07 | FR-DOC-004, §6.1 | `20260906-M07-worker-dependencies.md` | ready |
+| ND-W3-03 | 真实解析库 extra（PyMuPDF/docx/pptx/xlsx） | A3 | M | M07 | FR-DOC-004, §6.1 | `20260906-M07-worker-dependencies.md` | done |
 | ND-W3-04 | 导出任务 PostgreSQL 持久化 | A2 | S | M06 | FR-EXPORT-001 | 无 | done |
 | ND-W3-05 | 会话/refresh 跨进程存储 | A2 | M | M01/M05 | FR-AUTH-001, FR-RBAC-002 | 无 | done |
 | ND-W3-06 | 登录限流缺省接到 Redis（仍不冻阈值） | A2 | S | M01 | FR-AUTH-002 | ND-W3-12 | done |
@@ -94,6 +94,7 @@
 - **范围**：`worker` optional extra：PyMuPDF/python-docx/python-pptx/openpyxl；解析注册表可切换；CI 默认仍走 stdlib/启发式夹具或受控 fixture 文件（非企业文档）。
 - **不做**：不提交企业 PDF；不冻页数/大小；扫描件 OCR 属 P2。
 - **测试**：`test_FR_DOC_004_*` 扩展真实库夹具；失败码仍走既有契约。
+- **完成**：2026-09-14。`worker[parse]` extra（PyMuPDF / python-docx / python-pptx / openpyxl）；`PIVOT_PARSER=native` 装配真实库注册表；未装 extra 失败闭环；缺省 `local` 仍启发式/stdlib；Dockerfile / CI 安装 `worker[celery,parse]`。变更 `progress/changes/20260914-M07-native-parsers.md`。
 
 ### ND-W3-04 导出任务 PostgreSQL 持久化
 
@@ -317,6 +318,6 @@
 工作区 E:/AI Project/Pivot，分支 main。
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
-本切片只做 <TICKET-ID>。默认下一刀 ND-W3-03 真实解析库。STG-04 ECS apply 待 Owner SSH/安全组/磁盘。先写 progress/changes/，再 Red。
+本切片只做 <TICKET-ID>。默认下一刀 ND-W3-10 Playwright 十页。STG-04 ECS apply 待 Owner SSH/安全组/磁盘。先写 progress/changes/，再 Red。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```

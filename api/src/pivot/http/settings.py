@@ -284,10 +284,10 @@ class RuntimeSettings:
             raise RuntimeError(
                 "PIVOT_LLM_FALLBACK_* requires PIVOT_LLM=http"
             )
-        if self.parser not in {"local", "mineru"}:
+        if self.parser not in {"local", "mineru", "native"}:
             raise RuntimeError(
                 "unsupported PIVOT_PARSER="
-                f"{self.parser!r}; this slice wires local or mineru"
+                f"{self.parser!r}; this slice wires local, mineru, or native"
             )
         if self.parser == "mineru" and not (
             self.parser_endpoint and self.parser_token

@@ -51,7 +51,12 @@ from pivot.http.memory import (
     UtcClock,
 )
 from pivot.http.settings import RuntimeSettings
-from pivot.parsing import ParserRegistry, StdlibMinerUHttpClient, mineru_parser_registry
+from pivot.parsing import (
+    ParserRegistry,
+    StdlibMinerUHttpClient,
+    mineru_parser_registry,
+    native_parser_registry,
+)
 from pivot.qa.orchestrator import QaOrchestrator
 from pivot.qa.ports import EvidenceHit, RetrievalResult
 from pivot.qa.writer import EvidenceJoinWriter, FailoverDraftWriter, HttpDraftWriter
@@ -270,6 +275,8 @@ def _parser_http_client(settings: RuntimeSettings):
 
 
 def _ingest_parsers(settings: RuntimeSettings) -> ParserRegistry | None:
+    if settings.parser == "native":
+        return native_parser_registry()
     if settings.parser != "mineru":
         return None
     return mineru_parser_registry(

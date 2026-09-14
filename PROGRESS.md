@@ -2,8 +2,8 @@
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-14  
-> **当前状态**：主线开发（MODULE-SPEC-1.1）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送（opt-in uvicorn）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
-> **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 登录 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + hashed refresh / Conversation / Run/EventLog SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture） + SSE 长连接（POST 立即返回 received；逐帧推送；Next SSE Route Handler 去缓冲；opt-in uvicorn）。GATE-P0 全部 unverified。
+> **当前状态**：主线开发（MODULE-SPEC-1.1）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；`PIVOT_PARSER=native` 可装配 PyMuPDF/docx/pptx/xlsx extra（缺省仍启发式/stdlib）；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送（opt-in uvicorn）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
+> **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 登录 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + hashed refresh / Conversation / Run/EventLog SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + `worker[parse]` 真实解析库 extra（`PIVOT_PARSER=native`；CI 微型夹具；缺省仍启发式/stdlib） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture） + SSE 长连接（POST 立即返回 received；逐帧推送；Next SSE Route Handler 去缓冲；opt-in uvicorn）。GATE-P0 全部 unverified。
 
 ## 1. 新会话恢复入口
 
@@ -14,7 +14,7 @@
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
 6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)（不是需求源）。Owner 近期目标 `dev-staging`：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
 
-如果没有指定切片：默认下一刀 **ND-W3-03 真实解析库**，或 Owner 提供 SSH/安全组/磁盘后实施 ND-STG-04 ECS apply，或人工标注企业 Golden Set。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 / ingest 共用 HTTP Embedding / Fake HTTP Writer / Fake MinerU 解析器 / staging Compose overlay / SSE 长连接夹具 标成 GATE verified。不要新建 worktree。
+如果没有指定切片：默认下一刀 **ND-W3-10 Playwright 十页**，或 Owner 提供 SSH/安全组/磁盘后实施 ND-STG-04 ECS apply，或人工标注企业 Golden Set。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 / ingest 共用 HTTP Embedding / Fake HTTP Writer / Fake MinerU 解析器 / staging Compose overlay / SSE 长连接夹具 / 真实解析库 extra 标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 
@@ -23,17 +23,17 @@
 | 模块 | 状态 | 代码位置 | 基线契约 | 最近证据 | 下一步 |
 |---|---|---|---|---|---|
 | M00 契约治理 | integrated | `main` | `contract-v0.1` | `tests/contract`: 48 passed | 已完成契约、场景、矩阵 |
-| M01 身份授权 | integrated | `main`（tag `M01-v0.6.0`） | `contract-v0.1` | 37 单元/安全 + 登录/改密/管理用户 HTTP + PATCH 角色/重置 + Compose 注入 Redis 限流 + refresh 跨装配 | ND-W3-03 或人工标注 Golden Set |
+| M01 身份授权 | integrated | `main`（tag `M01-v0.6.0`） | `contract-v0.1` | 37 单元/安全 + 登录/改密/管理用户 HTTP + PATCH 角色/重置 + Compose 注入 Redis 限流 + refresh 跨装配 | ND-W3-10 或人工标注 Golden Set |
 | M02 文档接入 | integrated | `main`（tag 目标 `M02-v0.6.0`） | `contract-v0.1` | 27 单元 + 上传/列表/详情/重试/删除/预览/下载 HTTP；runtime 上传后进程内 ingest；`PIVOT_INGEST=celery` 可入队；Compose api 注入 celery ingest；publish 写回 chunk | HTTP 缺省仍 sync ingest |
 | M03 数据基础 | integrated | `main`（tag 目标 `M03-v0.8.0`） | `contract-v0.1` | M03 文档/导出/refresh/会话/Run SQLAlchemy + M00 48 tests passed | 用户目录、文档事实、导出任务、refresh、Conversation 与 Run/EventLog 可走 SQLAlchemy |
 | M04 检索 RAG | integrated | `main`（tag 目标 `M04-v0.5.0`） | `contract-v0.1` | 31 单元 + 搜索 HTTP + Qdrant dense + stdlib BM25 + ingest/检索共用注入 HTTP Embedding/bge + 合成 Golden Set 120 条 | live 供应商冒烟与企业标注 Golden Set 待后续 |
 | M05 QA/Run/SSE | integrated | `main`（tag `M05-v0.6.0`） | `contract-v0.1` | 30 领域 + Run/SSE 长连接 + 会话 CRUD HTTP + Conversation/Run SQL store + 可注入 HTTP Draft Writer | Claim/Citation 仍不入库；LangGraph extra 待后续 |
 | M06 导出/审计 | integrated | `main`（tag 目标 `M06-v0.3.0`） | `contract-v0.1` | 26 单元 + 导出/审计 HTTP + PG 任务跨装配 | 对象字节下载 HTTP 仍不新增（契约仅短时 URL） |
-| M07 Worker/解析/索引 | integrated | `main`（tag `M07-v0.9.0`） | `contract-v0.1` | 62 单元 + ingest→Qdrant + HTTP 进程内 runner + parse 队列消费 + Celery eager ingest + Compose Celery worker + 共享 MinIO/PG runner + worker Qdrant IndexPublisher + ingest HTTP Embedding + MinerU 云解析器 | 真实解析库 extra 仍待 |
+| M07 Worker/解析/索引 | integrated | `main`（tag `M07-v0.9.0`） | `contract-v0.1` | 79 单元 + ingest→Qdrant + HTTP 进程内 runner + parse 队列消费 + Celery eager ingest + Compose Celery worker + 共享 MinIO/PG runner + worker Qdrant IndexPublisher + ingest HTTP Embedding + MinerU 云解析器 + `worker[parse]` native extra | 缺省仍启发式；OCR 属 P2 |
 | M08 Web 基础 | integrated | `main`（tag `M08-v0.3.0`） | `contract-v0.1` | M08 18 tests + SSE 去缓冲 Route Handler + typecheck/lint 通过 | 完整十页 Playwright；Compose web 由 M11 装配 |
 | M09 员工前台 | integrated | `main`（tag 目标 `M09-v0.2.0`） | `wave-1-integrated` | 13 Fake + followRunEvents + opt-in Playwright 登录 | 完整十页 Playwright 待后续 |
 | M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 passed | Playwright 后台流程待后续 |
-| M11 集成/质量/运维 | in_progress | `main`（tag `M11-v0.23.0` / `wave-3-integrated`） | `wave-3-integrated` | 分组回归见本切片日志 | GATE-P0 仍全部 unverified；SSE 长连接为夹具；staging overlay 已入库，ECS apply 待 Owner |
+| M11 集成/质量/运维 | in_progress | `main`（tag `M11-v0.23.0` / `wave-3-integrated`） | `wave-3-integrated` | 分组回归见本切片日志 | GATE-P0 仍全部 unverified；SSE 长连接为夹具；staging overlay 已入库，ECS apply 待 Owner SSH/安全组/磁盘 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护。历史 `../Pivot-Mxx-*` worktree 不再使用。
 
@@ -50,11 +50,11 @@
 | FR-QA-001~006 / FR-STREAM-001~005 | M05 | `tests/unit/qa/`、`tests/unit/runs/`、`tests/contract/stream/`、`tests/integration/pipeline/test_FR_STREAM_001_http_runs.py`、`tests/integration/pipeline/test_FR_STREAM_001_http_postgres_runs.py`、`tests/integration/pipeline/test_FR_STREAM_002_sse_live.py`、`tests/integration/pipeline/test_FR_RBAC_002_http_conversations.py`、`tests/integration/pipeline/test_FR_QA_001_http_writer.py` | implemented | 30 项 M05 领域 + Run/SSE 长连接 + 会话 CRUD HTTP（消息由 Run 合成）；Conversation 与 Run/EventLog 可走 SQLAlchemy（CI sqlite）；Claim/Citation 仍不入库；`PIVOT_LLM=http` 可注入 Writer（CI Fake transport）；uvicorn 长连接 opt-in skip |
 | FR-EXPORT-001~003 / FR-AUDIT-001~003 | M06 | `tests/unit/exports/`、`tests/unit/audit/`、`tests/security/export/`、`tests/integration/pipeline/test_FR_EXPORT_001_http_exports.py`、`tests/integration/pipeline/test_FR_EXPORT_001_http_postgres_tasks.py` | implemented | 26 项 M06 单元 + 导出/审计 HTTP；运行时导出字节可接 MinIO，公开 URL 仍为 signer；`PIVOT_STORAGE=postgres` 时任务可跨装配存活（sqlite 测试 URL） |
 | §2 存储不变量 | M03 | `tests/integration/db/`、`api/src/pivot/db/`、`migrations/` | implemented | M03 数据测试 + 48 项 M00 契约回归通过；用户目录、文档事实、导出任务、hashed refresh、Conversation 与 Run/EventLog 默认 SQLite 覆盖；MinIO/Qdrant/Redis 默认内存 client；Compose 为 opt-in skip |
-| §6 解析/分块/索引执行 | M07 | `tests/unit/worker/`、`tests/integration/pipeline/test_FR_DOC_006_ingest_qdrant.py`、`tests/integration/pipeline/test_FR_DOC_001_http_runtime_ingest.py`、`tests/integration/pipeline/test_NFR_OBS_compose_worker.py`、`tests/integration/pipeline/test_NFR_OBS_compose_api.py`、`tests/integration/pipeline/test_FR_DOC_005_celery_postgres.py`、`tests/integration/pipeline/test_FR_DOC_006_worker_minio_ingest.py`、`tests/integration/pipeline/test_FR_DOC_006_worker_qdrant_publish.py`、`tests/integration/pipeline/test_FR_DOC_006_ingest_http_embedding.py` | implemented | 62 项 M07 测试通过；stdlib/Fake 或注入 HTTP Embedding；可注入 MinerU 云解析器（CI Fake HTTP）；IndexPublisher 可写入注入 VectorStore；HTTP 上传默认可进程内 ingest；`PIVOT_INGEST=celery` 为 eager 任务（可见 PG version/task）；Compose api 注入 celery ingest（Dockerfile 装 worker[celery]）；Compose worker 为注入 broker 的 Celery，只监听 parse 队列；worker 装配共享 MinIO/PG runner（CI sqlite + Fake MinIO）；`PIVOT_VECTOR_STORE=qdrant` 时 worker 装配 IndexPublisher（CI Fake client）；`PIVOT_EMBEDDING=http` 时 ingest 与检索共用注入 embedder（CI Fake HTTP）；`PIVOT_PARSER=mineru` 时装配云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） |
+| §6 解析/分块/索引执行 | M07 | `tests/unit/worker/`、`tests/integration/pipeline/test_FR_DOC_006_ingest_qdrant.py`、`tests/integration/pipeline/test_FR_DOC_001_http_runtime_ingest.py`、`tests/integration/pipeline/test_NFR_OBS_compose_worker.py`、`tests/integration/pipeline/test_NFR_OBS_compose_api.py`、`tests/integration/pipeline/test_FR_DOC_005_celery_postgres.py`、`tests/integration/pipeline/test_FR_DOC_006_worker_minio_ingest.py`、`tests/integration/pipeline/test_FR_DOC_006_worker_qdrant_publish.py`、`tests/integration/pipeline/test_FR_DOC_006_ingest_http_embedding.py`、`tests/integration/pipeline/test_FR_DOC_004_native_parser.py` | implemented | 79 项 M07 测试通过；stdlib/Fake 或注入 HTTP Embedding；可注入 MinerU 云解析器（CI Fake HTTP）；`PIVOT_PARSER=native` 可装配 PyMuPDF/docx/pptx/xlsx（`worker[parse]`；CI 微型夹具；缺 extra 失败闭环）；IndexPublisher 可写入注入 VectorStore；HTTP 上传默认可进程内 ingest；`PIVOT_INGEST=celery` 为 eager 任务（可见 PG version/task）；Compose api 注入 celery ingest（Dockerfile 装 worker[celery,parse]）；Compose worker 为注入 broker 的 Celery，只监听 parse 队列；worker 装配共享 MinIO/PG runner（CI sqlite + Fake MinIO）；`PIVOT_VECTOR_STORE=qdrant` 时 worker 装配 IndexPublisher（CI Fake client）；`PIVOT_EMBEDDING=http` 时 ingest 与检索共用注入 embedder（CI Fake HTTP）；`PIVOT_PARSER=mineru` 时装配云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） |
 | §1.5 / NFR-UX 设计系统与 client | M08 | `tests/e2e/fixtures/web/test-foundation.mjs` | implemented | M08 18 项基础测试通过（含 `/api/v1` rewrite 与 SSE 去缓冲 Route Handler）；产品页由 M09/M10 接管 |
 | 前台 6 页 | M09 | `tests/e2e/user/test_user_web.mjs` | implemented | 13 项 Fake fetch（含 followRunEvents）+ opt-in Playwright 登录；CI 默认 skip |
 | 后台 4 页 | M10 | `tests/e2e/admin/test_admin_web.mjs` | implemented | 8 项 Fake fetch 测试通过；无 Playwright |
-| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + HTTP + composition root + Next rewrite + opt-in Playwright + PG/MinIO/Qdrant/Redis + 合成 Golden Set + 导出 MinIO + 检索 dense 消费 Qdrant + ingest→Qdrant + 5 并发/进程内备份 + stdlib BM25 + Dockerfile/Compose api+web+worker + 100k opt-in + HTTP Embedding/bge Fake transport + ingest/检索共用 HTTP Embedding + Celery eager ingest + Compose Celery worker + worker 共享 MinIO/PG ingest + Compose api 共享 PG/MinIO + worker Qdrant IndexPublisher + Compose api celery ingest + Compose api/worker Qdrant/Redis + Compose api 登录限流注入 + Compose api/worker Embedding 注入 + 可注入 HTTP Draft Writer + 可注入 MinerU 云解析器）；GATE-P0 unverified | TestClient；CI 不 build/up Compose、不跑 100k、不打真实供应商；Playwright/Compose/100k 默认 skip |
+| NFR-CAP/PERF/OBS/DR、GATE-P0-001~008 | M11 | `tests/integration/pipeline/`、`tests/security/ops/`、`tests/performance/`、`evidence/wave2-m11/`、`evidence/wave3-m11/` | implemented（CI/Fake + HTTP + composition root + Next rewrite + opt-in Playwright + PG/MinIO/Qdrant/Redis + 合成 Golden Set + 导出 MinIO + 检索 dense 消费 Qdrant + ingest→Qdrant + 5 并发/进程内备份 + stdlib BM25 + Dockerfile/Compose api+web+worker + 100k opt-in + HTTP Embedding/bge Fake transport + ingest/检索共用 HTTP Embedding + Celery eager ingest + Compose Celery worker + worker 共享 MinIO/PG ingest + Compose api 共享 PG/MinIO + worker Qdrant IndexPublisher + Compose api celery ingest + Compose api/worker Qdrant/Redis + Compose api 登录限流注入 + Compose api/worker Embedding 注入 + 可注入 HTTP Draft Writer + 可注入 MinerU 云解析器 + `worker[parse]` native extra）；GATE-P0 unverified | TestClient；CI 不 build/up Compose、不跑 100k、不打真实供应商；Playwright/Compose/100k 默认 skip |
 
 ## 4. 当前波次计划
 
@@ -137,7 +137,8 @@
 - [x] 会话/refresh 跨进程（ND-W3-05；hashed refresh 与 Conversation 走 SQLAlchemy；CI sqlite）
 - [x] Run/EventLog 跨进程（ND-W3-14；CI sqlite；Claim/Citation 仍不入库）
 - [x] SSE 长连接推送与 Next 去缓冲（ND-W3-08；POST 立即返回 received；逐帧推送；opt-in uvicorn；CI 默认 skip）
-- [ ] 真实解析库 extra（ND-W3-03）、人工标注企业 Golden Set、Qdrant 100k 索引峰值、新 ECS 加密 OSS 备份恢复、live Embedding/rerank/MinerU 冒烟、staging ECS apply
+- [x] 真实解析库 extra（ND-W3-03；`worker[parse]` PyMuPDF/docx/pptx/xlsx；`PIVOT_PARSER=native`；CI 微型夹具；缺省仍启发式/stdlib）
+- [ ] 人工标注企业 Golden Set、Qdrant 100k 索引峰值、新 ECS 加密 OSS 备份恢复、live Embedding/rerank/MinerU 冒烟、staging ECS apply
 - [ ] 任一 `GATE-P0-*` verified
 
 ## 5. 未完成项与已知差距
@@ -165,7 +166,7 @@
 - [x] worker 进程装配共享 MinIO/PG ingest runner（CI sqlite + Fake MinIO；拒绝 memory 对象）；HTTP 缺省仍进程内 ingest；Compose api 已注入同一套 DATABASE_URL/MinIO 与 `PIVOT_INGEST=celery`；`PIVOT_VECTOR_STORE=qdrant` 时 worker 装配 IndexPublisher（CI Fake client）；
 - [x] PostgreSQL 用户目录、文档事实与导出任务客户端（SQLAlchemy；默认 CI 用 sqlite；Compose Postgres 为 opt-in skip）；
 - [x] MinIO 文档与导出对象（默认 CI 用内存 client；公开导出 URL 仍为 signer；Compose MinIO 为 opt-in skip）；hashed refresh、Conversation 与 Run/EventLog 可走 SQLAlchemy（CI sqlite）；Claim/Citation 仍不入库；
-- [x] Qdrant 向量客户端（默认 CI 用内存 client；Compose Qdrant 为 opt-in skip）；dense 检索可消费 VectorStore；ingest `IndexPublisher` 可 `upsert`（CI Fake client）；HTTP 上传默认可进程内 ingest；`PIVOT_INGEST=celery` 为 eager；Compose api 注入 celery ingest（CI 不 up）；Compose worker 注入 broker 只听 parse，并装配共享 MinIO/PG runner 与 Qdrant IndexPublisher；Compose api/worker 注入同一套 Qdrant 变量（CI 不 up）；`PIVOT_EMBEDDING=http` / `PIVOT_RERANK=bge` 可注入（CI Fake HTTP，非 live 供应商）；ingest 与检索共用同一注入 HTTP embedder；stdlib BM25 可注入；`PIVOT_PARSER=mineru` 可注入云解析器（CI Fake HTTP；Compose api/worker 注入 `PIVOT_PARSER*`；缺省仍启发式/stdlib）；
+- [x] Qdrant 向量客户端（默认 CI 用内存 client；Compose Qdrant 为 opt-in skip）；dense 检索可消费 VectorStore；ingest `IndexPublisher` 可 `upsert`（CI Fake client）；HTTP 上传默认可进程内 ingest；`PIVOT_INGEST=celery` 为 eager；Compose api 注入 celery ingest（CI 不 up）；Compose worker 注入 broker 只听 parse，并装配共享 MinIO/PG runner 与 Qdrant IndexPublisher；Compose api/worker 注入同一套 Qdrant 变量（CI 不 up）；`PIVOT_EMBEDDING=http` / `PIVOT_RERANK=bge` 可注入（CI Fake HTTP，非 live 供应商）；ingest 与检索共用同一注入 HTTP embedder；stdlib BM25 可注入；`PIVOT_PARSER=mineru` 可注入云解析器（CI Fake HTTP；Compose api/worker 注入 `PIVOT_PARSER*`；缺省仍启发式/stdlib）；`PIVOT_PARSER=native` 可装配 `worker[parse]` 真实库（CI 微型夹具；未装 extra 失败闭环）；
 - [x] Redis 缓存/队列客户端（默认 CI 用内存 client；Compose Redis 为 opt-in skip）；登录限流计数可注入 Redis CacheStore；Compose api 注入阈值/窗口（不写死次数；进程外缺省不锁定）；Compose Celery broker 为注入 fixture；Compose api/worker 注入 cache/queue/Redis endpoint（CI 不 up；Redis 不是业务事实源）；
 - [ ] 真实 PG Alembic 冒烟因无 Docker/psycopg 为 skip；
 - [ ] 所有 `TBD-P0` 均未冻结，禁止模块自行填默认值；
@@ -173,7 +174,7 @@
 - [x] Wave 0 三项变更申请已批准：`20260906-M00-contract-test-path.md`、`20260906-M03-ownership-clarification.md`、`20260906-M08-web-scaffold-ownership.md`。
 - [x] Wave 1 观测包变更已批准：`20260906-M06-observability-package-init.md`。
 - [x] Wave 1 `argon2-cffi` 已写入 pyproject：`20260906-M01-auth-dependencies.md`（2026-09-09 composition root 落实）。
-- [ ] Wave 1 依赖变更仍暂缓：`20260906-M05-langgraph.md`；`20260906-M07-worker-dependencies.md` 的 Celery extra 已由本切片落实，PyMuPDF 等解析库仍暂缓。
+- [ ] Wave 1 依赖变更仍暂缓：`20260906-M05-langgraph.md`。`20260906-M07-worker-dependencies.md` 的 Celery extra 与解析库 extra 已落实。
 - [x] Wave 3 FastAPI 健康端点已批准并合入：`20260907-M11-fastapi-health-assembly.md`。
 - [x] Wave 3 认证 HTTP 挂载已批准并合入：`20260907-M11-api-v1-auth-mount.md`。
 - [x] Wave 3 文档上传/列表 HTTP 挂载已批准并合入：`20260907-M11-api-v1-documents-mount.md`。
@@ -225,8 +226,16 @@
 - [x] Wave 3 会话/refresh 跨进程已批准：`progress/changes/20260914-M01-postgres-refresh-conversations.md`。
 - [x] Wave 3 Run/EventLog 跨进程已批准：`progress/changes/20260914-M05-postgres-run-eventlog.md`。
 - [x] Wave 3 SSE 长连接已批准：`progress/changes/20260914-M05-sse-long-connection.md`。
+- [x] Wave 3 真实解析库 extra 已批准：`progress/changes/20260914-M07-native-parsers.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-14 — 真实解析库 extra（ND-W3-03）
+
+- **完成**：批准 `20260914-M07-native-parsers.md`；`worker` optional extra `parse`（PyMuPDF / python-docx / python-pptx / openpyxl）；`PIVOT_PARSER=native` 时装配真实库注册表；未装 extra 失败闭环，不静默回退启发式。缺省 `local` 仍为启发式 PDF + stdlib OOXML。错误码沿用 `FR-DOC-004`。扫描件仍本地拒绝（OCR 属 P2）。Dockerfile / CI 安装 `worker[celery,parse]`；Compose example 仍占位 `local`。不冻页数/大小。Accountable：M07 解析器/extra，M11 Dockerfile/CI/bootstrap。
+- **验证**（main，2026-09-14，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）：`.venv/Scripts/python ops/run_grouped_tests.py --skip-web` → **601 passed, 14 skipped**（M07 79；M00-M03 96；pipeline 261 passed / 13 skipped；perf 11 passed / 1 skipped）；ruff / compileall 通过。
+- **限制**：CI 用库生成的微型夹具，不是企业文档；缺省仍启发式；不冻页数/大小；OCR 属 P2；GATE-P0 全部 unverified。
+- **下一步**：ND-W3-10 Playwright 十页，或 Owner 提供 SSH/安全组/磁盘后实施 ND-STG-04 ECS apply，或人工标注企业 Golden Set。
 
 ### 2026-09-14 — SSE 长连接推送与前端去缓冲（ND-W3-08）
 

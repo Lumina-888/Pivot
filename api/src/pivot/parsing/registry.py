@@ -7,6 +7,13 @@ from collections.abc import Mapping
 from pivot.parsing.errors import parse_error
 from pivot.parsing.mineru import MinerUCloudParser, MinerUHttpClient
 from pivot.parsing.models import ParsedDocument
+from pivot.parsing.native import (
+    OpenpyxlParser,
+    PyMuPdfParser,
+    PythonDocxParser,
+    PythonPptxParser,
+    require_native_extra,
+)
 from pivot.parsing.office import DocxParser, PptxParser, XlsxParser
 from pivot.parsing.pdf import PdfParser
 
@@ -54,5 +61,17 @@ def mineru_parser_registry(
         {
             kind: MinerUCloudParser(client, kind=kind, **kwargs)
             for kind in _WHITELIST
+        }
+    )
+
+
+def native_parser_registry() -> ParserRegistry:
+    require_native_extra()
+    return ParserRegistry(
+        {
+            "pdf": PyMuPdfParser(),
+            "docx": PythonDocxParser(),
+            "pptx": PythonPptxParser(),
+            "xlsx": OpenpyxlParser(),
         }
     )

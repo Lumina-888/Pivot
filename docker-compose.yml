@@ -7,7 +7,7 @@
 # api injects PIVOT_INGEST / queues / concurrency / Celery broker (not hard-coded).
 # api injects login lockout threshold/window (not hard-coded; both required together).
 # api injects Draft Writer PIVOT_LLM* (not hard-coded; worker does not write).
-# api and worker inject MinerU parser PIVOT_PARSER* (not hard-coded).
+# api and worker inject parser PIVOT_PARSER* (local|native|mineru, not hard-coded).
 # worker Celery broker URL is injected, not hard-coded.
 # FastAPI composition root:
 #   uvicorn pivot.http.main:app --factory

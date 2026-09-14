@@ -1,0 +1,21 @@
+# 变更申请：真实解析库 extra（PyMuPDF / python-docx / python-pptx / openpyxl）
+
+- **日期**：2026-09-14
+- **申请人**：Wave 3 主线会话（M07 可插拔解析器 + M11 composition root / Dockerfile / CI）
+- **工单**：ND-W3-03
+- **背景**：SPEC §6.1 MVP 解析器为 PyMuPDF/pdfplumber、python-docx、python-pptx、openpyxl。`20260906-M07-worker-dependencies.md` 曾暂缓写入依赖；Celery extra 已落实，解析库仍为启发式 PDF + stdlib OOXML。MinerU 云解析器是 V2（ND-STG-03），不得写成 MVP 唯一解析器。不得提交企业文档，不得冻结页数/大小/Sheet/解压比，扫描件 OCR 属 P2。
+- **原契约/现状**：
+  - `ParserRegistry` 缺省 `PdfParser` / `DocxParser` / `PptxParser` / `XlsxParser`（启发式 / stdlib）；
+  - `PIVOT_PARSER=local|mineru`；`mineru` 装配 `MinerUCloudParser`；
+  - `worker/pyproject.toml` 仅 `celery` extra；Dockerfile / CI 安装 `worker[celery]`；
+  - `FR-DOC-004` 错误码与 retryable 集合已冻结；页数/大小仍为 `TBD-P0`。
+- **拟变更内容**（本切片）：
+  - M07：`worker` optional extra `parse`（`pymupdf`、`python-docx`、`python-pptx`、`openpyxl`）；新增 `PyMuPdfParser` / `PythonDocxParser` / `PythonPptxParser` / `OpenpyxlParser` 与 `native_parser_registry()`；**不**把 pdfplumber 写入 extra（SPEC 将 PyMuPDF/pdfplumber 列为替代，工单指定 PyMuPDF）；
+  - M07 / M11：`PIVOT_PARSER=local|mineru|native`（默认 `local`，既有启发式/stdlib 不变）；`native` 时装配真实库注册表；未装 `worker[parse]` 失败闭环，**不**静默回退启发式；错误码沿用 `ENCRYPTED_FILE` / `CORRUPTED_FILE` / `EMPTY_TEXT` / `UNSUPPORTED_SCAN_PDF` / `PARTIAL_PAGE_FAILURE`；扫描件仍本地拒绝（OCR 属 P2，MinerU 云路径不变）；
+  - M11：Dockerfile api/worker 安装 `./worker[celery,parse]`；CI 安装 `worker[celery,parse]` 以便受控夹具跑真实库；Compose example 仍占位 `local`（fixture，不是冻结 TBD-P0）；yml 不写死 `native`/`mineru`；
+  - 测试用库生成的微型 PDF/OOXML（非企业文档）；**不**冻结页数/大小；**不**把 `GATE-P0-003` 标 verified；**不**上机 ND-STG-04 ECS apply。
+- **影响模块**：M07（解析器、worker extra、单元测试）；M11（settings/bootstrap、Dockerfile、CI、pipeline 测试、证据）；M00（MODULE_SPEC §11 现状一句）；M03 不改 `api/pyproject.toml`。
+- **兼容方案**：默认 `PIVOT_PARSER=local` 行为不变；既有四格式与错误码单测保持启发式/stdlib；选中 `native` 而缺 extra 时失败闭环。
+- **测试 ID**：`test_FR_DOC_004_native_extra_is_declared`、`test_FR_DOC_004_native_pdf_parses_text_and_page_locator`、`test_FR_DOC_004_native_docx_parses_paragraphs`、`test_FR_DOC_004_native_pptx_parses_slides`、`test_FR_DOC_004_native_xlsx_parses_sheets`、`test_FR_DOC_004_native_encrypted_pdf_is_encrypted_file`、`test_FR_DOC_004_native_corrupted_pdf_is_corrupted_file`、`test_FR_DOC_004_native_empty_pdf_is_empty_text`、`test_FR_DOC_004_native_scan_pdf_is_unsupported_scan`、`test_FR_DOC_004_native_empty_docx_is_empty_text`、`test_FR_DOC_004_native_corrupted_office_is_corrupted_file`、`test_FR_DOC_004_native_encrypted_office_is_encrypted_file`、`test_FR_DOC_004_native_requires_parse_extra`、`test_FR_DOC_004_native_does_not_freeze_page_or_size_limits`、`test_FR_DOC_004_default_registry_stays_heuristic`、`test_FR_DOC_004_native_four_formats_ingest_ok`、`test_FR_DOC_006_worker_native_wires_parser`、`test_NFR_OBS_runtime_native_wires_parser`、`test_FR_DOC_004_runtime_native_ingest_uses_libraries`、`test_FR_DOC_004_worker_native_ingest_uses_libraries`、`test_NFR_OBS_api_dockerfile_installs_parse_extra`、`test_NFR_OBS_worker_dockerfile_installs_parse_extra`、`test_NFR_OBS_ci_installs_parse_extra`、`test_GATE_P0_003_not_verified_by_native_parser`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义；不冻结 TBD-P0 页数/大小；不把真实库标成 GATE verified；SPEC 仍写 MinerU 为 V2）。
+- **审核结果**：2026-09-14 主线会话 **批准**。

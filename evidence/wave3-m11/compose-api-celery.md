@@ -1,6 +1,6 @@
 # Wave 3 M11 Compose api celery ingest 切片限制
 
-环境：Compose `api` 注入 `PIVOT_INGEST` / 队列名 / concurrency / `PIVOT_CELERY_BROKER`；根 Dockerfile 安装 `./worker[celery]` 以便 `CeleryIngestSubmitter` 入队。CI 不 `docker build` / `docker compose up`；本机未强制拉起容器。
+环境：Compose `api` 注入 `PIVOT_INGEST` / 队列名 / concurrency / `PIVOT_CELERY_BROKER`；根 Dockerfile 安装 `./worker[celery,parse]` 以便 `CeleryIngestSubmitter` 入队。CI 不 `docker build` / `docker compose up`；本机未强制拉起容器。
 
 - Compose yml 不写死 `redis://`；不静默 `:-sync`；不注入 `PIVOT_CELERY_EAGER=1`。
 - example 占位 `PIVOT_INGEST=celery` 是 fixture，不是冻结的 TBD-P0。

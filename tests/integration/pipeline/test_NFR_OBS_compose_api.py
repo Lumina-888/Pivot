@@ -100,8 +100,8 @@ def test_NFR_OBS_api_dockerfile_pins_python_and_uvicorn_factory():
 def test_NFR_OBS_api_dockerfile_installs_celery_extra():
     text = _DOCKERFILE.read_text(encoding="utf-8")
     assert "COPY worker" in text or "COPY worker/" in text
-    assert "worker[celery]" in text
-    assert "./worker[celery]" in text or '"worker[celery]"' in text
+    assert "worker[celery,parse]" in text
+    assert "./worker[celery,parse]" in text or '"worker[celery,parse]"' in text
     assert "uvicorn" in text
     assert "pivot.http.main:app" in text
     assert "--factory" in text

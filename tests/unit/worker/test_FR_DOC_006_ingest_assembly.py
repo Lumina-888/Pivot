@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 from pivot.parsing.fakes import ScriptedMinerUHttpClient
 from pivot.parsing.mineru import MinerUCloudParser
+from pivot.parsing.native import PyMuPdfParser
 from pivot_worker.assembly import IngestAssemblySettings, assemble_ingest_runtime
 
 _ASSEMBLY_SRC = (
@@ -223,6 +224,20 @@ class _HealthyMinio:
 
     def presigned_get_object(self, bucket, object_name, expires=None) -> str:
         return f"https://objects.test/{bucket}/{object_name}"
+
+
+def test_FR_DOC_006_worker_native_wires_parser():
+    assembly = assemble_ingest_runtime(
+        _settings(
+            create_schema=True,
+            minio_ensure_bucket=True,
+            object_store_client=_HealthyMinio(),
+            parser="native",
+        )
+    )
+    assert assembly.parsers is not None
+    parser = assembly.parsers._parsers["pdf"]
+    assert isinstance(parser, PyMuPdfParser)
 
 
 def test_FR_DOC_006_worker_mineru_wires_parser():
