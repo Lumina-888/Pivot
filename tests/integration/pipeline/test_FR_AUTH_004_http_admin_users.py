@@ -161,3 +161,116 @@ def test_FR_AUTH_003_http_disable_user_revokes_access():
         headers={"X-Request-ID": "req_bob_again"},
     )
     assert later.status_code == 200
+
+
+def test_FR_AUTH_003_http_admin_patch_role_promotes_and_revokes_access():
+    pipeline = Pipeline()
+    client = _client(pipeline)
+    bob_token = _login(client, "bob", "bob-password", "req_bob")
+    admin = _login(client, "admin", "admin-password", "req_admin")
+    patched = client.patch(
+        "/api/v1/admin/users/usr_bob",
+        json={"role": "admin"},
+        headers={"Authorization": f"Bearer {admin}", "X-Request-ID": "req_role"},
+    )
+    assert patched.status_code == 200
+    body = patched.json()
+    assert body["user_id"] == "usr_bob"
+    assert body["role"] == "admin"
+    assert body["status"] == "active"
+    assert "password" not in body
+    assert "initial_password" not in body
+    stale = client.get(
+        "/api/v1/admin/users",
+        headers={"Authorization": f"Bearer {bob_token}", "X-Request-ID": "req_bob_stale"},
+    )
+    assert stale.status_code in {401, 403}
+    later = client.post(
+        "/api/v1/auth/login",
+        json={"username": "bob", "password": "bob-password"},
+        headers={"X-Request-ID": "req_bob_admin"},
+    )
+    assert later.status_code == 200
+    listed = client.get(
+        "/api/v1/admin/users",
+        headers={
+            "Authorization": f"Bearer {later.json()['access_token']}",
+            "X-Request-ID": "req_bob_list",
+        },
+    )
+    assert listed.status_code == 200
+    assert any(event.action == "auth.role_change" for event in pipeline.auth_audits.events)
+
+
+def test_FR_AUTH_003_http_admin_patch_role_forbidden_for_user():
+    client = _client(Pipeline())
+    token = _login(client, "alice", "correct-password", "req_login")
+    patched = client.patch(
+        "/api/v1/admin/users/usr_bob",
+        json={"role": "admin"},
+        headers={"Authorization": f"Bearer {token}", "X-Request-ID": "req_user_role"},
+    )
+    assert patched.status_code == 403
+    assert patched.json()["code"] == "AUTH_FORBIDDEN"
+
+
+def test_FR_AUTH_003_http_reset_password_returns_new_secret_and_revokes_access():
+    pipeline = Pipeline()
+    client = _client(pipeline)
+    bob_token = _login(client, "bob", "bob-password", "req_bob")
+    admin = _login(client, "admin", "admin-password", "req_admin")
+    reset = client.patch(
+        "/api/v1/admin/users/usr_bob",
+        json={"reset_password": True},
+        headers={"Authorization": f"Bearer {admin}", "X-Request-ID": "req_reset"},
+    )
+    assert reset.status_code == 200
+    body = reset.json()
+    secret = body["initial_password"]
+    assert len(secret) >= 8
+    assert secret != "bob-password"
+    assert body["user_id"] == "usr_bob"
+    assert body["role"] == "user"
+    assert "password_hash" not in body
+    assert secret not in str(pipeline.auth_audits.events)
+    assert all(
+        "password" not in event.metadata and secret not in str(event.metadata)
+        for event in pipeline.auth_audits.events
+    )
+    stale = client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {bob_token}", "X-Request-ID": "req_bob_stale"},
+    )
+    assert stale.status_code in {401, 403}
+    old = client.post(
+        "/api/v1/auth/login",
+        json={"username": "bob", "password": "bob-password"},
+        headers={"X-Request-ID": "req_old"},
+    )
+    assert old.status_code == 401
+    later = client.post(
+        "/api/v1/auth/login",
+        json={"username": "bob", "password": secret},
+        headers={"X-Request-ID": "req_new"},
+    )
+    assert later.status_code == 200
+    listed = client.get(
+        "/api/v1/admin/users",
+        headers={"Authorization": f"Bearer {admin}", "X-Request-ID": "req_list"},
+    )
+    assert listed.status_code == 200
+    assert secret not in listed.text
+    assert all("initial_password" not in item for item in listed.json()["items"])
+
+
+def test_FR_AUTH_003_http_reset_password_unknown_user_is_not_found():
+    client = _client(Pipeline())
+    admin = _login(client, "admin", "admin-password", "req_admin")
+    missing = client.patch(
+        "/api/v1/admin/users/usr_missing",
+        json={"reset_password": True},
+        headers={"Authorization": f"Bearer {admin}", "X-Request-ID": "req_missing"},
+    )
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "RESOURCE_NOT_FOUND"
+    assert "initial_password" not in missing.json()

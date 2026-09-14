@@ -54,3 +54,14 @@ def test_FR_AUTH_004_reset_password_increments_token_version(auth_service, users
         auth_service.authenticate(login.access_token)
     later = auth_service.login("bob", "ResetPass12", request_id="req_after")
     assert later.access_token
+
+
+def test_FR_AUTH_004_reset_password_unknown_user_is_not_found(auth_service):
+    with pytest.raises(AuthError) as error:
+        auth_service.reset_password(
+            actor_id="usr_admin",
+            user_id="usr_missing",
+            new_password="ResetPass12",
+            request_id="req_missing",
+        )
+    assert error.value.code == "RESOURCE_NOT_FOUND"

@@ -1,0 +1,23 @@
+# 变更申请：PATCH /admin/users 角色变更与重置密码 HTTP
+
+- **日期**：2026-09-14
+- **申请人**：Wave 3 主线会话（M01 HTTP 适配 + 领域方法 + M11 pipeline 测试）
+- **工单**：ND-W3-07
+- **背景**：`PATCH /api/v1/admin/users/{id}` 已挂载，但只处理 `status`（停用/启用）。契约 `AdminUserUpdate` 已有 `role` 与 `reset_password`；领域已有 `reset_password`，缺角色变更方法。管理后台用户页与 FR-AUTH-003/004 需要这两项 HTTP。
+- **原契约/现状**：
+  - `contract-v0.1` `PATCH /admin/users/{id}` 请求 `AdminUserUpdate`（`role` / `status` / `reset_password` 任一即可）；响应 `AdminUser`（无口令字段，`additionalProperties: false`）；
+  - HTTP 在 `status is None` 时返回 `RESOURCE_NOT_FOUND`；
+  - 领域 `AuthService.reset_password` 已旋转口令并抬升 `token_version`；缺失用户走 `_require_user`（`AUTH_INVALID_CREDENTIALS`），与其它管理员 PATCH 的 404 不一致；
+  - 无 `change_role`；`must_change_password` 仅为 M01 内存标志，不是 SPEC §2.2 User 列；
+  - 初始密码传递机制仍为 `TBD-P0`。
+- **拟变更内容**（本切片）：
+  - M01 增加 `AuthService.change_role`：仅管理员；未知用户 `RESOURCE_NOT_FOUND`；写入 `admin|user`；抬升 `token_version` 并撤销 refresh；审计 `auth.role_change`（metadata 仅 `from`/`to`，无口令）；
+  - M01 管理员 `reset_password` 对未知用户改为 `RESOURCE_NOT_FOUND`；HTTP 在 `reset_password=true` 时生成一次性初始密码并调用既有旋转；
+  - M01 HTTP：`PATCH /admin/users/{id}` 处理契约已有 `role` / `status` / `reset_password`；仅管理员；可同请求组合字段；
+  - `reset_password=true` 的 200 JSON 在 `AdminUser` 投影之外附带 `initial_password`（本切片以 HTTPS JSON 作为安全通道适配）；GET/POST 仍不回显口令；审计、日志、URL 不含口令；
+  - **不** 把 `must_change_password` 写入 User 表；**不** 升级 `contract-v0.1` / 不把传递机制冻进 SPEC；**不** 改前端用户页；**不** 标 GATE-P0 verified。
+- **影响模块**：M01（领域 + router）；M11（pipeline HTTP 测试、证据）；进度/矩阵/工单。不改 M03 迁移。
+- **兼容方案**：既有 `status` 停用/启用 HTTP 不变；创建用户 HTTP 仍不回显初始密码；缺省 `create_app()` 仍不挂 `/api/v1`。
+- **测试 ID**：`test_FR_AUTH_003_change_role_*`、`test_FR_AUTH_003_http_admin_patch_role_*`、`test_FR_AUTH_003_http_reset_password_*`、`test_FR_AUTH_004_reset_password_unknown_user_*`。
+- **是否触发 ADR**：否（不改变用户状态机 `active⇄disabled`、不冻结 TBD-P0、不把 `must_change_password` 入库）。
+- **审核结果**：2026-09-14 Wave 3 主线会话 **批准**。

@@ -14,7 +14,7 @@
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
 6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)（不是需求源）。Owner 近期目标 `dev-staging`：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
 
-如果没有指定切片：默认下一刀 **ND-W3-07** PATCH 角色，或 **ND-STG-01** ingest/检索共用 HTTP Embedding，或人工标注企业 Golden Set。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 标成 GATE verified。不要新建 worktree。
+如果没有指定切片：默认下一刀 **ND-STG-01** ingest/检索共用 HTTP Embedding，或 **ND-W3-05** 会话/refresh 跨进程，或人工标注企业 Golden Set。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 
@@ -23,7 +23,7 @@
 | 模块 | 状态 | 代码位置 | 基线契约 | 最近证据 | 下一步 |
 |---|---|---|---|---|---|
 | M00 契约治理 | integrated | `main` | `contract-v0.1` | `tests/contract`: 48 passed | 已完成契约、场景、矩阵 |
-| M01 身份授权 | integrated | `main`（tag 目标 `M01-v0.4.0`） | `contract-v0.1` | 33 单元/安全 + 登录/改密/管理用户 HTTP + Compose 注入 Redis 限流 | PATCH 角色/重置仍待 |
+| M01 身份授权 | integrated | `main`（tag 目标 `M01-v0.4.0`） | `contract-v0.1` | 37 单元/安全 + 登录/改密/管理用户 HTTP + PATCH 角色/重置 + Compose 注入 Redis 限流 | refresh 仍 memory |
 | M02 文档接入 | integrated | `main`（tag 目标 `M02-v0.6.0`） | `contract-v0.1` | 27 单元 + 上传/列表/详情/重试/删除/预览/下载 HTTP；runtime 上传后进程内 ingest；`PIVOT_INGEST=celery` 可入队；Compose api 注入 celery ingest；publish 写回 chunk | HTTP 缺省仍 sync ingest |
 | M03 数据基础 | integrated | `main`（tag 目标 `M03-v0.6.0`） | `contract-v0.1` | M03 文档/导出 SQLAlchemy + M00 48 tests passed | 用户目录、文档事实与导出任务可走 SQLAlchemy |
 | M04 检索 RAG | integrated | `main`（tag 目标 `M04-v0.5.0`） | `contract-v0.1` | 31 单元 + 搜索 HTTP + Qdrant dense + stdlib BM25 + 可注入 HTTP Embedding/bge + 合成 Golden Set 120 条 | live 供应商冒烟与企业标注 Golden Set 待后续 |
@@ -33,7 +33,7 @@
 | M08 Web 基础 | integrated | `main`（tag `M08-v0.2.0`） | `contract-v0.1` | M08 15 tests + typecheck/lint 通过 | SSE 缓冲仍待；Compose web 由 M11 装配 |
 | M09 员工前台 | integrated | `main`（tag `M09-v0.1.0`） | `wave-1-integrated` | 12 Fake + opt-in Playwright 登录 | 完整十页 Playwright 待后续 |
 | M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 passed | Playwright 后台流程待后续 |
-| M11 集成/质量/运维 | in_progress | `main`（tag 目标 `M11-v0.21.0` / `wave-3-integrated`） | `wave-3-integrated` | 分组回归见本切片日志 | GATE-P0 仍全部 unverified；A2 PATCH 角色仍待 |
+| M11 集成/质量/运维 | in_progress | `main`（tag 目标 `M11-v0.21.0` / `wave-3-integrated`） | `wave-3-integrated` | 分组回归见本切片日志 | GATE-P0 仍全部 unverified；A2 会话跨进程仍待 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护。历史 `../Pivot-Mxx-*` worktree 不再使用。
 
@@ -43,7 +43,7 @@
 
 | 需求范围 | Accountable | 测试/场景入口 | 当前状态 | 验收证据 |
 |---|---|---|---|---|
-| FR-AUTH-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`tests/integration/pipeline/test_FR_AUTH_001_http_login.py`、`tests/integration/pipeline/test_FR_AUTH_004_http_admin_users.py`、`tests/integration/pipeline/test_FR_AUTH_002_http_login_rate.py` | implemented | 33 项单元/安全 + 登录/刷新/退出/改密/管理用户 HTTP；限流计数可注入 Redis CacheStore；Compose api 注入阈值/窗口（不写死次数；进程外缺省不锁定）；PATCH 角色未挂 |
+| FR-AUTH-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`tests/integration/pipeline/test_FR_AUTH_001_http_login.py`、`tests/integration/pipeline/test_FR_AUTH_004_http_admin_users.py`、`tests/integration/pipeline/test_FR_AUTH_002_http_login_rate.py` | implemented | 37 项单元/安全 + 登录/刷新/退出/改密/管理用户 HTTP；PATCH 角色/重置；限流计数可注入 Redis CacheStore；Compose api 注入阈值/窗口（不写死次数；进程外缺省不锁定） |
 | FR-RBAC-001~004 | M01 | `tests/unit/auth/`、`tests/security/auth/`、`spec/scenarios/auth.feature`、`tests/integration/pipeline/test_FR_RBAC_002_http_conversations.py`、`tests/integration/pipeline/test_FR_RBAC_003_http_preview.py` | implemented | 资源四重授权与会话隔离；会话 CRUD HTTP 仅 owner 可见；预览/下载按详情同等可见性 |
 | FR-DOC-001~008 | M02 | `tests/unit/documents/`、`tests/integration/pipeline/test_FR_DOC_001_http_upload.py`、`tests/integration/pipeline/test_FR_DOC_007_http_lifecycle.py`、`tests/integration/pipeline/test_FR_RBAC_003_http_preview.py`、`tests/unit/worker/test_FR_DOC_006_qdrant_index.py`、`tests/integration/pipeline/test_FR_DOC_006_ingest_qdrant.py`、`tests/integration/pipeline/test_FR_DOC_001_http_postgres_facts.py`、`tests/integration/pipeline/test_FR_DOC_005_celery_postgres.py`、`tests/integration/pipeline/test_FR_DOC_006_worker_minio_ingest.py`、`tests/integration/pipeline/test_FR_DOC_006_worker_qdrant_publish.py` | implemented | 27 项 M02 单元 + 文档上传/列表/详情/版本/重试/删除/预览/下载 HTTP；runtime 上传后进程内 ingest（信封仍 uploaded）；`PIVOT_INGEST=celery` 时可 eager 入队；Compose api 注入 celery ingest（yml 不写死 broker，CI 不 up）；`PIVOT_STORAGE=postgres` 时文档事实可跨装配存活（sqlite 测试 URL）；worker 可从共享 MinIO 读取对象字节（CI Fake client）；worker 可向注入 Qdrant 发布（CI Fake client） |
 | FR-SEARCH-001~002 / FR-RAG-001~006 | M04 | `tests/unit/retrieval/`、`tests/security/retrieval/`、`tests/integration/pipeline/test_FR_SEARCH_001_http_search.py`、`tests/integration/pipeline/test_FR_SEARCH_001_qdrant_retrieval.py`、`tests/integration/pipeline/test_FR_RAG_001_bm25_runtime.py`、`tests/integration/pipeline/test_FR_RAG_001_http_embedding_bge.py`、`tests/integration/pipeline/test_NFR_QUAL_golden_set.py` | implemented | 31 项 M04 单元 + 搜索 HTTP + Qdrant dense + ingest 可写入同一端口 + stdlib BM25 + 可注入 HTTP Embedding/bge（CI Fake transport）+ 合成 Golden Set 120 条 |
@@ -94,6 +94,7 @@
 - [x] Run/SSE HTTP（`M05-v0.2.0`；EventLog 补发）
 - [x] 导出/审计 HTTP（`M06-v0.2.0`；短时 URL，非对象字节下载）
 - [x] 改密与管理员用户 HTTP（`M01-v0.3.0`；PATCH 仅 status）
+- [x] PATCH 角色 / 重置密码 HTTP（ND-W3-07；`role` / `reset_password`）
 - [x] 会话 CRUD HTTP（`M05-v0.3.0`；删除为隐藏，消息由 Run 合成）
 - [x] 预览/下载 HTTP（`GET /documents/{id}/preview|download`；内存 Fake 对象字节）
 - [x] composition root（`assemble_runtime_app`、Argon2id、memory 端口、`uvicorn pivot.http.main:app --factory`）
@@ -128,6 +129,7 @@
 - [x] Compose api 注入登录限流阈值/窗口（`${:?}`，不写死次数；example fixture 占位；进程外缺省仍永不锁定；CI 不 build/up）
 - [x] Wave 3 夹具收口评审（ND-W3-13；A1 完成 + 回归绿；tag `wave-3-integrated` ≠ P0 通过）
 - [x] 导出任务 PostgreSQL 持久化（ND-W3-04；CI sqlite；公开 URL 仍 signer；无对象字节下载 HTTP）
+- [x] PATCH 角色 / 重置密码 HTTP（ND-W3-07；`role` / `reset_password`；重置口令不进审计）
 - [ ] 人工标注企业 Golden Set、Qdrant 100k 索引峰值、新 ECS 加密 OSS 备份恢复、live Embedding/rerank 冒烟
 - [ ] 任一 `GATE-P0-*` verified
 
@@ -146,7 +148,7 @@
 - [x] FastAPI `GET /api/v1/search`（同时注入 RetrievalService 与 AuthService 才挂载）；
 - [x] FastAPI `/api/v1/runs` 创建/详情/SSE 补发/取消（同时注入 RunService、QaOrchestrator 与 AuthService 才挂载）；
 - [x] FastAPI `POST /api/v1/exports`、`GET /exports/{id}`、`GET /admin/audit-events`（分别与 AuthService 同时注入才挂载）；
-- [x] FastAPI `POST /auth/change-password`、`GET/POST /admin/users`、`PATCH /admin/users/{id}`（status 停用/启用）；
+- [x] FastAPI `POST /auth/change-password`、`GET/POST /admin/users`、`PATCH /admin/users/{id}`（status / role / reset_password）；
 - [x] FastAPI `GET/POST /conversations`、`GET/DELETE /conversations/{id}`、`GET /conversations/{id}/messages`（与 AuthService 同时注入才挂载）；
 - [x] FastAPI `GET /documents/{id}/preview`、`GET /documents/{id}/download`（与既有文档 router 同挂载；inline/attachment；不暴露 MinIO）；
 - [x] Dockerfile + Compose api（profile `app`；默认 `docker compose up` 不起 api）；
@@ -208,8 +210,16 @@
 - [x] Wave 3 Compose api 登录限流已批准：`progress/changes/20260910-M01-compose-login-rate.md`。
 - [x] Wave 3 夹具收口评审已批准：`progress/changes/20260910-M11-wave3-closeout.md`。
 - [x] Wave 3 导出任务 PostgreSQL 持久化已批准：`progress/changes/20260914-M06-postgres-export-tasks.md`。
+- [x] Wave 3 PATCH 角色/重置密码 HTTP 已批准：`progress/changes/20260914-M01-admin-patch-role-reset.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-14 — PATCH 角色 / 重置密码 HTTP（ND-W3-07）
+
+- **完成**：批准 `20260914-M01-admin-patch-role-reset.md`；`PATCH /api/v1/admin/users/{id}` 处理契约已有 `role` / `status` / `reset_password`；角色变更抬升 `token_version`、撤销 refresh 并审计 `auth.role_change`；重置口令经 HTTPS JSON 一次性返回且不进审计；未知用户 404。`must_change_password` 不入库；不冻结传递机制。Accountable：M01 领域/HTTP，M11 pipeline 测试。
+- **验证**（main，2026-09-14，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）：`python ops/run_grouped_tests.py --skip-web` → **483 passed, 12 skipped**（M01 37；M00-M03 89；pipeline 210 passed / 11 skipped；perf 11 passed / 1 skipped）；ruff / compileall 通过。
+- **限制**：初始密码传递机制仍 TBD-P0；GET/POST 仍不回显口令；refresh 仍 memory；GATE-P0 全部 unverified。
+- **下一步**：staging Embedding（ND-STG-01），或会话/refresh 跨进程（ND-W3-05），或人工标注企业 Golden Set。
 
 ### 2026-09-14 — 导出任务 PostgreSQL 持久化（ND-W3-04）
 

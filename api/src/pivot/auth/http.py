@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pivot.auth.cookies import REFRESH_COOKIE_NAME, Cookie
-from pivot.auth.errors import AuthError, invalid_credentials, not_found
+from pivot.auth.errors import AuthError, invalid_credentials
 from pivot.auth.service import AuthService
 
 _STATUS = {
@@ -91,6 +91,10 @@ def _principal(request: Request, service: AuthService):
     return request_id, principal
 
 
+def generate_initial_password() -> str:
+    return secrets.token_urlsafe(16)
+
+
 def build_auth_router(service: AuthService) -> APIRouter:
     router = APIRouter()
     auth = APIRouter(prefix="/auth")
@@ -152,10 +156,25 @@ def build_auth_router(service: AuthService) -> APIRouter:
     def update_user(id: str, body: AdminUserUpdateBody, request: Request) -> dict[str, str]:
         request_id, principal = _principal(request, service)
         service.require_admin(principal, request.url.path, request_id)
-        if body.status is None:
-            raise not_found(request_id)
-        user = service.set_user_status(principal.user_id, id, body.status, request_id)
-        return service.to_admin_user(user)
+        payload: dict[str, str] | None = None
+        if body.role is not None:
+            user = service.change_role(principal.user_id, id, body.role, request_id)
+            payload = service.to_admin_user(user)
+        if body.status is not None:
+            user = service.set_user_status(principal.user_id, id, body.status, request_id)
+            payload = service.to_admin_user(user)
+        initial_password: str | None = None
+        if body.reset_password:
+            initial_password = generate_initial_password()
+            reset = service.reset_password(
+                principal.user_id, id, initial_password, request_id
+            )
+            payload = service.admin_user(reset.id, request_id)
+        if payload is None:
+            payload = service.admin_user(id, request_id)
+        if initial_password is not None:
+            payload = {**payload, "initial_password": initial_password}
+        return payload
 
     router.include_router(auth)
     return router

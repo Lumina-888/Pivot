@@ -202,7 +202,7 @@ class AuthService:
         request_id: str,
     ) -> CreatedUser:
         self._require_admin_actor(actor_id, request_id)
-        user = self._require_user(user_id, request_id)
+        user = self._require_known_user(user_id, request_id)
         self._rotate_password(user, new_password)
         user.must_change_password = True
         self._users.save(user)
@@ -215,6 +215,35 @@ class AuthService:
             password_hash=user.password_hash,
             initial_password=new_password,
         )
+
+    def change_role(
+        self,
+        actor_id: str,
+        user_id: str,
+        role: str,
+        request_id: str,
+    ) -> UserAccount:
+        self._require_admin_actor(actor_id, request_id)
+        if role not in {"admin", "user"}:
+            raise not_found(request_id)
+        user = self._require_known_user(user_id, request_id)
+        previous = user.role
+        if previous == role:
+            return user
+        user.role = role
+        user.token_version += 1
+        user.updated_at = self._clock.now()
+        self._users.save(user)
+        self._refresh_tokens.revoke_user(user.id)
+        self._audit(
+            actor_id,
+            "auth.role_change",
+            user.id,
+            "ok",
+            request_id,
+            metadata={"from": previous, "to": role},
+        )
+        return user
 
     def disable_user(self, actor_id: str, user_id: str, request_id: str) -> UserAccount:
         self._require_admin_actor(actor_id, request_id)

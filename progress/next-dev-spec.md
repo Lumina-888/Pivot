@@ -1,6 +1,6 @@
 # 问枢 Pivot 后续开发规格（Wave 3 收口 → P0 闸门）
 
-> **文档 ID**：`NEXT-DEV-1.3`  
+> **文档 ID**：`NEXT-DEV-1.4`  
 > **日期**：2026-09-14  
 > **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，**不等于** P0 通过）。  
 > **性质**：开发计划与工单拆分。  
@@ -14,7 +14,7 @@ Owner 已确认近期目标是 **`dev-staging`（开发者调试环境）**，�
 
 ## 0. 当前判断
 
-产品处于 **Wave 3 夹具已收口**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO/Qdrant/Redis 注入；api 注入 celery ingest 与登录限流阈值/窗口；worker 可接 Qdrant；导出任务可走 SQLAlchemy）已在 `main`。分组 Python **475 passed / 12 skipped**。
+产品处于 **Wave 3 夹具已收口**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO/Qdrant/Redis 注入；api 注入 celery ingest 与登录限流阈值/窗口；worker 可接 Qdrant；导出任务可走 SQLAlchemy；PATCH 角色/重置密码 HTTP）已在 `main`。分组 Python **483 passed / 12 skipped**。
 
 这不等于可上线：
 
@@ -107,7 +107,7 @@ Phase A 可以与规章制度样本准备并行。**B 未完成前禁止把系�
 | 检索 dense+BM25 | Qdrant 端口 + stdlib BM25 + Fake/HTTP 适配 | worker 发布未强制同一 Qdrant；无 live embedding；Golden Set 合成 | A1, B1 |
 | 解析 | 启发式 PDF + stdlib OOXML | PyMuPDF/python-docx 等仍暂缓 | A3 |
 | 导出 | HTTP + MinIO 字节 + signer；任务可走 SQLAlchemy（CI sqlite） | 无对象字节下载路由（契约如此，不单开破坏契约的票） | A2 |
-| 认证 | 登录/改密/用户 HTTP；Redis 限流可注入 | PATCH 角色/重置未挂；refresh 仍 memory；阈值 TBD-P0 | A2, B2 |
+| 认证 | 登录/改密/用户 HTTP；Redis 限流可注入；PATCH 角色/重置 | refresh 仍 memory；阈值 TBD-P0；初始密码传递机制 TBD-P0 | A2, B2 |
 | QA/SSE | 主图 + Run/SSE HTTP | 同步补发非长连接；LangGraph extra 暂缓；Verifier 阈值未冻 | A3, B1 |
 | Web | 10 页 Fake fetch；opt-in Playwright 登录 | 完整十页 Playwright；SSE 缓冲 | A3, C |
 | 运维 | Dockerfile/Compose profile `app` | CI 不启动；无固定发布/回滚；无新 ECS/加密 OSS | B3 |
@@ -137,7 +137,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. 默认下一刀：**ND-W3-07** PATCH 角色，或 **ND-STG-01** ingest/检索共用 HTTP Embedding。
+2. 默认下一刀：**ND-STG-01** ingest/检索共用 HTTP Embedding，或 **ND-W3-05** 会话/refresh 跨进程。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。
@@ -154,8 +154,9 @@ ND-W3-01 worker Qdrant
             → ND-W3-13 Wave 3 收口评审（已完成；tag ≠ P0）
             → ND-W3-03 真实解析库
 ND-W3-04 导出任务 PG（已完成）
-ND-W3-07 PATCH 角色     ← 默认下一刀
-ND-STG-01 ingest/检索共用 HTTP Embedding  ∥ 可并行
+ND-W3-07 PATCH 角色（已完成）
+ND-STG-01 ingest/检索共用 HTTP Embedding  ← 默认下一刀
+ND-W3-05 会话/refresh 跨进程
 ND-P0-01 企业 Golden Set（人工，随时可开，不阻塞 A1）
 ND-P0-02 外发审批（人工，阻塞真实企业文档）
 wave-3-integrated 已打（仍全部 GATE unverified）
@@ -172,3 +173,4 @@ wave-3-integrated 已打（仍全部 GATE unverified）
 | 1.1 | 2026-09-10 | Owner 确认 `dev-staging`：低敏规章制度、live API、阿里云 4C8G；外发审批延期企业化 |
 | 1.2 | 2026-09-10 | ND-W3-13 夹具收口：`wave-3-integrated` ≠ P0 通过；默认下一刀 ND-W3-04 / ND-W3-07 / ND-STG-01 |
 | 1.3 | 2026-09-14 | ND-W3-04 导出任务 PG 已完成；默认下一刀 ND-W3-07 / ND-STG-01 |
+| 1.4 | 2026-09-14 | ND-W3-07 PATCH 角色/重置密码 HTTP 已完成；默认下一刀 ND-STG-01 / ND-W3-05 |

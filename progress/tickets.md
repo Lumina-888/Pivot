@@ -19,7 +19,7 @@
 | ND-W3-04 | 导出任务 PostgreSQL 持久化 | A2 | S | M06 | FR-EXPORT-001 | 无 | done |
 | ND-W3-05 | 会话/refresh 跨进程存储 | A2 | M | M01/M05 | FR-AUTH-001, FR-RBAC-002 | 无 | ready |
 | ND-W3-06 | 登录限流缺省接到 Redis（仍不冻阈值） | A2 | S | M01 | FR-AUTH-002 | ND-W3-12 | done |
-| ND-W3-07 | PATCH 角色 / 重置密码 HTTP | A2 | S | M01 | FR-AUTH-003 | 无 | ready |
+| ND-W3-07 | PATCH 角色 / 重置密码 HTTP | A2 | S | M01 | FR-AUTH-003 | 无 | done |
 | ND-W3-08 | SSE 长连接推送与缓冲 | A3 | M | M05/M08 | FR-STREAM-001~003 | 无 | ready |
 | ND-W3-09 | LangGraph extra（原暂缓变更） | A3 | M | M05 | FR-QA-001 | `20260906-M05-langgraph.md` | blocked |
 | ND-W3-10 | Playwright 十页 opt-in | A3/C | M | M09/M10/M11 | NFR-UX, GATE-P1 | ND-W3-02 建议 | ready |
@@ -128,6 +128,7 @@
 - **范围**：`PATCH /admin/users/{id}` 支持契约已有角色/重置字段；初始密码不进审计；权限仅 admin。
 - **不做**：不把 `must_change_password` 塞进 User 表（非 SPEC §2.2 字段，见既有 M03 结论）。
 - **测试**：`test_FR_AUTH_003_http_admin_patch_role_*`、`test_FR_AUTH_003_http_reset_password_*`。
+- **完成**：2026-09-14。`PATCH /admin/users/{id}` 处理 `role` / `status` / `reset_password`；角色变更抬升 `token_version` 并审计 `auth.role_change`；重置口令经 HTTPS JSON 一次性返回且不进审计；未知用户 404。`must_change_password` 不入库。变更 `progress/changes/20260914-M01-admin-patch-role-reset.md`。
 
 ### ND-W3-08 SSE 长连接与缓冲
 
