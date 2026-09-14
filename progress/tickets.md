@@ -25,6 +25,7 @@
 | ND-W3-10 | Playwright 十页 opt-in | A3/C | M | M09/M10/M11 | NFR-UX, GATE-P1 | ND-W3-02 建议 | ready |
 | ND-W3-11 | version.idempotency_key 入库 | A2 | S | M03/M02 | FR-DOC-005 | 需变更申请；SPEC 字段确认 | blocked |
 | ND-W3-13 | Wave 3 收口评审 / tag | A | S | M11 | — | A1 完成 | done |
+| ND-W3-14 | Run/EventLog 跨进程存储 | A2 | S | M05/M03 | FR-STREAM-001~004 | ND-W3-05 | done |
 | ND-P0-01 | 企业人工标注 Golden Set | B1 | L | 业务/M04/M11 | GATE-P0-002, NFR-QUAL | 人 | ready |
 | ND-STG-01 | ingest 与检索共用注入 HTTP Embedding | STG | S | M07/M04 | FR-RAG-001, FR-DOC-006 | ND-W3-01 | done |
 | ND-STG-02 | Deepseek-Flash Draft Writer 适配器 | STG | M | M05 | FR-QA-001/002, DR-007 | ND-STG-01 | done |
@@ -110,7 +111,17 @@
 - **范围**：refresh 与会话/Run 在 `PIVOT_STORAGE=postgres` 时跨 api 实例存活；多 worker/api 不丢登录态。
 - **不做**：不把 Redis 当会话事实源（SPEC：Redis 非业务事实）。
 - **测试**：`test_FR_AUTH_001_refresh_survives_new_assembly`、`test_FR_RBAC_002_conversation_survives_new_assembly`。
-- **完成**：2026-09-14。`PIVOT_STORAGE=postgres` 时 hashed refresh 与 Conversation 跨装配存活；SQL 隐藏删除映射为删行；不新增 hidden 列；不把 Redis 当事实源。Run/EventLog 仍 memory。变更 `progress/changes/20260914-M01-postgres-refresh-conversations.md`。
+- **完成**：2026-09-14。`PIVOT_STORAGE=postgres` 时 hashed refresh 与 Conversation 跨装配存活；SQL 隐藏删除映射为删行；不新增 hidden 列；不把 Redis 当事实源。Run/EventLog 余量见 ND-W3-14。变更 `progress/changes/20260914-M01-postgres-refresh-conversations.md`。
+
+### ND-W3-14 Run / EventLog 跨进程存储
+
+- **规模 / Owner**：S / M05（Run/SSE）+ M03（SQL 适配）+ M11（装配）
+- **映射**：`FR-STREAM-001~004`、`FR-RBAC-002`（消息由 Run 合成）、SPEC §2.2 Run/AgentEvent/Message
+- **依赖**：ND-W3-05（Conversation 行已可跨装配）
+- **范围**：`PIVOT_STORAGE=postgres` 时 Run 与 EventLog 跨装配存活；幂等键仍唯一；SSE Last-Event-ID 补发可读已持久化事件；消息由已持久化 Run 合成。
+- **不做**：不把 Redis 当事实源；不新增 fingerprint/payload 列；不接入 Claim/Citation SQL；不做 uvicorn 长连接；不冻 SSE 预算。
+- **测试**：`test_FR_STREAM_001_run_survives_new_assembly`、`test_FR_STREAM_002_003_event_log_survives_new_assembly`、`test_FR_RBAC_002_messages_survive_new_assembly`。
+- **完成**：2026-09-14。`SqlAlchemyRunStore` 读写 SPEC Run / AgentEvent / Message；fingerprint 重算；answer 经 assistant Message；AgentEvent.summary 保存公开 SSE 摘要。变更 `progress/changes/20260914-M05-postgres-run-eventlog.md`。
 
 ### ND-W3-06 登录限流缺省接到 Redis
 
@@ -305,6 +316,6 @@
 工作区 E:/AI Project/Pivot，分支 main。
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
-本切片只做 <TICKET-ID>。默认下一刀 Run/EventLog 跨进程，或 ND-W3-08 / ND-W3-03。STG-04 ECS apply 待 Owner SSH/安全组/磁盘。先写 progress/changes/，再 Red。
+本切片只做 <TICKET-ID>。默认下一刀 ND-W3-08 SSE，或 ND-W3-03。STG-04 ECS apply 待 Owner SSH/安全组/磁盘。先写 progress/changes/，再 Red。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```

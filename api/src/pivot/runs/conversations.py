@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Protocol
 
 from pivot.runs.errors import not_found
+from pivot.runs.models import synthetic_user_message_id
 from pivot.runs.service import RunService
 from pivot.shared.ids import new_id
 from pivot.shared.time import utc_now
@@ -131,10 +132,9 @@ class ConversationService:
         for bundle in self._runs.list_for_conversation(conversation_id):
             created = bundle.run.created_at or utc_now()
             stamp = format_utc(created)
-            token = bundle.run.id.split("_", 1)[-1]
             messages.append(
                 {
-                    "message_id": f"msg_{token}q",
+                    "message_id": synthetic_user_message_id(bundle.run.id),
                     "conversation_id": conversation_id,
                     "sender": "user",
                     "content": bundle.run.question,

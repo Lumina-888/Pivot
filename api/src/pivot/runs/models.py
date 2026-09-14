@@ -2,8 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
+
+
+def run_fingerprint(question: str, scope_type: str, scope_document_id: str | None) -> str:
+    raw = f"{question}|{scope_type}|{scope_document_id or ''}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def synthetic_user_message_id(run_id: str) -> str:
+    return f"msg_{run_id.split('_', 1)[-1]}q"
 
 
 @dataclass

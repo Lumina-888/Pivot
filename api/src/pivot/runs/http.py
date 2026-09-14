@@ -13,6 +13,7 @@ from pivot.auth.http import resolve_request_id
 from pivot.auth.service import AuthService
 from pivot.qa.orchestrator import QaOrchestrator
 from pivot.runs.errors import RunError
+from pivot.runs.machine import is_terminal
 from pivot.runs.service import RunService
 
 _STATUS = {
@@ -76,8 +77,9 @@ def build_runs_router(runs: RunService, qa: QaOrchestrator, auth: AuthService) -
             scope_document_id=body.scope_document_id,
         )
         log = runs.log(bundle.run.id)
-        if not log.replay():
+        if not is_terminal(bundle.run.state) and not log.replay():
             qa.execute(bundle, log, request_id)
+            runs.commit(bundle)
         return {
             "run_id": bundle.run.id,
             "message_id": bundle.run.message_id,

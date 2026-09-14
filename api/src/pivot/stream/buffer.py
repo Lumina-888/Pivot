@@ -49,6 +49,23 @@ class EventLog:
             (name, data) for name, data in self._events if data["seq"] > start
         )
 
+    def persistable(self) -> tuple[tuple[str, dict[str, Any]], ...]:
+        return tuple(self._events)
+
+    @classmethod
+    def from_persisted(
+        cls,
+        run_id: str,
+        message_id: str,
+        events: tuple[tuple[str, dict[str, Any]], ...] | list[tuple[str, dict[str, Any]]],
+    ) -> EventLog:
+        log = cls(run_id, message_id)
+        log._events = list(events)
+        for name, _data in log._events:
+            if name in TERMINAL_EVENTS:
+                log._terminal = name
+        return log
+
     @property
     def terminal(self) -> str | None:
         return self._terminal

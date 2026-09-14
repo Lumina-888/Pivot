@@ -24,6 +24,7 @@ from pivot.db.documents import (
 from pivot.db.exports import SqlAlchemyExportRepository
 from pivot.db.models import Base
 from pivot.db.refresh import SqlAlchemyRefreshTokenStore
+from pivot.db.runs import SqlAlchemyRunStore
 from pivot.db.session import create_db_engine, session_factory
 from pivot.db.users import SqlAlchemyUserDirectory
 from pivot.documents.service import DocumentService
@@ -63,7 +64,7 @@ from pivot.retrieval.service import RetrievalService
 from pivot.retrieval.tokenize import SimpleLexTokenizer
 from pivot.retrieval.vector import VectorStoreRetriever
 from pivot.runs.conversations import ConversationService, InMemoryConversationStore
-from pivot.runs.service import RunService
+from pivot.runs.service import InMemoryRunStore, RunService
 from pivot.security.passwords import Argon2idHasher
 from pivot.security.rbac import AccessControl
 from pivot.shared.ids import new_id
@@ -102,6 +103,8 @@ class RuntimeAssembly:
     refresh_tokens: object | None = None
     conversation_rows: object | None = None
     conversations: object | None = None
+    run_rows: object | None = None
+    runs: object | None = None
     draft_writer: object | None = None
     parsers: ParserRegistry | None = None
 
@@ -535,6 +538,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     export_rows: object
     refresh_tokens: object
     conversation_rows: object
+    run_rows: object
     if resolved.storage == "postgres":
         postgres_engine = _open_postgres_engine(resolved)
         sessions = session_factory(postgres_engine)
@@ -546,6 +550,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         export_rows = SqlAlchemyExportRepository(sessions)
         refresh_tokens = SqlAlchemyRefreshTokenStore(sessions)
         conversation_rows = SqlAlchemyConversationStore(sessions)
+        run_rows = SqlAlchemyRunStore(sessions)
     else:
         users = InMemoryUserDirectory()
         document_rows = MemoryDocuments()
@@ -555,6 +560,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         export_rows = InMemoryExportRepository()
         refresh_tokens = InMemoryRefreshStore()
         conversation_rows = InMemoryConversationStore()
+        run_rows = InMemoryRunStore()
     if resolved.object_store == "minio":
         minio_store = _open_minio_store(resolved)
         document_objects = minio_store
@@ -598,7 +604,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
                 )
             )
     resources = InMemoryResources()
-    runs = RunService()
+    runs = RunService(store=run_rows)
     conversations = ConversationService(runs=runs, store=conversation_rows)
     catalog = _ConversationBoundCatalog(resources, conversations)
     if (
@@ -754,6 +760,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         refresh_tokens=refresh_tokens,
         conversation_rows=conversation_rows,
         conversations=conversations,
+        run_rows=run_rows,
+        runs=runs,
         draft_writer=draft_writer,
         parsers=parsers,
     )

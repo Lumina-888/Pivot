@@ -1,0 +1,27 @@
+# 变更申请：Run / EventLog 跨进程存储
+
+- **日期**：2026-09-14
+- **申请人**：Wave 3 主线会话（M03 持久化客户端 + M05 Run/SSE 端口 + M11 composition root）
+- **工单**：ND-W3-14（ND-W3-05 余量）
+- **背景**：`PIVOT_STORAGE=postgres` 已装配用户目录、文档事实、导出任务、hashed refresh 与 Conversation，但 `RunService` 与 `EventLog` 仍为进程内字典。新装配看不到 Run、SSE 补发与由 Run 合成的消息。SPEC §2.1 规定 PostgreSQL 是业务事实源，Redis 只作队列/短期状态，不得保存唯一业务事实。不得把 sqlite 标成生产事实源，不得冻结 SSE/超时预算（`TBD-P0`），不得把同步补发标成 uvicorn 长连接。
+- **原契约/现状**：
+  - SPEC §2.2 `Run(run_id, conversation_id, message_id, question, scope_type, scope_document_id, idempotency_key, state, attempt, error_code, model_version, prompt_version, retrieval_config_version, index_generation, created_at, started_at, completed_at)`；
+  - SPEC §2.2 `AgentEvent(event_id, run_id, stage, summary, seq, duration_ms, created_at)` 为轻量轨迹；SSE 信封另见契约，当前 HTTP 按内存 EventLog 补发；
+  - SPEC §2.2 `Message(...)` 已有表；HTTP 消息由已持久化 Run 合成，不读 Message 列表接口以外的新字段；
+  - M03 已有 `runs` / `agent_events` / `messages` 模型与迁移；`Run.conversation_id` FK 到 `conversations`；
+  - M05 `RunService` 仍内存 dict；`fingerprint` / `owner_id` / `answer_markdown` / `rewrite_count` / `clarification_count` 不是 SPEC §2.2 Run 列；
+  - composition root 在 postgres 模式下仍 `RunService()`；
+  - Claim/Citation 表有 Document/Version/Chunk FK；无文档事实时不能写 Citation。
+- **拟变更内容**（本切片）：
+  - M05 `RunStore` 端口 + `InMemoryRunStore`；`RunService` 注入 store；缺省仍内存；`create/cancel` 写 store；HTTP 在同步编排后 `commit` 写终态与 EventLog；
+  - `fingerprint` 由 `question|scope_type|scope_document_id` 重算，**不** 新增列；`owner_id` 从 Conversation 读取；`answer_markdown` 经 SPEC Message（assistant `content`）往返；`rewrite_count` / `clarification_count` 不入库（HTTP 同步路径到终态）；
+  - AgentEvent 用现有列保存公开 SSE：`stage` = 信封 stage，`seq` = 信封 seq，`summary` = 公开事件名与 payload 的轻量 JSON 摘要（不含思考链/系统 Prompt），**不** 新增 payload 列；
+  - M03 `SqlAlchemyRunStore`：按 SPEC Run / AgentEvent / Message 读写；`conversation_id` 必须已有会话行；替换同一 Run 的 AgentEvent 时先删后写；
+  - M11：`PIVOT_STORAGE=postgres` 时 Run/EventLog 与用户目录/会话共用同一 session factory；缺 URL 仍失败闭环；默认 `PIVOT_STORAGE=memory` 仍内存；
+  - **不** 把 Redis 当 Run/EventLog 事实源；**不** 冻结 SSE 预算/超时；**不** 做 ND-W3-08 uvicorn 长连接；**不** 把 `GATE-P0-003/004` 标 verified；
+  - **不** 本切片接入 Claim/Citation SQL（Citation 依赖已发布 Chunk FK）；消息仍由已持久化 Run 合成。
+- **影响模块**：M03（SQL 适配、db 测试）；M05（RunStore 端口、EventLog 往返、HTTP commit）；M11（bootstrap、pipeline 测试、证据）；M00（MODULE_SPEC §11 现状一句、矩阵问答/SSE/数据行）。
+- **兼容方案**：默认 `PIVOT_STORAGE=memory`；既有 Run/SSE 单元与 HTTP 测试仍走内存 fake；CI sqlite 覆盖跨装配存活。
+- **测试 ID**：`test_M03_sqlalchemy_run_store_persists_spec_fields`、`test_M03_sqlalchemy_run_store_persists_event_log`、`test_NFR_OBS_runtime_postgres_wires_runs_and_event_log`、`test_FR_STREAM_001_run_survives_new_assembly`、`test_FR_STREAM_002_003_event_log_survives_new_assembly`、`test_FR_RBAC_002_messages_survive_new_assembly`、`test_GATE_P0_003_not_verified_by_postgres_runs`。
+- **是否触发 ADR**：否（不改变 Run 状态机、权限或引用/删除语义；不把 sqlite 标成生产事实源；不冻结 TBD-P0 SSE 预算；不把 Redis 当事实源）。
+- **审核结果**：2026-09-14 Wave 3 主线会话 **批准**。
