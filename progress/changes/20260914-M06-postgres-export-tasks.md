@@ -1,0 +1,22 @@
+# 变更申请：导出任务 PostgreSQL 持久化
+
+- **日期**：2026-09-14
+- **申请人**：Wave 3 主线会话（M03 持久化客户端 + M06 端口消费 + M11 composition root）
+- **工单**：ND-W3-04
+- **背景**：`PIVOT_STORAGE=postgres` 已装配用户目录与文档事实，导出对象可接 MinIO，但 `ExportService` 仍用内存 `InMemoryExportRepository`。新装配看不到任务状态。SPEC §2.1 / §2.2 规定 ExportTask 在 PostgreSQL。不得把 sqlite 标成生产事实源，不得冻结导出 TTL（`TBD-P0`），不得新增破坏契约的对象字节下载 HTTP。
+- **原契约/现状**：
+  - M03 已有 `export_tasks` 模型与迁移（SPEC 字段：`id/owner_id/source_type/source_id/format/state/storage_key/expires_at/created_at`）；
+  - M06 `ExportRepository` 端口已冻结（`add/get/save`）；HTTP 仅短时 `download_url`；
+  - composition root 在 postgres 模式下仍 `InMemoryExportRepository()`；
+  - 公开 URL 仍为 `PublicDownloadSigner`，导出字节仍走既有 ObjectStore 端口。
+- **拟变更内容**（本切片）：
+  - M03 `SqlAlchemyExportRepository`：按现有 `export_tasks` 读写 M06 端口的 SPEC 字段；`owner_id` 依赖已有 User 行；
+  - 本切片 **不** 新增 `filename` / `error_code` / `run_id` / `content_type` 列（非 SPEC §2.2 ExportTask 字段；加载时由 `storage_key` / `format` 重建展示所需派生值）；
+  - M11：`PIVOT_STORAGE=postgres` 时导出任务与用户目录/文档事实共用同一 session factory；缺 URL 仍失败闭环；默认 `PIVOT_STORAGE=memory` 仍内存 repository；
+  - 公开 `download_url` 仍由 `PublicDownloadSigner` 签发；响应不得含 `storage_key` / endpoint / 密钥；
+  - **不** 增加对象字节下载 HTTP；**不** 冻结 TTL；**不** 把 `GATE-P0-003` 标 verified。
+- **影响模块**：M03（SQL 适配、db 测试）；M06（只消费既有端口）；M11（bootstrap、pipeline 测试、证据）；M00（MODULE_SPEC §11 现状一句、矩阵导出行）。
+- **兼容方案**：默认 `PIVOT_STORAGE=memory`；既有导出单元/HTTP 测试仍走内存 fake；CI sqlite 覆盖跨装配存活。
+- **测试 ID**：`test_M03_sqlalchemy_export_repository_persists_spec_fields`、`test_M03_sqlalchemy_export_repository_save_updates_state`、`test_NFR_OBS_runtime_postgres_wires_export_tasks`、`test_FR_EXPORT_001_postgres_task_survives_assembly`、`test_FR_EXPORT_001_download_url_does_not_leak_minio`、`test_GATE_P0_003_not_verified_by_postgres_export_tasks`。
+- **是否触发 ADR**：否（不改变导出状态机、授权或引用/删除语义；不把 sqlite 标成生产事实源；不冻结 TBD-P0 TTL）。
+- **审核结果**：2026-09-14 Wave 3 主线会话 **批准**。

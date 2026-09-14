@@ -16,7 +16,7 @@
 | ND-W3-02 | Compose api 注入 `PIVOT_INGEST=celery` | A1 | S | M11 | FR-DOC-005, NFR-OBS | ND-W3-01 建议先 | done |
 | ND-W3-12 | Compose api/worker 注入 Qdrant/Redis | A1 | S | M11 | §2.1, NFR-OBS | ND-W3-01 | done |
 | ND-W3-03 | 真实解析库 extra（PyMuPDF/docx/pptx/xlsx） | A3 | M | M07 | FR-DOC-004, §6.1 | `20260906-M07-worker-dependencies.md` | ready |
-| ND-W3-04 | 导出任务 PostgreSQL 持久化 | A2 | S | M06 | FR-EXPORT-001 | 无 | ready |
+| ND-W3-04 | 导出任务 PostgreSQL 持久化 | A2 | S | M06 | FR-EXPORT-001 | 无 | done |
 | ND-W3-05 | 会话/refresh 跨进程存储 | A2 | M | M01/M05 | FR-AUTH-001, FR-RBAC-002 | 无 | ready |
 | ND-W3-06 | 登录限流缺省接到 Redis（仍不冻阈值） | A2 | S | M01 | FR-AUTH-002 | ND-W3-12 | done |
 | ND-W3-07 | PATCH 角色 / 重置密码 HTTP | A2 | S | M01 | FR-AUTH-003 | 无 | ready |
@@ -101,6 +101,7 @@
 - **范围**：ExportTask 走 SQLAlchemy；跨装配可见状态；对象仍 MinIO；公开 URL 仍 `PublicDownloadSigner`。
 - **不做**：不新增「直接下发 MinIO 字节」的破坏性 HTTP（契约仅短时 `download_url`）；不冻 TTL。
 - **测试**：`test_FR_EXPORT_001_postgres_task_survives_assembly`、`test_FR_EXPORT_001_download_url_does_not_leak_minio`。
+- **完成**：2026-09-14。`SqlAlchemyExportRepository` 读写 SPEC ExportTask 字段；`PIVOT_STORAGE=postgres` 时与用户目录共用 session factory；跨装配 GET 可见 `ready` + signer URL。变更 `progress/changes/20260914-M06-postgres-export-tasks.md`。
 
 ### ND-W3-05 会话 / refresh 跨进程存储
 

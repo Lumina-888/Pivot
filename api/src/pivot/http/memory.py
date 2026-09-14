@@ -24,7 +24,7 @@ from pivot.documents.ports import (
 )
 from pivot.exports.errors import not_found, resource_forbidden
 from pivot.exports.models import DocumentExportView, ExportRecord, PersistedAnswer
-from pivot.exports.repository import InMemoryExportRepository
+from pivot.exports.ports import ExportRepository
 from pivot.shared.time import utc_now
 
 
@@ -249,7 +249,7 @@ class MemoryAnswerStore:
 
 
 class MemoryExportAccess:
-    def __init__(self, exports: InMemoryExportRepository, resources: InMemoryResources) -> None:
+    def __init__(self, exports: ExportRepository, resources: InMemoryResources) -> None:
         self._exports = exports
         self._resources = resources
 

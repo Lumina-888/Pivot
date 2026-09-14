@@ -20,6 +20,7 @@ from pivot.db.documents import (
     SqlAlchemyTaskStore,
     SqlAlchemyVersionStore,
 )
+from pivot.db.exports import SqlAlchemyExportRepository
 from pivot.db.models import Base
 from pivot.db.session import create_db_engine, session_factory
 from pivot.db.users import SqlAlchemyUserDirectory
@@ -93,6 +94,7 @@ class RuntimeAssembly:
     ingest_backend: str = "sync"
     attempts: object | None = None
     document_rows: object | None = None
+    export_rows: object | None = None
 
 
 class _RuntimeProbes:
@@ -407,6 +409,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     version_rows: object
     chunk_rows: object
     task_rows: object
+    export_rows: object
     if resolved.storage == "postgres":
         postgres_engine = _open_postgres_engine(resolved)
         sessions = session_factory(postgres_engine)
@@ -415,12 +418,14 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         version_rows = SqlAlchemyVersionStore(sessions)
         chunk_rows = SqlAlchemyChunkStore(sessions)
         task_rows = SqlAlchemyTaskStore(sessions)
+        export_rows = SqlAlchemyExportRepository(sessions)
     else:
         users = InMemoryUserDirectory()
         document_rows = MemoryDocuments()
         version_rows = MemoryVersions()
         chunk_rows = MemoryChunks()
         task_rows = MemoryTasks()
+        export_rows = InMemoryExportRepository()
     if resolved.object_store == "minio":
         minio_store = _open_minio_store(resolved)
         document_objects = minio_store
@@ -555,14 +560,13 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     )
     runs = RunService()
     conversations = ConversationService(runs=runs)
-    export_repo = InMemoryExportRepository()
     export_clock = UtcClock()
     audits = AuditService(AppendOnlyAuditStore(), export_clock)
     answers = MemoryAnswerStore()
     exports = ExportService(
-        access=MemoryExportAccess(export_repo, resources),
+        access=MemoryExportAccess(export_rows, resources),
         answers=answers,
-        exports=export_repo,
+        exports=export_rows,
         objects=export_object_store,
         audits=audits,
         clock=export_clock,
@@ -607,6 +611,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         ingest_backend=resolved.ingest_backend,
         attempts=attempts,
         document_rows=document_rows,
+        export_rows=export_rows,
     )
 
 
