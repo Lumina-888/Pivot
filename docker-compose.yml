@@ -6,6 +6,7 @@
 # api and worker inject shared PG/MinIO/Qdrant/Redis vars (not hard-coded).
 # api injects PIVOT_INGEST / queues / concurrency / Celery broker (not hard-coded).
 # api injects login lockout threshold/window (not hard-coded; both required together).
+# api injects Draft Writer PIVOT_LLM* (not hard-coded; worker does not write).
 # worker Celery broker URL is injected, not hard-coded.
 # FastAPI composition root:
 #   uvicorn pivot.http.main:app --factory
@@ -119,6 +120,19 @@ services:
       PIVOT_EMBEDDING_MODEL: ${PIVOT_EMBEDDING_MODEL:-}
       PIVOT_EMBEDDING_API_KEY: ${PIVOT_EMBEDDING_API_KEY:-}
       PIVOT_EMBEDDING_TIMEOUT: ${PIVOT_EMBEDDING_TIMEOUT:-}
+      PIVOT_LLM: ${PIVOT_LLM:?set PIVOT_LLM}
+      PIVOT_LLM_ENDPOINT: ${PIVOT_LLM_ENDPOINT:-}
+      PIVOT_LLM_MODEL: ${PIVOT_LLM_MODEL:-}
+      PIVOT_LLM_API_KEY: ${PIVOT_LLM_API_KEY:-}
+      PIVOT_LLM_TIMEOUT: ${PIVOT_LLM_TIMEOUT:-}
+      PIVOT_LLM_AUTH_HEADER: ${PIVOT_LLM_AUTH_HEADER:-}
+      PIVOT_LLM_AUTH_SCHEME: ${PIVOT_LLM_AUTH_SCHEME:-}
+      PIVOT_LLM_FALLBACK_ENDPOINT: ${PIVOT_LLM_FALLBACK_ENDPOINT:-}
+      PIVOT_LLM_FALLBACK_MODEL: ${PIVOT_LLM_FALLBACK_MODEL:-}
+      PIVOT_LLM_FALLBACK_API_KEY: ${PIVOT_LLM_FALLBACK_API_KEY:-}
+      PIVOT_LLM_FALLBACK_TIMEOUT: ${PIVOT_LLM_FALLBACK_TIMEOUT:-}
+      PIVOT_LLM_FALLBACK_AUTH_HEADER: ${PIVOT_LLM_FALLBACK_AUTH_HEADER:-}
+      PIVOT_LLM_FALLBACK_AUTH_SCHEME: ${PIVOT_LLM_FALLBACK_AUTH_SCHEME:-}
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:

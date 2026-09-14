@@ -1,0 +1,23 @@
+# 变更申请：Deepseek-Flash Draft Writer 适配器（CI Fake HTTP）
+
+- **日期**：2026-09-14
+- **申请人**：dev-staging 主线会话（M05 Draft Writer + M11 composition root / Compose 注入）
+- **工单**：ND-STG-02
+- **背景**：QA 主图 `draft_answer` 仍为证据拼接，无外部 LLM。Owner 给定 staging 主模型 DeepSeek 官方 `deepseek-flash`、备用小米官方 `mimo-v2.5`，均不走硅基（`20260910-M00-dev-staging-vendors.md`）。SPEC `FR-QA-001/002`、`§8.3`、`DR-007` 要求服务端统一入口、Citation 落在检索候选、`external_llm_allowed=false` 不得外发。不得把 Fake HTTP 标成 GATE verified，不得冻结模型名/超时/token 上限，不得写死供应商 URL。
+- **原契约/现状**：
+  - `draft_from_evidence` 拼接命中文本；`QaOrchestrator` 无 Writer 端口；
+  - `external_llm_allowed` 已在 OpenAPI 与 PG `document_versions` 列，但领域 `VersionRecord` / 上传 HTTP 未接线，任务执行前无检查；
+  - 既有 JSON HTTP 客户端在 M04 `JsonHttpClient`（CI `ScriptedJsonHttpClient`）；超时与 429 未区分到 `PROVIDER_TIMEOUT` / `PROVIDER_RATE_LIMITED`；
+  - 超时/token 上限仍为 `TBD-P0`；LangGraph extra 仍暂缓。
+- **拟变更内容**（本切片）：
+  - M05：新增 `DraftWriter` 端口；缺省仍为本地证据拼接（`EvidenceJoinWriter`）；draft 阶段允许 `refuse`（`FR-QA-003` 外发不允许，终态集合不变）；`PIVOT_LLM=http` 时装配注入 endpoint/model/api_key/timeout 的 OpenAI 兼容 chat Writer；鉴权头/scheme 可注入（缺省 `Authorization: Bearer`，非 Authorization 头缺省为裸 key）；主失败（超时/429/5xx）才切备用 `PIVOT_LLM_FALLBACK_*`（两套 key/endpoint 分开）；Citation 只从检索候选生成，模型给出的候选外引用丢弃；`external_llm_allowed=false`（任一命中）不得 HTTP、错误码 `EXTERNAL_LLM_NOT_ALLOWED`、Run `refused`；超时/429/5xx 闭环为既有 `PROVIDER_TIMEOUT` / `PROVIDER_RATE_LIMITED` / `PROVIDER_TEMPORARY_ERROR`，Run `failed`；异常与事件不回显 api_key / 系统 Prompt；
+  - M04：`JsonHttpError` 可携带 `timeout`；stdlib 客户端把 `TimeoutError` 标为 timeout。Embedder/rerank 映射不变；
+  - M02：`VersionRecord.external_llm_allowed`（缺省 false）；上传 Form 可传入；详情版本视图回显该字段；
+  - M03：SQLAlchemy VersionStore 读写已有列，不新增迁移；
+  - M11：`PIVOT_LLM=local|http`（默认 local）；`http` 必须同时注入 endpoint/model/api_key；备用三项要么都缺要么都在；timeout/鉴权头可选，不填默认秒数；Compose **仅 api** 注入 `PIVOT_LLM*`（worker 不写作）；example 占位 `local`（fixture，不是冻结 TBD-P0）；**不** 提交供应商 URL 或密钥；
+  - **不** 改 HTTP 缺省证据拼接；**不** 在 CI `docker compose up` / 打 live 供应商；**不** 冻结模型名/超时/token；**不** 把 LangGraph 绑死本票；**不** 把 `GATE-P0-001/002/004` 标 verified；**不** 做 ND-STG-03 MinerU。
+- **影响模块**：M05（Writer、编排、单元测试）；M11（settings/bootstrap、Compose、pipeline 测试、证据）；M02（版本门禁字段/上传）；M03（SQLAlchemy 读写已有列）；M04（JsonHttpError timeout 标记）；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：默认 `PIVOT_LLM=local` 行为不变；既有 QA 单测保持证据拼接；选中 `http` 而缺字段时失败闭环，不回退静默拼接。
+- **测试 ID**：`test_FR_QA_001_http_writer_posts_injected_model_and_messages`、`test_FR_QA_001_http_writer_uses_injected_auth_header`、`test_FR_QA_001_http_writer_does_not_hardcode_vendor`、`test_FR_QA_002_http_writer_citations_stay_in_evidence`、`test_FR_QA_002_http_writer_drops_out_of_candidate_citations`、`test_FR_QA_003_http_writer_skips_http_when_external_llm_not_allowed`、`test_FR_QA_001_http_writer_timeout_is_provider_timeout`、`test_FR_QA_001_http_writer_429_is_rate_limited`、`test_FR_QA_001_http_writer_5xx_is_temporary`、`test_FR_QA_001_http_writer_does_not_leak_api_key`、`test_FR_QA_001_http_writer_falls_back_on_primary_timeout`、`test_FR_QA_001_http_writer_does_not_fallback_on_not_allowed`、`test_FR_QA_001_http_writer_fallback_uses_separate_endpoint_and_key`、`test_FR_QA_005_http_writer_events_do_not_expose_prompt`、`test_FR_DOC_001_upload_records_external_llm_allowed`、`test_M03_sqlalchemy_version_store_persists_external_llm_allowed`、`test_NFR_OBS_runtime_http_llm_requires_endpoint_model_key`、`test_NFR_OBS_runtime_http_llm_wires_writer`、`test_FR_QA_001_runtime_http_writer_answers`、`test_FR_QA_003_runtime_http_writer_refuses_when_not_allowed`、`test_NFR_OBS_compose_api_injects_http_llm`、`test_GATE_P0_004_not_verified_by_http_writer`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义；不冻结 TBD-P0 模型/超时/token；内置 Adapter 仍符合 `DR-007` 服务端统一入口，不把 LiteLLM 绑死本票；不把 Fake HTTP 标成生产 Writer）。
+- **审核结果**：2026-09-14 主线会话 **批准**。

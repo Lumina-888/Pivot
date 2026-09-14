@@ -50,6 +50,7 @@ from pivot.http.memory import (
 from pivot.http.settings import RuntimeSettings
 from pivot.qa.orchestrator import QaOrchestrator
 from pivot.qa.ports import EvidenceHit, RetrievalResult
+from pivot.qa.writer import EvidenceJoinWriter, FailoverDraftWriter, HttpDraftWriter
 from pivot.retrieval.bm25 import Bm25Reranker, Bm25Retriever
 from pivot.retrieval.fakes import HashingQueryEmbedder, KeywordRetriever, OverlapReranker
 from pivot.retrieval.models import RetrievalQuery
@@ -95,6 +96,7 @@ class RuntimeAssembly:
     attempts: object | None = None
     document_rows: object | None = None
     export_rows: object | None = None
+    draft_writer: object | None = None
 
 
 class _RuntimeProbes:
@@ -277,6 +279,67 @@ def _json_http_client(settings: RuntimeSettings):
     return StdlibJsonHttpClient()
 
 
+def _http_draft_writer(
+    settings: RuntimeSettings,
+    *,
+    endpoint: str,
+    model: str,
+    api_key: str,
+    timeout_seconds: float | None,
+    auth_header: str | None,
+    auth_scheme: str | None,
+):
+    return HttpDraftWriter(
+        _json_http_client(settings),
+        endpoint=endpoint,
+        model=model,
+        api_key=api_key,
+        timeout_seconds=timeout_seconds,
+        auth_header=auth_header,
+        auth_scheme=auth_scheme,
+    )
+
+
+def _draft_writer(settings: RuntimeSettings):
+    if settings.llm != "http":
+        return EvidenceJoinWriter()
+    primary = _http_draft_writer(
+        settings,
+        endpoint=settings.llm_endpoint or "",
+        model=settings.llm_model or "",
+        api_key=settings.llm_api_key or "",
+        timeout_seconds=settings.llm_timeout,
+        auth_header=settings.llm_auth_header,
+        auth_scheme=settings.llm_auth_scheme,
+    )
+    if not (
+        settings.llm_fallback_endpoint
+        and settings.llm_fallback_model
+        and settings.llm_fallback_api_key
+    ):
+        return primary
+    fallback = _http_draft_writer(
+        settings,
+        endpoint=settings.llm_fallback_endpoint,
+        model=settings.llm_fallback_model,
+        api_key=settings.llm_fallback_api_key,
+        timeout_seconds=settings.llm_fallback_timeout,
+        auth_header=settings.llm_fallback_auth_header,
+        auth_scheme=settings.llm_fallback_auth_scheme,
+    )
+    return FailoverDraftWriter(primary, fallback)
+
+
+def _external_llm_allowed(versions, version_id: str) -> bool:
+    if versions is None:
+        return False
+    getter = getattr(versions, "get", None)
+    if getter is None:
+        return False
+    version = getter(version_id)
+    return bool(version is not None and getattr(version, "external_llm_allowed", False))
+
+
 def _query_embedder(settings: RuntimeSettings):
     if settings.query_embedder is not None:
         return settings.query_embedder
@@ -325,8 +388,9 @@ def _open_redis_stores(
 
 
 class _RetrievalBridge:
-    def __init__(self, retrieval: RetrievalService) -> None:
+    def __init__(self, retrieval: RetrievalService, versions=None) -> None:
         self._retrieval = retrieval
+        self._versions = versions
 
     def retrieve(
         self,
@@ -356,6 +420,9 @@ class _RetrievalBridge:
                 document_id=item.document_id,
                 version_id=item.version_id,
                 text=item.text,
+                external_llm_allowed=_external_llm_allowed(
+                    self._versions, item.version_id
+                ),
             )
             for item in outcome.evidence
         )
@@ -580,13 +647,17 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         ttl_seconds=resolved.export_ttl,
         download_ttl_seconds=resolved.download_ttl,
     )
+    draft_writer = _draft_writer(resolved)
     app = create_app(
         probes=probes,
         auth=auth,
         documents=documents,
         retrieval=retrieval,
         runs=runs,
-        qa=QaOrchestrator(_RetrievalBridge(retrieval)),
+        qa=QaOrchestrator(
+            _RetrievalBridge(retrieval, version_rows),
+            writer=draft_writer,
+        ),
         conversations=conversations,
         exports=exports,
         audits=audits,
@@ -618,6 +689,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         attempts=attempts,
         document_rows=document_rows,
         export_rows=export_rows,
+        draft_writer=draft_writer,
     )
 
 

@@ -21,9 +21,12 @@ __all__ = [
 
 
 class JsonHttpError(Exception):
-    def __init__(self, message: str, *, status: int | None = None) -> None:
+    def __init__(
+        self, message: str, *, status: int | None = None, timeout: bool = False
+    ) -> None:
         super().__init__(message)
         self.status = status
+        self.timeout = timeout
 
 
 class JsonHttpClient(Protocol):
@@ -54,7 +57,9 @@ class StdlibJsonHttpClient:
                 raw = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             raise JsonHttpError("http request failed", status=exc.code) from exc
-        except (TimeoutError, urllib.error.URLError, OSError, ValueError) as exc:
+        except TimeoutError as exc:
+            raise JsonHttpError("http request timed out", timeout=True) from exc
+        except (urllib.error.URLError, OSError, ValueError) as exc:
             raise JsonHttpError("http transport failed") from exc
         try:
             parsed = json.loads(raw)

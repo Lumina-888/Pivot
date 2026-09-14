@@ -65,6 +65,7 @@ def _to_version(row: DocumentVersion) -> VersionRecord:
         storage_key=row.storage_key,
         state=row.state,
         current=row.current,
+        external_llm_allowed=row.external_llm_allowed,
     )
 
 
@@ -169,6 +170,7 @@ class SqlAlchemyVersionStore(_SessionBound):
                             storage_key=version.storage_key,
                             state=version.state,
                             current=version.current,
+                            external_llm_allowed=version.external_llm_allowed,
                             created_at=utc_now(),
                         )
                     )
@@ -178,6 +180,7 @@ class SqlAlchemyVersionStore(_SessionBound):
                 row.storage_key = version.storage_key
                 row.state = version.state
                 row.current = version.current
+                row.external_llm_allowed = version.external_llm_allowed
 
     def find_by_sha(self, content_sha256: str) -> VersionRecord | None:
         with self._scope() as session:

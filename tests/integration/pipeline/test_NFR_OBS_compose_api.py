@@ -396,6 +396,50 @@ def test_NFR_OBS_compose_api_worker_injects_http_embedding():
     assert "embedding" in intent.lower()
 
 
+_LLM_ENV = (
+    "PIVOT_LLM",
+    "PIVOT_LLM_ENDPOINT",
+    "PIVOT_LLM_MODEL",
+    "PIVOT_LLM_API_KEY",
+    "PIVOT_LLM_TIMEOUT",
+    "PIVOT_LLM_AUTH_HEADER",
+    "PIVOT_LLM_AUTH_SCHEME",
+    "PIVOT_LLM_FALLBACK_ENDPOINT",
+    "PIVOT_LLM_FALLBACK_MODEL",
+    "PIVOT_LLM_FALLBACK_API_KEY",
+    "PIVOT_LLM_FALLBACK_TIMEOUT",
+    "PIVOT_LLM_FALLBACK_AUTH_HEADER",
+    "PIVOT_LLM_FALLBACK_AUTH_SCHEME",
+)
+
+
+def test_NFR_OBS_compose_api_injects_http_llm():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    api = services["api"]
+    worker = services["worker"]
+    for key in _LLM_ENV:
+        assert f"{key}:" in api
+        assert "${" + key in api
+        assert f"{key}:" not in worker
+    assert "${PIVOT_LLM:?" in api
+    assert "${PIVOT_LLM:-local}" not in api
+    assert re.search(r"PIVOT_LLM:\s*http", api) is None
+    assert re.search(r"PIVOT_LLM_ENDPOINT:\s*https?://", api, re.I) is None
+    lowered = api.lower()
+    assert "siliconflow" not in lowered
+    assert "deepseek" not in lowered
+    assert "openai.com" not in lowered
+    assert "mimo-v2.5" not in lowered
+    example = _ENV_EXAMPLE.read_text(encoding="utf-8")
+    assert _example_assignment(example, "PIVOT_LLM") == "local"
+    assert "PIVOT_LLM_ENDPOINT=" in example
+    assert "TBD-P0" in example
+    intent = _INTENT.read_text(encoding="utf-8")
+    assert "PIVOT_LLM" in intent or "writer" in intent.lower()
+    assert "worker 不注入" in intent or "worker 不写作" in intent
+
+
 def test_NFR_OBS_ci_does_not_build_or_start_compose_api():
     workflow = _WORKFLOW.read_text(encoding="utf-8").lower()
     assert "docker compose" not in workflow

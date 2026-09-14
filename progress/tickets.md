@@ -27,7 +27,7 @@
 | ND-W3-13 | Wave 3 收口评审 / tag | A | S | M11 | — | A1 完成 | done |
 | ND-P0-01 | 企业人工标注 Golden Set | B1 | L | 业务/M04/M11 | GATE-P0-002, NFR-QUAL | 人 | ready |
 | ND-STG-01 | ingest 与检索共用注入 HTTP Embedding | STG | S | M07/M04 | FR-RAG-001, FR-DOC-006 | ND-W3-01 | done |
-| ND-STG-02 | Deepseek-Flash Draft Writer 适配器 | STG | M | M05 | FR-QA-001/002, DR-007 | ND-STG-01 | ready |
+| ND-STG-02 | Deepseek-Flash Draft Writer 适配器 | STG | M | M05 | FR-QA-001/002, DR-007 | ND-STG-01 | done |
 | ND-STG-03 | MinerU 云 API 解析器（staging） | STG | M | M07 | §6.1 V2 | ND-W3-01 | ready |
 | ND-STG-04 | 阿里云 4C8G Compose 部署 | STG | M | M11 | NFR-OBS | A1+STG-01~03 | blocked |
 | ND-P0-02 | 外发/留存/训练审批 | B1 | L | 法务/安全 | GATE-P0-001, DR-001 | 人 | deferred（企业化；staging 不挡） |
@@ -265,6 +265,7 @@
 - **范围**：注入 endpoint/model/api_key 的 HTTP Writer，替换证据拼接；Citation 仍必须落在检索候选；`external_llm_allowed` 为 false 不得外发；失败闭环（超时/429→既有错误码）。
 - **不做**：不写死 DeepSeek/硅基 URL；CI Fake transport；不把 LangGraph 绑死本票。
 - **Owner 已给**：主模型 **DeepSeek 官方** `deepseek-flash`；备用 **小米官方** `mimo-v2.5`。**不走硅基。** 两套 endpoint/key 分开注入；鉴权头可注入（小米可能非 Bearer）。CI Fake。
+- **完成**：2026-09-14。`PIVOT_LLM=http` 装配 OpenAI 兼容 Writer；主失败才切 `PIVOT_LLM_FALLBACK_*`；`external_llm_allowed=false` 不得 HTTP；Compose 仅 api 注入。变更 `progress/changes/20260914-M05-http-draft-writer.md`。
 
 ### ND-STG-03 MinerU 云 API 解析器
 
@@ -300,6 +301,6 @@
 工作区 E:/AI Project/Pivot，分支 main。
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
-本切片只做 <TICKET-ID>。默认下一刀 ND-STG-02 或 ND-W3-05。先写 progress/changes/，再 Red。
+本切片只做 <TICKET-ID>。默认下一刀 ND-STG-03 或 ND-W3-05。先写 progress/changes/，再 Red。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from pivot.qa.draft import draft_from_evidence
+from pivot.qa.errors import WriterError
 from pivot.qa.graph import MAX_CLARIFICATIONS, STAGES
-from pivot.qa.ports import Classifier, RetrievalResult, Retriever, Verifier
+from pivot.qa.ports import Classifier, DraftWriter, RetrievalResult, Retriever, Verifier
 from pivot.qa.verifier import CandidateVerifier, evidence_ids
+from pivot.qa.writer import EvidenceJoinWriter
 from pivot.runs.machine import apply, is_terminal
 from pivot.runs.models import RunBundle
 from pivot.stream.buffer import EventLog
@@ -35,10 +36,12 @@ class QaOrchestrator:
         retriever: Retriever,
         verifier: Verifier | None = None,
         classifier: Classifier | None = None,
+        writer: DraftWriter | None = None,
     ) -> None:
         self._retriever = retriever
         self._verifier = verifier or CandidateVerifier()
         self._classifier = classifier or AlwaysClearClassifier()
+        self._writer = writer or EvidenceJoinWriter()
 
     def execute(self, bundle: RunBundle, log: EventLog, request_id: str) -> RunBundle:
         run = bundle.run
@@ -86,7 +89,15 @@ class QaOrchestrator:
         self._stage(log, "build_evidence")
         run.state = apply(run.state, "draft", request_id)
         self._stage(log, "draft_answer")
-        markdown, claims, citations = draft_from_evidence(result.evidence)
+        try:
+            markdown, claims, citations = self._writer.draft(
+                run.question, result.evidence
+            )
+        except WriterError as exc:
+            run.error_code = exc.code
+            event = "refuse" if exc.code == "EXTERNAL_LLM_NOT_ALLOWED" else "fail"
+            run.state = apply(run.state, event, request_id)
+            return self._emit_terminal(bundle, log)
         for claim in claims:
             log.emit("token", "drafting", {"text": claim["text"][:32]})
         for citation in citations:

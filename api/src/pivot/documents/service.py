@@ -73,6 +73,7 @@ class DocumentService:
         space: str = "shared",
         classification: str = "",
         tags: tuple[str, ...] = (),
+        external_llm_allowed: bool = False,
     ) -> VersionRecord:
         try:
             normalize_filename(filename)
@@ -112,6 +113,7 @@ class DocumentService:
             state="uploaded",
             current=False,
             idempotency_key=idempotency_key,
+            external_llm_allowed=external_llm_allowed,
         )
         self._objects.put(version.storage_key, content)
         self._documents.save(document)
@@ -485,6 +487,7 @@ class DocumentService:
             "state": version.state,
             "current": version.current,
             "content_sha256": version.content_sha256,
+            "external_llm_allowed": version.external_llm_allowed,
         }
 
     def _now(self) -> datetime:

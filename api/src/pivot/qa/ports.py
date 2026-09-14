@@ -13,6 +13,7 @@ class EvidenceHit:
     version_id: str
     text: str
     locator: str = ""
+    external_llm_allowed: bool = False
 
 
 @dataclass(frozen=True)
@@ -39,3 +40,9 @@ class Verifier(Protocol):
 
 class Classifier(Protocol):
     def needs_clarification(self, question: str, clarification_count: int) -> bool: ...
+
+
+class DraftWriter(Protocol):
+    def draft(
+        self, question: str, hits: tuple[EvidenceHit, ...]
+    ) -> tuple[str, list[dict], list[dict]]: ...

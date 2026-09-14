@@ -31,6 +31,7 @@ TRANSITIONS: dict[tuple[str, str], str] = {
     ("retrying", "fail"): "failed",
     ("drafting", "verify"): "verifying",
     ("drafting", "fail"): "failed",
+    ("drafting", "refuse"): "refused",
     ("verifying", "answer"): "answered",
     ("verifying", "uncertain"): "uncertain",
     ("verifying", "refuse"): "refused",

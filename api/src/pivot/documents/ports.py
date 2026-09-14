@@ -29,6 +29,7 @@ class VersionRecord:
     current: bool = False
     idempotency_key: str | None = None
     error_code: str | None = None
+    external_llm_allowed: bool = False
 
 
 @dataclass

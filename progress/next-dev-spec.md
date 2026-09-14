@@ -137,7 +137,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. 默认下一刀：**ND-STG-02** Deepseek-Flash Writer，或 **ND-W3-05** 会话/refresh 跨进程。
+2. 默认下一刀：**ND-STG-03** MinerU 云解析器，或 **ND-W3-05** 会话/refresh 跨进程。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。
@@ -156,7 +156,8 @@ ND-W3-01 worker Qdrant
 ND-W3-04 导出任务 PG（已完成）
 ND-W3-07 PATCH 角色（已完成）
 ND-STG-01 ingest/检索共用 HTTP Embedding（已完成）
-ND-STG-02 Deepseek-Flash Writer  ← 默认下一刀
+ND-STG-02 Deepseek-Flash Writer（已完成）
+ND-STG-03 MinerU 云解析器  ← 默认下一刀
 ND-W3-05 会话/refresh 跨进程
 ND-P0-01 企业 Golden Set（人工，随时可开，不阻塞 A1）
 ND-P0-02 外发审批（人工，阻塞真实企业文档）
@@ -176,3 +177,4 @@ wave-3-integrated 已打（仍全部 GATE unverified）
 | 1.3 | 2026-09-14 | ND-W3-04 导出任务 PG 已完成；默认下一刀 ND-W3-07 / ND-STG-01 |
 | 1.4 | 2026-09-14 | ND-W3-07 PATCH 角色/重置密码 HTTP 已完成；默认下一刀 ND-STG-01 / ND-W3-05 |
 | 1.5 | 2026-09-14 | ND-STG-01 ingest/检索共用 HTTP Embedding 已完成；默认下一刀 ND-STG-02 / ND-W3-05 |
+| 1.6 | 2026-09-14 | ND-STG-02 Deepseek-Flash Writer 已完成；默认下一刀 ND-STG-03 / ND-W3-05 |

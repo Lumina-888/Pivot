@@ -71,6 +71,7 @@ def build_documents_router(
         file: UploadFile = File(...),
         space: str = Form(default="shared"),
         classification: str = Form(default=""),
+        external_llm_allowed: bool = Form(default=False),
     ) -> JSONResponse:
         request_id = resolve_request_id(request)
         principal = auth.authenticate(_bearer_token(request, request_id), request_id)
@@ -86,6 +87,7 @@ def build_documents_router(
             idempotency_key=_idempotency_key(request),
             space=space or "shared",
             classification=classification,
+            external_llm_allowed=external_llm_allowed,
         )
         envelope = {
             "document_id": version.document_id,

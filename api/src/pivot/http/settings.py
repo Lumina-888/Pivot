@@ -150,6 +150,19 @@ class RuntimeSettings:
     worker_concurrency: int | None = None
     celery_broker: str | None = None
     celery_always_eager: bool = False
+    llm: str = "local"
+    llm_endpoint: str | None = None
+    llm_model: str | None = None
+    llm_api_key: str | None = None
+    llm_timeout: float | None = None
+    llm_auth_header: str | None = None
+    llm_auth_scheme: str | None = None
+    llm_fallback_endpoint: str | None = None
+    llm_fallback_model: str | None = None
+    llm_fallback_api_key: str | None = None
+    llm_fallback_timeout: float | None = None
+    llm_fallback_auth_header: str | None = None
+    llm_fallback_auth_scheme: str | None = None
 
     def __post_init__(self) -> None:
         if not self.token_secret.strip():
@@ -237,6 +250,32 @@ class RuntimeSettings:
                 raise RuntimeError(
                     "PIVOT_CELERY_BROKER is required when PIVOT_INGEST=celery"
                 )
+        if self.llm not in {"local", "http"}:
+            raise RuntimeError(
+                "unsupported PIVOT_LLM="
+                f"{self.llm!r}; this slice wires local or http"
+            )
+        if self.llm == "http" and not (
+            self.llm_endpoint and self.llm_model and self.llm_api_key
+        ):
+            raise RuntimeError(
+                "PIVOT_LLM_ENDPOINT, PIVOT_LLM_MODEL, and "
+                "PIVOT_LLM_API_KEY are required when PIVOT_LLM=http"
+            )
+        fallback_fields = (
+            self.llm_fallback_endpoint,
+            self.llm_fallback_model,
+            self.llm_fallback_api_key,
+        )
+        if any(fallback_fields) and not all(fallback_fields):
+            raise RuntimeError(
+                "PIVOT_LLM_FALLBACK_ENDPOINT, PIVOT_LLM_FALLBACK_MODEL, and "
+                "PIVOT_LLM_FALLBACK_API_KEY must all be set or all omitted"
+            )
+        if all(fallback_fields) and self.llm != "http":
+            raise RuntimeError(
+                "PIVOT_LLM_FALLBACK_* requires PIVOT_LLM=http"
+            )
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> RuntimeSettings:
@@ -307,4 +346,34 @@ class RuntimeSettings:
             worker_concurrency=_optional_int_or_none(env, "PIVOT_WORKER_CONCURRENCY"),
             celery_broker=(env.get("PIVOT_CELERY_BROKER") or "").strip() or None,
             celery_always_eager=(env.get("PIVOT_CELERY_EAGER") or "").strip() == "1",
+            llm=(env.get("PIVOT_LLM") or "local").strip() or "local",
+            llm_endpoint=(env.get("PIVOT_LLM_ENDPOINT") or "").strip() or None,
+            llm_model=(env.get("PIVOT_LLM_MODEL") or "").strip() or None,
+            llm_api_key=(env.get("PIVOT_LLM_API_KEY") or "").strip() or None,
+            llm_timeout=_optional_positive_float(env, "PIVOT_LLM_TIMEOUT"),
+            llm_auth_header=(env.get("PIVOT_LLM_AUTH_HEADER") or "").strip() or None,
+            llm_auth_scheme=(env.get("PIVOT_LLM_AUTH_SCHEME") or "").strip() or None,
+            llm_fallback_endpoint=(
+                env.get("PIVOT_LLM_FALLBACK_ENDPOINT") or ""
+            ).strip()
+            or None,
+            llm_fallback_model=(
+                env.get("PIVOT_LLM_FALLBACK_MODEL") or ""
+            ).strip()
+            or None,
+            llm_fallback_api_key=(
+                env.get("PIVOT_LLM_FALLBACK_API_KEY") or ""
+            ).strip()
+            or None,
+            llm_fallback_timeout=_optional_positive_float(
+                env, "PIVOT_LLM_FALLBACK_TIMEOUT"
+            ),
+            llm_fallback_auth_header=(
+                env.get("PIVOT_LLM_FALLBACK_AUTH_HEADER") or ""
+            ).strip()
+            or None,
+            llm_fallback_auth_scheme=(
+                env.get("PIVOT_LLM_FALLBACK_AUTH_SCHEME") or ""
+            ).strip()
+            or None,
         )

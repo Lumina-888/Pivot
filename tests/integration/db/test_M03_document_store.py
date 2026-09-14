@@ -81,6 +81,7 @@ def test_M03_sqlalchemy_version_store_roundtrip_and_sha(db_session):
     assert loaded.content_sha256 == "abc123"
     assert loaded.storage_key == "quarantine/doc_policy/ver_1"
     assert loaded.state == "uploaded"
+    assert loaded.external_llm_allowed is False
     assert versions.find_by_sha("abc123") is not None
     assert versions.find_by_sha("missing") is None
     listed = versions.list_for_document("doc_policy")
@@ -92,6 +93,39 @@ def test_M03_sqlalchemy_version_store_roundtrip_and_sha(db_session):
     assert again is not None
     assert again.state == "ready"
     assert again.current is True
+
+
+def test_M03_sqlalchemy_version_store_persists_external_llm_allowed(db_session):
+    _seed_user(db_session)
+    documents = SqlAlchemyDocumentStore(db_session)
+    versions = SqlAlchemyVersionStore(db_session)
+    documents.save(
+        DocumentRecord(
+            id="doc_policy",
+            title="Attendance Policy",
+            space="hr",
+            created_by="usr_admin",
+        )
+    )
+    versions.save(
+        VersionRecord(
+            id="ver_llm",
+            document_id="doc_policy",
+            content_sha256="def456",
+            storage_key="quarantine/doc_policy/ver_llm",
+            state="uploaded",
+            current=False,
+            external_llm_allowed=True,
+        )
+    )
+    loaded = versions.get("ver_llm")
+    assert loaded is not None
+    assert loaded.external_llm_allowed is True
+    loaded.external_llm_allowed = False
+    versions.save(loaded)
+    again = versions.get("ver_llm")
+    assert again is not None
+    assert again.external_llm_allowed is False
 
 
 def test_M03_sqlalchemy_chunk_and_task_roundtrip(db_session):
