@@ -1,10 +1,10 @@
-"""HTTP adapter for RunService and SSE replay. No QA graph lives here."""
+"""HTTP adapter for RunService and SSE live replay. No QA graph lives here."""
 
 from __future__ import annotations
 
-import json
+import threading
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,6 +15,7 @@ from pivot.qa.orchestrator import QaOrchestrator
 from pivot.runs.errors import RunError
 from pivot.runs.machine import is_terminal
 from pivot.runs.service import RunService
+from pivot.stream.sse import SSE_HEADERS, iter_sse_frames
 
 _STATUS = {
     "IDEMPOTENCY_CONFLICT": 409,
@@ -52,19 +53,50 @@ def _principal(request: Request, auth: AuthService):
     return request_id, principal
 
 
-def _sse_frame(name: str, data: dict[str, object]) -> str:
-    return (
-        f"id: {data['seq']}\n"
-        f"event: {name}\n"
-        f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
-    )
+def _execute_and_commit(
+    runs: RunService, qa: QaOrchestrator, run_id: str, request_id: str
+) -> None:
+    bundle = runs.get(run_id, request_id)
+    log = runs.log(run_id)
+    try:
+        if not is_terminal(bundle.run.state) and log.terminal is None:
+            qa.execute(bundle, log, request_id)
+    except Exception:
+        if log.terminal is None:
+            log.emit("failed", "failed", {"error_code": "PROVIDER_TEMPORARY_ERROR"})
+        if not is_terminal(bundle.run.state):
+            bundle.run.state = "failed"
+            bundle.run.error_code = bundle.run.error_code or "PROVIDER_TEMPORARY_ERROR"
+    finally:
+        runs.commit(bundle)
+
+
+def _ensure_execution(
+    runs: RunService,
+    qa: QaOrchestrator,
+    run_id: str,
+    request_id: str,
+    background: BackgroundTasks | None,
+) -> None:
+    if not runs.begin_execution(run_id):
+        return
+    if background is not None:
+        background.add_task(_execute_and_commit, runs, qa, run_id, request_id)
+        return
+    threading.Thread(
+        target=_execute_and_commit,
+        args=(runs, qa, run_id, request_id),
+        daemon=True,
+    ).start()
 
 
 def build_runs_router(runs: RunService, qa: QaOrchestrator, auth: AuthService) -> APIRouter:
     router = APIRouter()
 
     @router.post("/runs")
-    def create_run(body: CreateRunBody, request: Request) -> dict[str, object]:
+    def create_run(
+        body: CreateRunBody, request: Request, background: BackgroundTasks
+    ) -> dict[str, object]:
         request_id, principal = _principal(request, auth)
         auth.ensure_conversation_owner(principal, body.conversation_id, request_id)
         bundle = runs.create(
@@ -76,10 +108,7 @@ def build_runs_router(runs: RunService, qa: QaOrchestrator, auth: AuthService) -
             scope_type=body.scope_type,
             scope_document_id=body.scope_document_id,
         )
-        log = runs.log(bundle.run.id)
-        if not is_terminal(bundle.run.state) and not log.replay():
-            qa.execute(bundle, log, request_id)
-            runs.commit(bundle)
+        _ensure_execution(runs, qa, bundle.run.id, request_id, background)
         return {
             "run_id": bundle.run.id,
             "message_id": bundle.run.message_id,
@@ -112,9 +141,13 @@ def build_runs_router(runs: RunService, qa: QaOrchestrator, auth: AuthService) -
         auth.authorize_conversation(principal, bundle.run.conversation_id, request_id)
         last_raw = (request.headers.get("last-event-id") or "").strip()
         last_event_id = int(last_raw) if last_raw.isdigit() else None
-        frames = runs.log(id).replay(last_event_id=last_event_id)
-        body = "".join(_sse_frame(name, data) for name, data in frames)
-        return StreamingResponse(iter([body]), media_type="text/event-stream")
+        _ensure_execution(runs, qa, id, request_id, None)
+        log = runs.log(id)
+        return StreamingResponse(
+            iter_sse_frames(log, last_event_id=last_event_id),
+            media_type="text/event-stream",
+            headers=SSE_HEADERS,
+        )
 
     @router.post("/runs/{id}/cancel")
     def cancel_run(request: Request, id: str) -> dict[str, str]:

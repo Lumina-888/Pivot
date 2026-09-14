@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-09-14  
-> **HEAD**：`38dcc77`（`main`，tag `M05-v0.5.0`）。  
+> **HEAD**：以 `main` 最新 commit 为准（本切片 ND-W3-08）。  
 > **性质**：聊天结论压缩。需求仍以 `SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 `MODULE_SPEC.md` 1.1 / `AGENTS.md` 为准。  
 > **本文件不是规范源。**
 
@@ -9,18 +9,16 @@
 
 1. 工作区：`E:/AI Project/Pivot`，分支：`main`。不要新建 worktree。
 2. 读：`AGENTS.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. 下一刀：**ND-W3-08 SSE**，或 ND-W3-03 真实解析库。ND-STG-04 overlay 已入库；**ECS apply 仍要 Owner 的 SSH/安全组/磁盘/域名**，编码会话不得冒充上机。staging：硅基仅 embedding/rerank；DeepSeek 官方 `deepseek-flash`；小米官方 `mimo-v2.5`；MinerU 官方云。见 `progress/changes/20260910-M00-dev-staging-vendors.md`。
-4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / **Wave 3 夹具收口** / PATCH 角色 HTTP / **ingest 共用 HTTP Embedding** / **Fake HTTP Writer** / **Fake MinerU 解析器** / **staging Compose overlay** / **sqlite refresh/Conversation** / **sqlite Run/EventLog** 标成 `GATE-P0 verified`。`wave-3-integrated` **不等于** P0 通过。
+3. 下一刀：**ND-W3-03 真实解析库**。ND-W3-08 SSE 长连接已入库；**ECS apply 仍要 Owner 的 SSH/安全组/磁盘/域名**，编码会话不得冒充上机。staging：硅基仅 embedding/rerank；DeepSeek 官方 `deepseek-flash`；小米官方 `mimo-v2.5`；MinerU 官方云。见 `progress/changes/20260910-M00-dev-staging-vendors.md`。
+4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / **Wave 3 夹具收口** / PATCH 角色 HTTP / **ingest 共用 HTTP Embedding** / **Fake HTTP Writer** / **Fake MinerU 解析器** / **staging Compose overlay** / **sqlite refresh/Conversation** / **sqlite Run/EventLog** / **SSE 长连接夹具** 标成 `GATE-P0 verified`。`wave-3-integrated` **不等于** P0 通过。
 
 ## 1. 产品现状
 
-Python **572 passed / 13 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）。
+Python **577 passed / 14 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）。Web **18 passed**（M08）+ **13 passed**（M09 Fake）。
 
 - Wave 3 夹具已收口：Compose api/web/worker（profile `app`）共享 PG/MinIO/Qdrant/Redis；api 注入 celery ingest 与登录限流阈值/窗口；worker 可接 Qdrant。
 - `PIVOT_STORAGE=postgres` 时用户目录、文档事实、导出任务、hashed refresh、Conversation 与 Run/EventLog 可跨装配（CI sqlite）；Claim/Citation 仍不入库。
-- `PIVOT_EMBEDDING=http` 时 ingest 与检索共用注入 `HttpQueryEmbedder`；Compose api/worker 注入同一套 `PIVOT_EMBEDDING*`；缺省仍 hash。
-- `PIVOT_LLM=http` 时装配注入 OpenAI 兼容 Draft Writer；主失败才切 `PIVOT_LLM_FALLBACK_*`；`external_llm_allowed=false` 不得外发；Compose 仅 api 注入 `PIVOT_LLM*`；缺省仍 local 证据拼接。
-- `PIVOT_PARSER=mineru` 时装配注入云 API 的 `MinerUCloudParser`；加密/损坏本地拦截；扫描件走云 OCR；Compose api/worker 注入同一套 `PIVOT_PARSER*`；缺省仍启发式/stdlib。
+- `POST /runs` 立即返回 `received`；`GET /runs/{id}/events` 按帧长连接推送；Next SSE Route Handler 去缓冲；uvicorn 长连接 opt-in（`PIVOT_REQUIRE_SSE_LIVE=1`，CI 默认 skip）。
 - HTTP 缺省仍进程内 ingest。
 - `PATCH /admin/users/{id}` 已处理 `status` / `role` / `reset_password`。
 - Golden Set 仍为 v0.2-synthetic 120 条。GATE-P0 全部 unverified。
@@ -29,20 +27,20 @@ Python **572 passed / 13 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 2. 本会话完成的一刀
 
-1. ND-W3-14 Run/EventLog 跨进程存储（ND-W3-05 余量）
-   - 变更：`progress/changes/20260914-M05-postgres-run-eventlog.md`
-   - 证据：`evidence/wave3-m11/postgres-run-eventlog.md`
-   - 测试：`tests/integration/pipeline/test_FR_STREAM_001_http_postgres_runs.py`、`tests/integration/db/test_M03_run_store.py`
+1. ND-W3-08 SSE 长连接推送与前端去缓冲
+   - 变更：`progress/changes/20260914-M05-sse-long-connection.md`
+   - 证据：`evidence/wave3-m11/sse-long-connection.md`
+   - 测试：`tests/contract/stream/test_FR_STREAM_002_003_sse.py`、`tests/integration/pipeline/test_FR_STREAM_001_http_runs.py`、`tests/integration/pipeline/test_FR_STREAM_002_sse_live.py`、`tests/e2e/fixtures/web/test-foundation.mjs`
 
 ## 3. 已知缺口（按优先级）
 
-1. HTTP 缺省仍请求内同步；无对象字节下载 HTTP（契约如此）；Claim/Citation 仍不入库；SSE 仍为同步补发
+1. HTTP 缺省仍请求内 ingest；无对象字节下载 HTTP（契约如此）；Claim/Citation 仍不入库
 2. Golden Set 120 条仍为合成；无 Qdrant 100k 索引峰值；无新 ECS 备份恢复；无 live Embedding/rerank/Writer/MinerU 冒烟；staging ECS 未 apply
-3. `must_change_password` 不入库；version.idempotency_key 未入库；初始密码传递机制仍 TBD-P0
+3. `must_change_password` 不入库；version.idempotency_key 未入库；初始密码传递机制仍 TBD-P0；真实解析库 extra 仍待
 
 ## 4. 下一刀建议（技术刀）
 
-**ND-W3-08 SSE 长连接**，或 ND-W3-03 真实解析库 extra。
+**ND-W3-03 真实解析库 extra。**
 
 Owner 若提供 SSH/安全组/磁盘/域名，再实施 ND-STG-04 ECS apply（不得把 overlay 文件当成已部署）。
 

@@ -121,8 +121,17 @@ def test_FR_STREAM_001_run_survives_new_assembly(tmp_path):
     assert run.status_code == 200
     run_id = run.json()["run_id"]
     message_id = run.json()["message_id"]
-    state = run.json()["initial_state"]["state"]
-    assert state in {"answered", "uncertain", "refused", "failed", "cancelled"}
+    assert run.json()["initial_state"]["state"] == "received"
+    events = first.get(
+        f"/api/v1/runs/{run_id}/events",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Request-ID": "req_pg_run_sse",
+        },
+    )
+    assert events.status_code == 200
+    frames = _parse_sse(events.text)
+    assert frames[-1][0] in TERMINAL_EVENTS
 
     second = _client(url)
     replayed = _login(second, "req_pg_run_login_2")
@@ -138,7 +147,7 @@ def test_FR_STREAM_001_run_survives_new_assembly(tmp_path):
     assert detail.json()["message_id"] == message_id
     assert detail.json()["conversation_id"] == conversation_id
     assert detail.json()["question"] == "迟到三次怎么处理"
-    assert detail.json()["state"] == state
+    assert detail.json()["state"] in {"answered", "uncertain", "refused", "failed", "cancelled"}
     same = second.post(
         "/api/v1/runs",
         json=payload,
@@ -187,6 +196,7 @@ def test_FR_STREAM_002_003_event_log_survives_new_assembly(tmp_path):
         },
     )
     run_id = run.json()["run_id"]
+    assert run.json()["initial_state"]["state"] == "received"
     original = first.get(
         f"/api/v1/runs/{run_id}/events",
         headers={
@@ -262,6 +272,15 @@ def test_FR_RBAC_002_messages_survive_new_assembly(tmp_path):
         },
     )
     run_id = run.json()["run_id"]
+    events = first.get(
+        f"/api/v1/runs/{run_id}/events",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Request-ID": "req_pg_msg_sse",
+        },
+    )
+    assert events.status_code == 200
+    assert _parse_sse(events.text)[-1][0] in TERMINAL_EVENTS
 
     second = _client(url)
     replayed = _login(second, "req_pg_msg_login_2")

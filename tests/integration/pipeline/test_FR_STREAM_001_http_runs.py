@@ -68,7 +68,7 @@ def test_FR_RBAC_001_http_runs_require_bearer():
     assert response.json()["code"] == "AUTH_INVALID_CREDENTIALS"
 
 
-def test_FR_STREAM_001_http_create_run_is_idempotent_and_answers():
+def test_FR_STREAM_001_http_create_run_returns_before_terminal():
     pipeline = Pipeline()
     pipeline.ingest_policy_pdf("usr_alice")
     client = _client(pipeline)
@@ -93,7 +93,14 @@ def test_FR_STREAM_001_http_create_run_is_idempotent_and_answers():
     assert first.json()["run_id"] == second.json()["run_id"]
     assert first.json()["message_id"] == second.json()["message_id"]
     assert first.json()["request_id"] == "req_run_1"
-    assert first.json()["initial_state"]["state"] == "answered"
+    assert first.json()["initial_state"]["state"] == "received"
+    stream = client.get(
+        f"/api/v1/runs/{first.json()['run_id']}/events",
+        headers={"Authorization": f"Bearer {token}", "X-Request-ID": "req_run_sse"},
+    )
+    assert stream.status_code == 200
+    frames = _parse_sse(stream.text)
+    assert frames[-1][0] in TERMINAL_EVENTS
     detail = client.get(
         f"/api/v1/runs/{first.json()['run_id']}",
         headers={"Authorization": f"Bearer {token}", "X-Request-ID": "req_get"},
@@ -154,6 +161,9 @@ def test_FR_STREAM_002_003_http_sse_is_monotonic_and_replays():
     )
     assert stream.status_code == 200
     assert "text/event-stream" in stream.headers["content-type"]
+    assert "no-cache" in stream.headers.get("cache-control", "").lower()
+    assert "no-transform" in stream.headers.get("cache-control", "").lower()
+    assert stream.headers.get("x-accel-buffering", "").lower() == "no"
     frames = _parse_sse(stream.text)
     seqs = [data["seq"] for _name, data in frames]
     assert seqs == list(range(1, len(seqs) + 1))
@@ -227,6 +237,34 @@ def test_FR_STREAM_004_http_cancel_does_not_rewrite_terminal():
     assert cancelled.status_code == 200
     assert cancelled.json()["run_id"] == run_id
     assert cancelled.json()["state"] == "answered"
+
+
+def test_FR_STREAM_002_http_sse_sets_unbuffered_headers():
+    pipeline = Pipeline()
+    pipeline.ingest_policy_pdf("usr_alice")
+    client = _client(pipeline)
+    token = _login(client, "alice", "correct-password", "req_login")
+    created = client.post(
+        "/api/v1/runs",
+        json={
+            "conversation_id": "conv_alice",
+            "question": "late three times written warning?",
+            "idempotency_key": "idem-headers",
+        },
+        headers={"Authorization": f"Bearer {token}", "X-Request-ID": "req_hdr"},
+    )
+    stream = client.get(
+        f"/api/v1/runs/{created.json()['run_id']}/events",
+        headers={"Authorization": f"Bearer {token}", "X-Request-ID": "req_hdr_sse"},
+    )
+    assert stream.status_code == 200
+    cache = stream.headers.get("cache-control", "").lower()
+    assert "no-cache" in cache
+    assert "no-transform" in cache
+    assert stream.headers.get("x-accel-buffering", "").lower() == "no"
+    assert "keep-alive" in stream.headers.get("connection", "").lower()
+    assert "thinking" not in stream.text
+    assert "SYSTEM_PROMPT" not in stream.text
 
 
 def test_NFR_OBS_auth_only_app_does_not_mount_runs():

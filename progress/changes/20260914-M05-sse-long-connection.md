@@ -1,0 +1,27 @@
+# 变更申请：SSE 长连接推送与前端去缓冲
+
+- **日期**：2026-09-14
+- **申请人**：Wave 3 主线会话（M05 Run/SSE 端口 + M08 SSE client/Next 代理 + M11 pipeline/证据）
+- **工单**：ND-W3-08
+- **背景**：`GET /runs/{id}/events` 在同步编排完成后把 EventLog 拼成单块 `StreamingResponse`，不是 uvicorn 长连接。前台 `POST /runs` 后再订阅 SSE，只能补发终态后的整段事件。Next `/api/v1` rewrite 可能缓冲 SSE。SPEC §3.3 / FR-STREAM-002~003 要求有序推送、`Last-Event-ID` 补发；SSE 不是唯一事实来源。不得冻结 SSE/超时预算（`TBD-P0`），不得在事件中带思考链/系统 Prompt。
+- **原契约/现状**：
+  - SPEC §3.3 / §5.6：事件名、信封、`seq` 单调、终态唯一；断线用 `Last-Event-ID` 补发，补发不可用时读 `GET /runs/{id}`；
+  - `contract-v0.1` 已定义 `GET /runs/{id}/events` 为 `text/event-stream`；
+  - M05 HTTP：`POST /runs` 同步 `qa.execute` 后返回；SSE 按 EventLog 一次性补发；
+  - M08 `connectSse` 已按 chunk 解析并支持 `Last-Event-ID`，但连接关闭且未到终态时不自动续订；`apiProxyRewrites` 把全部 `/api/v1` 转到注入 origin，无 SSE 去缓冲；
+  - staging nginx 已 `proxy_buffering off`（只反代 web）；
+  - Run/EventLog 可走 SQLAlchemy（CI sqlite）；Claim/Citation 仍不入库。
+- **拟变更内容**（本切片）：
+  - M05 `EventLog` 可等待新事件；`iter_sse_frames` 按帧 yield，未终态时保持生成器，超时只发 SSE 注释 keepalive（实现轮询，**不是**冻结的 SSE 预算）；
+  - `POST /runs` 创建后立即返回 `initial_state.state`（通常 `received`），用 BackgroundTasks 执行编排并 `commit`；同一 Run 只启动一次；
+  - `GET /runs/{id}/events` 长连接：先按 `Last-Event-ID` 补发，再推送后续事件，终态后关闭；响应头 `Cache-Control: no-cache, no-transform`、`X-Accel-Buffering: no`、`Connection: keep-alive`；
+  - 执行失败仍写入公开 `failed` 终态，不回显思考链/系统 Prompt/密钥；
+  - M08：忽略 SSE 注释行；`followRunEvents` 在非终态断线后带 `Last-Event-ID` 续订（延迟可注入，不冻 TBD-P0）；增加 `web/app/api/v1/runs/[id]/events/route.ts` 把事件流透传到注入 origin（`force-dynamic`，不缓冲 body）；
+  - M09 对话页改用 `followRunEvents`（只消费 M08 client）；
+  - M11：CI 覆盖 headers / 非终态创建 / 补发；uvicorn 长连接为 opt-in（`PIVOT_REQUIRE_SSE_LIVE=1`，默认 skip）；**不** 把 `GATE-P0-004` 标 verified；
+  - **不** 冻结超时/重试/SSE 预算；**不** 做 LangGraph extra；**不** 接入 Claim/Citation SQL；**不** 把 Redis 当 EventLog 事实源；**不** 上机 ECS apply。
+- **影响模块**：M05（EventLog/SSE HTTP）；M08（client、SSE Route Handler、允许路径一句）；M09（对话页改用 follow）；M11（pipeline/opt-in/证据）；M00（MODULE_SPEC §11 现状一句、矩阵 SSE/Web 行）。
+- **兼容方案**：既有契约事件名/信封不变；`Last-Event-ID` 补发保持；`GET /runs/{id}` 仍是终态事实源；缺 `PIVOT_API_ORIGIN` 时 SSE 路由 404（与 rewrite 失败闭环一致）；默认 CI 不启动 uvicorn。
+- **测试 ID**：`test_FR_STREAM_002_event_log_notifies_waiters`、`test_FR_STREAM_002_iter_sse_yields_before_terminal`、`test_FR_STREAM_001_http_create_run_returns_before_terminal`、`test_FR_STREAM_002_003_http_sse_is_monotonic_and_replays`、`test_FR_STREAM_002_http_sse_sets_unbuffered_headers`、`test_FR_STREAM_002_sse_live_is_opt_in`、`test_FR_STREAM_002_uvicorn_keeps_sse_open_until_terminal`、`test_FR_STREAM_002_sse_client_ignores_keepalive_comments`、`test_FR_STREAM_003_follow_run_events_reconnects_until_terminal`、`test_FR_STREAM_002_next_sse_route_disables_buffering`、`test_GATE_P0_004_not_verified_by_sse_long_connection`。
+- **是否触发 ADR**：否（不改变 Run 状态机、权限或引用/删除语义；不冻结 TBD-P0 SSE 预算；不把 Redis 当事实源）。
+- **审核结果**：2026-09-14 Wave 3 主线会话 **批准**。

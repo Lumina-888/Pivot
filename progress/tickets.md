@@ -20,7 +20,7 @@
 | ND-W3-05 | 会话/refresh 跨进程存储 | A2 | M | M01/M05 | FR-AUTH-001, FR-RBAC-002 | 无 | done |
 | ND-W3-06 | 登录限流缺省接到 Redis（仍不冻阈值） | A2 | S | M01 | FR-AUTH-002 | ND-W3-12 | done |
 | ND-W3-07 | PATCH 角色 / 重置密码 HTTP | A2 | S | M01 | FR-AUTH-003 | 无 | done |
-| ND-W3-08 | SSE 长连接推送与缓冲 | A3 | M | M05/M08 | FR-STREAM-001~003 | 无 | ready |
+| ND-W3-08 | SSE 长连接推送与缓冲 | A3 | M | M05/M08 | FR-STREAM-001~003 | 无 | done |
 | ND-W3-09 | LangGraph extra（原暂缓变更） | A3 | M | M05 | FR-QA-001 | `20260906-M05-langgraph.md` | blocked |
 | ND-W3-10 | Playwright 十页 opt-in | A3/C | M | M09/M10/M11 | NFR-UX, GATE-P1 | ND-W3-02 建议 | ready |
 | ND-W3-11 | version.idempotency_key 入库 | A2 | S | M03/M02 | FR-DOC-005 | 需变更申请；SPEC 字段确认 | blocked |
@@ -149,6 +149,7 @@
 - **范围**：uvicorn 长连接推送；Last-Event-ID 补发保持；前端缓冲。
 - **不做**：不冻超时；不在事件里带思考链/Prompt。
 - **测试**：契约已有重连用例；补 opt-in 集成，CI 默认 skip 长连接。
+- **完成**：2026-09-14。`POST /runs` 立即返回 `received`；SSE 按帧推送并去缓冲；`followRunEvents` 非终态续订；uvicorn opt-in skip。变更 `progress/changes/20260914-M05-sse-long-connection.md`。
 
 ### ND-W3-09 LangGraph extra
 
@@ -316,6 +317,6 @@
 工作区 E:/AI Project/Pivot，分支 main。
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
-本切片只做 <TICKET-ID>。默认下一刀 ND-W3-08 SSE，或 ND-W3-03。STG-04 ECS apply 待 Owner SSH/安全组/磁盘。先写 progress/changes/，再 Red。
+本切片只做 <TICKET-ID>。默认下一刀 ND-W3-03 真实解析库。STG-04 ECS apply 待 Owner SSH/安全组/磁盘。先写 progress/changes/，再 Red。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```

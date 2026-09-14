@@ -24,6 +24,7 @@ export type StreamOptions = {
   onStatus?: (status: StreamStatus) => void;
   onEvent: (event: StreamEvent) => void;
   fetcher?: typeof fetch;
+  retryDelayMs?: number;
 };
 
 const TERMINAL_EVENTS = new Set<SseEventName>(["completed", "uncertain", "refused", "failed", "cancelled"]);
@@ -134,6 +135,9 @@ export async function connectSse(options: StreamOptions): Promise<void> {
           dispatch();
           continue;
         }
+        if (line.startsWith(":")) {
+          continue;
+        }
         if (line.startsWith("event:")) {
           eventName = line.slice(6).trim();
         } else if (line.startsWith("id:")) {
@@ -152,5 +156,47 @@ export async function connectSse(options: StreamOptions): Promise<void> {
     }
     options.onStatus?.("error");
     throw error;
+  }
+}
+
+export async function followRunEvents(options: StreamOptions): Promise<void> {
+  let lastSeq = options.lastEventId ?? 0;
+  let terminalSeen = false;
+  const retryDelayMs = options.retryDelayMs ?? 0;
+
+  const sleep = (ms: number) =>
+    new Promise<void>((resolve, reject) => {
+      if (ms <= 0) {
+        resolve();
+        return;
+      }
+      const timer = setTimeout(resolve, ms);
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(options.signal?.reason ?? new DOMException("Aborted", "AbortError"));
+      };
+      if (options.signal?.aborted) {
+        onAbort();
+        return;
+      }
+      options.signal?.addEventListener("abort", onAbort, { once: true });
+    });
+
+  while (!options.signal?.aborted && !terminalSeen) {
+    await connectSse({
+      ...options,
+      lastEventId: lastSeq > 0 ? lastSeq : undefined,
+      onEvent: (event) => {
+        lastSeq = event.data.seq;
+        if (TERMINAL_EVENTS.has(event.type)) {
+          terminalSeen = true;
+        }
+        options.onEvent(event);
+      },
+    });
+    if (terminalSeen || options.signal?.aborted) {
+      return;
+    }
+    await sleep(retryDelayMs);
   }
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 from pivot.stream.events import TERMINAL_EVENTS, envelope
@@ -13,6 +14,7 @@ class EventLog:
         self.message_id = message_id
         self._events: list[tuple[str, dict[str, Any]]] = []
         self._terminal: str | None = None
+        self._cv = threading.Condition()
 
     def emit(self, event: str, stage: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         if event not in {
@@ -28,20 +30,32 @@ class EventLog:
             "cancelled",
         }:
             raise ValueError(f"unknown event {event}")
-        if self._terminal is not None:
-            raise ValueError("terminal event already emitted")
-        seq = len(self._events) + 1
-        data = envelope(
-            run_id=self.run_id,
-            message_id=self.message_id,
-            seq=seq,
-            stage=stage,
-            payload=payload,
-        )
-        self._events.append((event, data))
-        if event in TERMINAL_EVENTS:
-            self._terminal = event
+        with self._cv:
+            if self._terminal is not None:
+                raise ValueError("terminal event already emitted")
+            seq = len(self._events) + 1
+            data = envelope(
+                run_id=self.run_id,
+                message_id=self.message_id,
+                seq=seq,
+                stage=stage,
+                payload=payload,
+            )
+            self._events.append((event, data))
+            if event in TERMINAL_EVENTS:
+                self._terminal = event
+            self._cv.notify_all()
         return data
+
+    def wait_after(
+        self, last_event_id: int, timeout: float | None = None
+    ) -> tuple[tuple[str, dict[str, Any]], ...]:
+        with self._cv:
+            pending = self.replay(last_event_id=last_event_id)
+            if pending or self._terminal is not None:
+                return pending
+            self._cv.wait(timeout=timeout)
+            return self.replay(last_event_id=last_event_id)
 
     def replay(self, last_event_id: int | None = None) -> tuple[tuple[str, dict[str, Any]], ...]:
         start = 0 if last_event_id is None else last_event_id

@@ -8,7 +8,7 @@ import { Drawer } from "../../../components/ui/Drawer";
 import { Modal } from "../../../components/ui/Modal";
 import { ApiError } from "../../../lib/api/client";
 import { getAccessToken } from "../../../lib/auth/session";
-import { connectSse } from "../../../lib/stream/sse";
+import { followRunEvents } from "../../../lib/stream/sse";
 import {
   applyStreamEvent,
   closeEvidence,
@@ -138,7 +138,7 @@ export function ChatWorkspace({
       if (!conversationId) {
         router.replace(conversationHref(started.conversation.conversation_id));
       }
-      await connectSse({
+      await followRunEvents({
         url: runEventsUrl(started.run.run_id),
         token: getAccessToken() ?? undefined,
         signal: controller.signal,

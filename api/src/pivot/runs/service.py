@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -68,6 +69,8 @@ class RunService:
         self._runs: dict[str, RunBundle] = {}
         self._by_key: dict[tuple[str, str], str] = {}
         self.logs: dict[str, EventLog] = {}
+        self._executing: set[str] = set()
+        self._executing_lock = threading.Lock()
 
     def create(
         self,
@@ -143,6 +146,16 @@ class RunService:
             log = EventLog(run_id, bundle.run.message_id)
         self.logs[run_id] = log
         return log
+
+    def begin_execution(self, run_id: str) -> bool:
+        with self._executing_lock:
+            if run_id in self._executing:
+                return False
+            log = self.logs.get(run_id)
+            if log is not None and (log.terminal is not None or log.replay()):
+                return False
+            self._executing.add(run_id)
+            return True
 
     def commit(self, bundle: RunBundle) -> None:
         self._remember(bundle, self.logs.get(bundle.run.id))

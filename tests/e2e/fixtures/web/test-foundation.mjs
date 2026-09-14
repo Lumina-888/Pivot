@@ -189,6 +189,70 @@ async function test_FR_STREAM_003_reconnects_from_last_event_id() {
   assert.equal(lastEventId, "17");
 }
 
+async function test_FR_STREAM_002_sse_client_ignores_keepalive_comments() {
+  const { connectSse } = await loadTs("lib/stream/sse.ts");
+  const events = [];
+  const body = [
+    ": keepalive\n\n",
+    `event: run_started\nid: 1\ndata: ${JSON.stringify(envelope(1, { stage: "received" }))}\n\n`,
+    ": keepalive\n\n",
+    `event: completed\nid: 2\ndata: ${JSON.stringify(envelope(2, { stage: "answered" }))}\n\n`,
+  ].join("");
+  await connectSse({
+    url: "/api/v1/runs/run_001/events",
+    onEvent: (event) => events.push(event),
+    fetcher: async () =>
+      new Response(sseStream([body]), {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      }),
+  });
+  assert.deepEqual(
+    events.map((event) => [event.type, event.data.seq]),
+    [
+      ["run_started", 1],
+      ["completed", 2],
+    ],
+  );
+}
+
+async function test_FR_STREAM_003_follow_run_events_reconnects_until_terminal() {
+  const { followRunEvents } = await loadTs("lib/stream/sse.ts");
+  const events = [];
+  const lastEventIds = [];
+  let calls = 0;
+  await followRunEvents({
+    url: "/api/v1/runs/run_001/events",
+    retryDelayMs: 0,
+    onEvent: (event) => events.push(event),
+    fetcher: async (_url, init) => {
+      calls += 1;
+      lastEventIds.push(init.headers.get("Last-Event-ID"));
+      if (calls === 1) {
+        const body = `event: run_started\nid: 1\ndata: ${JSON.stringify(envelope(1, { stage: "received" }))}\n\n`;
+        return new Response(sseStream([body]), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
+      const body = `event: completed\nid: 2\ndata: ${JSON.stringify(envelope(2, { stage: "answered" }))}\n\n`;
+      return new Response(sseStream([body]), {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    },
+  });
+  assert.equal(calls, 2);
+  assert.deepEqual(lastEventIds, [null, "1"]);
+  assert.deepEqual(
+    events.map((event) => [event.type, event.data.seq]),
+    [
+      ["run_started", 1],
+      ["completed", 2],
+    ],
+  );
+}
+
 async function test_FR_AUTH_001_web_api_base_stays_same_origin() {
   const { API_BASE } = await loadTs("lib/api/client.ts");
   assert.equal(API_BASE, "/api/v1");
@@ -233,6 +297,29 @@ async function test_NFR_SEC_next_proxy_rejects_non_http_origin() {
   assert.throws(() => apiProxyRewrites("http://127.0.0.1:8000/api/v1"), /path/);
 }
 
+async function test_FR_STREAM_002_next_sse_route_disables_buffering() {
+  const { sseResponseHeaders, sseUpstreamUrl } = await loadTs("lib/api/sse-proxy.ts");
+  const headers = sseResponseHeaders();
+  assert.equal(headers["Content-Type"], "text/event-stream");
+  assert.match(headers["Cache-Control"], /no-cache/);
+  assert.match(headers["Cache-Control"], /no-transform/);
+  assert.equal(headers["X-Accel-Buffering"], "no");
+  assert.equal(headers.Connection, "keep-alive");
+  assert.equal(
+    sseUpstreamUrl("http://127.0.0.1:8000", "run_001"),
+    "http://127.0.0.1:8000/api/v1/runs/run_001/events",
+  );
+  const route = fs.readFileSync(
+    path.join(webRoot, "app/api/v1/runs/[id]/events/route.ts"),
+    "utf8",
+  );
+  assert.match(route, /force-dynamic/);
+  assert.match(route, /sseResponseHeaders/);
+  assert.match(route, /upstream\.body/);
+  assert.match(route, /PIVOT_API_ORIGIN/);
+  assert.doesNotMatch(route, /minio|openai|qdrant/i);
+}
+
 function test_GATE_P0_005_not_verified_by_next_rewrite() {
   const evidence = fs.readFileSync(
     path.join(webRoot, "../evidence/wave3-m11/next-api-proxy.md"),
@@ -258,11 +345,14 @@ const tests = [
   ["test_contract_error_package_is_decoded", test_contract_error_package_is_decoded],
   ["test_FR_STREAM_002_seq_dedup_and_single_terminal", test_FR_STREAM_002_seq_dedup_and_single_terminal],
   ["test_FR_STREAM_003_reconnects_from_last_event_id", test_FR_STREAM_003_reconnects_from_last_event_id],
+  ["test_FR_STREAM_002_sse_client_ignores_keepalive_comments", test_FR_STREAM_002_sse_client_ignores_keepalive_comments],
+  ["test_FR_STREAM_003_follow_run_events_reconnects_until_terminal", test_FR_STREAM_003_follow_run_events_reconnects_until_terminal],
   ["test_FR_AUTH_001_web_api_base_stays_same_origin", test_FR_AUTH_001_web_api_base_stays_same_origin],
   ["test_FR_AUTH_001_next_rewrites_api_v1_to_injected_origin", test_FR_AUTH_001_next_rewrites_api_v1_to_injected_origin],
   ["test_FR_AUTH_001_next_config_wires_injected_origin", test_FR_AUTH_001_next_config_wires_injected_origin],
   ["test_NFR_OBS_next_rewrites_omitted_when_origin_missing", test_NFR_OBS_next_rewrites_omitted_when_origin_missing],
   ["test_NFR_SEC_next_proxy_rejects_non_http_origin", test_NFR_SEC_next_proxy_rejects_non_http_origin],
+  ["test_FR_STREAM_002_next_sse_route_disables_buffering", test_FR_STREAM_002_next_sse_route_disables_buffering],
   ["test_GATE_P0_005_not_verified_by_next_rewrite", test_GATE_P0_005_not_verified_by_next_rewrite],
 ];
 

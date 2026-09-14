@@ -355,6 +355,12 @@ function test_pages_call_authorized_api_not_hidden_entry() {
   assert.doesNotMatch(library + search + chat + exp, /localStorage|sessionStorage/);
 }
 
+function test_FR_STREAM_003_chat_follows_sse_until_terminal() {
+  const workspace = read("features/user/components/ChatWorkspace.tsx");
+  assert.match(workspace, /followRunEvents/);
+  assert.match(workspace, /runEventsUrl/);
+}
+
 const tests = [
   ["test_FR_AUTH_001_six_user_routes_exist_and_assembly_page_removed", test_FR_AUTH_001_six_user_routes_exist_and_assembly_page_removed],
   ["test_FR_AUTH_001_login_success_redirects_home", test_FR_AUTH_001_login_success_redirects_home],
@@ -368,6 +374,7 @@ const tests = [
   ["test_FR_EXPORT_001_export_uses_persisted_answer_contract", test_FR_EXPORT_001_export_uses_persisted_answer_contract],
   ["test_FR_EXPORT_003_expired_download_is_blocked", test_FR_EXPORT_003_expired_download_is_blocked],
   ["test_pages_call_authorized_api_not_hidden_entry", test_pages_call_authorized_api_not_hidden_entry],
+  ["test_FR_STREAM_003_chat_follows_sse_until_terminal", test_FR_STREAM_003_chat_follows_sse_until_terminal],
 ];
 
 let failed = 0;
