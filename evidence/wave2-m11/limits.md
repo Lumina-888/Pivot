@@ -11,7 +11,7 @@ Wave 3 夹具收口见 `evidence/wave3-m11/wave3-closeout.md`。`wave-3-integrat
 | GATE-P0-004 | unverified | Run/SSE HTTP 与 Fake 拒答已有；可注入 HTTP Draft Writer（CI Fake transport，非 live DeepSeek/小米）；Verifier 阈值未冻；无盲评；无企业 Golden Set；只能内部实验 |
 | GATE-P0-005 | unverified | opt-in Playwright 登录；CI 不启动 uvicorn；Compose 可注入登录限流阈值（fixture，非冻结 TBD-P0）；无上线传输验证 |
 | GATE-P0-006 | unverified | 进程内事实 roundtrip 已有；无加密 OSS / 新 ECS 演练；RPO/RTO 仍 TBD-P0 |
-| GATE-P0-007 | unverified | 5 路 Fake 检索 + opt-in 100k 夹具；CI 不跑 100k；非 ECS 峰值；P95 仍 TBD-P0 |
-| GATE-P0-008 | unverified | Dockerfile/Compose api+web+worker 为 opt-in profile `app`（api 与 worker 注入共享 PG/MinIO/Qdrant/Redis；api 注入 celery ingest；worker 为注入 broker 的 Celery fixture，CI 不启动）；无固定版本发布与回滚演练 |
+| GATE-P0-007 | unverified | 5 路 Fake 检索 + opt-in 100k 夹具；CI 不跑 100k；staging 8GiB limits 为 fixture，非 ECS 峰值；P95 仍 TBD-P0 |
+| GATE-P0-008 | unverified | Dockerfile/Compose api+web+worker 为 opt-in profile `app`（api 与 worker 注入共享 PG/MinIO/Qdrant/Redis；api 注入 celery ingest；worker 为注入 broker 的 Celery fixture，CI 不启动）；staging overlay/runbook 已入库但未 SSH、未改安全组、无固定版本发布与回滚演练 |
 
 `implemented`（若有 Fake 链路测试）≠ `verified`。

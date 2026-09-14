@@ -1,0 +1,130 @@
+# Pivot dev-staging overlay. Not GATE-P0-007/008 verified.
+# Image tags are pins, not a frozen production spec.
+# Memory/CPU numbers are host-class fixtures, not TBD-P0.
+# CI must not docker compose up or docker build.
+# Apply on ECS needs Owner SSH / security group / data disk / domain decision.
+#
+#   docker compose --env-file .env --profile app \
+#     -f docker-compose.yml -f docker-compose.staging.yml up -d
+
+x-logging: &pivot-json-logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    restart: unless-stopped
+    logging: *pivot-json-logs
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 1G
+        reservations:
+          cpus: "0.15"
+          memory: 256M
+
+  minio:
+    restart: unless-stopped
+    logging: *pivot-json-logs
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 512M
+        reservations:
+          cpus: "0.10"
+          memory: 128M
+
+  qdrant:
+    restart: unless-stopped
+    logging: *pivot-json-logs
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 1536M
+        reservations:
+          cpus: "0.20"
+          memory: 512M
+
+  redis:
+    restart: unless-stopped
+    logging: *pivot-json-logs
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+        reservations:
+          cpus: "0.05"
+          memory: 64M
+
+  api:
+    restart: unless-stopped
+    logging: *pivot-json-logs
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  web:
+    restart: unless-stopped
+    logging: *pivot-json-logs
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          cpus: "0.15"
+          memory: 128M
+
+  worker:
+    restart: unless-stopped
+    logging: *pivot-json-logs
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  nginx:
+    profiles:
+      - app
+    image: nginx:1.26.3-alpine
+    restart: unless-stopped
+    logging: *pivot-json-logs
+    ports:
+      - "${PIVOT_STAGING_HTTP_BIND:-127.0.0.1}:80:80"
+    volumes:
+      - ./ops/nginx/staging.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1/login >/dev/null || exit 1",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M

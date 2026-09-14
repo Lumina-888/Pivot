@@ -3,6 +3,12 @@
 .env.*
 !.env.template
 !.env.example
+*.env
+!*.env.example
+!ops/compose.env.example
+compose.staging.env
+ops/compose.staging.env
+docker-compose.override.yml
 *.pem
 *.key
 

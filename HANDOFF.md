@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-09-14  
-> **HEAD**：`b2cd262`（`main`，tag `M07-v0.9.0`）。  
+> **HEAD**：本切片提交后的 `main`（tag 目标 `M11-v0.23.0`）。  
 > **性质**：聊天结论压缩。需求仍以 `SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 `MODULE_SPEC.md` 1.1 / `AGENTS.md` 为准。  
 > **本文件不是规范源。**
 
@@ -9,12 +9,12 @@
 
 1. 工作区：`E:/AI Project/Pivot`，分支：`main`。不要新建 worktree。
 2. 读：`AGENTS.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. 下一刀：**ND-STG-04** 阿里云 4C8G Compose 部署，或 **ND-W3-05** 会话/refresh 跨进程。staging：硅基仅 embedding/rerank；DeepSeek 官方 `deepseek-flash`；小米官方 `mimo-v2.5`；MinerU 官方云。见 `progress/changes/20260910-M00-dev-staging-vendors.md`。
-4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / **Wave 3 夹具收口** / PATCH 角色 HTTP / **ingest 共用 HTTP Embedding** / **Fake HTTP Writer** / **Fake MinerU 解析器** 标成 `GATE-P0 verified`。`wave-3-integrated` **不等于** P0 通过。
+3. 下一刀：**ND-W3-05** 会话/refresh 跨进程。ND-STG-04 overlay 已入库；**ECS apply 仍要 Owner 的 SSH/安全组/磁盘/域名**，编码会话不得冒充上机。staging：硅基仅 embedding/rerank；DeepSeek 官方 `deepseek-flash`；小米官方 `mimo-v2.5`；MinerU 官方云。见 `progress/changes/20260910-M00-dev-staging-vendors.md`。
+4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / **Wave 3 夹具收口** / PATCH 角色 HTTP / **ingest 共用 HTTP Embedding** / **Fake HTTP Writer** / **Fake MinerU 解析器** / **staging Compose overlay** 标成 `GATE-P0 verified`。`wave-3-integrated` **不等于** P0 通过。
 
 ## 1. 产品现状
 
-Python **544 passed / 12 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）。
+Python **557 passed / 13 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）。
 
 - Wave 3 夹具已收口：Compose api/web/worker（profile `app`）共享 PG/MinIO/Qdrant/Redis；api 注入 celery ingest 与登录限流阈值/窗口；worker 可接 Qdrant。
 - `PIVOT_EMBEDDING=http` 时 ingest 与检索共用注入 `HttpQueryEmbedder`；Compose api/worker 注入同一套 `PIVOT_EMBEDDING*`；缺省仍 hash。
@@ -25,27 +25,28 @@ Python **544 passed / 12 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 - `PATCH /admin/users/{id}` 已处理 `status` / `role` / `reset_password`。
 - Golden Set 仍为 v0.2-synthetic 120 条。GATE-P0 全部 unverified。
 - tag `wave-3-integrated` 仅表示夹具收口，不等于 P0 通过，不得宣称 production-ready。
+- ND-STG-04 overlay：`docker-compose.staging.yml` + nginx 默认 `127.0.0.1:80` 反代 web；8GiB limits fixture；未 SSH。
 
 ## 2. 本会话完成的一刀
 
-1. ND-STG-03 MinerU 云解析器
-   - 变更：`progress/changes/20260914-M07-mineru-cloud-parser.md`
-   - 证据：`evidence/wave3-m11/mineru-cloud-parser.md`
-   - 测试：`tests/unit/worker/test_FR_DOC_004_mineru.py`、`tests/integration/pipeline/test_FR_DOC_004_mineru_parser.py`、`tests/integration/pipeline/test_NFR_OBS_compose_api.py`
+1. ND-STG-04 阿里云 4C8G Compose overlay（未上机）
+   - 变更：`progress/changes/20260914-M11-compose-staging.md`
+   - 证据：`evidence/wave3-m11/compose-staging.md`
+   - 测试：`tests/integration/pipeline/test_NFR_OBS_compose_staging.py`
 
 ## 3. 已知缺口（按优先级）
 
 1. HTTP 缺省仍请求内同步；无对象字节下载 HTTP（契约如此）；refresh/会话仍 memory
-2. Golden Set 120 条仍为合成；无 Qdrant 100k 索引峰值；无新 ECS 备份恢复；无 live Embedding/rerank/Writer/MinerU 冒烟
+2. Golden Set 120 条仍为合成；无 Qdrant 100k 索引峰值；无新 ECS 备份恢复；无 live Embedding/rerank/Writer/MinerU 冒烟；staging ECS 未 apply
 3. `must_change_password` 不入库；version.idempotency_key 未入库；初始密码传递机制仍 TBD-P0
 
 ## 4. 下一刀建议（技术刀）
 
-**ND-STG-04** 阿里云 4C8G Compose 部署，或 **ND-W3-05** 会话/refresh 跨进程存储。
+**ND-W3-05** 会话/refresh 跨进程存储。
+
+Owner 若提供 SSH/安全组/磁盘/域名，再实施 ND-STG-04 ECS apply（不得把 overlay 文件当成已部署）。
 
 企业 Golden Set 仍需人工标注，会话内不要合成更多假样本并标成企业集。
-
-STG-04 需要 Owner 的 root/SSH、安全组、磁盘、是否要域名；先写 `progress/changes/` 再写业务代码。
 
 ## 5. 恢复命令
 

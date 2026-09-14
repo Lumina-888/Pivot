@@ -1,0 +1,25 @@
+# 变更申请：dev-staging Compose overlay（4C8G 主机档，不 SSH 冒充上机）
+
+- **日期**：2026-09-14
+- **申请人**：dev-staging 主线会话（M11 Compose/运维）
+- **工单**：ND-STG-04
+- **背景**：A1 与 ND-STG-01~03 已在 Fake/注入下绿。Owner 目标是阿里云单机 Compose 的 **`dev-staging`**（`20260910-M00-dev-staging-scope.md`），不是 SPEC 生产上线。SPEC §9.1 要求 Compose、healthcheck、启动依赖、资源 limits/reservations；NFR-CAP-006 写 ECS 4C8G + Compose + 免 GPU，**需容量验证**。本切片只入库**可在 8GiB 主机上启动的 overlay 与 Runbook**。密钥只进 gitignored env。CI 不得 `docker compose up` / `docker build`。不得把 overlay 标成 `GATE-P0-007/008` verified，不得把 4C8G 写成已冻生产规格。ECS apply 需要 Owner 的 SSH/安全组/数据盘/是否要域名，**不由本编码会话冒充完成**。
+- **原契约/现状**：
+  - `docker-compose.yml` 为本机 fixture：四依赖默认 up；`api`/`web`/`worker` 为 profile `app`，端口绑 `127.0.0.1`；
+  - `ops/compose.env.example` 为占位；根 `.gitignore` 忽略 `.env` / `.env.*`，但 `ops/compose.staging.env` 这类 `*.env` 副本仍可能被提交；
+  - 无反向代理、无 8GiB 预算 limits、无 staging Runbook；依赖服务无 restart/日志轮转；
+  - 无新 ECS、无安全组、无数据盘挂载；GATE-P0-007/008 仍 unverified。
+- **拟变更内容**（本切片）：
+  - M11：新增 `docker-compose.staging.yml` overlay，与根 compose 叠用：`docker compose --env-file .env --profile app -f docker-compose.yml -f docker-compose.staging.yml up -d`；
+  - 增加 `nginx`（钉 tag，profile `app`）：只反代 `web:3000`；默认发布 `${PIVOT_STAGING_HTTP_BIND:-127.0.0.1}:80:80`（SSH 隧道）；不写死 `0.0.0.0`；本切片不挂 443（无证书/域名）；
+  - overlay 为全部服务补 `restart: unless-stopped`、`deploy.resources` limits/reservations 与 json-file 日志轮转；limits 总和适配 8GiB 主机并留 OS 余量（fixture，不是冻结 TBD-P0 / 不是峰值实测）；
+  - **不** 自建 MinerU / LLM / Embedding / Rerank / GPU 容器；外部模型只走已注入的 HTTP 变量；
+  - 新增 `ops/nginx/staging.conf`、`ops/compose.staging.env.example`、`ops/runbook-dev-staging.md`、可选 `ops/pivot-staging.service`；example **不** 写供应商 URL/密钥；`.gitignore` 忽略服务器 env 副本；
+  - 证据写明：未 SSH、未改安全组、未挂数据盘、未打 live 冒烟；**不** 把 `GATE-P0-007/008` 标 verified；**不** 把 4C8G 写入 yml 当已冻规格；
+  - **不** 在 CI `docker compose up` / `docker build`；**不** 改进程外缺省 memory/hash/sync/local；**不** 做 ND-W3-05 会话跨进程、ND-P0-08 加密 OSS、ND-P0-09 峰值。
+- **Owner 前置（apply 阻断，不入库）**：SSH 用户与密钥、安全组（入站仅 22，以及 Owner 明确要求时的 80/443；禁止放行 5432/6379/9000/6333/8000/3000/8001）、数据盘容量与挂载点、是否要域名/证书、服务器 gitignored env 中的 live 密钥。
+- **影响模块**：M11（Compose overlay、nginx、gitignore、Runbook、pipeline 测试、证据）；M00（MODULE_SPEC §11 现状一句、矩阵运维行）。
+- **兼容方案**：本机 `docker compose up` 行为不变；staging 必须显式第二份 `-f`；缺 `PIVOT_STAGING_HTTP_BIND` 时仍绑 loopback。
+- **测试 ID**：`test_NFR_OBS_compose_staging_overlay_pins_nginx_and_healthcheck`、`test_NFR_OBS_compose_staging_binds_http_loopback_by_default`、`test_NFR_OBS_compose_staging_does_not_publish_datastore_ports`、`test_NFR_OBS_compose_staging_nginx_proxies_web_only`、`test_NFR_OBS_compose_staging_resource_limits_fit_8gib`、`test_NFR_OBS_compose_staging_does_not_self_host_models`、`test_NFR_OBS_compose_staging_env_is_gitignored`、`test_NFR_OBS_compose_staging_env_example_has_no_vendor_secrets`、`test_NFR_OBS_compose_staging_runbook_lists_owner_prereqs`、`test_NFR_OBS_ci_does_not_apply_staging_compose`、`test_NFR_OBS_compose_staging_nginx_when_running`、`test_NFR_CAP_006_not_frozen_by_staging_limits`、`test_GATE_P0_007_not_verified_by_staging_compose`、`test_GATE_P0_008_not_verified_by_staging_compose`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义；不冻结 TBD-P0 容量/P95/RPO；不把 staging 主机档写成生产规格）。
+- **审核结果**：2026-09-14 主线会话 **批准**。

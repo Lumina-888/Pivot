@@ -29,7 +29,7 @@
 | ND-STG-01 | ingest 与检索共用注入 HTTP Embedding | STG | S | M07/M04 | FR-RAG-001, FR-DOC-006 | ND-W3-01 | done |
 | ND-STG-02 | Deepseek-Flash Draft Writer 适配器 | STG | M | M05 | FR-QA-001/002, DR-007 | ND-STG-01 | done |
 | ND-STG-03 | MinerU 云 API 解析器（staging） | STG | M | M07 | §6.1 V2 | ND-W3-01 | done |
-| ND-STG-04 | 阿里云 4C8G Compose 部署 | STG | M | M11 | NFR-OBS | A1+STG-01~03 | ready |
+| ND-STG-04 | 阿里云 4C8G Compose 部署 | STG | M | M11 | NFR-OBS | A1+STG-01~03 | done（overlay）；apply blocked |
 | ND-P0-02 | 外发/留存/训练审批 | B1 | L | 法务/安全 | GATE-P0-001, DR-001 | 人 | deferred（企业化；staging 不挡） |
 | ND-P0-03 | live Embedding/rerank 冒烟 | B1/STG | S | M04 | FR-RAG-001, GATE-P0-002 | 密钥（staging 不挡在 ND-P0-02） | ready |
 | ND-P0-04 | Verifier 阈值与盲评 | B1 | L | 算法/M05 | GATE-P0-004, DR-004 | ND-P0-01 | blocked |
@@ -277,10 +277,11 @@
 
 ### ND-STG-04 阿里云 4C8G Compose 部署
 
-- **状态**：ready（A1 + STG-01~03 已在 Fake/注入下绿）
-- **范围**：服务器 Docker Compose；env 文件 gitignore；只暴露 80/443 或 SSH 隧道；资源 limits 适配 8G（外部模型，不跑 MinerU）。
-- **不做**：不标 GATE-P0-007/008 verified；不把 4C8G 写成已冻生产规格。
-- **何时找 Owner**：见该票 Ready 之后，需要 root/SSH、安全组、磁盘、是否要域名。
+- **状态**：overlay/runbook **done**（2026-09-14）；ECS apply 仍 **blocked**（Owner SSH/安全组/磁盘/域名）
+- **范围**：服务器 Docker Compose overlay；env 文件 gitignore；只暴露 80 或 SSH 隧道（443 待证书）；资源 limits 适配 8GiB（外部模型，不跑 MinerU）。
+- **不做**：不标 GATE-P0-007/008 verified；不把 4C8G 写成已冻生产规格；编码会话不冒充 SSH 上机。
+- **完成**：2026-09-14。`docker-compose.staging.yml` + nginx 默认 `127.0.0.1:80` 反代 web；8GiB limits fixture；`ops/compose.staging.env.example`；gitignore `*.env`；Runbook 列出 Owner 前置。变更 `progress/changes/20260914-M11-compose-staging.md`。
+- **何时找 Owner**：apply 仍需要 root/SSH、安全组、磁盘、是否要域名。
 
 ---
 
@@ -303,6 +304,6 @@
 工作区 E:/AI Project/Pivot，分支 main。
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
-本切片只做 <TICKET-ID>。默认下一刀 ND-STG-04 或 ND-W3-05。先写 progress/changes/，再 Red。
+本切片只做 <TICKET-ID>。默认下一刀 ND-W3-05。STG-04 ECS apply 待 Owner SSH/安全组/磁盘。先写 progress/changes/，再 Red。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```

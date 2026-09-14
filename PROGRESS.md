@@ -2,8 +2,8 @@
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-09-14  
-> **当前状态**：主线开发（MODULE-SPEC-1.1）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
-> **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 登录 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`）。GATE-P0 全部 unverified。
+> **当前状态**：主线开发（MODULE-SPEC-1.1）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
+> **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 登录 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture）。GATE-P0 全部 unverified。
 
 ## 1. 新会话恢复入口
 
@@ -14,7 +14,7 @@
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
 6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)（不是需求源）。Owner 近期目标 `dev-staging`：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
 
-如果没有指定切片：默认下一刀 **ND-STG-04** 阿里云 4C8G 部署，或 **ND-W3-05** 会话/refresh 跨进程，或人工标注企业 Golden Set。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 / ingest 共用 HTTP Embedding / Fake HTTP Writer / Fake MinerU 解析器 标成 GATE verified。不要新建 worktree。
+如果没有指定切片：默认下一刀 **ND-W3-05** 会话/refresh 跨进程，或 Owner 提供 SSH/安全组/磁盘后实施 ND-STG-04 ECS apply，或人工标注企业 Golden Set。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 / ingest 共用 HTTP Embedding / Fake HTTP Writer / Fake MinerU 解析器 / staging Compose overlay 标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 
@@ -33,7 +33,7 @@
 | M08 Web 基础 | integrated | `main`（tag `M08-v0.2.0`） | `contract-v0.1` | M08 15 tests + typecheck/lint 通过 | SSE 缓冲仍待；Compose web 由 M11 装配 |
 | M09 员工前台 | integrated | `main`（tag `M09-v0.1.0`） | `wave-1-integrated` | 12 Fake + opt-in Playwright 登录 | 完整十页 Playwright 待后续 |
 | M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 passed | Playwright 后台流程待后续 |
-| M11 集成/质量/运维 | in_progress | `main`（tag 目标 `M11-v0.22.0` / `wave-3-integrated`） | `wave-3-integrated` | 分组回归见本切片日志 | GATE-P0 仍全部 unverified；A2 会话跨进程与 4C8G 部署仍待 |
+| M11 集成/质量/运维 | in_progress | `main`（tag 目标 `M11-v0.23.0` / `wave-3-integrated`） | `wave-3-integrated` | 分组回归见本切片日志 | GATE-P0 仍全部 unverified；A2 会话跨进程仍待；staging overlay 已入库，ECS apply 待 Owner |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护。历史 `../Pivot-Mxx-*` worktree 不再使用。
 
@@ -133,7 +133,8 @@
 - [x] ingest 与检索共用注入 HTTP Embedding（ND-STG-01；CI Fake transport；Compose api/worker 注入 `PIVOT_EMBEDDING*`）
 - [x] Deepseek-Flash Draft Writer（ND-STG-02；CI Fake transport；Compose 仅 api 注入 `PIVOT_LLM*`；缺省仍证据拼接）
 - [x] MinerU 云解析器（ND-STG-03；CI Fake transport；Compose api/worker 注入 `PIVOT_PARSER*`；缺省仍启发式/stdlib）
-- [ ] 人工标注企业 Golden Set、Qdrant 100k 索引峰值、新 ECS 加密 OSS 备份恢复、live Embedding/rerank/MinerU 冒烟
+- [x] dev-staging Compose overlay（ND-STG-04；nginx 默认 127.0.0.1:80；8GiB limits fixture；CI 不 up；ECS apply 待 Owner SSH/安全组/磁盘）
+- [ ] 人工标注企业 Golden Set、Qdrant 100k 索引峰值、新 ECS 加密 OSS 备份恢复、live Embedding/rerank/MinerU 冒烟、staging ECS apply
 - [ ] 任一 `GATE-P0-*` verified
 
 ## 5. 未完成项与已知差距
@@ -217,15 +218,23 @@
 - [x] staging ingest/检索共用 HTTP Embedding 已批准：`progress/changes/20260914-M07-ingest-http-embedding.md`。
 - [x] staging Deepseek-Flash Draft Writer 已批准：`progress/changes/20260914-M05-http-draft-writer.md`。
 - [x] staging MinerU 云解析器已批准：`progress/changes/20260914-M07-mineru-cloud-parser.md`。
+- [x] staging Compose overlay 已批准：`progress/changes/20260914-M11-compose-staging.md`。
 
 ## 6. 轮次日志
+
+### 2026-09-14 — dev-staging Compose overlay（ND-STG-04）
+
+- **完成**：批准 `20260914-M11-compose-staging.md`；入库 `docker-compose.staging.yml` + nginx 反代 web（默认 `${PIVOT_STAGING_HTTP_BIND:-127.0.0.1}:80:80`）；overlay 为 8 个服务补 restart / 日志轮转 / 8GiB 档 limits fixture；env 副本 gitignore；Runbook 列出 Owner SSH/安全组/磁盘/域名前置。不自建 MinerU/LLM。CI 不 up。Accountable：M11。
+- **验证**（main，2026-09-14，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）：`.venv/Scripts/python ops/run_grouped_tests.py --skip-web` → **557 passed, 13 skipped**（M07 62；M00-M03 90；pipeline 242 passed / 12 skipped；perf 11 passed / 1 skipped）；ruff / compileall 通过。
+- **限制**：未 SSH、未改安全组、未挂数据盘、未打 live 冒烟；8GiB limits 不是冻结 TBD-P0；yml 不写 4C8G；GATE-P0-007/008 仍 unverified。
+- **下一步**：Owner 提供 SSH/安全组/磁盘/域名后才上机；编码下一刀 ND-W3-05 会话/refresh 跨进程，或人工标注企业 Golden Set。
 
 ### 2026-09-14 — MinerU 云解析器（ND-STG-03）
 
 - **完成**：批准 `20260914-M07-mineru-cloud-parser.md`；`PIVOT_PARSER=mineru` 时装配注入 endpoint/token 的 `MinerUCloudParser`（异步 batch 上传/轮询/zip）；加密/损坏本地拦截；扫描件走云 OCR；失败码沿用 `FR-DOC-004` 与 provider 码；Compose api/worker 注入同一套 `PIVOT_PARSER*`（选择 `${:?}`，yml 不写死 URL/模型）。缺省仍启发式/stdlib。Accountable：M07 解析器/装配，M11 Compose/bootstrap。
 - **验证**（main，2026-09-14，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）：`python ops/run_grouped_tests.py --skip-web` → **544 passed, 12 skipped**（M07 62；M00-M03 90；pipeline 229 passed / 11 skipped；perf 11 passed / 1 skipped）；ruff / compileall 通过。
 - **限制**：CI Fake HTTP，不是 live MinerU；不冻页数/大小/轮询超时/模型名；不把 MinerU 标成 MVP 唯一解析器；不在 4C8G 自建；GATE-P0 全部 unverified。
-- **下一步**：ND-STG-04 阿里云 4C8G 部署，或会话/refresh 跨进程（ND-W3-05），或人工标注企业 Golden Set。
+- **下一步**：Owner 提供 SSH/安全组/磁盘后实施 ND-STG-04 ECS apply，或会话/refresh 跨进程（ND-W3-05），或人工标注企业 Golden Set。
 
 ### 2026-09-14 — Deepseek-Flash Draft Writer（ND-STG-02）
 
