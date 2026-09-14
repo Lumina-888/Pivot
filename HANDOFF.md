@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-09-14  
-> **HEAD**：以 `main` 最新 commit 为准（本切片 ND-W3-08）。  
+> **HEAD**：`96f5709`（`main`，tag `M05-v0.6.0` / `M08-v0.3.0`）。  
 > **性质**：聊天结论压缩。需求仍以 `SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 `MODULE_SPEC.md` 1.1 / `AGENTS.md` 为准。  
 > **本文件不是规范源。**
 
