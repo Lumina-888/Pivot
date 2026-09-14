@@ -27,7 +27,7 @@
 | M02 文档接入 | integrated | `main`（tag 目标 `M02-v0.6.0`） | `contract-v0.1` | 27 单元 + 上传/列表/详情/重试/删除/预览/下载 HTTP；runtime 上传后进程内 ingest；`PIVOT_INGEST=celery` 可入队；Compose api 注入 celery ingest；publish 写回 chunk | HTTP 缺省仍 sync ingest |
 | M03 数据基础 | integrated | `main`（tag 目标 `M03-v0.6.0`） | `contract-v0.1` | M03 文档/导出 SQLAlchemy + M00 48 tests passed | 用户目录、文档事实与导出任务可走 SQLAlchemy |
 | M04 检索 RAG | integrated | `main`（tag 目标 `M04-v0.5.0`） | `contract-v0.1` | 31 单元 + 搜索 HTTP + Qdrant dense + stdlib BM25 + ingest/检索共用注入 HTTP Embedding/bge + 合成 Golden Set 120 条 | live 供应商冒烟与企业标注 Golden Set 待后续 |
-| M05 QA/Run/SSE | integrated | `main`（tag 目标 `M05-v0.4.0`） | `contract-v0.1` | 28 领域 + Run/SSE + 会话 CRUD HTTP + 可注入 HTTP Draft Writer | LangGraph extra 待后续 |
+| M05 QA/Run/SSE | integrated | `main`（tag `M05-v0.4.0`） | `contract-v0.1` | 28 领域 + Run/SSE + 会话 CRUD HTTP + 可注入 HTTP Draft Writer | LangGraph extra 待后续 |
 | M06 导出/审计 | integrated | `main`（tag 目标 `M06-v0.3.0`） | `contract-v0.1` | 26 单元 + 导出/审计 HTTP + PG 任务跨装配 | 对象字节下载 HTTP 仍不新增（契约仅短时 URL） |
 | M07 Worker/解析/索引 | integrated | `main`（tag 目标 `M07-v0.8.0`） | `contract-v0.1` | 43 单元 + ingest→Qdrant + HTTP 进程内 runner + parse 队列消费 + Celery eager ingest + Compose Celery worker + 共享 MinIO/PG runner + worker Qdrant IndexPublisher + ingest HTTP Embedding | 真实解析库仍待 |
 | M08 Web 基础 | integrated | `main`（tag `M08-v0.2.0`） | `contract-v0.1` | M08 15 tests + typecheck/lint 通过 | SSE 缓冲仍待；Compose web 由 M11 装配 |
