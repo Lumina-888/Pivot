@@ -1,0 +1,25 @@
+# 变更申请：ingest 与检索共用注入 HTTP Embedding
+
+- **日期**：2026-09-14
+- **申请人**：dev-staging 主线会话（M07 ingest 装配 + M04 既有 HTTP embedder + M11 Compose 注入）
+- **工单**：ND-STG-01
+- **背景**：检索侧 `PIVOT_EMBEDDING=http` 已装配 `HttpQueryEmbedder`；HTTP runtime 在 `qdrant` 时 `ingest_embedding is query_embedder`。worker `assemble_ingest_runtime` 仍固定 `HashingQueryEmbedder`。跨进程 ingest 与 API 检索不在同一向量空间。SPEC `FR-RAG-001` / `FR-DOC-006` 要求索引与检索共用 Embedding。不得把 Fake HTTP 标成 `GATE-P0-002` verified，不得冻结模型名/维数/超时。硅基 `BAAI/bge-m3` 仅作 staging 注入清单（`20260910-M00-dev-staging-vendors.md`），禁止写入源码默认值。
+- **原契约/现状**：
+  - `HttpQueryEmbedder`：OpenAI `{model,input}` + `data[].embedding`；失败为 `RetrieverError`；
+  - `assemble_runtime`：`PIVOT_EMBEDDING=http` 时 query 为 HTTP embedder，ingest 复用同一实例；尚无 ingest 失败/roundtrip 证据；
+  - `assemble_ingest_runtime`：qdrant 时始终 Hashing embedder；无 `PIVOT_EMBEDDING*`；
+  - `IngestWorker.embed` 只捕获 `ParseError`，HTTP `RetrieverError` 会冒泡且可能已部分写入；
+  - Compose api/worker 未注入 Embedding；example 为注释占位；
+  - 维数/模型/超时仍为 `TBD-P0`。
+- **拟变更内容**（本切片）：
+  - M07：`IngestAssemblySettings` 读取 `PIVOT_EMBEDDING=hash|http`（默认 hash）；`http` 必须同时注入 endpoint/model/api_key，且要求 `PIVOT_VECTOR_STORE=qdrant`；timeout 可选，不填默认秒数；可注入 Fake JSON HTTP client；
+  - M07：`assemble_ingest_runtime` 在 `http` 时装配与检索同形的 `HttpQueryEmbedder`（维数来自 `PIVOT_QDRANT_VECTOR_SIZE`）；`hash` 仍 Hashing；payload `embedding_model_version` 在 http 时用注入 model，不写死供应商名；
+  - M07：`IngestWorker` 将 Embedding 的 `RetrieverError`/`ParseError` 闭环为 `worker_failed`，不 `published`、回调 `on_embedding_error`；异常与信封不回显 api_key；
+  - M11：Compose `api` 与 `worker` 注入同一套 `PIVOT_EMBEDDING*`（选择 `${:?}`，endpoint/model/key/timeout `${:-}`，yml 不写死 URL/模型/维数）；example 占位 `hash`（fixture，不是冻结 TBD-P0）；**不** 提交供应商 URL 或密钥；
+  - M04：只消费既有 `HttpQueryEmbedder`；runtime 已共享实例，本切片补 ingest/search 证据；
+  - **不** 改 HTTP 缺省 `PIVOT_EMBEDDING=hash`；**不** 在 CI `docker compose up` / 打 live 供应商；**不** 冻结模型名/维数/超时；**不** 把 `GATE-P0-002` 标 verified；**不** 做 ND-STG-02 Writer / ND-STG-03 MinerU。Rerank 硅基适配器已在 runtime；本票不把 rerank 接到 worker ingest。
+- **影响模块**：M07（worker 装配、IngestWorker 失败闭环、单元测试）；M11（Compose 注入、pipeline 测试、证据、intent）；M04（只消费既有 HTTP embedder）；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：默认 `PIVOT_EMBEDDING=hash` 行为不变；既有 Hashing ingest/Qdrant 测试保持；选中 `http` 而缺字段或非 qdrant 时失败闭环，不回退静默 hashing。
+- **测试 ID**：`test_FR_DOC_006_http_embedding_failure_does_not_publish`、`test_FR_DOC_006_http_embedding_does_not_leak_api_key`、`test_FR_DOC_006_worker_http_embedding_requires_endpoint`、`test_FR_DOC_006_worker_http_embedding_requires_qdrant`、`test_FR_DOC_006_worker_http_embedding_wires_http_embedder`、`test_NFR_OBS_runtime_http_embedding_shared_with_ingest`、`test_FR_DOC_006_runtime_http_embedding_ingest_search_roundtrip`、`test_FR_DOC_006_worker_http_embedding_search_roundtrip`、`test_NFR_OBS_compose_api_worker_injects_http_embedding`、`test_GATE_P0_002_not_verified_by_ingest_http_embedding`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义；不冻结 TBD-P0 模型/维数/超时；不把 Fake HTTP 标成生产 Embedding）。
+- **审核结果**：2026-09-14 主线会话 **批准**。

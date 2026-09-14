@@ -16,6 +16,7 @@ from pivot.db.models import Base
 from pivot.db.session import create_db_engine, session_factory
 from pivot.documents.service import DocumentService
 from pivot.retrieval.fakes import HashingQueryEmbedder
+from pivot.retrieval.providers import HttpQueryEmbedder, StdlibJsonHttpClient
 from pivot.storage.adapters.minio import MinioObjectStore, connect_minio_client
 from pivot.storage.adapters.qdrant import QdrantVectorStore, connect_qdrant_client
 from sqlalchemy import text
@@ -45,6 +46,19 @@ def _optional_positive_int(environ: Mapping[str, str], key: str) -> int | None:
     return value
 
 
+def _optional_positive_float(environ: Mapping[str, str], key: str) -> float | None:
+    raw = (environ.get(key) or "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{key} must be a positive number") from exc
+    if value <= 0:
+        raise RuntimeError(f"{key} must be a positive number")
+    return value
+
+
 class _NullAudits:
     def emit(self, event: object) -> None:
         return None
@@ -71,6 +85,12 @@ class IngestAssemblySettings:
     qdrant_vector_size: int | None = None
     qdrant_distance: str | None = None
     vector_store_client: object | None = None
+    embedding: str = "hash"
+    embedding_endpoint: str | None = None
+    embedding_model: str | None = None
+    embedding_api_key: str | None = None
+    embedding_timeout: float | None = None
+    json_http_client: object | None = None
 
     def __post_init__(self) -> None:
         if self.storage != "postgres":
@@ -115,6 +135,23 @@ class IngestAssemblySettings:
                 raise RuntimeError(
                     "PIVOT_QDRANT_DISTANCE is required when PIVOT_QDRANT_ENSURE_COLLECTION=1"
                 )
+        if self.embedding not in {"hash", "http"}:
+            raise RuntimeError(
+                "unsupported PIVOT_EMBEDDING="
+                f"{self.embedding!r}; this slice wires hash or http"
+            )
+        if self.embedding == "http":
+            if self.vector_store != "qdrant":
+                raise RuntimeError(
+                    "PIVOT_EMBEDDING=http requires PIVOT_VECTOR_STORE=qdrant"
+                )
+            if not (
+                self.embedding_endpoint and self.embedding_model and self.embedding_api_key
+            ):
+                raise RuntimeError(
+                    "PIVOT_EMBEDDING_ENDPOINT, PIVOT_EMBEDDING_MODEL, and "
+                    "PIVOT_EMBEDDING_API_KEY are required when PIVOT_EMBEDDING=http"
+                )
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> IngestAssemblySettings:
@@ -140,6 +177,12 @@ class IngestAssemblySettings:
             == "1",
             qdrant_vector_size=_optional_positive_int(env, "PIVOT_QDRANT_VECTOR_SIZE"),
             qdrant_distance=(env.get("PIVOT_QDRANT_DISTANCE") or "").strip() or None,
+            embedding=(env.get("PIVOT_EMBEDDING") or "hash").strip() or "hash",
+            embedding_endpoint=(env.get("PIVOT_EMBEDDING_ENDPOINT") or "").strip()
+            or None,
+            embedding_model=(env.get("PIVOT_EMBEDDING_MODEL") or "").strip() or None,
+            embedding_api_key=(env.get("PIVOT_EMBEDDING_API_KEY") or "").strip() or None,
+            embedding_timeout=_optional_positive_float(env, "PIVOT_EMBEDDING_TIMEOUT"),
         )
 
 
@@ -153,7 +196,7 @@ class IngestAssembly:
     vector_store: str = "memory"
     vectors: QdrantVectorStore | None = None
     index: IndexPublisher | None = None
-    embedding: HashingQueryEmbedder | None = None
+    embedding: object | None = None
 
 
 def _engine_kwargs(database_url: str) -> dict[str, object]:
@@ -230,6 +273,25 @@ def _open_qdrant_store(settings: IngestAssemblySettings) -> QdrantVectorStore:
     return store
 
 
+def _json_http_client(settings: IngestAssemblySettings):
+    if settings.json_http_client is not None:
+        return settings.json_http_client
+    return StdlibJsonHttpClient()
+
+
+def _ingest_embedder(settings: IngestAssemblySettings):
+    if settings.embedding == "http":
+        return HttpQueryEmbedder(
+            _json_http_client(settings),
+            endpoint=settings.embedding_endpoint or "",
+            model=settings.embedding_model or "",
+            api_key=settings.embedding_api_key or "",
+            timeout_seconds=settings.embedding_timeout,
+            expected_dimension=settings.qdrant_vector_size,
+        )
+    return HashingQueryEmbedder(settings.qdrant_vector_size or 0)
+
+
 def assemble_ingest_runtime(
     settings: IngestAssemblySettings | None = None,
 ) -> IngestAssembly:
@@ -252,12 +314,14 @@ def assemble_ingest_runtime(
     if resolved.vector_store == "qdrant":
         vectors = _open_qdrant_store(resolved)
         index = IndexPublisher(store=vectors)
-        embedding = HashingQueryEmbedder(resolved.qdrant_vector_size or 0)
+        embedding = _ingest_embedder(resolved)
         runner_kwargs = {
             "embedding": embedding,
             "index": index,
             "dimension": resolved.qdrant_vector_size,
         }
+        if resolved.embedding == "http" and resolved.embedding_model:
+            runner_kwargs["embedding_model_version"] = resolved.embedding_model
     return IngestAssembly(
         runner=DocumentIngestRunner(documents, **runner_kwargs),
         documents=documents,

@@ -234,6 +234,7 @@ def _ingest_runner(
     embedding,
     index,
     dimension: int | None,
+    embedding_model_version: str | None = None,
 ) -> object | None:
     try:
         from pivot_worker.runtime import DocumentIngestRunner
@@ -246,6 +247,8 @@ def _ingest_runner(
         kwargs["index"] = index
     if dimension is not None:
         kwargs["dimension"] = dimension
+    if embedding_model_version is not None:
+        kwargs["embedding_model_version"] = embedding_model_version
     return DocumentIngestRunner(documents, **kwargs)
 
 
@@ -510,6 +513,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         embedding=ingest_embedding,
         index=index_publisher,
         dimension=resolved.qdrant_vector_size,
+        embedding_model_version=(
+            resolved.embedding_model if resolved.embedding == "http" else None
+        ),
     )
     ingest_submitter = ingest_runner
     if resolved.ingest_backend == "celery":

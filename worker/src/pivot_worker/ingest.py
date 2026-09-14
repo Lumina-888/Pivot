@@ -8,6 +8,7 @@ from typing import Any, Protocol
 from pivot.chunking import ChunkingPolicy, ChunkSplitter
 from pivot.parsing import ParseError, ParserRegistry
 from pivot.parsing.errors import RETRYABLE_CODES
+from pivot.retrieval.ports import RetrieverError
 from pivot.shared.ids import new_id
 
 from pivot_worker.embedding import EmbeddingPort, FakeEmbedding, assert_dimension
@@ -129,7 +130,7 @@ class IngestWorker:
         try:
             vectors = self._embedding.embed([draft.text for draft in drafts])
             assert_dimension(vectors, self._dimension)
-        except ParseError as error:
+        except (ParseError, RetrieverError) as error:
             self._sink.on_embedding_error(request.version_id)
             self._index.abort(generation_id)
             return worker_failed(error.code, "embed")

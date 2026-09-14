@@ -4,7 +4,7 @@
 
 - worker 缺 `PIVOT_QDRANT_ENDPOINT` / `PIVOT_QDRANT_COLLECTION` / `PIVOT_QDRANT_VECTOR_SIZE` 失败闭环；不写死维数/距离/供应商 URL。
 - Compose worker 注入 `PIVOT_VECTOR_STORE` / `PIVOT_QDRANT_*`（`${}`）；example 占位不是冻结的 `TBD-P0`。
-- Embedding 仍为注入 Fake（`HashingQueryEmbedder`）；不是 live 供应商。HTTP 缺省仍为进程内 ingest。
+- 默认 Embedding 仍为注入 Fake（`HashingQueryEmbedder`）；`PIVOT_EMBEDDING=http` 见 `ingest-http-embedding.md`。不是 live 供应商。HTTP 缺省仍为进程内 ingest。
 - 本切片不是 `GATE-P0-002` / `GATE-P0-003` 闭环。
 
 | ID | 状态 | 原因 |

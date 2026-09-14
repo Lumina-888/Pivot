@@ -108,6 +108,65 @@ def test_FR_DOC_006_worker_qdrant_publish_rejects_unsupported_store():
         assemble_ingest_runtime(_settings(vector_store="pinecone"))
 
 
+def test_FR_DOC_006_worker_http_embedding_requires_qdrant():
+    with pytest.raises(RuntimeError, match="PIVOT_VECTOR_STORE=qdrant"):
+        _settings(
+            embedding="http",
+            embedding_endpoint="https://embed.test/v1/embeddings",
+            embedding_model="injected-embed-model",
+            embedding_api_key="secret-embed-key",
+        )
+    with pytest.raises(RuntimeError, match="PIVOT_VECTOR_STORE=qdrant"):
+        IngestAssemblySettings.from_env(
+            {
+                "PIVOT_STORAGE": "postgres",
+                "PIVOT_DATABASE_URL": "sqlite+pysqlite:///:memory:",
+                "PIVOT_OBJECT_STORE": "minio",
+                "PIVOT_MINIO_ENDPOINT": "objects.test:443",
+                "PIVOT_MINIO_BUCKET": "pivot-docs",
+                "PIVOT_MINIO_ACCESS_KEY": "pivotminio",
+                "PIVOT_MINIO_SECRET_KEY": "pivot_dev_only",
+                "PIVOT_EMBEDDING": "http",
+                "PIVOT_EMBEDDING_ENDPOINT": "https://embed.test/v1/embeddings",
+                "PIVOT_EMBEDDING_MODEL": "injected-embed-model",
+                "PIVOT_EMBEDDING_API_KEY": "secret-embed-key",
+            }
+        )
+
+
+def test_FR_DOC_006_worker_http_embedding_requires_endpoint():
+    with pytest.raises(RuntimeError, match="PIVOT_EMBEDDING_ENDPOINT"):
+        _settings(
+            vector_store="qdrant",
+            qdrant_endpoint="vectors.test:443",
+            qdrant_collection="pivot-chunks",
+            qdrant_vector_size=4,
+            embedding="http",
+        )
+    with pytest.raises(RuntimeError, match="PIVOT_EMBEDDING_ENDPOINT"):
+        IngestAssemblySettings.from_env(
+            {
+                "PIVOT_STORAGE": "postgres",
+                "PIVOT_DATABASE_URL": "sqlite+pysqlite:///:memory:",
+                "PIVOT_OBJECT_STORE": "minio",
+                "PIVOT_MINIO_ENDPOINT": "objects.test:443",
+                "PIVOT_MINIO_BUCKET": "pivot-docs",
+                "PIVOT_MINIO_ACCESS_KEY": "pivotminio",
+                "PIVOT_MINIO_SECRET_KEY": "pivot_dev_only",
+                "PIVOT_VECTOR_STORE": "qdrant",
+                "PIVOT_QDRANT_ENDPOINT": "vectors.test:443",
+                "PIVOT_QDRANT_COLLECTION": "pivot-chunks",
+                "PIVOT_QDRANT_VECTOR_SIZE": "4",
+                "PIVOT_EMBEDDING": "http",
+            }
+        )
+
+
+def test_FR_DOC_006_worker_http_embedding_rejects_unsupported():
+    with pytest.raises(RuntimeError, match="unsupported PIVOT_EMBEDDING"):
+        _settings(embedding="openai")
+
+
 def test_FR_DOC_006_worker_ingest_source_has_no_hardcoded_endpoints():
     text = _ASSEMBLY_SRC.read_text(encoding="utf-8").lower()
     assert "localhost" not in text
@@ -117,6 +176,8 @@ def test_FR_DOC_006_worker_ingest_source_has_no_hardcoded_endpoints():
     assert "postgresql://" not in text
     assert "redis://" not in text
     assert "siliconflow" not in text
+    assert "bge-m3" not in text
+    assert "openai.com" not in text
     assert "cosine" not in text
     assert "1024" not in text
 

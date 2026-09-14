@@ -1,6 +1,6 @@
 # Wave 3 M04 HTTP Embedding / bge-reranker 限制
 
-环境：`PIVOT_EMBEDDING=http` 时 query embedder 为注入 endpoint/model/key 的 `HttpQueryEmbedder`；`PIVOT_RERANK=bge` 时 rerank 为 `HttpBgeReranker`。CI 用 `ScriptedJsonHttpClient`，无真实供应商、无密钥入库。不启动 Compose/uvicorn。M07 ingest 仍 Fake Embedding。
+环境：`PIVOT_EMBEDDING=http` 时 query embedder 为注入 endpoint/model/key 的 `HttpQueryEmbedder`；`PIVOT_RERANK=bge` 时 rerank 为 `HttpBgeReranker`。CI 用 `ScriptedJsonHttpClient`，无真实供应商、无密钥入库。不启动 Compose/uvicorn。ingest 共用 HTTP Embedding 见 `ingest-http-embedding.md`。
 
 - 默认 `PIVOT_EMBEDDING=hash` 仍为 `HashingQueryEmbedder`。
 - HTTP 适配器不写死供应商 URL、模型名、维数、超时或 rerank 阈值；这些仍为 `TBD-P0`。

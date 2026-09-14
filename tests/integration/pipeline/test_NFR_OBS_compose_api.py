@@ -361,6 +361,41 @@ def test_GATE_P0_003_not_verified_by_compose_qdrant_redis():
     assert "verified" not in line.lower().replace("unverified", "")
 
 
+_EMBEDDING_ENV = (
+    "PIVOT_EMBEDDING",
+    "PIVOT_EMBEDDING_ENDPOINT",
+    "PIVOT_EMBEDDING_MODEL",
+    "PIVOT_EMBEDDING_API_KEY",
+    "PIVOT_EMBEDDING_TIMEOUT",
+)
+
+
+def test_NFR_OBS_compose_api_worker_injects_http_embedding():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    api = services["api"]
+    worker = services["worker"]
+    for key in _EMBEDDING_ENV:
+        assert f"{key}:" in api
+        assert "${" + key in api
+        assert f"{key}:" in worker
+        assert "${" + key in worker
+    for body in (api, worker):
+        assert "${PIVOT_EMBEDDING:?" in body
+        assert "${PIVOT_EMBEDDING:-hash}" not in body
+        assert re.search(r"PIVOT_EMBEDDING:\s*http", body) is None
+        assert re.search(r"PIVOT_EMBEDDING_ENDPOINT:\s*https?://", body, re.I) is None
+        assert "siliconflow" not in body.lower()
+        assert "bge-m3" not in body.lower()
+        assert "openai.com" not in body.lower()
+    example = _ENV_EXAMPLE.read_text(encoding="utf-8")
+    assert _example_assignment(example, "PIVOT_EMBEDDING") == "hash"
+    assert "PIVOT_EMBEDDING_ENDPOINT=" in example
+    assert "TBD-P0" in example
+    intent = _INTENT.read_text(encoding="utf-8")
+    assert "embedding" in intent.lower()
+
+
 def test_NFR_OBS_ci_does_not_build_or_start_compose_api():
     workflow = _WORKFLOW.read_text(encoding="utf-8").lower()
     assert "docker compose" not in workflow

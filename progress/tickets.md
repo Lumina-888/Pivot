@@ -26,7 +26,7 @@
 | ND-W3-11 | version.idempotency_key 入库 | A2 | S | M03/M02 | FR-DOC-005 | 需变更申请；SPEC 字段确认 | blocked |
 | ND-W3-13 | Wave 3 收口评审 / tag | A | S | M11 | — | A1 完成 | done |
 | ND-P0-01 | 企业人工标注 Golden Set | B1 | L | 业务/M04/M11 | GATE-P0-002, NFR-QUAL | 人 | ready |
-| ND-STG-01 | ingest 与检索共用注入 HTTP Embedding | STG | S | M07/M04 | FR-RAG-001, FR-DOC-006 | ND-W3-01 | ready |
+| ND-STG-01 | ingest 与检索共用注入 HTTP Embedding | STG | S | M07/M04 | FR-RAG-001, FR-DOC-006 | ND-W3-01 | done |
 | ND-STG-02 | Deepseek-Flash Draft Writer 适配器 | STG | M | M05 | FR-QA-001/002, DR-007 | ND-STG-01 | ready |
 | ND-STG-03 | MinerU 云 API 解析器（staging） | STG | M | M07 | §6.1 V2 | ND-W3-01 | ready |
 | ND-STG-04 | 阿里云 4C8G Compose 部署 | STG | M | M11 | NFR-OBS | A1+STG-01~03 | blocked |
@@ -254,9 +254,11 @@
 
 ### ND-STG-01 ingest 与检索共用 HTTP Embedding
 
+- **状态**：done（2026-09-14）
 - **依赖**：ND-W3-01（worker 已能接 VectorStore）
 - **范围**：`PIVOT_EMBEDDING=http` 时 ingest 与 query 用同一注入 embedder（硅基 `BAAI/bge-m3` 与现有 OpenAI embeddings 形状兼容）；维数仍注入不写死；失败不 published。Rerank 硅基 `BAAI/bge-reranker-v2-m3` 与现有 `/rerank` 适配器兼容，本票可顺带接到 worker/runtime。
 - **不做**：不冻模型名/维数。
+- **完成**：2026-09-14。`assemble_ingest_runtime` 在 `PIVOT_EMBEDDING=http` 时装配 `HttpQueryEmbedder`；HTTP runtime ingest 与 query 共用同一实例；失败不 published；Compose api/worker 注入同一套 `PIVOT_EMBEDDING*`。Rerank 仍只在 runtime。变更 `progress/changes/20260914-M07-ingest-http-embedding.md`。
 
 ### ND-STG-02 Deepseek-Flash Draft Writer
 
@@ -298,6 +300,6 @@
 工作区 E:/AI Project/Pivot，分支 main。
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
-本切片只做 <TICKET-ID>。先写 progress/changes/，再 Red。
+本切片只做 <TICKET-ID>。默认下一刀 ND-STG-02 或 ND-W3-05。先写 progress/changes/，再 Red。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```
