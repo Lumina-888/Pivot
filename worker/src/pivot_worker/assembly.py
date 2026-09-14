@@ -15,6 +15,7 @@ from pivot.db.documents import (
 from pivot.db.models import Base
 from pivot.db.session import create_db_engine, session_factory
 from pivot.documents.service import DocumentService
+from pivot.parsing import ParserRegistry, StdlibMinerUHttpClient, mineru_parser_registry
 from pivot.retrieval.fakes import HashingQueryEmbedder
 from pivot.retrieval.providers import HttpQueryEmbedder, StdlibJsonHttpClient
 from pivot.storage.adapters.minio import MinioObjectStore, connect_minio_client
@@ -91,6 +92,14 @@ class IngestAssemblySettings:
     embedding_api_key: str | None = None
     embedding_timeout: float | None = None
     json_http_client: object | None = None
+    parser: str = "local"
+    parser_endpoint: str | None = None
+    parser_token: str | None = None
+    parser_timeout: float | None = None
+    parser_poll_timeout: float | None = None
+    parser_poll_interval: float | None = None
+    parser_model: str | None = None
+    parser_http_client: object | None = None
 
     def __post_init__(self) -> None:
         if self.storage != "postgres":
@@ -152,6 +161,18 @@ class IngestAssemblySettings:
                     "PIVOT_EMBEDDING_ENDPOINT, PIVOT_EMBEDDING_MODEL, and "
                     "PIVOT_EMBEDDING_API_KEY are required when PIVOT_EMBEDDING=http"
                 )
+        if self.parser not in {"local", "mineru"}:
+            raise RuntimeError(
+                "unsupported PIVOT_PARSER="
+                f"{self.parser!r}; this slice wires local or mineru"
+            )
+        if self.parser == "mineru" and not (
+            self.parser_endpoint and self.parser_token
+        ):
+            raise RuntimeError(
+                "PIVOT_PARSER_ENDPOINT and PIVOT_PARSER_TOKEN are required "
+                "when PIVOT_PARSER=mineru"
+            )
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> IngestAssemblySettings:
@@ -183,6 +204,17 @@ class IngestAssemblySettings:
             embedding_model=(env.get("PIVOT_EMBEDDING_MODEL") or "").strip() or None,
             embedding_api_key=(env.get("PIVOT_EMBEDDING_API_KEY") or "").strip() or None,
             embedding_timeout=_optional_positive_float(env, "PIVOT_EMBEDDING_TIMEOUT"),
+            parser=(env.get("PIVOT_PARSER") or "local").strip() or "local",
+            parser_endpoint=(env.get("PIVOT_PARSER_ENDPOINT") or "").strip() or None,
+            parser_token=(env.get("PIVOT_PARSER_TOKEN") or "").strip() or None,
+            parser_timeout=_optional_positive_float(env, "PIVOT_PARSER_TIMEOUT"),
+            parser_poll_timeout=_optional_positive_float(
+                env, "PIVOT_PARSER_POLL_TIMEOUT"
+            ),
+            parser_poll_interval=_optional_positive_float(
+                env, "PIVOT_PARSER_POLL_INTERVAL"
+            ),
+            parser_model=(env.get("PIVOT_PARSER_MODEL") or "").strip() or None,
         )
 
 
@@ -197,6 +229,7 @@ class IngestAssembly:
     vectors: QdrantVectorStore | None = None
     index: IndexPublisher | None = None
     embedding: object | None = None
+    parsers: ParserRegistry | None = None
 
 
 def _engine_kwargs(database_url: str) -> dict[str, object]:
@@ -279,6 +312,26 @@ def _json_http_client(settings: IngestAssemblySettings):
     return StdlibJsonHttpClient()
 
 
+def _parser_http_client(settings: IngestAssemblySettings):
+    if settings.parser_http_client is not None:
+        return settings.parser_http_client
+    return StdlibMinerUHttpClient()
+
+
+def _ingest_parsers(settings: IngestAssemblySettings) -> ParserRegistry | None:
+    if settings.parser != "mineru":
+        return None
+    return mineru_parser_registry(
+        _parser_http_client(settings),
+        endpoint=settings.parser_endpoint or "",
+        token=settings.parser_token or "",
+        timeout_seconds=settings.parser_timeout,
+        poll_timeout_seconds=settings.parser_poll_timeout,
+        poll_interval_seconds=settings.parser_poll_interval,
+        model=settings.parser_model,
+    )
+
+
 def _ingest_embedder(settings: IngestAssemblySettings):
     if settings.embedding == "http":
         return HttpQueryEmbedder(
@@ -310,6 +363,7 @@ def assemble_ingest_runtime(
     vectors = None
     index = None
     embedding = None
+    parsers = _ingest_parsers(resolved)
     runner_kwargs: dict[str, object] = {}
     if resolved.vector_store == "qdrant":
         vectors = _open_qdrant_store(resolved)
@@ -322,6 +376,8 @@ def assemble_ingest_runtime(
         }
         if resolved.embedding == "http" and resolved.embedding_model:
             runner_kwargs["embedding_model_version"] = resolved.embedding_model
+    if parsers is not None:
+        runner_kwargs["parsers"] = parsers
     return IngestAssembly(
         runner=DocumentIngestRunner(documents, **runner_kwargs),
         documents=documents,
@@ -332,4 +388,5 @@ def assemble_ingest_runtime(
         vectors=vectors,
         index=index,
         embedding=embedding,
+        parsers=parsers,
     )

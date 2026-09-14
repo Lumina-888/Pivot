@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from pivot.parsing.fakes import ScriptedMinerUHttpClient
+from pivot.parsing.mineru import MinerUCloudParser
 from pivot_worker.assembly import IngestAssemblySettings, assemble_ingest_runtime
 
 _ASSEMBLY_SRC = (
@@ -167,6 +170,78 @@ def test_FR_DOC_006_worker_http_embedding_rejects_unsupported():
         _settings(embedding="openai")
 
 
+def test_FR_DOC_006_worker_mineru_requires_endpoint():
+    with pytest.raises(RuntimeError, match="PIVOT_PARSER_ENDPOINT"):
+        _settings(parser="mineru")
+    with pytest.raises(RuntimeError, match="PIVOT_PARSER_ENDPOINT"):
+        IngestAssemblySettings.from_env(
+            {
+                "PIVOT_STORAGE": "postgres",
+                "PIVOT_DATABASE_URL": "sqlite+pysqlite:///:memory:",
+                "PIVOT_OBJECT_STORE": "minio",
+                "PIVOT_MINIO_ENDPOINT": "objects.test:443",
+                "PIVOT_MINIO_BUCKET": "pivot-docs",
+                "PIVOT_MINIO_ACCESS_KEY": "pivotminio",
+                "PIVOT_MINIO_SECRET_KEY": "pivot_dev_only",
+                "PIVOT_PARSER": "mineru",
+            }
+        )
+
+
+def test_FR_DOC_006_worker_mineru_rejects_unsupported():
+    with pytest.raises(RuntimeError, match="unsupported PIVOT_PARSER"):
+        _settings(parser="pymupdf")
+
+
+class _HealthyMinio:
+    def bucket_exists(self, bucket: str) -> bool:
+        del bucket
+        return True
+
+    def make_bucket(self, bucket: str) -> None:
+        return None
+
+    def put_object(self, bucket, object_name, data, length, content_type=None):
+        return None
+
+    def get_object(self, bucket, object_name):
+        del bucket, object_name
+        return SimpleNamespace(
+            read=lambda *args: b"",
+            close=lambda: None,
+            release_conn=lambda: None,
+        )
+
+    def remove_object(self, bucket, object_name) -> None:
+        return None
+
+    def stat_object(self, bucket, object_name):
+        return SimpleNamespace(size=0)
+
+    def list_objects(self, bucket, prefix="", recursive=True):
+        return []
+
+    def presigned_get_object(self, bucket, object_name, expires=None) -> str:
+        return f"https://objects.test/{bucket}/{object_name}"
+
+
+def test_FR_DOC_006_worker_mineru_wires_parser():
+    assembly = assemble_ingest_runtime(
+        _settings(
+            create_schema=True,
+            minio_ensure_bucket=True,
+            object_store_client=_HealthyMinio(),
+            parser="mineru",
+            parser_endpoint="https://parser.test/api/v4",
+            parser_token="secret-mineru-token",
+            parser_http_client=ScriptedMinerUHttpClient(),
+        )
+    )
+    assert assembly.parsers is not None
+    parser = assembly.parsers._parsers["pdf"]
+    assert isinstance(parser, MinerUCloudParser)
+
+
 def test_FR_DOC_006_worker_ingest_source_has_no_hardcoded_endpoints():
     text = _ASSEMBLY_SRC.read_text(encoding="utf-8").lower()
     assert "localhost" not in text
@@ -180,6 +255,7 @@ def test_FR_DOC_006_worker_ingest_source_has_no_hardcoded_endpoints():
     assert "openai.com" not in text
     assert "cosine" not in text
     assert "1024" not in text
+    assert "mineru.net" not in text
 
 
 def test_NFR_OBS_worker_process_assembles_ingest_runner():

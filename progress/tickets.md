@@ -28,8 +28,8 @@
 | ND-P0-01 | 企业人工标注 Golden Set | B1 | L | 业务/M04/M11 | GATE-P0-002, NFR-QUAL | 人 | ready |
 | ND-STG-01 | ingest 与检索共用注入 HTTP Embedding | STG | S | M07/M04 | FR-RAG-001, FR-DOC-006 | ND-W3-01 | done |
 | ND-STG-02 | Deepseek-Flash Draft Writer 适配器 | STG | M | M05 | FR-QA-001/002, DR-007 | ND-STG-01 | done |
-| ND-STG-03 | MinerU 云 API 解析器（staging） | STG | M | M07 | §6.1 V2 | ND-W3-01 | ready |
-| ND-STG-04 | 阿里云 4C8G Compose 部署 | STG | M | M11 | NFR-OBS | A1+STG-01~03 | blocked |
+| ND-STG-03 | MinerU 云 API 解析器（staging） | STG | M | M07 | §6.1 V2 | ND-W3-01 | done |
+| ND-STG-04 | 阿里云 4C8G Compose 部署 | STG | M | M11 | NFR-OBS | A1+STG-01~03 | ready |
 | ND-P0-02 | 外发/留存/训练审批 | B1 | L | 法务/安全 | GATE-P0-001, DR-001 | 人 | deferred（企业化；staging 不挡） |
 | ND-P0-03 | live Embedding/rerank 冒烟 | B1/STG | S | M04 | FR-RAG-001, GATE-P0-002 | 密钥（staging 不挡在 ND-P0-02） | ready |
 | ND-P0-04 | Verifier 阈值与盲评 | B1 | L | 算法/M05 | GATE-P0-004, DR-004 | ND-P0-01 | blocked |
@@ -269,13 +269,15 @@
 
 ### ND-STG-03 MinerU 云 API 解析器
 
+- **状态**：done（2026-09-14）
 - **范围**：可插拔解析器；CI 默认启发式/stdlib；`PIVOT_PARSER=mineru` 时注入云 API；加密/空文本/失败码沿用既有契约。
 - **不做**：不在 4C8G 上自建 MinerU；不把 MinerU 标成 MVP 唯一解析器（SPEC 仍写 V2）。
 - **Owner 已给**：MinerU **官方云**。公开文档为 Bearer JWT、异步任务（`mineru.net`）。实现时注入 endpoint/token；轮询超时不冻死。不在 4C8G 自建。
+- **完成**：2026-09-14。`PIVOT_PARSER=mineru` 装配 `MinerUCloudParser`（异步 batch 上传/轮询/zip）；加密/损坏本地拦截；扫描件走云 OCR；Compose api/worker 注入 `PIVOT_PARSER*`。变更 `progress/changes/20260914-M07-mineru-cloud-parser.md`。
 
 ### ND-STG-04 阿里云 4C8G Compose 部署
 
-- **状态**：blocked until A1 + STG-01~03 可在 Fake/注入下绿
+- **状态**：ready（A1 + STG-01~03 已在 Fake/注入下绿）
 - **范围**：服务器 Docker Compose；env 文件 gitignore；只暴露 80/443 或 SSH 隧道；资源 limits 适配 8G（外部模型，不跑 MinerU）。
 - **不做**：不标 GATE-P0-007/008 verified；不把 4C8G 写成已冻生产规格。
 - **何时找 Owner**：见该票 Ready 之后，需要 root/SSH、安全组、磁盘、是否要域名。
@@ -301,6 +303,6 @@
 工作区 E:/AI Project/Pivot，分支 main。
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
-本切片只做 <TICKET-ID>。默认下一刀 ND-STG-03 或 ND-W3-05。先写 progress/changes/，再 Red。
+本切片只做 <TICKET-ID>。默认下一刀 ND-STG-04 或 ND-W3-05。先写 progress/changes/，再 Red。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```

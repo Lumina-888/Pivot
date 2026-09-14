@@ -48,6 +48,7 @@ from pivot.http.memory import (
     UtcClock,
 )
 from pivot.http.settings import RuntimeSettings
+from pivot.parsing import ParserRegistry, StdlibMinerUHttpClient, mineru_parser_registry
 from pivot.qa.orchestrator import QaOrchestrator
 from pivot.qa.ports import EvidenceHit, RetrievalResult
 from pivot.qa.writer import EvidenceJoinWriter, FailoverDraftWriter, HttpDraftWriter
@@ -97,6 +98,7 @@ class RuntimeAssembly:
     document_rows: object | None = None
     export_rows: object | None = None
     draft_writer: object | None = None
+    parsers: ParserRegistry | None = None
 
 
 class _RuntimeProbes:
@@ -230,6 +232,26 @@ def _index_publisher(store: QdrantVectorStore) -> object:
     return IndexPublisher(store=store)
 
 
+def _parser_http_client(settings: RuntimeSettings):
+    if settings.parser_http_client is not None:
+        return settings.parser_http_client
+    return StdlibMinerUHttpClient()
+
+
+def _ingest_parsers(settings: RuntimeSettings) -> ParserRegistry | None:
+    if settings.parser != "mineru":
+        return None
+    return mineru_parser_registry(
+        _parser_http_client(settings),
+        endpoint=settings.parser_endpoint or "",
+        token=settings.parser_token or "",
+        timeout_seconds=settings.parser_timeout,
+        poll_timeout_seconds=settings.parser_poll_timeout,
+        poll_interval_seconds=settings.parser_poll_interval,
+        model=settings.parser_model,
+    )
+
+
 def _ingest_runner(
     documents,
     *,
@@ -237,6 +259,7 @@ def _ingest_runner(
     index,
     dimension: int | None,
     embedding_model_version: str | None = None,
+    parsers: ParserRegistry | None = None,
 ) -> object | None:
     try:
         from pivot_worker.runtime import DocumentIngestRunner
@@ -251,6 +274,8 @@ def _ingest_runner(
         kwargs["dimension"] = dimension
     if embedding_model_version is not None:
         kwargs["embedding_model_version"] = embedding_model_version
+    if parsers is not None:
+        kwargs["parsers"] = parsers
     return DocumentIngestRunner(documents, **kwargs)
 
 
@@ -575,6 +600,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         objects=document_objects,
         audits=MemoryDocumentAudits(),
     )
+    parsers = _ingest_parsers(resolved)
     ingest_runner = _ingest_runner(
         documents,
         embedding=ingest_embedding,
@@ -583,6 +609,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         embedding_model_version=(
             resolved.embedding_model if resolved.embedding == "http" else None
         ),
+        parsers=parsers,
     )
     ingest_submitter = ingest_runner
     if resolved.ingest_backend == "celery":
@@ -690,6 +717,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         document_rows=document_rows,
         export_rows=export_rows,
         draft_writer=draft_writer,
+        parsers=parsers,
     )
 
 

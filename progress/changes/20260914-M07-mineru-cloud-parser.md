@@ -1,0 +1,23 @@
+# 变更申请：MinerU 云 API 解析器（CI Fake HTTP）
+
+- **日期**：2026-09-14
+- **申请人**：dev-staging 主线会话（M07 可插拔解析器 + M11 composition root / Compose 注入）
+- **工单**：ND-STG-03
+- **背景**：解析仍为启发式 PDF + stdlib OOXML。Owner 给定 staging 解析走 MinerU **官方云**（Bearer JWT、异步任务；`20260910-M00-dev-staging-vendors.md`）。SPEC §6.1 将 MinerU 云 API 标为 **V2**（OCR/复杂表格），MVP 仍是 PyMuPDF 等本地库。本切片只提供可注入云适配器，不把 MinerU 写成 MVP 唯一解析器，不在 4C8G 自建。不得把 Fake HTTP 标成 GATE verified，不得冻结页数/大小/轮询超时/模型名，不得写死供应商 URL。
+- **原契约/现状**：
+  - `ParserRegistry` 缺省 `PdfParser` / `DocxParser` / `PptxParser` / `XlsxParser`；
+  - `IngestWorker` / `DocumentIngestRunner` 可注入 `ParserRegistry`，装配层未接线外部解析器；
+  - `FR-DOC-004` 错误码与 retryable 集合已冻结；扫描 PDF 在启发式解析器上为 `UNSUPPORTED_SCAN_PDF`；
+  - 既有 JSON HTTP 客户端在 M04 `JsonHttpClient`（仅 `post_json`）；MinerU 官方云为异步：申请上传 URL → PUT 字节 → 轮询 batch → 下载 zip；
+  - 页数/大小/处理时长仍为 `TBD-P0`。
+- **拟变更内容**（本切片）：
+  - M07：新增 `MinerUCloudParser`；`PIVOT_PARSER=local|mineru`（默认 local）；`mineru` 必须同时注入 endpoint 与 token；timeout / poll_timeout / poll_interval / model 可选，不填默认秒数或模型名；鉴权缺省 `Authorization: Bearer`；本地仍先拦截加密 PDF / 损坏签名，不外发；扫描件交给云 OCR，不再本地 `UNSUPPORTED_SCAN_PDF`；zip 中 `content_list.json` 或 `full.md` 转为 `ParsedDocument`；空结果 `EMPTY_TEXT`；超时/429/5xx/过大页数映射既有 `PROVIDER_TIMEOUT` / `PROVIDER_RATE_LIMITED` / `PROVIDER_TEMPORARY_ERROR` / `RESOURCE_LIMIT`；异常与信封不回显 token；轮询 sleeper/clock 可注入，CI 不实睡；
+  - M07：`assemble_ingest_runtime` 在 `mineru` 时把 pdf/docx/pptx/xlsx 接到同一云解析器；`DocumentIngestRunner` 可注入 `ParserRegistry`；缺 endpoint/token 失败闭环，不回退静默启发式；
+  - M07：MinerU 传输端口为 POST JSON / GET JSON / PUT bytes / GET bytes（stdlib 实现）；CI 注入 Fake transport，不打 live；
+  - M11：`assemble_runtime` 同样按 `PIVOT_PARSER` 装配（HTTP 缺省仍进程内 ingest）；Compose **api 与 worker** 注入同一套 `PIVOT_PARSER*`（选择 `${:?}`，endpoint/token/timeout/poll/model `${:-}`，yml 不写死 URL/模型）；example 占位 `local`（fixture，不是冻结 TBD-P0）；**不** 提交供应商 URL 或 token；
+  - **不** 改 HTTP 缺省启发式/stdlib；**不** 在 CI `docker compose up` / 打 live MinerU；**不** 冻结页数/大小/轮询超时/模型名；**不** 在 4C8G 自建 MinerU；**不** 把 MinerU 标成 MVP 唯一解析器；**不** 把 `GATE-P0-003` 标 verified；**不** 做 ND-W3-03 PyMuPDF extra、ND-W3-05 会话跨进程。
+- **影响模块**：M07（解析器、worker 装配、单元测试）；M11（settings/bootstrap、Compose、pipeline 测试、证据）；M00（MODULE_SPEC §11 现状一句）。
+- **兼容方案**：默认 `PIVOT_PARSER=local` 行为不变；既有四格式与错误码单测保持启发式/stdlib；选中 `mineru` 而缺字段时失败闭环，不回退静默本地解析。
+- **测试 ID**：`test_FR_DOC_004_mineru_posts_injected_endpoint_and_bearer`、`test_FR_DOC_004_mineru_uploads_bytes_and_polls_batch`、`test_FR_DOC_004_mineru_parses_zip_markdown_and_content_list`、`test_FR_DOC_004_mineru_does_not_hardcode_vendor`、`test_FR_DOC_004_mineru_encrypted_pdf_skips_http`、`test_FR_DOC_004_mineru_corrupted_pdf_skips_http`、`test_FR_DOC_004_mineru_scan_pdf_goes_to_cloud`、`test_FR_DOC_004_mineru_empty_zip_is_empty_text`、`test_FR_DOC_004_mineru_timeout_is_provider_timeout`、`test_FR_DOC_004_mineru_429_is_rate_limited`、`test_FR_DOC_004_mineru_5xx_is_temporary`、`test_FR_DOC_004_mineru_poll_timeout_is_provider_timeout`、`test_FR_DOC_004_mineru_too_large_is_resource_limit`、`test_FR_DOC_004_mineru_does_not_leak_token`、`test_FR_DOC_004_mineru_does_not_send_frozen_model`、`test_FR_DOC_004_mineru_sends_injected_model`、`test_FR_DOC_006_worker_mineru_requires_endpoint`、`test_FR_DOC_006_worker_mineru_rejects_unsupported`、`test_FR_DOC_006_worker_mineru_wires_parser`、`test_NFR_OBS_runtime_mineru_requires_endpoint_token`、`test_NFR_OBS_runtime_mineru_wires_parser`、`test_FR_DOC_004_runtime_mineru_ingest_uses_cloud`、`test_FR_DOC_004_worker_mineru_ingest_uses_cloud`、`test_NFR_OBS_compose_api_worker_injects_mineru_parser`、`test_GATE_P0_003_not_verified_by_mineru_parser`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义；不冻结 TBD-P0 页数/大小/超时/模型；不把 Fake HTTP 标成生产解析器；SPEC 仍写 MinerU 为 V2）。
+- **审核结果**：2026-09-14 主线会话 **批准**。

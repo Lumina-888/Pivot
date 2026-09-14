@@ -7,6 +7,7 @@ from typing import Any
 from pivot.chunking import ChunkSplitter
 from pivot.documents.ingest import DocumentIngestSink
 from pivot.documents.service import DocumentService
+from pivot.parsing import ParserRegistry
 
 from pivot_worker.embedding import EmbeddingPort
 from pivot_worker.index import IndexPublisher
@@ -22,6 +23,7 @@ class DocumentIngestRunner:
         index: IndexPublisher | None = None,
         dimension: int | None = None,
         splitter: ChunkSplitter | None = None,
+        parsers: ParserRegistry | None = None,
         embedding_model_version: str = "fake-embed-v1",
         retrieval_config_version: str = "",
     ) -> None:
@@ -30,6 +32,7 @@ class DocumentIngestRunner:
         self._index = index
         self._dimension = dimension
         self._splitter = splitter
+        self._parsers = parsers
         self._embedding_model_version = embedding_model_version
         self._retrieval_config_version = retrieval_config_version
 
@@ -48,6 +51,8 @@ class DocumentIngestRunner:
             kwargs["dimension"] = self._dimension
         if self._splitter is not None:
             kwargs["splitter"] = self._splitter
+        if self._parsers is not None:
+            kwargs["parsers"] = self._parsers
         worker = IngestWorker(**kwargs)
         return worker.run(
             IngestRequest(

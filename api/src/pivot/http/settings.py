@@ -163,6 +163,14 @@ class RuntimeSettings:
     llm_fallback_timeout: float | None = None
     llm_fallback_auth_header: str | None = None
     llm_fallback_auth_scheme: str | None = None
+    parser: str = "local"
+    parser_endpoint: str | None = None
+    parser_token: str | None = None
+    parser_timeout: float | None = None
+    parser_poll_timeout: float | None = None
+    parser_poll_interval: float | None = None
+    parser_model: str | None = None
+    parser_http_client: object | None = None
 
     def __post_init__(self) -> None:
         if not self.token_secret.strip():
@@ -276,6 +284,18 @@ class RuntimeSettings:
             raise RuntimeError(
                 "PIVOT_LLM_FALLBACK_* requires PIVOT_LLM=http"
             )
+        if self.parser not in {"local", "mineru"}:
+            raise RuntimeError(
+                "unsupported PIVOT_PARSER="
+                f"{self.parser!r}; this slice wires local or mineru"
+            )
+        if self.parser == "mineru" and not (
+            self.parser_endpoint and self.parser_token
+        ):
+            raise RuntimeError(
+                "PIVOT_PARSER_ENDPOINT and PIVOT_PARSER_TOKEN are required "
+                "when PIVOT_PARSER=mineru"
+            )
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> RuntimeSettings:
@@ -376,4 +396,15 @@ class RuntimeSettings:
                 env.get("PIVOT_LLM_FALLBACK_AUTH_SCHEME") or ""
             ).strip()
             or None,
+            parser=(env.get("PIVOT_PARSER") or "local").strip() or "local",
+            parser_endpoint=(env.get("PIVOT_PARSER_ENDPOINT") or "").strip() or None,
+            parser_token=(env.get("PIVOT_PARSER_TOKEN") or "").strip() or None,
+            parser_timeout=_optional_positive_float(env, "PIVOT_PARSER_TIMEOUT"),
+            parser_poll_timeout=_optional_positive_float(
+                env, "PIVOT_PARSER_POLL_TIMEOUT"
+            ),
+            parser_poll_interval=_optional_positive_float(
+                env, "PIVOT_PARSER_POLL_INTERVAL"
+            ),
+            parser_model=(env.get("PIVOT_PARSER_MODEL") or "").strip() or None,
         )

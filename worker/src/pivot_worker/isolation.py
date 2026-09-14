@@ -1,4 +1,7 @@
-"""Worker isolation: restricted temp workspace, no outbound network in parsers."""
+"""Worker isolation: restricted temp workspace.
+
+Local parsers stay offline; MinerU uses injected HTTP.
+"""
 
 from __future__ import annotations
 

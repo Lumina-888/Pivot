@@ -7,6 +7,7 @@
 # api injects PIVOT_INGEST / queues / concurrency / Celery broker (not hard-coded).
 # api injects login lockout threshold/window (not hard-coded; both required together).
 # api injects Draft Writer PIVOT_LLM* (not hard-coded; worker does not write).
+# api and worker inject MinerU parser PIVOT_PARSER* (not hard-coded).
 # worker Celery broker URL is injected, not hard-coded.
 # FastAPI composition root:
 #   uvicorn pivot.http.main:app --factory
@@ -133,6 +134,13 @@ services:
       PIVOT_LLM_FALLBACK_TIMEOUT: ${PIVOT_LLM_FALLBACK_TIMEOUT:-}
       PIVOT_LLM_FALLBACK_AUTH_HEADER: ${PIVOT_LLM_FALLBACK_AUTH_HEADER:-}
       PIVOT_LLM_FALLBACK_AUTH_SCHEME: ${PIVOT_LLM_FALLBACK_AUTH_SCHEME:-}
+      PIVOT_PARSER: ${PIVOT_PARSER:?set PIVOT_PARSER}
+      PIVOT_PARSER_ENDPOINT: ${PIVOT_PARSER_ENDPOINT:-}
+      PIVOT_PARSER_TOKEN: ${PIVOT_PARSER_TOKEN:-}
+      PIVOT_PARSER_TIMEOUT: ${PIVOT_PARSER_TIMEOUT:-}
+      PIVOT_PARSER_POLL_TIMEOUT: ${PIVOT_PARSER_POLL_TIMEOUT:-}
+      PIVOT_PARSER_POLL_INTERVAL: ${PIVOT_PARSER_POLL_INTERVAL:-}
+      PIVOT_PARSER_MODEL: ${PIVOT_PARSER_MODEL:-}
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -235,6 +243,13 @@ services:
       PIVOT_EMBEDDING_MODEL: ${PIVOT_EMBEDDING_MODEL:-}
       PIVOT_EMBEDDING_API_KEY: ${PIVOT_EMBEDDING_API_KEY:-}
       PIVOT_EMBEDDING_TIMEOUT: ${PIVOT_EMBEDDING_TIMEOUT:-}
+      PIVOT_PARSER: ${PIVOT_PARSER:?set PIVOT_PARSER}
+      PIVOT_PARSER_ENDPOINT: ${PIVOT_PARSER_ENDPOINT:-}
+      PIVOT_PARSER_TOKEN: ${PIVOT_PARSER_TOKEN:-}
+      PIVOT_PARSER_TIMEOUT: ${PIVOT_PARSER_TIMEOUT:-}
+      PIVOT_PARSER_POLL_TIMEOUT: ${PIVOT_PARSER_POLL_TIMEOUT:-}
+      PIVOT_PARSER_POLL_INTERVAL: ${PIVOT_PARSER_POLL_INTERVAL:-}
+      PIVOT_PARSER_MODEL: ${PIVOT_PARSER_MODEL:-}
     ports:
       - "127.0.0.1:8001:8001"
     healthcheck:

@@ -440,6 +440,42 @@ def test_NFR_OBS_compose_api_injects_http_llm():
     assert "worker 不注入" in intent or "worker 不写作" in intent
 
 
+_PARSER_ENV = (
+    "PIVOT_PARSER",
+    "PIVOT_PARSER_ENDPOINT",
+    "PIVOT_PARSER_TOKEN",
+    "PIVOT_PARSER_TIMEOUT",
+    "PIVOT_PARSER_POLL_TIMEOUT",
+    "PIVOT_PARSER_POLL_INTERVAL",
+    "PIVOT_PARSER_MODEL",
+)
+
+
+def test_NFR_OBS_compose_api_worker_injects_mineru_parser():
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(compose)
+    api = services["api"]
+    worker = services["worker"]
+    for key in _PARSER_ENV:
+        assert f"{key}:" in api
+        assert "${" + key in api
+        assert f"{key}:" in worker
+        assert "${" + key in worker
+    for body in (api, worker):
+        assert "${PIVOT_PARSER:?" in body
+        assert "${PIVOT_PARSER:-local}" not in body
+        assert re.search(r"PIVOT_PARSER:\s*mineru", body) is None
+        assert re.search(r"PIVOT_PARSER_ENDPOINT:\s*https?://", body, re.I) is None
+        assert "mineru.net" not in body.lower()
+        assert "opendatalab" not in body.lower()
+    example = _ENV_EXAMPLE.read_text(encoding="utf-8")
+    assert _example_assignment(example, "PIVOT_PARSER") == "local"
+    assert "PIVOT_PARSER_ENDPOINT=" in example
+    assert "TBD-P0" in example
+    intent = _INTENT.read_text(encoding="utf-8")
+    assert "PIVOT_PARSER" in intent or "mineru" in intent.lower()
+
+
 def test_NFR_OBS_ci_does_not_build_or_start_compose_api():
     workflow = _WORKFLOW.read_text(encoding="utf-8").lower()
     assert "docker compose" not in workflow
