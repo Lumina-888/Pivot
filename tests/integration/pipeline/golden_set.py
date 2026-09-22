@@ -1,5 +1,6 @@
-"""Load and score the synthetic Golden Set against Fake retrieval.
+"""Load and score Golden Set fixtures against Fake retrieval.
 
+Synthetic v0.2 is the default CI harness. Enterprise v0.3 is an empty human schema.
 Not GATE-P0 verified. Injected RetrievalPolicy sizes are test values, not TBD-P0.
 """
 
@@ -17,6 +18,14 @@ from pivot.retrieval.service import RetrievalService
 _ROOT = Path(__file__).resolve().parents[3]
 DATASET_PATH = (
     _ROOT / "spec" / "fixtures" / "golden-set" / "retrieval" / "v0.2-synthetic.json"
+)
+ENTERPRISE_DATASET_PATH = (
+    _ROOT
+    / "spec"
+    / "fixtures"
+    / "golden-set"
+    / "retrieval"
+    / "v0.3-enterprise.json"
 )
 GENERATOR_PATH = _ROOT / "ops" / "golden_set_synthetic.py"
 SPEC_STRATA = frozenset(
@@ -66,28 +75,55 @@ _CHUNK_KEYS = frozenset(
 )
 
 
-def load_dataset(path: Path | None = None) -> dict[str, Any]:
-    payload = json.loads((path or DATASET_PATH).read_text(encoding="utf-8"))
+def _read_payload(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("golden set must be an object")
-    if payload.get("source") != "synthetic":
-        raise ValueError("this slice only loads synthetic golden sets")
     if not payload.get("dataset_version"):
         raise ValueError("dataset_version is required")
     cases = payload.get("cases")
     corpus = payload.get("corpus")
     if not isinstance(cases, list) or not isinstance(corpus, list):
         raise ValueError("corpus and cases must be lists")
-    for chunk in corpus:
+    return payload
+
+
+def _validate_labeled_rows(
+    payload: dict[str, Any],
+    *,
+    extra_case_keys: frozenset[str] = frozenset(),
+) -> None:
+    case_keys = _CASE_KEYS.union(extra_case_keys)
+    for chunk in payload["corpus"]:
         missing = _CHUNK_KEYS.difference(chunk)
         if missing:
             raise ValueError(f"chunk missing {sorted(missing)}")
-    for case in cases:
-        missing = _CASE_KEYS.difference(case)
+    for case in payload["cases"]:
+        missing = case_keys.difference(case)
         if missing:
             raise ValueError(f"case missing {sorted(missing)}")
         if case["stratum"] not in SPEC_STRATA:
             raise ValueError(f"unknown stratum {case['stratum']!r}")
+
+
+def load_dataset(path: Path | None = None) -> dict[str, Any]:
+    payload = _read_payload(path or DATASET_PATH)
+    if payload.get("source") != "synthetic":
+        raise ValueError("this slice only loads synthetic golden sets")
+    _validate_labeled_rows(payload)
+    return payload
+
+
+def load_enterprise_dataset(path: Path | None = None) -> dict[str, Any]:
+    payload = _read_payload(path or ENTERPRISE_DATASET_PATH)
+    if payload.get("source") != "human":
+        raise ValueError("enterprise loader only loads human golden sets")
+    if payload.get("status") != "awaiting_annotation" and not payload["cases"]:
+        raise ValueError("empty enterprise set must be awaiting_annotation")
+    if payload["cases"] or payload["corpus"]:
+        _validate_labeled_rows(
+            payload, extra_case_keys=frozenset({"regression_result"})
+        )
     return payload
 
 
@@ -120,8 +156,21 @@ def corpus_records(dataset: dict[str, Any]) -> tuple[ChunkRecord, ...]:
 def evaluate(
     dataset: dict[str, Any],
     *,
-    policy: RetrievalPolicy,
+    policy: RetrievalPolicy | None = None,
 ) -> dict[str, Any]:
+    if not dataset.get("cases"):
+        return {
+            "dataset_version": dataset["dataset_version"],
+            "case_count": 0,
+            "passed_count": 0,
+            "failed": [],
+            "results": [],
+            "diagnostic_labeled_hit_rate": None,
+            "gate": "unverified",
+            "status": dataset.get("status") or "awaiting_annotation",
+        }
+    if policy is None:
+        raise ValueError("policy is required to evaluate labeled cases")
     records = corpus_records(dataset)
     service = RetrievalService(
         corpus=records,
@@ -186,4 +235,5 @@ def evaluate(
             labeled_hits / labeled_needed if labeled_needed else None
         ),
         "gate": "unverified",
+        "status": "evaluated",
     }

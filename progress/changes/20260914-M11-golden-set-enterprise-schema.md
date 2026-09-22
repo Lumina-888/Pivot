@@ -1,0 +1,21 @@
+# 变更申请：企业 Golden Set 标注规范与空 schema（不合成样本）
+
+- **日期**：2026-09-14
+- **申请人**：Wave 3 主线会话（M11 质量夹具 + M04 fixture 路径）
+- **工单**：ND-P0-01（工程前置；人工标注仍待 Owner 语料）
+- **背景**：检索评测默认仍是合成 `v0.2-synthetic.json`（120 条）。SPEC §10.8 要求人工标注 100~150 条、十层分层；`NFR-QUAL-*` 阈值仍为 `TBD-P0`。工单 DoD 含标注规范、条数与分层、评测脚本入口。禁止把 v0.2 改名成企业集，禁止会话内再合成假问句。
+- **原契约/现状**：
+  - 评测器只加载 `source=synthetic`；
+  - 无标注规范、无企业 schema、无独立评测入口；
+  - `GATE-P0-002` / `NFR-QUAL-*` unverified。
+- **拟变更内容**（本切片）：
+  - 增加 `spec/fixtures/golden-set/ANNOTATION.md`：十层、100~150、每层 ≥10、字段对齐 §10.8、低敏规章制度、禁止合同/人事；
+  - 增加版本化空集 `retrieval/v0.3-enterprise.json`：`source=human`、`cases=[]`、`corpus=[]`、`status=awaiting_annotation`；**不是** v0.2 改名，不含合成问句；
+  - 评测器可加载 human 源；空集报告 `awaiting_annotation`，`gate=unverified`；默认 CI 仍评 v0.2-synthetic；
+  - 增加 `ops/run_golden_set.py` 作为评测入口（默认同合成夹具；`--enterprise` 走空集并不当通过）；
+  - **不** 填写 Recall@k 通过线；**不** 引入 LLM judge；**不** 提交企业原文；**不** 把 `GATE-P0-001/002` 或 `NFR-QUAL-*` 标 verified。
+- **影响模块**：M11（规范、评测入口、证据）；M04（`spec/fixtures/golden-set/retrieval/**`）；M00（矩阵/MODULE_SPEC 现状一句）。
+- **兼容方案**：既有 v0.2 Fake 标签评测保持；空企业集不参与默认 CI 通过线。
+- **测试 ID**：`test_NFR_QUAL_enterprise_annotation_spec_covers_strata_and_size`、`test_NFR_QUAL_enterprise_dataset_is_human_empty_not_renamed_synthetic`、`test_NFR_QUAL_enterprise_loader_rejects_synthetic_source`、`test_NFR_QUAL_golden_set_eval_runner_reports_unverified_for_empty_enterprise`、`test_GATE_P0_002_not_verified_by_enterprise_schema`。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不冻结 NFR-QUAL 阈值）。
+- **审核结果**：2026-09-14 Wave 3 主线会话 **批准**。

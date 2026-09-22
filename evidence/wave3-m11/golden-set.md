@@ -2,7 +2,7 @@
 
 环境：Fake `KeywordRetriever` + 合成检索夹具 `spec/fixtures/golden-set/retrieval/v0.2-synthetic.json`。无真实企业文档；无 LLM judge；不启动 Compose/uvicorn。
 
-- 覆盖 SPEC §10.8 十层各 12 条，共 120 条（落在 100~150）；仍是合成样本，不是人工标注企业文档。
+- 覆盖 SPEC §10.8 十层各 12 条，共 120 条（落在 100~150）；仍是合成样本，不是人工标注企业文档。企业空 schema 见 `golden-set-enterprise.md`。
 - 标签断言（期望 chunk / 空结果 / 禁止泄漏）不是质量门禁；`NFR-QUAL-001~012` 阈值仍为 `TBD-P0`。
 - 检索 k 仅测试注入，不写入数据集。
 - v0.1 10 条夹具保留，不再作为默认评测入口。

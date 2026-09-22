@@ -1,0 +1,8 @@
+{
+  "dataset_version": "golden-set-retrieval-v0.3-enterprise",
+  "source": "human",
+  "status": "awaiting_annotation",
+  "notes": "Empty human schema for ND-P0-01. Not a renamed v0.2-synthetic set. Not enterprise documents yet. NFR-QUAL thresholds remain TBD-P0. GATE-P0-002 unverified.",
+  "corpus": [],
+  "cases": []
+}
