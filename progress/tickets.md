@@ -26,7 +26,7 @@
 | ND-W3-11 | version.idempotency_key 入库 | A2 | S | M03/M02 | FR-DOC-005 | 需变更申请；SPEC 字段确认 | blocked |
 | ND-W3-13 | Wave 3 收口评审 / tag | A | S | M11 | — | A1 完成 | done |
 | ND-W3-14 | Run/EventLog 跨进程存储 | A2 | S | M05/M03 | FR-STREAM-001~004 | ND-W3-05 | done |
-| ND-P0-01 | 企业人工标注 Golden Set | B1 | L | 业务/M04/M11 | GATE-P0-002, NFR-QUAL | 人 | schema done；标注 blocked |
+| ND-P0-01 | 企业人工标注 Golden Set | B1 | L | 业务/M04/M11 | GATE-P0-002, NFR-QUAL | 人 | 脱敏 120 条 done；业务复核仍待 |
 | ND-STG-01 | ingest 与检索共用注入 HTTP Embedding | STG | S | M07/M04 | FR-RAG-001, FR-DOC-006 | ND-W3-01 | done |
 | ND-STG-02 | Deepseek-Flash Draft Writer 适配器 | STG | M | M05 | FR-QA-001/002, DR-007 | ND-STG-01 | done |
 | ND-STG-03 | MinerU 云 API 解析器（staging） | STG | M | M07 | §6.1 V2 | ND-W3-01 | done |
@@ -188,12 +188,13 @@
 
 ### ND-P0-01 企业人工标注 Golden Set
 
-- **状态**：工程前置 **done**（2026-09-14）；人工填写仍 **blocked**（Owner 低敏语料/标注人）
+- **状态**：脱敏填写 **done**（2026-09-14，120 条）；业务部门复核仍 **待做**；GATE 仍 unverified
 - **规模**：L（人工）
 - **映射**：GATE-P0-002、NFR-QUAL-001~012、§10.8
 - **范围**：真实/脱敏企业问句 + 期望文档/Citation；版本化；禁止把 v0.2-synthetic 改名成企业集。
 - **DoD**：标注规范、条数与分层、评测脚本入口；阈值仍等 ND-P0-10。填写 100~150 条后才算标注完成。
-- **完成（工程）**：2026-09-14。`ANNOTATION.md` + `retrieval/v0.3-enterprise.json`（0 条）+ `ops/run_golden_set.py`。变更 `progress/changes/20260914-M11-golden-set-enterprise-schema.md`。
+- **完成（工程）**：2026-09-14。`ANNOTATION.md` + 空 schema + `ops/run_golden_set.py`。变更 `progress/changes/20260914-M11-golden-set-enterprise-schema.md`。
+- **完成（脱敏填写）**：2026-09-14。`retrieval/v0.3-enterprise.json` 120 条，十层各 12；`ops/golden_set_enterprise.py`。变更 `progress/changes/20260914-M11-golden-set-enterprise-fill.md`。不是业务复核，不标 GATE verified。
 
 ### ND-P0-02 外发/留存/训练审批
 

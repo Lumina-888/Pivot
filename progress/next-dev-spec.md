@@ -1,6 +1,6 @@
 # 问枢 Pivot 后续开发规格（Wave 3 收口 → P0 闸门）
 
-> **文档 ID**：`NEXT-DEV-1.14`  
+> **文档 ID**：`NEXT-DEV-1.15`  
 > **日期**：2026-09-14  
 > **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，**不等于** P0 通过）。  
 > **性质**：开发计划与工单拆分。  
@@ -137,7 +137,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. 默认下一刀：Owner 提供低敏语料填写企业 Golden Set，或提供 SSH/安全组/磁盘/域名后实施 **ND-STG-04 ECS apply**。ND-P0-01 规范/空 schema 已入库（0 条 ≠ 标注完成）。
+2. 默认下一刀：提供 SSH/安全组/磁盘/域名后实施 **ND-STG-04 ECS apply**，或 live Embedding/rerank 冒烟。ND-P0-01 脱敏摘录 120 条已入库（≠ 业务复核，≠ GATE）。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。
@@ -164,7 +164,7 @@ ND-W3-14 Run/EventLog 跨进程（已完成；Claim/Citation 仍不入库）
 ND-W3-08 SSE 长连接（已完成；uvicorn opt-in skip）
 ND-W3-03 真实解析库（已完成；缺省仍启发式）
 ND-W3-10 Playwright 十页（已完成；CI 默认 skip，≠ GATE-P0-005）
-ND-P0-01 企业 Golden Set（规范/空 schema 已入库；填写仍待 Owner 语料）
+ND-P0-01 企业 Golden Set（脱敏 120 条已入库；业务复核与 live 检索仍待）
 ND-P0-02 外发审批（人工，阻塞真实企业文档）
 wave-3-integrated 已打（仍全部 GATE unverified）
 然后才排 B2/B3 受控环境票
@@ -191,3 +191,4 @@ wave-3-integrated 已打（仍全部 GATE unverified）
 | 1.12 | 2026-09-14 | ND-W3-03 真实解析库 extra 已完成；默认下一刀 ND-W3-10；STG-04 ECS apply 待 Owner |
 | 1.13 | 2026-09-14 | ND-W3-10 Playwright 十页已完成；默认下一刀 Golden Set / STG-04 ECS apply 待 Owner |
 | 1.14 | 2026-09-14 | ND-P0-01 标注规范与空 schema 已入库（0 条）；填写仍待 Owner 语料；STG-04 ECS apply 待 Owner |
+| 1.15 | 2026-09-14 | ND-P0-01 脱敏摘录 120 条已入库；Fake Keyword 诊断 ≠ GATE；STG-04 ECS apply 仍待 Owner |

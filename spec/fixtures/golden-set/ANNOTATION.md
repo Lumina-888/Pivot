@@ -1,7 +1,7 @@
 # 企业 Golden Set 标注规范
 
 > 对应 SPEC §10.8、`NFR-QUAL-001~012`、`GATE-P0-002`。  
-> 本文件是标注入口，**不是**已完成的企业集。阈值仍为 `TBD-P0`（ND-P0-10）。空 schema 为 `retrieval/v0.3-enterprise.json`。
+> 本文件是标注入口。`retrieval/v0.3-enterprise.json` 现为 120 条脱敏项目摘录（`annotated_desensitized`），**不是**业务部门复核后的生产集。阈值仍为 `TBD-P0`（ND-P0-10）。
 
 ## 1. 规模与分层
 
@@ -54,4 +54,4 @@ python ops/run_golden_set.py
 python ops/run_golden_set.py --enterprise
 ```
 
-默认评测合成夹具。`--enterprise` 在空集上报告 `awaiting_annotation`，退出码非 0，**不得**当作 GATE 通过。LLM judge 本切片不启用。`GATE-P0-002` 与 `NFR-QUAL-*` 在本规范下仍为 **unverified**。
+默认评测合成夹具。`--enterprise` 对已填写的 v0.3 只做 Fake Keyword 诊断；空集仍报告 `awaiting_annotation` 且退出码 2。两种结果都**不得**当作 GATE 通过。LLM judge 本切片不启用。`GATE-P0-002` 与 `NFR-QUAL-*` 在本规范下仍为 **unverified**。

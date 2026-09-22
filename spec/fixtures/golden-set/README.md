@@ -5,11 +5,12 @@
 企业集入口：
 
 - 标注规范 [`ANNOTATION.md`](ANNOTATION.md)
-- 空 schema `retrieval/v0.3-enterprise.json`（`source=human`，`status=awaiting_annotation`，0 条）
-- 评测 `python ops/run_golden_set.py`（默认合成）或 `--enterprise`（空集报告，非 GATE 通过）
+- 脱敏摘录 `retrieval/v0.3-enterprise.json`（`source=human`，`status=annotated_desensitized`，120 条；十层各 12）
+- 评测 `python ops/run_golden_set.py`（默认合成）或 `--enterprise`（Fake Keyword 诊断，非 GATE 通过）
+- 源目录 `Golden Set测试用例/` 不入库原文；合同、账号、联系方式和薪酬字段已省略
 
 - 合成夹具不是企业文档，不是生产语料，不能当作 `GATE-P0-001` 合规证据。
 - 评测走 Fake KeywordRetriever；不能当作 `GATE-P0-002` / `NFR-QUAL-*` verified。
 - `NFR-QUAL` 阈值仍为 `TBD-P0`，夹具内不得填写通过线。
 - LLM judge 本切片不启用。
-- 合成数据集由 `ops/golden_set_synthetic.py` 确定性生成；CI 以入库 JSON 为准。禁止把 v0.2 改名成 v0.3。
+- 合成数据集由 `ops/golden_set_synthetic.py` 确定性生成；企业摘录由 `ops/golden_set_enterprise.py` 从源目录脱敏生成。CI 以入库 JSON 为准。禁止把 v0.2 改名成 v0.3。

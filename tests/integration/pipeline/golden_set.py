@@ -1,7 +1,8 @@
 """Load and score Golden Set fixtures against Fake retrieval.
 
-Synthetic v0.2 is the default CI harness. Enterprise v0.3 is an empty human schema.
-Not GATE-P0 verified. Injected RetrievalPolicy sizes are test values, not TBD-P0.
+Synthetic v0.2 is the default CI harness. Enterprise v0.3 is a human-labeled,
+desensitized excerpt set. Not GATE-P0 verified. Injected RetrievalPolicy sizes
+are test values, not TBD-P0.
 """
 
 from __future__ import annotations
@@ -118,12 +119,15 @@ def load_enterprise_dataset(path: Path | None = None) -> dict[str, Any]:
     payload = _read_payload(path or ENTERPRISE_DATASET_PATH)
     if payload.get("source") != "human":
         raise ValueError("enterprise loader only loads human golden sets")
-    if payload.get("status") != "awaiting_annotation" and not payload["cases"]:
-        raise ValueError("empty enterprise set must be awaiting_annotation")
-    if payload["cases"] or payload["corpus"]:
-        _validate_labeled_rows(
-            payload, extra_case_keys=frozenset({"regression_result"})
-        )
+    if not payload["cases"] and not payload["corpus"]:
+        if payload.get("status") != "awaiting_annotation":
+            raise ValueError("empty enterprise set must be awaiting_annotation")
+        return payload
+    if payload.get("status") == "awaiting_annotation":
+        raise ValueError("labeled enterprise set cannot stay awaiting_annotation")
+    _validate_labeled_rows(
+        payload, extra_case_keys=frozenset({"regression_result"})
+    )
     return payload
 
 
@@ -169,6 +173,11 @@ def evaluate(
             "gate": "unverified",
             "status": dataset.get("status") or "awaiting_annotation",
         }
+    if dataset.get("source") == "human" and dataset.get("status") not in {
+        "annotated_desensitized",
+        "evaluated",
+    }:
+        raise ValueError("human golden set status is not evaluable")
     if policy is None:
         raise ValueError("policy is required to evaluate labeled cases")
     records = corpus_records(dataset)

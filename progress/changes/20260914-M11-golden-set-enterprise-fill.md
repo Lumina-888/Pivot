@@ -1,0 +1,22 @@
+# 变更申请：填写企业 Golden Set v0.3（脱敏项目摘录，非 GATE）
+
+- **日期**：2026-09-14
+- **申请人**：Wave 3 主线会话（M11 评测入口 + M04 fixture 路径）
+- **工单**：ND-P0-01（填写；仍不等于 GATE-P0-002 / NFR-QUAL verified）
+- **背景**：Owner 将 `Golden Set测试用例/`（104 份客户项目 Markdown）放在仓库根，要求做 Golden Set。v0.3 现为空 schema（`awaiting_annotation`）。规范允许低敏摘录，禁止合同、人事薪酬、身份证/手机号、密钥、以及把 v0.2 改名。
+- **原契约/现状**：
+  - `load_enterprise_dataset` 只校验 human 源；非空集要求 `regression_result`；
+  - `evaluate` 对空集返回 `awaiting_annotation`，对有标签集强制注入 policy；
+  - `ops/run_golden_set.py --enterprise` 固定退出码 2，并打印 awaiting；
+  - 测试锁死 `cases == []`、`status == awaiting_annotation`。
+- **拟变更内容**（本切片）：
+  - 从 104 份源文档抽取 **120** 条（十层各 12），写入 `retrieval/v0.3-enterprise.json`；`source=human`，`status=annotated_desensitized`，`regression_result=pending`；
+  - corpus 只保留低敏技术摘录：客户/项目/文档类型/章节/指标/版本标签。**不**复制合同编号、银行账号、纳税人号、手机、邮箱、身份证、薪酬、人天单价、紧急联系人；
+  - 标注人记为 `session-2026-09-14`，依据为源文件名与章节，不贴合同原文；
+  - 评测入口在有标签时用**测试注入**的 Keyword 窗口跑诊断，仍打印 `GATE-P0-002 unverified`；标签全绿退出码 0，失败退出码 1；空集仍退出码 2；
+  - **不** 冻结 Recall 通过线；**不** 启用 LLM judge；**不** 把源目录当生产语料入库；**不** 标 `GATE-P0-001/002` 或 `NFR-QUAL-*` verified。
+- **影响模块**：M11（评测入口、测试、证据、进度）；M04（`spec/fixtures/golden-set/retrieval/v0.3-enterprise.json` 与 README/ANNOTATION 一句现状）。
+- **兼容方案**：默认 CI 仍评 v0.2-synthetic。企业集不参与默认通过线，也不改检索配置。
+- **测试 ID**：改写 `test_NFR_QUAL_enterprise_dataset_is_human_empty_not_renamed_synthetic` 为非空脱敏集断言；新增分层/敏感字段/标签诊断测试；空集 awaiting 行为改为对临时空 payload 断言，避免锁死已填写的文件。
+- **是否触发 ADR**：否（不改变状态机、权限、引用/删除语义、模型或检索配置；不冻结 NFR-QUAL 阈值）。
+- **审核结果**：2026-09-14 Wave 3 主线会话 **批准**。源目录由 Owner 放入仓库根，视为填写授权；脱敏边界仍以 ANNOTATION.md 为准。
