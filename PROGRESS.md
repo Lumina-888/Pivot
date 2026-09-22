@@ -33,7 +33,7 @@
 | M08 Web 基础 | integrated | `main`（tag `M08-v0.3.0`） | `contract-v0.1` | M08 18 tests + SSE 去缓冲 Route Handler + typecheck/lint 通过 | Compose web 由 M11 装配 |
 | M09 员工前台 | integrated | `main`（tag 目标 `M09-v0.2.0`） | `wave-1-integrated` | 13 Fake + followRunEvents + opt-in Playwright 十页 | Chrome/Edge 版本仍 TBD-P0 |
 | M10 管理后台 | integrated | `main`（tag `M10-v0.1.0`） | `wave-1-integrated` | 8 Fake + opt-in Playwright 后台页 | `/admin/metrics` `/admin/tasks` HTTP 仍未挂 |
-| M11 集成/质量/运维 | in_progress | `main`（tag 目标 `M11-v0.25.0` / `wave-3-integrated`） | `wave-3-integrated` | 分组回归见本切片日志 | GATE-P0 仍全部 unverified；企业 Golden Set 仍 0 条；staging ECS apply 待 Owner SSH/安全组/磁盘 |
+| M11 集成/质量/运维 | in_progress | `main`（tag `M11-v0.25.0` / `wave-3-integrated`） | `wave-3-integrated` | 分组回归见本切片日志 | GATE-P0 仍全部 unverified；企业 Golden Set 仍 0 条；staging ECS apply 待 Owner SSH/安全组/磁盘 |
 
 模块详细状态由各自 `progress/modules/Mxx.md` 维护。历史 `../Pivot-Mxx-*` worktree 不再使用。
 
@@ -241,6 +241,7 @@
 - **完成**：批准 `20260914-M11-golden-set-enterprise-schema.md`；入库 `ANNOTATION.md`（§10.8 十层、100~150、每层 ≥10、禁止改名 v0.2）；空集 `retrieval/v0.3-enterprise.json`（`source=human`，0 条，`awaiting_annotation`）；评测入口 `ops/run_golden_set.py`（默认合成；`--enterprise` 报告空集且非 GATE 通过）。不合成问句，不标 `GATE-P0-002` / `NFR-QUAL-*` verified。Accountable：M11 规范/评测，M04 fixture 路径。
 - **验证**（main，2026-09-14，Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6）：`.venv/Scripts/python ops/run_grouped_tests.py --skip-web` → **608 passed, 19 skipped**（pipeline 268 passed / 18 skipped；perf 11 passed / 1 skipped）；ruff / compileall 通过。`python ops/run_golden_set.py --enterprise` 报告 `awaiting_annotation` / `gate=unverified`（退出码 2）。
 - **限制**：企业集仍 0 条；阈值仍 TBD-P0；空 schema ≠ 人工标注完成。
+- **基线**：tag `M11-v0.25.0`（`5d883c4`）。
 - **下一步**：Owner 提供低敏规章制度与标注人后填写 v0.3，或提供 SSH/安全组/磁盘后实施 ND-STG-04 ECS apply。
 
 ### 2026-09-14 — Playwright 十页 opt-in（ND-W3-10）
