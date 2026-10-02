@@ -30,7 +30,7 @@
     "stage": {
       "type": "string",
       "minLength": 1,
-      "description": "当前阶段。取值参考 Run 状态（SPEC 附录 C.2）与 MVP 主图节点（SPEC §7.1 normalize/classify/retrieve/rerank/build_evidence/draft_answer/verify_claims/finalize/refuse）以及终态枚举；终态事件须为 x-terminal-event-types 之一"
+      "description": "当前公开投影阶段。取值参考 Run 状态（SPEC 附录 C.2）及兼容阶段 normalize/classify/retrieve/rerank/build_evidence/draft_answer/verify_claims/finalize/refuse；这些名称不限定 LangGraph ReAct 的内部执行顺序（SPEC-1.1 §7）。不得透传原始内部事件；终态事件须为 x-terminal-event-types 之一"
     },
     "payload": {
       "type": "object",

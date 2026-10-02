@@ -1,11 +1,13 @@
 # 问枢 Pivot 协作指令
 
-本文件是所有开发会话进入仓库后的第一份执行指令。项目需求以 [`SPEC.md`](SPEC.md) 为规范源；模块边界、文件所有权和 Git 协议以 [`MODULE_SPEC.md`](MODULE_SPEC.md)（1.1 主线开发）为准；当前进度以 [`PROGRESS.md`](PROGRESS.md) 与 `progress/modules/` 为准。
+本文件是所有开发会话进入仓库后的第一份执行指令。项目需求以 [`SPEC.md`](SPEC.md)（SPEC-1.1）为规范源，Agent 细则以其引用的 [`AGENT_SPEC.md`](spec/AGENT_SPEC.md) 为准；模块边界、文件所有权和 Git 协议以 [`MODULE_SPEC.md`](MODULE_SPEC.md)（1.2 主线开发）为准；当前进度以 [`PROGRESS.md`](PROGRESS.md) 与 `progress/modules/` 为准。
+
+当前目标是 **LangGraph StateGraph + 原生工具调用型受控 ReAct Agent**。旧线性 RAG、LangGraph 暂缓申请和历史技术方案不是当前架构依据；新目标尚未实现，默认下一刀 ND-AGENT-01 答案安全 Red 回归。
 
 ## 开始任何工作前
 
 1. 确认工作区是 `E:/AI Project/Pivot`，分支是 `main`。不要进入或新建 `../Pivot-Mxx-*` worktree。
-2. 读取 `SPEC.md`、`MODULE_SPEC.md`、`PROGRESS.md`；
+2. 读取 `SPEC.md`、`spec/AGENT_SPEC.md`、`MODULE_SPEC.md`、`PROGRESS.md`；
 3. 确认本切片范围，以及涉及模块的 `progress/modules/Mxx.md`；
 4. 若 DoR 不满足，先写进度/变更申请，不要直接写业务代码。
 
@@ -13,6 +15,8 @@
 
 - 遵循 SPEC §0.4：Red → Contract → Green → Refactor → Integration → Regression；测试命名为 `test_<requirement_id>_<behavior>()`。
 - 需求、状态机、错误码、API/SSE/Worker 字段以 `SPEC.md` 为准；不得私自改变 `TBD-P0`。
+- Agent 改造遵循 ADR-009：先修答案门禁，再真实 LangGraph 工具循环；未冻结预算/恢复/checkpoint Contract 的相关切片不得直接实现。
+- 不把 `.pi/` 讨论稿、旧绿灯或依赖安装当新 Agent 验收；不得静默 fallback 到线性 RAG。
 - 每个文件仍有 Accountable Owner（见 MODULE_SPEC）。主线切片可以一次改多个模块路径，但必须在进度里写明。
 - 公共契约、迁移、共享错误码的变更走 `progress/changes/`。
 - 外部 LLM/Embedding/Rerank 和基础设施测试使用 Fake/Stub 或受控 Fixture；不得提交真实密钥、企业文档或供应商 URL。
@@ -48,4 +52,4 @@ npm --prefix web run lint
 
 ## 恢复开发提示
 
-新会话说明“继续主线”或点名下一刀（例如预览/下载 HTTP）即可。先读 [`HANDOFF.md`](HANDOFF.md) 了解 2026-09-08 审查与主线切换结论。不要依赖上一会话的聊天记录；聊天记录不是项目事实，版本化进度文件、commit、tag 和测试证据才是交接依据。
+新会话说明“继续主线”或点名下一刀（例如 ND-AGENT-01）即可。先读 [`HANDOFF.md`](HANDOFF.md) 了解 2026-10-02 ReAct 规格迁移与当前实现差距；2026-09 的 Wave 3 历史证据仍保留。不要依赖上一会话的聊天记录；聊天记录不是项目事实，版本化进度文件、commit、tag 和测试证据才是交接依据。

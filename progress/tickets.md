@@ -1,8 +1,8 @@
 # 问枢 Pivot 后续工单
 
-> 配套 [`next-dev-spec.md`](next-dev-spec.md)。需求源仍是 [`SPEC.md`](../SPEC.md)。  
-> **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，≠ P0 通过）。  
-> 状态：`ready` → `blocked` → `done`。本文件开写时除特别注明外均为 `ready` 或 `blocked`。
+> 配套 [`next-dev-spec.md`](next-dev-spec.md)。需求源为 SPEC-1.1 及其引用的 [AGENT_SPEC](../spec/AGENT_SPEC.md)。\
+> **目标基线**：ADR-009；**实现基线**：`main` / `wave-3-integrated`（旧夹具，≠ ReAct/≠ P0）。\
+> 状态：`ready / blocked / done / superseded`。架构 accepted 不等于每刀 DoR；默认下一刀 ND-AGENT-01。
 
 图例：`S` 约 1 个主线切片；`M` 约 2–3 切片；`L` 多会话或必须人工/受控环境。
 
@@ -12,6 +12,11 @@
 
 | ID | 标题 | 阶段 | 规模 | Accountable | SPEC | 依赖 | 状态 |
 |---|---|---|---|---|---|---|---|
+| ND-AGENT-01 | 答案一致性与支持校验门禁 | Agent S1 | M | M05 | FR-QA-002/004, FR-AGENT-005 | 无新公开接口；ADR-009 | ready |
+| ND-AGENT-02 | 工具/模型/预算 Contract 与 LangGraph ReAct | Agent S2 | L | M05 | FR-AGENT-001~004/009 | 01、DR-010、锁依赖 Contract | blocked |
+| ND-AGENT-03 | Run/SSE/取消与澄清恢复/Web | Agent S3 | L | M05 | FR-AGENT-007/008, FR-STREAM | 02、M00 恢复/错误契约 | blocked |
+| ND-AGENT-04 | 结果事实/checkpoint/租约/一致性 | Agent S4 | L | M03 | FR-AGENT-006, FR-QA-002 | 03、DR-011、迁移 Contract | blocked |
+| ND-AGENT-05 | live 模型工具能力与 Agent Golden Set | Agent S5 | L | M11 | FR-AGENT-009/010 | 前序闭环、批准模型/低敏环境 | blocked |
 | ND-W3-01 | worker 装配 Qdrant IndexPublisher | A1 | S | M07 | FR-DOC-006, FR-RAG-001 | 无 | done |
 | ND-W3-02 | Compose api 注入 `PIVOT_INGEST=celery` | A1 | S | M11 | FR-DOC-005, NFR-OBS | ND-W3-01 建议先 | done |
 | ND-W3-12 | Compose api/worker 注入 Qdrant/Redis | A1 | S | M11 | §2.1, NFR-OBS | ND-W3-01 | done |
@@ -21,7 +26,7 @@
 | ND-W3-06 | 登录限流缺省接到 Redis（仍不冻阈值） | A2 | S | M01 | FR-AUTH-002 | ND-W3-12 | done |
 | ND-W3-07 | PATCH 角色 / 重置密码 HTTP | A2 | S | M01 | FR-AUTH-003 | 无 | done |
 | ND-W3-08 | SSE 长连接推送与缓冲 | A3 | M | M05/M08 | FR-STREAM-001~003 | 无 | done |
-| ND-W3-09 | LangGraph extra（原暂缓变更） | A3 | M | M05 | FR-QA-001 | `20260906-M05-langgraph.md` | blocked |
+| ND-W3-09 | 旧可选 LangGraph extra | 历史 A3 | M | M05 | FR-QA-001 | ADR-009、ND-AGENT-02 | superseded |
 | ND-W3-10 | Playwright 十页 opt-in | A3/C | M | M09/M10/M11 | NFR-UX, GATE-P1 | ND-W3-02 建议 | done |
 | ND-W3-11 | version.idempotency_key 入库 | A2 | S | M03/M02 | FR-DOC-005 | 需变更申请；SPEC 字段确认 | blocked |
 | ND-W3-13 | Wave 3 收口评审 / tag | A | S | M11 | — | A1 完成 | done |
@@ -46,7 +51,49 @@
 
 ---
 
-## Phase A — Wave 3 工程票
+## Agent 改造票（当前关键路径）
+
+### ND-AGENT-01 答案安全门禁
+
+- **Accountable / Contributors**：M05 / M03、M06、M11。
+- **Given/When/Then**：证据仅支持考勤，模型输出奖金等无关 Markdown；经真实编排器调用后不得 answered，不能从证据另造 Claims 背书原文。
+- **范围**：先 Red 覆盖自由 Markdown/Claims 不一致、非法结构、悬空/候选外 Citation、支持性不足；严格结构化输出、完整绑定、保守全量支持门禁和受控渲染。
+- **不做**：不装 LangGraph、不增加公开路由、不冻结预算；不把此票视为 Agent 已实现。
+- **测试**：`test_FR_AGENT_005_unverified_markdown_never_published`、`test_FR_QA_002_dangling_citation_rejected`、`test_FR_QA_004_verifier_failure_never_answers`；覆盖旧 QA/Run/SSE/导出路径。
+- **DoD**：原负向复现被测试锁定，未验证事实不能正式发布；正向/负向回归通过，明确记录尚未持久化的差距。
+
+### ND-AGENT-02 LangGraph ReAct 最小闭环
+
+- **Accountable / Contributors**：M05 / M00、M01、M03、M04、M11。
+- **先决**：01；模型/工具/预算内部 Contract、DR-010 Fixture/运行策略与锁依赖完成后才能从 blocked 改 ready。
+- **范围**：真实 StateGraph、scripted Fake tool-calling model、两个只读工具、Observation 再决策、预算和 Finalizer；服务端注入身份/scope，不静默 fallback。
+- **测试**：FR-AGENT-001/002/003/004/009 计划测试；不同观察改变工具序列，重复空检索终止，越权和外发阻断。
+- **DoD**：Fake 替换模型而非图；可复现“空/不足 → 改写再搜 → 读证据 → 校验答案”；记录生产恢复仍未完成。
+
+### ND-AGENT-03 Run/SSE/澄清与 Web
+
+- **Accountable / Contributors**：M05 / M00、M01、M08、M09、M11。
+- **先决**：02；M00 先冻结恢复 endpoint/字段/幂等/错误映射及消费者契约。
+- **范围/测试**：粗粒度状态映射、interrupt/授权 resume、取消、白名单公开阶段、校验后 token；FR-AGENT-007/008 与 FR-STREAM 负向/重连测试。
+- **DoD**：晚到答案不覆盖取消，SSE 不泄漏消息或重执行，十页/引用抽屉无回归。
+
+### ND-AGENT-04 持久恢复与事实一致性
+
+- **Accountable / Contributors**：M03 / M00、M01、M05、M06、M11。
+- **先决**：03；DR-011、checkpoint/Claims/Citation/租约/事件一致性迁移 Contract。
+- **范围/测试**：Postgres Checkpointer、一 Run 一 thread、单执行者/fencing、预算恢复、业务结果事务/outbox；FR-AGENT-006 和宕机/争用/取消测试。
+- **DoD**：跨进程恢复证据，不重复业务发布；明确供应商调用/计费不保证 exactly-once，记录风险与对账。
+
+### ND-AGENT-05 模型能力与评测
+
+- **Accountable / Contributors**：M11 / M03、M04、M05、业务。
+- **先决**：前序闭环，批准的模型配置/低敏或脱敏样本/环境。
+- **范围/测试**：主备模型工具协议、用量、外发和超时；Agent Golden Set 的证据支持/工具选择/注入/预算/恢复；FR-AGENT-009/010。
+- **DoD**：Fake/live 报告分开；阈值经业务复核/实测冻结；未满足 GATE 的内容保持 unverified。
+
+---
+
+## Phase A — 历史 Wave 3 工程票
 
 ### ND-W3-01 worker 装配 Qdrant IndexPublisher
 
@@ -152,13 +199,11 @@
 - **测试**：契约已有重连用例；补 opt-in 集成，CI 默认 skip 长连接。
 - **完成**：2026-09-14。`POST /runs` 立即返回 `received`；SSE 按帧推送并去缓冲；`followRunEvents` 非终态续订；uvicorn opt-in skip。变更 `progress/changes/20260914-M05-sse-long-connection.md`。
 
-### ND-W3-09 LangGraph extra
+### ND-W3-09 旧 LangGraph extra（superseded）
 
-- **状态**：blocked（`20260906-M05-langgraph.md` 仍暂缓）
-- **规模 / Owner**：M / M05
-- **映射**：`FR-QA-001`
-- **范围**：optional extra；主图语义不变；缺 extra 失败闭环或走现有确定性编排。
-- **先决**：单独再批变更申请，不在本票偷偷加依赖。
+- **状态**：superseded，2026-10-02，由 ADR-009 与 ND-AGENT-02 取代。
+- **历史范围**：原仅 optional extra/保持固定主图；不是当前实现依据。
+- **当前路线**：真实 StateGraph + 原生工具 ReAct；缺配置不得静默 fallback。依赖、预算和恢复按新工单 Contract 逐刀冻结。
 
 ### ND-W3-10 Playwright 十页 opt-in
 
@@ -323,6 +368,8 @@
 工作区 E:/AI Project/Pivot，分支 main。
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
-本切片只做 <TICKET-ID>。默认下一刀 Owner 提供低敏语料填写企业 Golden Set，或提供 SSH/安全组/磁盘后 ND-STG-04 ECS apply。先写 progress/changes/，再 Red。
+另读 spec/AGENT_SPEC.md、ADR-009。本切片只做 <TICKET-ID>。
+默认下一刀 ND-AGENT-01 答案安全 Red 回归；后续工具/预算/恢复/checkpoint Contract 未满足则 blocked。
+先登记 progress/changes/，再 Red；旧 ECS/live 票不覆盖当前 Agent 关键路径。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```

@@ -1,10 +1,11 @@
 # 问枢 Pivot 模块协作规格
 
-> **文档 ID**：`MODULE-SPEC-1.1`  
-> **状态**：accepted（主线开发；1.0 并行 worktree 不再是默认流程）  
+> **文档 ID**：`MODULE-SPEC-1.2`\
+> **状态**：accepted（主线开发；LangGraph 受控 ReAct 责任映射，未实现）\
 > **适用仓库**：`Lumina-888/Pivot`  
-> **生效日期**：2026-09-08  
-> **上位规范**：[`SPEC.md`](SPEC.md)（SPEC-1.0）  
+> **生效日期**：2026-10-02\
+> **上位规范**：[`SPEC.md`](SPEC.md)（SPEC-1.1）、[`AGENT_SPEC.md`](spec/AGENT_SPEC.md)\
+> **架构变更**：[`ADR-009`](progress/changes/20261002-M00-langgraph-react-baseline.md)\
 > **流程变更**：[`progress/changes/20260908-M00-mainline-development.md`](progress/changes/20260908-M00-mainline-development.md)
 
 ## 0. 文档定位与优先级
@@ -24,12 +25,13 @@
 从高到低：
 
 1. `SPEC.md`：需求、状态机、数据不变量、API/SSE/Worker 语义和验收门槛的规范源；
-2. 已批准 ADR：对开放决策的显式裁决；
-3. 本文 `MODULE_SPEC.md`：模块边界与主线协作规范；
-4. `spec/contracts/` 中带版本的机器可读契约；
-5. `AGENTS.md`、`PROGRESS.md` 与 `progress/`：执行规则和进度记录；
-6. 具体模块设计文档与实现代码；
-7. `风格样稿/`：UI 信息架构与视觉基线，Mock 行为不等于生产能力。
+2. SPEC 引用的 `spec/AGENT_SPEC.md`：Agent 专项约束；
+3. 已批准 ADR：对开放决策的显式裁决；
+4. 本文 `MODULE_SPEC.md`：模块边界与主线协作规范；
+5. `spec/contracts/` 中带版本的已发布机器可读契约（恢复 API 尚未发布）；
+6. `AGENTS.md`、`PROGRESS.md` 与 `progress/`：执行规则和进度记录；
+7. 具体模块设计文档、实现代码及历史技术方案：不是当前 Agent 需求源；
+8. `风格样稿/`：UI 信息架构与视觉基线，Mock 行为不等于生产能力。
 
 ### 0.2 不在本文中解决的事项
 
@@ -83,7 +85,7 @@ PROGRESS.md
 | M02 | 文档领域与接入 | FR-DOC | 上传校验、版本生命周期、删除语义 | M00、M03 |
 | M03 | 数据基础与持久化 | §2、§9 存储不变量 | ORM、迁移、Repository、存储适配器 | M00 |
 | M04 | 搜索与检索 RAG | FR-SEARCH、FR-RAG | 混合检索、过滤、scope、重排 | M00、M03、M07 |
-| M05 | 问答编排、Run 与 SSE | FR-QA、FR-STREAM | LangGraph 主图、Claim/Citation、SSE | M00、M03、M04 |
+| M05 | ReAct Agent、Run 与 SSE | FR-QA、FR-STREAM、FR-AGENT | LangGraph 工具循环、答案门禁、Run/SSE/澄清 | M00、M01、M03、M04 |
 | M06 | 导出、审计与成本元数据 | FR-EXPORT、FR-AUDIT | 导出授权、审计、ProviderCall | M00、M01、M03、M05 |
 | M07 | Worker、解析与索引任务 | §3.1、§5.7、§6.1–6.2 | Celery、解析、分块、Embedding、索引 | M00、M02、M03 |
 | M08 | Web 基础与设计系统 | §1.5、NFR-UX | Next.js、S3 设计系统、API/SSE client | M00 |
@@ -221,7 +223,9 @@ progress/modules/M04.md
 
 **覆盖**：`FR-QA-001~006`、`FR-STREAM-001~005`。
 
-**责任**：确定性 LangGraph 主图、Run 状态机、幂等、Claim/Citation/Evidence、拒答、Verifier 安全降级、澄清预算、SSE 有序事件/断线补发/取消。
+**责任**：LangGraph StateGraph 原生工具 ReAct 循环、模型/工具内部接口、可信上下文、结构化 Claim/Citation 与支持校验、Run 状态映射、预算、澄清恢复、SSE 公开投影/补发/取消。checkpoint/租约事实与迁移由 M03 负责，工具/恢复授权由 M01 负责，审计/ProviderCall 由 M06 负责；公开恢复契约由 M00 冻结。
+
+**专项范围**：FR-AGENT-001/002/004/005/007/008 为 M05 Accountable；FR-AGENT-003 为 M01，006 为 M03，009/010 为 M11；完整 Given/When/Then 与依赖见 AGENT_SPEC。旧纯 Python 线性主图仅是迁移基线，不验收新目标。
 
 **允许修改**：
 
@@ -237,7 +241,7 @@ progress/modules/M05.md
 
 **首批测试**：同幂等键同参数返回同一 Run；同键异参数返回 `IDEMPOTENCY_CONFLICT`；终态不可改写；Verifier 故障不默认为 answered；无证据/低相关性/权限过滤后无证据时 refused/uncertain/failed；SSE `seq` 单调、Last-Event-ID 补发、终态最多一个、取消幂等。
 
-**DoD**：不暴露思考链或系统 Prompt；每 Run query rewrite ≤2、澄清 ≤1 轮；每个 Run 最终进入明确终态；事件完全符合 M00 schema。
+**DoD**：真实图根据 Observation 改变工具行动；不暴露思考链/Prompt/工具原始参数；每 Run query rewrite ≤2、澄清 ≤1 轮；累计预算/取消/恢复不绕过权限；仅从验证事实发布答案；每 Run 明确终态；事件完全符合 M00 schema。预算/恢复/持久化 Contract 未冻结时，对应切片 blocked。
 
 ### M06 — 导出、审计与成本元数据
 
@@ -485,6 +489,7 @@ M11 组织 Golden Set、真实容器、5 并发/100k Chunk、供应商故障、�
 | 路径 | 唯一 Owner | 其他模块如何请求变更 |
 |---|---|---|
 | `SPEC.md` | 规格治理/集成维护者 | 提交 ADR 或变更说明，不直接改 |
+| `spec/AGENT_SPEC.md` | M00（M05/M01/M03/M11 贡献） | Agent 需求/安全/持久化变化登记 ADR，不另起冲突总规格 |
 | `MODULE_SPEC.md` | M00/集成维护者 | 走文档变更 PR |
 | `AGENTS.md` | M00/集成维护者 | 走协作规则变更 |
 | `PROGRESS.md` | 主线会话 | 模块进度仍写 `progress/modules/Mxx.md`；根表由当前主线会话更新 |
@@ -635,6 +640,10 @@ M11 按以下顺序验证，失败应退回对应 Accountable 模块：
 | FR-SEARCH-001~002 | M04 | M01、M03、M08、M09 | M11 |
 | FR-RAG-001~006 | M04 | M01、M03、M05、M07 | M11 |
 | FR-QA-001~006 | M05 | M01、M03、M04、M06、M09 | M11 |
+| FR-AGENT-001/002/004/005/007/008 | M05 | M00、M01、M03、M04、M06、M08、M09 | M11 |
+| FR-AGENT-003 | M01 | M00、M04、M05 | M11 |
+| FR-AGENT-006 | M03 | M00、M05、M06 | M11 |
+| FR-AGENT-009/010 | M11 | M00、M03、M04、M05、业务 | M11 + M00 归档 |
 | FR-STREAM-001~005 | M05 | M00、M03、M08、M09 | M11 |
 | FR-EXPORT-001~003 | M06 | M01、M03、M05、M09 | M11 |
 | FR-AUDIT-001~003 | M06 | M01、M03、M05、M10 | M11 |
@@ -688,7 +697,7 @@ M11 按以下顺序验证，失败应退回对应 Accountable 模块：
 
 ## 11. 当前未覆盖与后续承接
 
-本文 1.1 将默认流程改为主线开发，不改变 SPEC 需求，也不把 Fake HTTP 标成 GATE verified。当前主线在 Wave 3 夹具收口之后（`wave-3-integrated` ≠ P0 通过）：
+本文 1.1 的主线规则继续有效；1.2 按 SPEC-1.1/ADR-009 更新受控 ReAct 责任地图。当前目标已接受但 Agent 尚未实现，默认下一刀为 ND-AGENT-01 答案门禁 Red 回归，不再由云部署票覆盖。以下保留 Wave 3 实现事实（`wave-3-integrated` ≠ P0 通过）：
 
 - 工作区仅为 `Pivot/` 的 `main`；不要在历史 worktree 继续开发；
 - composition root 可 `uvicorn pivot.http.main:app --factory` 启动；Next 把同源 `/api/v1` rewrite 到注入的 `PIVOT_API_ORIGIN`；Playwright 十页为 opt-in（CI 不启动 uvicorn）；企业 Golden Set v0.3 脱敏摘录已入库（120 条，annotated_desensitized，Fake Keyword 诊断，≠ 业务复核，≠ GATE）；默认存储为 memory 适配；`PIVOT_STORAGE=postgres` 可装配用户目录、文档事实（Document/Version/Chunk/Task）、导出任务、hashed refresh、Conversation 与 Run/EventLog；`PIVOT_OBJECT_STORE=minio` 可装配文档与导出对象（公开 URL 仍为 signer）；`PIVOT_VECTOR_STORE=qdrant` 可装配向量客户端且 dense 检索消费该端口，ingest `IndexPublisher` 可 `upsert` 到同一端口；`assemble_runtime` 缺省在 HTTP 上传后进程内跑 ingest（信封仍 `uploaded`）；`PIVOT_INGEST=celery` 时入队既有 runner（CI eager + 注入 broker，可见 PG version/task）；Compose `api` 与 `worker` 注入共享 PG/MinIO/Qdrant/Redis（不写死 URL，store 选择不静默 memory；Redis 不是业务事实源）；Compose `api` 注入 `PIVOT_INGEST` / 队列 / concurrency / `PIVOT_CELERY_BROKER`（不写死 `redis://`，不静默 sync；Dockerfile 安装 `worker[celery]` 以便入队；进程外 `assemble_runtime` 缺省仍 sync）；Compose worker 为注入 `PIVOT_CELERY_BROKER` 的 Celery（只听 parse，CI 不 build/up），并装配共享 MinIO/PG ingest runner（拒绝 memory 对象；CI sqlite + Fake MinIO）；`PIVOT_VECTOR_STORE=qdrant` 时 worker `assemble_ingest_runtime` 装配 `IndexPublisher` + 注入维数（CI Fake Qdrant client；Compose api/worker 注入 `PIVOT_QDRANT_*` / `PIVOT_REDIS_ENDPOINT`，不写死 URL）；`PIVOT_EMBEDDING=hash|http`（默认 hash；http 时 ingest 与 query 共用注入 `HttpQueryEmbedder`，CI Fake transport；Compose api/worker 注入同一套 `PIVOT_EMBEDDING*`）；`PIVOT_LLM=local|http`（默认 local 证据拼接；http 时装配注入 OpenAI 兼容 Draft Writer，CI Fake transport；主失败才切备用；Compose 仅 api 注入 `PIVOT_LLM*`；`external_llm_allowed=false` 不得外发）；`PIVOT_PARSER=local|mineru|native`（默认 local 启发式/stdlib；mineru 时装配注入云 API 的 `MinerUCloudParser`，CI Fake transport；native 时装配 `worker[parse]` 的 PyMuPDF/docx/pptx/xlsx，缺 extra 失败闭环；Compose api/worker 注入同一套 `PIVOT_PARSER*`；Dockerfile/CI 安装 `worker[celery,parse]`；不把 MinerU 标成 MVP 唯一解析器）；stdlib BM25 可注入 k1/b（非 jieba）；`PIVOT_RERANK=none|overlap|bm25|bge`（bge 为注入 HTTP 适配器，非 live 供应商）；`PIVOT_CACHE_STORE`/`PIVOT_QUEUE_STORE=redis` 可装配缓存/队列（endpoint 注入）；登录失败限流可注入阈值后把计数写 Redis CacheStore（Compose api 注入阈值/窗口，不写死次数；进程外缺省永不锁定，不冻结 TBD-P0）；Golden Set 合成检索夹具 v0.2（120 条分层，Fake Keyword，非企业标注）；5 并发与备份恢复为进程内夹具；100k Chunk 为 opt-in Fake retrieve（CI 不跑，非 ECS 峰值）；Compose `api`、`web` 与 `worker` 为 profile `app`（worker 为 Celery fixture，CI 不 build/up）；dev-staging overlay `docker-compose.staging.yml` 增加 nginx（默认 `127.0.0.1:80`，只反代 web；8GiB limits 为 fixture，不自建 MinerU/LLM；CI 不 up；ECS apply 待 Owner SSH/安全组/磁盘）；

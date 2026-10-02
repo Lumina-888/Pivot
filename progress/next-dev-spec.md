@@ -1,18 +1,30 @@
-# 问枢 Pivot 后续开发规格（Wave 3 收口 → P0 闸门）
+# 问枢 Pivot 后续开发计划（ReAct 改造优先）
 
-> **文档 ID**：`NEXT-DEV-1.15`  
-> **日期**：2026-09-14  
+> **文档 ID**：`NEXT-DEV-1.16`\
+> **日期**：2026-10-02\
 > **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，**不等于** P0 通过）。  
 > **性质**：开发计划与工单拆分。  
 > **本文件不是需求源。** 需求、状态机、错误码、API/SSE/Worker、GATE、`TBD-P0` 仍以 [`SPEC.md`](../SPEC.md) 为准；模块边界以 [`MODULE_SPEC.md`](../MODULE_SPEC.md) 为准；进度以 [`PROGRESS.md`](../PROGRESS.md) 为准。工单目录见 [`tickets.md`](tickets.md)。
 
 与 SPEC 冲突时以 SPEC 为准。不得把本文件解释为已冻结 `TBD-P0`，不得把 Fake/夹具标成 `GATE-P0-*` verified。
 
-Owner 已确认近期目标是 **`dev-staging`（开发者调试环境）**，不是 SPEC 生产上线。范围见 [`changes/20260910-M00-dev-staging-scope.md`](changes/20260910-M00-dev-staging-scope.md)。
+Owner 当前目标是 **LangGraph 受控 ReAct Agent**，见 [AGENT_SPEC](../spec/AGENT_SPEC.md) 和 [ADR-009](changes/20261002-M00-langgraph-react-baseline.md)。历史 dev-staging 范围仍作为低敏开发环境约束，不代表当前 Agent 已实现或改变 GATE。
+
+## 当前执行计划
+
+| 工单 | 工作 | 状态/依赖 |
+|---|---|---|
+| ND-AGENT-01 | 最终 Markdown/Claims 一致性、引用与支持校验门禁 | ready；默认下一刀，先 Red |
+| ND-AGENT-02 | 模型/工具/预算 Contract、真实 LangGraph 工具循环 | blocked；01 + DR-010 + 锁依赖 |
+| ND-AGENT-03 | Run/SSE/取消、澄清恢复、Web | blocked；02 + M00 恢复/错误契约 |
+| ND-AGENT-04 | Claims/Citation、checkpoint、租约和事件一致性 | blocked；03 + DR-011 + 迁移 |
+| ND-AGENT-05 | 真实模型工具能力与 Agent Golden Set | blocked；前序闭环 + 批准测试环境 |
+
+以下 Wave 3/STG/P0 计划保留作为历史上下文和后续基础设施工作，不得覆盖上述关键路径。旧 LangGraph extra 票 ND-W3-09 已被 ND-AGENT-02 取代。
 
 ---
 
-## 0. 当前判断
+## 0. 当前实现判断
 
 产品处于 **Wave 3 夹具已收口**：领域服务 + HTTP + composition root + Compose fixture（api/web/worker，共享 PG/MinIO/Qdrant/Redis 注入；api 注入 celery ingest 与登录限流阈值/窗口；worker 可接 Qdrant；导出任务可走 SQLAlchemy；PATCH 角色/重置密码 HTTP；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；`PIVOT_PARSER=native` 可装配真实解析库 extra；dev-staging Compose overlay 已入库；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送；opt-in Playwright 十页）已在 `main`。分组 Python 以本切片回归为准。
 
@@ -77,7 +89,7 @@ Phase B  P0 闸门（人审 + 受控环境 + 实测冻 TBD）
 Phase C  P1（10 页真实系统 + 矩阵）
 ```
 
-### 3.1 `dev-staging` 轨道（Owner 当前目标）
+### 3.1 历史 `dev-staging` 轨道（保留环境约束，不是当前关键路径）
 
 ```text
 A1 跨进程 ingest（Qdrant + Celery）     ← 现在就编码，不需要云主机
@@ -108,7 +120,7 @@ Phase A 可以与规章制度样本准备并行。**B 未完成前禁止把系�
 | 解析 | 启发式 PDF + stdlib OOXML；可注入 native extra 与 MinerU 云 | 缺省仍启发式；OCR 属 P2；无 live MinerU | A3 |
 | 导出 | HTTP + MinIO 字节 + signer；任务可走 SQLAlchemy（CI sqlite） | 无对象字节下载路由（契约如此，不单开破坏契约的票） | A2 |
 | 认证 | 登录/改密/用户 HTTP；Redis 限流可注入；PATCH 角色/重置；hashed refresh 可走 SQLAlchemy（CI sqlite） | 阈值 TBD-P0；初始密码传递机制 TBD-P0 | A2, B2 |
-| QA/SSE | 主图 + Run/SSE HTTP 长连接；Conversation 与 Run/EventLog 可走 SQLAlchemy（CI sqlite） | uvicorn 长连接为 opt-in skip；Claim/Citation 仍不入库；LangGraph extra 暂缓；Verifier 阈值未冻 | A3, B1 |
+| QA/SSE/Agent | 旧线性主图 + Run/SSE HTTP 长连接；Conversation 与 Run/EventLog 可走 SQLAlchemy（CI sqlite） | 无 ReAct/tools/checkpoint；答案门禁待修；Claim/Citation 仍不入库；旧暂缓已取代，新 Contract 待冻结 | ND-AGENT-01~05 |
 | Web | 10 页 Fake fetch；opt-in Playwright 十页；SSE 去缓冲 Route Handler | 企业标注与 live 冒烟仍待 | A3, C |
 | 运维 | Dockerfile/Compose profile `app` | CI 不启动；无固定发布/回滚；无新 ECS/加密 OSS | B3 |
 | 质量 | Golden Set v0.2-synthetic 120 | 企业标注、盲评、NFR-QUAL 实测 | B1 |
@@ -137,14 +149,14 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. 默认下一刀：提供 SSH/安全组/磁盘/域名后实施 **ND-STG-04 ECS apply**，或 live Embedding/rerank 冒烟。ND-P0-01 脱敏摘录 120 条已入库（≠ 业务复核，≠ GATE）。
+2. 默认下一刀 **ND-AGENT-01**：将已复现的自由 Markdown/Claims 不一致变成 Red 回归，再实现安全门禁。旧 ECS apply/live 检索票保留，不能覆盖 Agent 关键路径。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。
 
 ---
 
-## 7. 建议顺序（关键路径）
+## 7. 历史 Wave 3/STG 顺序（当前顺序见顶部）
 
 ```text
 ND-W3-01 worker Qdrant
@@ -192,3 +204,4 @@ wave-3-integrated 已打（仍全部 GATE unverified）
 | 1.13 | 2026-09-14 | ND-W3-10 Playwright 十页已完成；默认下一刀 Golden Set / STG-04 ECS apply 待 Owner |
 | 1.14 | 2026-09-14 | ND-P0-01 标注规范与空 schema 已入库（0 条）；填写仍待 Owner 语料；STG-04 ECS apply 待 Owner |
 | 1.15 | 2026-09-14 | ND-P0-01 脱敏摘录 120 条已入库；Fake Keyword 诊断 ≠ GATE；STG-04 ECS apply 仍待 Owner |
+| 1.16 | 2026-10-02 | SPEC-1.1/AGENT-SPEC 接受 ReAct 目标；旧暂缓取代；ND-AGENT-01 优先，后续按预算/恢复/checkpoint DoR 阻断 |

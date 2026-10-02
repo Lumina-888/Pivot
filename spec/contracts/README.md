@@ -1,7 +1,9 @@
 # spec/contracts/ — 机器可读契约（contract-v0.1）
 
-**当前状态：Wave 0 冻结草案（契约版本 `contract-v0.1`，manifest 0.1.0）。**
-契约以根目录 [`SPEC.md`](../../SPEC.md)（SPEC-1.0，规范源）生成；变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+**当前发布基线：contract-v0.1（manifest 0.1.0），兼容结构保持不变。**
+该契约最初从 SPEC-1.0 生成；当前目标规范为 [`SPEC-1.1`](../../SPEC.md) 和 [AGENT_SPEC](../AGENT_SPEC.md)。变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+
+> 新 ReAct 能力、状态循环和答案发布门禁不是 v0.1 已实现事实。恢复 endpoint/字段、协议非法/预算的错误映射及新增 payload 在后续 M00 Contract 冻结；本次不增加路由/schema 字段，不伪称机器契约已覆盖澄清恢复。旧主图阶段名称仅作兼容公开投影，不代表固定执行顺序。
 
 ## 契约文件与来源映射
 

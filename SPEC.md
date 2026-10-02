@@ -3,14 +3,18 @@
 | 项目 | 内容 |
 |---|---|
 | 文档 | `SPEC.md` |
-| 版本 | SPEC-1.0 |
-| 日期 | 2026-09-06 |
-| 状态 | 开发前规格基线，待 P0 验证冻结部分参数 |
-| 上位基线 | [`技术方案GPT.md`](./技术方案GPT.md) GPT-1.0 |
+| 版本 | SPEC-1.1 |
+| 日期 | 2026-10-02 |
+| 状态 | accepted：LangGraph 受控 ReAct 目标基线；实现迁移待完成，P0 参数待验证 |
+| 专项规格 | [`spec/AGENT_SPEC.md`](spec/AGENT_SPEC.md) AGENT-SPEC-1.0 |
+| 架构决策 | [`ADR-009`](progress/changes/20261002-M00-langgraph-react-baseline.md) |
+| 历史来源 | [`技术方案GPT.md`](./技术方案GPT.md) GPT-1.0，仅历史参考 |
 | 开发方法 | SDD（Specification-Driven Development）+ TDD（Test-Driven Development） |
 | 适用阶段 | P0 预研、P1 MVP 开发与验收 |
 
-> 本文件把《技术方案GPT.md》转换为“需求 → 场景 → 契约 → 数据 → 测试 → 验收”的可追踪开发规格。它不是已实现系统的说明，也不代表当前已有真实后端、前端、数据库、部署或测试代码。
+> 本文件是当前规范源。SPEC-1.1 将旧固定线性 RAG 主图替换为 LangGraph + 受控 ReAct Agent；详细需求和实施门禁见专项规格。当前代码仍为旧线性实现，架构 accepted 不代表 LangGraph 已接入、答案漏洞已修复或 GATE 已验证。
+>
+> SPEC-1.0 和旧技术方案的主图、暂缓 LangGraph 及自由多 Agent 表述均不再作为当前开发目标；历史实现与测试证据保留。公开恢复接口、新错误映射和依赖版本需后续 Contract 冻结，未实现能力不得标为可用 API。
 >
 > 尚未通过真实文档、真实供应商和 ECS 压测验证的数值统一标记为 **`TBD-P0`**。实现人员不得在代码中私自把 `TBD-P0` 替换成未经记录的“默认值”；冻结后必须更新本文件、决策记录和测试夹具。
 
@@ -48,13 +52,13 @@
 当多个文件出现不同表述时，按以下顺序解释：
 
 1. 本文件中标记为“当前口径”“硬门槛”的内容；
-2. `技术方案GPT.md` 的工程实施增强内容；
-3. `问枢Pivot-技术方案V2.md` 的产品范围和主要路线；
-4. `风格样稿/S3完整原型/README.md` 的页面与交互演示事实；
-5. `问枢Pivot-A3门户设计.md` 的具体交互细节；
-6. `问枢Pivot-选型详解.md` 的备选方案和历史讨论。
+2. 本文件引用的 [`AGENT_SPEC.md`](spec/AGENT_SPEC.md)，仅细化 Agent 需求，不独立覆盖总规格；
+3. 已登记批准的 ADR；
+4. `MODULE_SPEC.md` 的模块责任和 `spec/contracts/` 的已发布契约；
+5. `PROGRESS.md`、`progress/` 的实现状态与开发计划（不是需求源）；
+6. 技术方案 GPT、V2、A3 和 `风格样稿/`，仅作历史工程/产品/交互参考。
 
-历史文件保留原样，不因本文件的当前口径而静默改写。A3 的“9 页”、旧方案的“证据面板常驻”、V2 的“内网 HTTP+IP”以及 S3 原型的 Mock 行为均不能覆盖本文件的工程约束。
+当前 Agent 路线仅为 LangGraph StateGraph + 原生工具调用型受控 ReAct。历史文件不再独立冻结编排架构；涉及旧内容的标注与取代记录见 ADR-009，不删除历史证据。A3 的“9 页”、旧方案的“证据面板常驻”、V2 的“内网 HTTP+IP”以及 S3 原型的 Mock 行为均不能覆盖本文件。
 
 ### 0.2 需求记录格式
 
@@ -164,7 +168,8 @@ MVP 为纯 Web 系统，固定包含 **10 个产品页面**：
 
 ```text
 上传 → 隔离 → 解析 → 分块 → Embedding → 索引发布
-→ 搜索/检索 → 重排 → 证据包 → 带引用回答/拒答 → 导出/审计
+→ Agent 选择搜索/证据读取工具 → Observation → 有界再决策
+→ 结构化证据答案 → 支持校验 → 持久化回答/拒答 → 导出/审计
 ```
 
 ### 1.2 角色
@@ -191,13 +196,15 @@ MVP 不实现：
 - 手动多文档 `@` 组合；
 - 独立“我的提问历史”归档页；
 - 多机/K8s、高可用集群；
-- 复杂文档级 ACL。
+- 复杂文档级 ACL；
+- 自由群聊式多 Agent、任意联网/Shell/代码执行；
+- Agent 上传、删除、用户管理等写工具（既有显式管理 HTTP 不受影响）。
 
 ### 1.4 不可砍功能
 
 即使排期紧张，以下功能不可从 MVP 主链路删除：
 
-- 问答页；
+- 问答页及真实 LangGraph ReAct 工具决策闭环；
 - 引用和证据抽屉；
 - 无依据拒答；
 - 单文档 scope 强制过滤；
@@ -316,7 +323,13 @@ ProviderCall(provider, model, operation, tokens, latency_ms, status,
   retry_count, estimated_cost, request_id, run_id)
 ```
 
-AgentEvent 面向轻量轨迹；AuditEvent 追加写；ProviderCall 不保存不必要的完整敏感上下文。
+AgentEvent 面向脱敏轻量轨迹，不保存完整思考链；AuditEvent 追加写；ProviderCall 记录调用尝试/用量，不保存不必要的完整敏感上下文。
+
+#### AgentState / Checkpoint / ExecutionLease
+
+AgentState 记录消息、合法工具观察、证据映射、执行游标、已消费预算和校验反馈。每 Run 使用服务端生成的独立 checkpoint thread；ExecutionLease 负责跨进程单执行者及 fencing。详细不变量见 AGENT_SPEC §5/§8。
+
+Checkpoint 是敏感执行状态，不替代 PostgreSQL 的 Run/Message/Claim/Citation 事实；框架表和保留/加密策略经 DR-011 与迁移 Contract 冻结。Redis/进程内集合不得作为唯一执行或恢复事实。
 
 #### ExportTask / CeleryTask / ParseError
 
@@ -372,11 +385,30 @@ delete_failed → delete_pending          [后台重试]
 ### 3.2 Run 状态机
 
 ```text
-received → planning → retrieving → retrying → drafting → verifying
-              ├→ waiting_for_user → resuming → retrieving
-              └→ failed
-verifying → answered / uncertain / refused / failed / cancelled
+received → planning → retrieving → drafting → verifying → answered
+              │           ↑  │                  │
+              │           └──┼── 有界补证 ───────┘
+              └→ waiting_for_user ← retrieving
+                        ↓
+                     resuming → retrieving
+retrieving → retrying → retrieving     [仅基础设施临时故障]
+任一非终态 → failed / cancelled
+planning / retrieving / drafting / verifying → refused / uncertain
 ```
+
+公开状态保持粗粒度，不新增 agent/tools 枚举。下表是合法转移的规范源，图仅为概览；具体事件映射由 M05 在 Contract 测试中实现。
+
+| 当前状态 | 允许下一状态 | 约束 |
+| --- | --- | --- |
+| received | planning / failed / cancelled | 认领执行或失败/取消 |
+| planning | retrieving / waiting_for_user / refused / uncertain / failed / cancelled | 输入/外发/预算门禁；澄清最多一次 |
+| retrieving | drafting / retrying / waiting_for_user / refused / uncertain / failed / cancelled | 内部 Agent/工具循环不改变公开状态 |
+| retrying | retrieving / refused / uncertain / failed / cancelled | 仅可重试基础设施故障；预算不重置 |
+| waiting_for_user | resuming / failed / cancelled | 授权幂等恢复；等待期限仍 TBD-P0 |
+| resuming | retrieving / refused / uncertain / failed / cancelled | 重检权限/资源/预算，不清零 |
+| drafting | verifying / refused / uncertain / failed / cancelled | 严格结构化输出，禁止自由 Markdown fallback |
+| verifying | answered / retrieving / refused / uncertain / failed / cancelled | 回检索仅限合法补证且有预算；回答须全量通过 |
+| answered / uncertain / refused / failed / cancelled | 无 | 终态不可改写 |
 
 规则：
 
@@ -385,7 +417,9 @@ verifying → answered / uncertain / refused / failed / cancelled
 - query rewrite 最多 2 次；
 - 每次 Run 最多 1 轮用户澄清；
 - 任一非终态可收到取消请求，但已完成终态不可改写；
-- judge/Verifier 故障不得默认为 `answered`；
+- judge/Verifier 故障不得默认为 `answered`；只有合法补证路径可回到 Agent，权限/外发禁止不能靠循环绕过；
+- 取消须传播到调用边界，晚到结果不得覆盖 cancelled；
+- 当前实现的旧状态转移尚未迁移，旧测试成功不等于符合本节；
 - 所有 Run 最终必须为 `answered`、`uncertain`、`refused`、`failed` 或 `cancelled`。
 
 ### 3.3 SSE 事件规则
@@ -403,7 +437,9 @@ completed, uncertain, refused, failed, cancelled
 run_id, message_id, seq, timestamp, stage, payload
 ```
 
-`seq` 在一个 Run 内单调递增；终态事件最多一个；连接关闭不是业务终态；断线后使用 `Last-Event-ID` 补发，无法补发时读取 Run 状态接口。
+`seq` 在一个 Run 内单调递增；终态事件最多一个；连接关闭不是业务终态；断线后使用 `Last-Event-ID` 补发，无法补发时读取 Run 状态接口。重连只能重放，不能重新执行 Agent。
+
+校验前只发布白名单脱敏阶段摘要；最终 token/citation/completed 在答案校验、业务事实事务提交后发送。不得直接透传 LangGraph 原始事件、思考链、Prompt、工具原始参数或受保护 Observation。
 
 ### 3.4 用户状态机
 
@@ -573,28 +609,25 @@ Dense 失败可降级 BM25，BM25 失败可降级 Dense；两路均失败或过�
 
 ### 4.5 问答与 Agent（`FR-QA-*`）
 
-#### `FR-QA-001` 受控主图
+#### `FR-QA-001` LangGraph 受控 ReAct 主图
 
-MVP 主图固定为：
+目标为真实 StateGraph 条件循环：Agent 通过原生工具调用选择行动，接收 Observation 后再次决策，直到澄清、提出结构化答案或安全结束。图见 §7.1，细则见 AGENT_SPEC。
 
-```text
-normalize → classify → retrieve → rerank → build_evidence
-→ draft_answer → verify_claims → finalize/refuse
-```
-
-Master 负责路由、澄清、查询改写和预算；检索节点不得生成最终结论；写作节点不得改变权限范围。
+模型不能决定权限、扩大 scope、改变工具白名单或跳过答案校验。检索仍由既有混合检索实现；只将线性调用包装成图不满足 FR-AGENT-001。当前纯 Python 线性实现是迁移基线，不是新需求已实现。
 
 #### `FR-QA-002` 结构化 Claim/Citation
 
-答案先保存结构化 Claims 和 Citation，再渲染 Markdown。每个事实性 Claim 必须有候选证据 ID；候选集合外的 Citation 直接判错。
+模型输出严格结构化 Claims 与本 Run evidence_ids；服务端生成真实 Citation 并校验存在性、版本、候选归属、权限及文本支持关系。最终 Markdown 只能从通过校验的事实渲染，Claims/Citation/最终 Message/终态幂等事务提交后才公开。
+
+禁止“模型自由 Markdown + 从证据另生成的 Claims”fallback；候选合法不代表事实被支持。首版任一事实 Claim 不通过则整份候选不发布，有限补证后全量通过才可 answered。
 
 #### `FR-QA-003` 无依据拒答
 
-无命中、低相关性、权限过滤后无证据、冲突未解决或外发不允许时，Run 进入 `uncertain` 或 `refused`，不得使用常识补全企业事实。
+单次合法空检索可作为 Observation，在预算内触发新查询；预算耗尽或无合法补证路径后仍无命中、低相关性、权限过滤后无证据或冲突未解决时，Run 进入 `uncertain` 或 `refused`。外发禁止不得通过换工具/供应商绕过；不得使用常识补全企业事实。
 
 #### `FR-QA-004` Citation Verifier 安全降级
 
-Verifier/judge 超时、不可用或返回非法结构时，不得默认为通过；可删除无依据句、标记存疑或拒答。
+Verifier/judge 超时、不可用或返回非法结构时，不得默认为通过。支持性不足可在预算内合法补证，否则存疑或拒答；首版不局部忽略非法 Claim 后保留整段答案。局部删句发布策略须后续独立 ADR。
 
 #### `FR-QA-005` 轻量轨迹
 
@@ -602,13 +635,19 @@ Verifier/judge 超时、不可用或返回非法结构时，不得默认为通�
 
 #### `FR-QA-006` 澄清与上下文隔离
 
-每个 Run 最多 1 轮澄清；澄清状态持久化并可恢复；Worker 不保存跨任务记忆；不同用户会话绝不共享上下文。
+每个 Run 最多 1 轮澄清；通过 LangGraph interrupt/checkpoint 保留上下文，经会话 owner 授权恢复同一 Run，累计预算不重置。Worker 不保存跨任务记忆；不同用户会话绝不共享上下文。公开恢复接口在后续 Contract 冻结，当前 v0.1 尚不提供该接口。
+
+#### `FR-AGENT-001~010` 专项需求
+
+Agent 循环、只读工具、可信上下文/外发、预算、答案发布、checkpoint/租约、澄清恢复、安全轨迹/取消、模型能力和评测的 Owner、场景、数据、测试与验收见 [`AGENT_SPEC §2`](spec/AGENT_SPEC.md#2-需求登记与追踪)。状态为 accepted，未实现；既有 FR-QA/FR-STREAM ID 保留。
 
 ### 4.6 Run/SSE（`FR-STREAM-*`）
 
 #### `FR-STREAM-001` Run 幂等创建
 
-相同用户、会话和有效 `idempotency_key` 的重复请求返回同一 Run；不得重复创建 Message 或重复计费。
+相同用户、会话和有效 `idempotency_key` 的重复请求返回同一 Run；重复 HTTP/SSE 请求不得重复启动有效执行或创建 Message。跨进程认领和取消/终态竞争须有数据库约束。
+
+Checkpoint 不保证供应商调用/计费 exactly-once；崩溃重放需调用尝试登记、幂等键（供应商支持时）及用量对账，残余风险须在验收中记录，不能宣称框架自动消除重复计费。
 
 #### `FR-STREAM-002` SSE 有序事件
 
@@ -624,7 +663,7 @@ Run 所有者或有权限管理员可取消未完成 Run；取消幂等；已完
 
 #### `FR-STREAM-005` 超时和重试预算
 
-仅超时、429、临时 5xx、临时网络错误可重试；权限、格式、无证据、禁止外发不可重试。query rewrite 最多 2 次，具体总超时/单步超时/token 上限为 `TBD-P0`。
+仅超时、429、临时 5xx、临时网络错误可走基础设施重试；权限、格式、已确定无合法补证路径或禁止外发不可重试。单次合法空观察可在预算内触发新的查询行动，不等于重试权限/格式错误。query rewrite 最多 2 次，具体调用数/总超时/单步超时/token/费用上限为 `TBD-P0`；恢复/备用模型不重置预算。
 
 ### 4.7 导出（`FR-EXPORT-*`）
 
@@ -732,6 +771,8 @@ Run 所有者或有权限管理员可取消未完成 Run；取消幂等；已完
 
 返回至少：`run_id`、`message_id`、`initial_state`、`request_id`。
 
+ReAct 澄清恢复的公开 endpoint、字段、幂等与错误映射在 ND-AGENT-03 的 M00 Contract 冻结；本次不新增可调用路由。当前机器可读 contract-v0.1 是已发布兼容信封，不代表 FR-AGENT 已实现。未冻结恢复接口前不得私自实现或生成客户端。
+
 ### 5.5 导出和后台接口
 
 | 方法 | 路径 | 说明 |
@@ -823,7 +864,7 @@ dense top-50 + BM25 top-50
 }
 ```
 
-Citation 必须指向当前用户可访问的 Chunk；候选集合外的 Citation 直接判错；定位不支持时展示证据原文和限制提示。
+Citation 必须指向当前用户可访问的 Chunk；候选集合外或悬空 Citation 直接判错；Claim 与 Citation 绑定及原文支持关系必须验证。只渲染通过的结构化事实，不接受另一份自由 Markdown；定位不支持时展示证据原文和限制提示。
 
 ### 6.5 拒答和 Verifier
 
@@ -842,30 +883,45 @@ Citation 必须指向当前用户可访问的 Chunk；候选集合外的 Citatio
 
 ## 7. 问答工作流与资源控制
 
+本节为 LangGraph ReAct 的全局约束，内部图、工具、State、checkpoint 和验收见 [`AGENT_SPEC.md`](spec/AGENT_SPEC.md)。ADR-009 已取代旧固定线性主图；不再把 LangGraph 当可无限期推迟的可选目标。
+
 ### 7.1 MVP 主图
 
 ```text
-normalize → classify → retrieve → rerank → build_evidence
-→ draft_answer → verify_claims → finalize/refuse
+START → input_guard → load_context → agent
+agent → tool_guard → search_knowledge/read_evidence → observation_guard → agent
+agent → clarify/interrupt → authorized_resume → agent
+agent → build_evidence → structured_finalize → verify
+verify → persist_result → END                         [通过]
+verify → repair_feedback → agent                     [合法补证且有预算]
+verify → refuse_or_uncertain → persist_result → END   [无合法补证路径]
 ```
+
+模型通过原生工具调用与 Observation 选择行动，服务端决定工具许可、身份/scope、外发、预算和发布。ReAct 不要求公开完整 Thought；不使用自由文本 Thought/Action 正则模拟工具协议。
 
 ### 7.2 节点职责
 
 | 节点 | 可以做 | 禁止做 |
 |---|---|---|
-| Master | 意图分类、路由、查询改写、澄清、预算与终态决策 | 绕过权限、无证据补全 |
-| Retrieve | 召回、过滤、融合、重排、证据包 | 生成最终事实结论 |
-| Draft | 基于证据生成 Claims/草稿 | 引用候选外文档、虚构定位 |
-| Verifier | Claim-Citation 支持检查、数值/版本一致性 | 失败时默认放行 |
+| Agent | 选择只读工具/查询、根据观察继续或提出结束/澄清 | 决定权限、直接发布未验证答案 |
+| ToolGuard / Tools | 服务端授权、调用现有混合检索或读取合法证据、返回限长观察 | 任意联网/执行代码、写操作、扩大 scope |
+| Finalizer | 仅从合法证据生成结构化事实与 evidence_ids | 输出另一份未经验证的正式 Markdown、虚构定位 |
+| Verifier / Publisher | 候选/绑定/文本支持检查、只渲染通过事实、事务提交后发布 | 故障放行、终态覆盖、校验前发布事实 |
+| AgentRunner | 认领、预算、取消、checkpoint 恢复、公开事件投影 | 把 SSE 重连视为重新执行 |
 
 ### 7.3 预算控制
 
-- query rewrite 最多 2 次；
-- 每 Run 最多 1 轮澄清；
-- 单步超时、总超时、token 上限、并发上限：`TBD-P0`；
-- 仅超时、429、临时 5xx 和临时网络错误可重试；
-- 每次重试、ProviderCall、Prompt/角色卡版本和索引代次必须记录；
-- 工具名称和参数使用白名单，模型不得决定资源权限。
+- query rewrite 最多 2 次；每 Run 最多 1 轮澄清；
+- 最大工具/模型调用数、观察长度、单步/总超时、token/费用、并发与 recursion_limit：`TBD-P0`，DR-010；
+- recursion_limit 不替代业务预算；恢复/重试/备用供应商共享累计预算；
+- 仅超时、429、临时 5xx 和临时网络错误可走基础设施重试；合法空观察后的新查询不是权限/格式错误重试；
+- 每次行动、重试、ProviderCall、图/Prompt/工具版本及索引代次必须追踪；
+- 一 Run 一服务端 thread_id，checkpoint 不替代业务事实；保留/加密/一致性策略见 DR-011；
+- 依赖预算、恢复接口或 checkpoint 策略的切片未满足 DoR 时先冻结 Contract，不私设默认。
+
+### 7.4 迁移与验收
+
+ND-AGENT-01 答案安全回归优先，然后模型/工具 Contract 与真实 LangGraph 闭环、Run/SSE/澄清集成、持久恢复和 live 评测。旧线性代码、历史绿灯及依赖安装不能验收 FR-AGENT；当前实现差距和默认下一刀见 PROGRESS.md。
 
 ---
 
@@ -893,7 +949,7 @@ normalize → classify → retrieve → rerank → build_evidence
 
 ### 8.3 外部模型数据门禁
 
-文档版本必须包含 `classification` 与 `external_llm_allowed`。上传时和任务执行前各检查一次。未完成供应商区域、留存、训练使用、删除政策和 IT/法务/安全审批前，只允许低敏或脱敏文档。
+文档版本必须包含 `classification` 与 `external_llm_allowed`。上传时、工具执行/恢复时及每次模型调用前检查；Planner、Finalizer、Verifier、备用供应商和历史/摘要/Observation 均受同一外发门禁。禁止将受限正文的衍生摘要通过历史消息外发。未完成供应商区域、留存、训练使用、删除政策和 IT/法务/安全审批前，只允许低敏或脱敏文档。
 
 ### 8.4 审计
 
@@ -1016,6 +1072,8 @@ RTO ≤ 4 小时
 
 ### 10.8 Golden Set 回归
 
+Agent 还需覆盖 Observation 改变工具选择、多轮改写/读证据、工具协议非法、预算、注入、取消、跨用户/跨 Run 和 checkpoint 恢复。Fake/Stub 替换模型/基础设施，不替换真实 StateGraph。数据/测试追踪见 AGENT_SPEC §2/§11。
+
 样本分层：事实、编号/金额/日期/参数、多段组合、无答案、近似干扰、版本冲突、单文档 scope、解析失败、Prompt Injection 和越权。每条样本保存问题、期望证据、允许答案、是否应拒答、人工标注、数据集版本和回归结果。
 
 ---
@@ -1035,7 +1093,7 @@ RTO ≤ 4 小时
 
 ### 11.2 性能（`NFR-PERF-*`）
 
-- `NFR-PERF-001` 首 Token P50/P95 ≤ `TBD-P0`；
+- `NFR-PERF-001` 已校验正式答案首 Token P50/P95 ≤ `TBD-P0`，与首次阶段进度耗时分开记录；
 - `NFR-PERF-002` 完整答案 P50/P95 ≤ `TBD-P0`；
 - `NFR-PERF-003` 检索 P95 ≤ `TBD-P0`；
 - `NFR-PERF-004` 解析耗时和吞吐 ≤ `TBD-P0`；
@@ -1141,7 +1199,7 @@ RTO ≤ 4 小时
 | RBAC | 普通用户后台、会话、资源越权 | API 响应、报告 |
 | 文档 | 上传、签名、解析、重试、版本、删除 | 状态、任务、计数 |
 | RAG | 混合检索、过滤、scope、降级、冲突 | 检索结果、Golden Set |
-| 问答 | 引用、拒答、Verifier、重试、澄清 | Run、Claim、Citation |
+| 问答/Agent | 原生工具循环、合法证据、引用支持、拒答、预算、澄清/恢复、取消 | Run、Claim、Citation、Checkpoint、ProviderCall |
 | SSE | 有序、断线、重连、取消、终态 | 事件记录 |
 | 导出 | 授权、内容边界、过期、审计 | 文件和审计 |
 | 运维 | 健康、重启、备份、恢复、回滚 | Runbook 记录 |
@@ -1193,7 +1251,7 @@ RTO ≤ 4 小时
 
 ### 问答与流式
 
-`FR-QA-001~006`、`FR-STREAM-001~005`
+`FR-QA-001~006`、`FR-STREAM-001~005`、`FR-AGENT-001~010`（详见 AGENT_SPEC §2）
 
 ### 导出与审计
 
@@ -1356,6 +1414,9 @@ Fixture 原则：
 | `DR-006` | 真实业务种子 | 3~5 个问题 | 业务 | 影响角色卡 | 少样本 |
 | `DR-007` | LiteLLM 或内置 Adapter | 服务端统一入口 | 后端 | P1 | 运行设计 |
 | `DR-008` | 文件限制和保留期 | TBD-P0 | 运维/业务 | 上线 | 策略表 |
+| `DR-009` | LangGraph 受控 ReAct 及只读工具/答案门禁 | accepted，未实现 | M00/M05 | 当前目标 | [ADR-009](progress/changes/20261002-M00-langgraph-react-baseline.md) |
+| `DR-010` | Agent 调用/预算/观察/并发上限 | TBD-P0 | M05/M11 | 依赖预算的切片 | 实测与预算 Contract |
+| `DR-011` | checkpoint 治理、租约及一致性/恢复 | 待 Contract/ADR | M03/M01/M11 | 持久恢复 | 迁移/策略/故障演练 |
 
 ---
 
@@ -1363,8 +1424,9 @@ Fixture 原则：
 
 ### F.1 来源
 
-- 当前工程基线：`技术方案GPT.md`；
-- 产品与路线基线：`问枢Pivot-技术方案V2.md`；
+- 当前规范：本文件 SPEC-1.1、AGENT_SPEC-1.0 与 ADR-009；
+- 历史工程来源：`技术方案GPT.md`；
+- 历史产品与路线来源：`问枢Pivot-技术方案V2.md`（用户文件，保留，不独立决定当前架构）；
 - 页面与交互：`问枢Pivot-A3门户设计.md`、`风格样稿/S3完整原型/README.md`；
 - 选型和历史备选：`问枢Pivot-选型详解.md`。
 
@@ -1372,6 +1434,10 @@ Fixture 原则：
 
 | 历史表述 | SPEC 当前口径 |
 |---|---|
+| 固定线性 RAG 主图、LangGraph extra 暂缓 | LangGraph StateGraph + 原生工具 ReAct，旧实现待迁移 |
+| 自由多 Agent / 层级群聊 | 首版单受控 Agent、两个只读工具 |
+| 从证据另生成 Claims 可背书任意模型 Markdown | 只渲染通过支持校验的结构化事实 |
+| Run/EventLog 落库等于 Agent 可恢复 | 独立 checkpoint + 数据库认领 + 预算/副作用一致性 |
 | A3 早段 MVP 9 页 | 前台 6 页 + 后台 4 页 = 10 页，`index.html` 不计入 |
 | 证据面板常驻 | MVP 点击引用打开非常驻证据抽屉；V2 再考虑常驻面板 |
 | 内网 HTTP+IP | 默认 HTTPS/VPN/反向代理；禁止公网裸露 |
