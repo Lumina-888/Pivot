@@ -1,6 +1,6 @@
 # SPEC-1.1 剩余工作 Tickets
 
-> **版本 / 日期**：TICKETS-1.0 / 2026-10-02。
+> **版本 / 日期**：TICKETS-1.1 / 2026-10-02。
 > **需求源**：[SPEC-1.1](../../SPEC.md)、[AGENT-SPEC-1.0](../../spec/AGENT_SPEC.md)；责任边界：[MODULE-SPEC-1.2](../../MODULE_SPEC.md)。
 > **进度快照**：[PROGRESS.md](../../PROGRESS.md)、[验收矩阵](../../spec/acceptance/matrix.md)；已提交实现基线 `8cd4727`（main）。
 > **性质**：剩余工作拆分，不是新规格、契约发布或验收报告。既有父票和历史完成记录见 [tickets.md](../tickets.md)。
@@ -17,11 +17,11 @@
 
 ## 1. 执行索引
 
-优先顺序：ND-AGENT-02-A → 02-B → 02-C → 02-D/E/F → 02-G/H → 03 → 04 → 05。03-A、04-A 可提前编写提案，但不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
+优先顺序：ND-AGENT-02-A → 02-B → 02-C → 02-D/E/F → 02-G/H → 03 → 04 → 05。02-A 已提交 proposed 提案，review 待消费者/Owner 签认；下一刀可开始 02-B 提案，不解锁业务实现。03-A、04-A 可提前编写提案，但不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
 
 | 子票 | 工作 | 优先级 / 规模 | Accountable | 状态 | 硬依赖 / 放行条件 |
 |---|---|---|---|---|---|
-| ND-AGENT-02-A | 模型、工具、State 与 EvidenceRegistry 内部 Contract | P0 / S | M05 | ready | 01 done；仅提案/Red |
+| ND-AGENT-02-A | 模型、工具、State 与 EvidenceRegistry 内部 Contract | P0 / S | M05 | review | proposed 提案/Red 设计已提交；消费者/Owner 待签认，非发布 |
 | ND-AGENT-02-B | DR-010 预算策略与累计用量 Contract | P0 / S | M05 | ready | 仅提案/Red；数值需实测/Owner 确认 |
 | ND-AGENT-02-C | Python 3.12 框架/消息/适配依赖验证与锁定方案 | P0 / S | M03 | ready | 仅验证/依赖申请；发布前 Owner 审核 |
 | ND-AGENT-02-D | 两个只读工具与本 Run 证据注册 | P0 / M | M05 | blocked | 02-A/B/C Contract；DR-010 受控执行策略 |
@@ -51,19 +51,20 @@
 | ND-P0-01-A | 120 条企业脱敏集业务复核 | P0 / M | M11 | blocked | Owner 指定业务复核人/样本准入 |
 | ND-STG-04-A | staging ECS apply 与低敏冒烟 | P1 / M | M11 | blocked | Owner SSH/安全组/磁盘/访问拓扑 |
 
-共 29 张新增细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。5 张 ready 均只开放前置调研，不开放业务实现。P0/P1 既有门禁票继续沿用，见 §4。
+共 29 张细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。当前 4 张 ready 均只开放前置调研；02-A 为 review（proposed 待签认），没有业务实现票解锁。P0/P1 既有门禁票继续沿用，见 §4。
 
 ## 2. Agent Tickets
 
 ### ND-AGENT-02-A 内部模型/工具/状态契约
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-001/002/003/009，AGENT_SPEC §3~5/§10；Accountable M05，Contributors M00/M01/M03/M04/M06/M11。
-- **状态 / 依赖**：ready，仅 Contract 调研与 Red 设计；ND-AGENT-01 done。
+- **状态 / 依赖**：review；ND-AGENT-01 done；[AGENT-INTERNAL-0.1-draft.1 提案](../changes/20261002-M05-agent-internal-contract.md)与 Red 设计已提交，消费者/Owner 均 pending，不是已发布契约或 done。
 - **场景 / 异常**：Given 模型返回行动；When 解码；Then 只接受单个合法 tool_call 或 finalize/clarify/refuse 控制意图；未知工具、多调用、额外参数、无调用 ID、非法结构 fail closed，不作临时故障重试。
 - **范围 / 数据**：定义模型能力、AIMessage/ToolMessage 关联、严格工具参数、可信 RunContext 与可序列化 AgentState 分界、EvidenceRegistry 来源/去重、Finalizer 输入输出及内部错误分类；供应商端口不泄漏 URL/key。
 - **路径 / 交付**：`progress/changes/` 内部 Contract 提案；按 Owner 确认的 `spec/contracts/` 内部说明与 Fake 消费者用例设计。业务端口落地归 02-D/F/G。
-- **计划测试**：`test_FR_AGENT_002_extra_tool_arguments_rejected`、`test_FR_AGENT_001_tool_message_matches_call_id`、`test_FR_AGENT_009_tool_capability_required`。
+- **计划测试**：`test_FR_AGENT_002_extra_tool_arguments_rejected`、`test_FR_AGENT_001_tool_message_matches_call_id`、`test_FR_AGENT_009_tool_capability_required`；提案 §8 有完整 Given/When/Then 与 Fake 失败判据，运行时测试未实施。
 - **DoD / 证据**：各消费者确认版本、输入/输出/错误与兼容策略；记录不能外发/不能序列化的数据清单。未批准前只是 proposed，不解锁 02 实现。
+- **本轮证据**：[nd-agent-02-a.md](../../evidence/agent-m05/nd-agent-02-a.md)；4 份拟议 schema 的 10 正向/28 负向形状检查、公共契约 48 与既有 QA/Run/SSE 79 回归通过；不证明工具运行时行为，不解锁父票。
 - **不做**：不增加 resume 路由，不以自由文本正则模拟 tool calling，不安装依赖冒充 ReAct 验收。
 
 ### ND-AGENT-02-B DR-010 预算 Contract

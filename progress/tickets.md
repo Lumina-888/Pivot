@@ -2,7 +2,7 @@
 
 > 配套 [`next-dev-spec.md`](next-dev-spec.md)。需求源为 SPEC-1.1 及其引用的 [AGENT_SPEC](../spec/AGENT_SPEC.md)。\
 > **目标基线**：ADR-009；**实现基线**：`main` / `wave-3-integrated`（旧夹具，≠ ReAct/≠ P0）。\
-> 状态：`ready / blocked / done / superseded`；历史票的部分完成/限定延期按原记录保留。架构 accepted 不等于每刀 DoR；ND-AGENT-01 done；默认下一刀 **ND-AGENT-02-A 内部 Contract 提案**，业务实现仍 blocked。
+> 状态：`ready / review / blocked / done / superseded`；历史票的部分完成/限定延期按原记录保留。架构 accepted 不等于每刀 DoR；ND-AGENT-01 done；02-A proposed 提案已提交、review 待签认；默认下一刀 **ND-AGENT-02-B 预算 Contract 提案**，业务实现仍 blocked。
 > **2026-10-02 拆票入口**：[SPEC-1.1 剩余工作 Tickets](tickets/spec-1.1-remaining.md)（29 张细化票、逐票场景/依赖/计划测试/DoD、SPEC 覆盖与 P0/P1 门禁映射）。本文件保留既有父票 ID 和历史证据；子票完成不自动关闭父票或门禁。
 
 图例：`S` 约 1 个主线切片；`M` 约 2–3 切片；`L` 多个串行切片或必须人工/受控环境，不表示并行会话。
@@ -71,6 +71,7 @@
 - **范围**：真实 StateGraph、scripted Fake tool-calling model、两个只读工具、Observation 再决策、预算和 Finalizer；服务端注入身份/scope，不静默 fallback。
 - **测试**：FR-AGENT-001/002/003/004/009 计划测试；不同观察改变工具序列，重复空检索终止，越权和外发阻断。
 - **DoD**：Fake 替换模型而非图；可复现“空/不足 → 改写再搜 → 读证据 → 校验答案”；记录生产恢复仍未完成。
+- **前置进度**（2026-10-02）：02-A [内部 Contract 提案](changes/20261002-M05-agent-internal-contract.md)及 Fake/Red 设计已提交，review（未发布、待签认）；[证据](../evidence/agent-m05/nd-agent-02-a.md)。02-B/DR-010、02-C 锁依赖仍待，父票继续 blocked。
 
 ### ND-AGENT-03 Run/SSE/澄清与 Web
 
@@ -97,7 +98,7 @@
 
 ## 当前细化执行队列
 
-详细工单见 [SPEC-1.1 剩余工作 Tickets](tickets/spec-1.1-remaining.md)，不是重开 Wave 3。5 张 ready 仅允许 Contract 调研/提案与 Red 设计，其他实现票仍 blocked。
+详细工单见 [SPEC-1.1 剩余工作 Tickets](tickets/spec-1.1-remaining.md)，不是重开 Wave 3。当前 4 张 ready 仅允许 Contract 调研/提案与 Red 设计，02-A review 待签认，其他实现票仍 blocked。
 
 | 父票 / 新缺口 | 子票 | 本轮拆分范围 |
 |---|---|---|
@@ -108,7 +109,7 @@
 | ND-GAP-01~04 | 4 张独立票 | 后台 metrics/tasks、持久审计接线、首次改密生命周期验收、签名下载消费者验收 |
 | ND-P0-01 / ND-STG-04 | 01-A / 04-A | 业务复核 120 条脱敏集 / ECS apply；既有填写与 overlay 完成记录不变 |
 
-开工默认：**ND-AGENT-02-A → 02-B → 02-C**，经 Contract/DR-010/依赖审批后才推进 02 实现。03-A/04-A 可先写 proposed 设计，不提前发布路由/迁移。人工与环境票不得由编码会话冒充完成。
+开工默认：**ND-AGENT-02-B → 02-C**；02-A 同时等待消费者/Owner 签认，经全部 Contract/DR-010/依赖审批后才推进 02 实现。03-A/04-A 可先写 proposed 设计，不提前发布路由/迁移。人工与环境票不得由编码会话冒充完成。
 
 ---
 
@@ -391,7 +392,7 @@
 progress/next-dev-spec.md、progress/tickets.md。
 另读 spec/AGENT_SPEC.md、ADR-009。本切片只做 <TICKET-ID>。
 另读 progress/tickets/spec-1.1-remaining.md，选择一张子票，不一次实现整个父票。
-ND-AGENT-01 已完成；默认下一刀 ND-AGENT-02-A Contract 提案，随后 02-B/02-C；预算/锁依赖未满足不得写业务实现；恢复/checkpoint 依赖票仍 blocked。
+ND-AGENT-01 已完成；02-A review 待消费者/Owner 签认；默认下一刀 ND-AGENT-02-B 预算 Contract 提案，随后 02-C；预算/锁依赖未满足不得写业务实现；恢复/checkpoint 依赖票仍 blocked。
 先登记 progress/changes/，再 Red；旧 ECS/live 票不覆盖当前 Agent 关键路径。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```
