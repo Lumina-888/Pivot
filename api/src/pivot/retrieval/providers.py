@@ -16,6 +16,7 @@ __all__ = [
     "HttpQueryEmbedder",
     "JsonHttpClient",
     "JsonHttpError",
+    "InvalidJsonResponseError",
     "StdlibJsonHttpClient",
 ]
 
@@ -27,6 +28,10 @@ class JsonHttpError(Exception):
         super().__init__(message)
         self.status = status
         self.timeout = timeout
+
+
+class InvalidJsonResponseError(JsonHttpError):
+    """Response protocol failure, not a transient transport outage."""
 
 
 class JsonHttpClient(Protocol):
@@ -54,7 +59,7 @@ class StdlibJsonHttpClient:
             request.add_header(key, value)
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
-                raw = response.read().decode("utf-8")
+                raw = response.read()
         except urllib.error.HTTPError as exc:
             raise JsonHttpError("http request failed", status=exc.code) from exc
         except TimeoutError as exc:
@@ -62,11 +67,11 @@ class StdlibJsonHttpClient:
         except (urllib.error.URLError, OSError, ValueError) as exc:
             raise JsonHttpError("http transport failed") from exc
         try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise JsonHttpError("http response is not json") from exc
+            parsed = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
+            raise InvalidJsonResponseError("http response is not json") from exc
         if not isinstance(parsed, dict):
-            raise JsonHttpError("http response is not an object")
+            raise InvalidJsonResponseError("http response is not an object")
         return parsed
 
 

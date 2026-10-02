@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fakes import StaticRetriever, ok_retriever
@@ -11,7 +12,7 @@ from pivot.qa.orchestrator import QaOrchestrator
 from pivot.qa.ports import EvidenceHit, RetrievalResult
 from pivot.qa.writer import FailoverDraftWriter, HttpDraftWriter
 from pivot.retrieval.fakes import ScriptedJsonHttpClient
-from pivot.retrieval.providers import JsonHttpError
+from pivot.retrieval.providers import JsonHttpError, StdlibJsonHttpClient
 from pivot.runs.service import RunService
 from pivot.stream.events import FORBIDDEN_PAYLOAD_KEYS
 
@@ -36,25 +37,28 @@ FORBIDDEN_HIT = EvidenceHit(
 )
 
 
+SUPPORTED = '{"claims":[{"text":"迟到三次以上记为旷工","evidence_index":0}]}'
+
+
 def _chat(content: str) -> dict:
     return {"choices": [{"message": {"content": content}}]}
 
 
 def _writer(client, **overrides) -> HttpDraftWriter:
-    values = dict(
-        endpoint="https://llm.test/v1/chat/completions",
-        model="injected-chat-model",
-        api_key="secret-llm-key",
-        timeout_seconds=1.5,
-    )
+    values: dict[str, Any] = {
+        "endpoint": "https://llm.test/v1/chat/completions",
+        "model": "injected-chat-model",
+        "api_key": "secret-llm-key",
+        "timeout_seconds": 1.5,
+    }
     values.update(overrides)
     return HttpDraftWriter(client, **values)
 
 
 def test_FR_QA_001_http_writer_posts_injected_model_and_messages():
-    client = ScriptedJsonHttpClient([_chat("书面警告。")])
+    client = ScriptedJsonHttpClient([_chat(SUPPORTED)])
     markdown, claims, citations = _writer(client).draft("迟到怎么处理", (ALLOWED_HIT,))
-    assert markdown == "书面警告。"
+    assert markdown == "迟到三次以上记为旷工"
     assert claims
     assert citations[0]["chunk_id"] == "chk_a"
     call = client.calls[0]
@@ -68,7 +72,7 @@ def test_FR_QA_001_http_writer_posts_injected_model_and_messages():
 
 
 def test_FR_QA_001_http_writer_uses_injected_auth_header():
-    client = ScriptedJsonHttpClient([_chat("ok")])
+    client = ScriptedJsonHttpClient([_chat(SUPPORTED)])
     _writer(client, auth_header="api-key", auth_scheme=None).draft(
         "迟到怎么处理", (ALLOWED_HIT,)
     )
@@ -101,7 +105,7 @@ def test_FR_QA_002_http_writer_citations_stay_in_evidence():
     assert all(item["document_id"] == "doc_a" for item in citations)
 
 
-def test_FR_QA_002_http_writer_drops_out_of_candidate_citations():
+def test_FR_QA_002_http_writer_rejects_entire_out_of_candidate_answer():
     client = ScriptedJsonHttpClient(
         [
             _chat(
@@ -112,10 +116,9 @@ def test_FR_QA_002_http_writer_drops_out_of_candidate_citations():
             )
         ]
     )
-    _, claims, citations = _writer(client).draft("迟到怎么处理", (ALLOWED_HIT,))
-    assert all(item["chunk_id"] == "chk_a" for item in citations)
-    assert all("invented" not in item["text"] for item in claims)
-    assert claims[0]["text"] == "迟到三次以上记为旷工"
+    with pytest.raises(WriterError) as caught:
+        _writer(client).draft("迟到怎么处理", (ALLOWED_HIT,))
+    assert caught.value.code == "VERIFICATION_UNAVAILABLE"
 
 
 def test_FR_QA_003_http_writer_skips_http_when_external_llm_not_allowed():
@@ -162,7 +165,7 @@ def test_FR_QA_001_http_writer_falls_back_on_primary_timeout():
         handler=lambda url, payload, headers, timeout: (
             (_ for _ in ()).throw(JsonHttpError("slow", timeout=True))
             if "primary" in url
-            else _chat("备用书面警告")
+            else _chat(SUPPORTED)
         ),
     )
     primary = _writer(
@@ -180,7 +183,7 @@ def test_FR_QA_001_http_writer_falls_back_on_primary_timeout():
     )
     writer = FailoverDraftWriter(primary, fallback)
     markdown, _, _ = writer.draft("迟到怎么处理", (ALLOWED_HIT,))
-    assert markdown == "备用书面警告"
+    assert markdown == "迟到三次以上记为旷工"
     assert client.calls[0]["url"] == "https://primary.test/v1/chat/completions"
     assert client.calls[1]["url"] == "https://fallback.test/v1/chat/completions"
     assert client.calls[1]["payload"]["model"] == "fallback-model"
@@ -206,7 +209,7 @@ def test_FR_QA_001_http_writer_fallback_uses_separate_endpoint_and_key():
 
 
 def test_FR_QA_005_http_writer_events_do_not_expose_prompt():
-    client = ScriptedJsonHttpClient([_chat("书面警告。")])
+    client = ScriptedJsonHttpClient([_chat(SUPPORTED)])
     runs = RunService()
     bundle = runs.create(
         conversation_id="conv_1",
@@ -220,7 +223,7 @@ def test_FR_QA_005_http_writer_events_do_not_expose_prompt():
         bundle, runs.log(bundle.run.id), "req_http"
     )
     assert bundle.run.state == "answered"
-    assert bundle.run.answer_markdown == "书面警告。"
+    assert bundle.run.answer_markdown == "迟到三次以上记为旷工"
     for _name, data in runs.log(bundle.run.id).replay():
         payload = data["payload"]
         assert FORBIDDEN_PAYLOAD_KEYS.isdisjoint(payload)
@@ -249,6 +252,61 @@ def test_FR_QA_003_http_writer_run_refuses_without_outbound_when_not_allowed():
     assert bundle.run.error_code == "EXTERNAL_LLM_NOT_ALLOWED"
     assert bundle.run.answer_markdown is None
     assert client.calls == []
+
+
+@pytest.mark.parametrize("response", [
+    {}, {"choices": []}, {"choices": [None]},
+    {"choices": [{"message": {"content": None}}]},
+    _chat('```json\n' + SUPPORTED + '\n```'),
+    _chat('{"claims":[],"claims":[{"text":"迟到三次以上记为旷工","evidence_index":0}]}'),
+])
+def test_FR_QA_004_invalid_response_never_fails_over(response):
+    primary_client = ScriptedJsonHttpClient([response])
+    fallback_client = ScriptedJsonHttpClient([_chat(SUPPORTED)])
+    writer = FailoverDraftWriter(_writer(primary_client), _writer(fallback_client))
+    with pytest.raises(WriterError) as caught:
+        writer.draft("迟到怎么处理", (ALLOWED_HIT,))
+    assert caught.value.code == "VERIFICATION_UNAVAILABLE"
+    assert fallback_client.calls == []
+
+
+@pytest.mark.parametrize("raw", [b"not-json", b"[]"])
+def test_FR_QA_004_transport_invalid_json_never_fails_over(monkeypatch, raw):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return raw
+
+    monkeypatch.setattr("pivot.retrieval.providers.urllib.request.urlopen",
+                        lambda *args, **kwargs: Response())
+    fallback_client = ScriptedJsonHttpClient([_chat(SUPPORTED)])
+    writer = FailoverDraftWriter(_writer(StdlibJsonHttpClient()), _writer(fallback_client))
+    with pytest.raises(WriterError) as caught:
+        writer.draft("迟到怎么处理", (ALLOWED_HIT,))
+    assert caught.value.code == "VERIFICATION_UNAVAILABLE"
+    assert fallback_client.calls == []
+
+
+@pytest.mark.parametrize("error", [
+    JsonHttpError("bad request", status=400), JsonHttpError("denied", status=401),
+    JsonHttpError("denied", status=403), JsonHttpError("invalid request", status=422),
+    RuntimeError("invalid protocol"),
+])
+def test_FR_QA_004_non_transient_error_never_fails_over(error):
+    fallback_client = ScriptedJsonHttpClient([_chat(SUPPORTED)])
+    writer = FailoverDraftWriter(
+        _writer(ScriptedJsonHttpClient(error=error)), _writer(fallback_client)
+    )
+    with pytest.raises(WriterError) as caught:
+        writer.draft("迟到怎么处理", (ALLOWED_HIT,))
+    assert caught.value.code not in {"PROVIDER_TIMEOUT", "PROVIDER_RATE_LIMITED",
+                                    "PROVIDER_TEMPORARY_ERROR"}
+    assert fallback_client.calls == []
 
 
 def test_FR_QA_001_local_writer_still_answers_without_http():

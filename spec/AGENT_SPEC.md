@@ -45,7 +45,7 @@
 | FR-AGENT-009 | 模型能力与版本可追溯 / M11 | 不支持 tools 或备用模型切换 | §10 模型适配、版本、用量 | test_FR_AGENT_009_tool_capability_required | 锁版本及受控 live 冒烟；DR-001/007 |
 | FR-AGENT-010 | Agent 质量与安全回归 / M11 | 不同观察、注入、空证据 | §11 Agent Golden Set | test_FR_AGENT_010_golden_set_agent_paths | Fake 与 live 分开的报告；业务复核 |
 
-每个场景的 Given/When/Then 与异常边界见下文及 [qa.feature](scenarios/qa.feature)。验收矩阵见 [matrix.md](acceptance/matrix.md)，工单见 [tickets.md](../progress/tickets.md)。测试名称是已登记计划，文件尚未新增。
+每个场景的 Given/When/Then 与异常边界见下文及 [qa.feature](scenarios/qa.feature)。验收矩阵见 [matrix.md](acceptance/matrix.md)，工单见 [tickets.md](../progress/tickets.md)。ND-AGENT-01 已新增 FR-AGENT-005 安全回归（[证据](../evidence/agent-m05/nd-agent-01.md)）；完整事实事务/outbox 未验收，其他 Agent 测试名称仍为登记计划。
 
 ## 3. 图与模型控制契约
 
@@ -194,8 +194,8 @@ Agent Golden Set 记录问题、允许工具/权限、关键观察、期望证�
 
 | 工单 | 内容 | 当前可开工性 |
 |---|---|---|
-| ND-AGENT-01 | 答案门禁回归与修复 | ready；先 Red，不涉及新公开接口 |
-| ND-AGENT-02 | 工具/模型/预算内部 Contract + 真实 StateGraph 最小闭环 | blocked；先满足 ND-AGENT-01、DR-010 与锁依赖 Contract |
+| ND-AGENT-01 | 答案门禁回归与修复 | done（迁移基线安全子集；完整原文支持门禁；无新公开接口） |
+| ND-AGENT-02 | 工具/模型/预算内部 Contract + 真实 StateGraph 最小闭环 | blocked；01 已完成，仍须 DR-010 与锁依赖 Contract |
 | ND-AGENT-03 | Run/SSE/澄清恢复与 Web 集成 | blocked；ND-AGENT-02、公开恢复/错误映射 Contract |
 | ND-AGENT-04 | Claims/Citation、checkpoint、租约、事件一致性 | blocked；ND-AGENT-03、DR-011 与迁移 Contract |
 | ND-AGENT-05 | 真实模型工具能力及 Agent Golden Set | blocked；前序闭环、批准环境/样本/密钥 |

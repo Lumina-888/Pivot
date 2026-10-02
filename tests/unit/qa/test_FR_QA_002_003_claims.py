@@ -1,25 +1,21 @@
 from __future__ import annotations
 
 from fakes import empty_retriever, ok_retriever
+from pivot.qa.draft import draft_from_evidence
 from pivot.qa.orchestrator import QaOrchestrator
+from pivot.qa.ports import EvidenceHit
 from pivot.qa.verifier import CandidateVerifier
 from pivot.runs.service import RunService
 
 
 def test_FR_QA_002_claims_require_in_candidate_citations():
     verifier = CandidateVerifier()
-    decision = verifier.verify(
-        [{"citation_ids": ("cit_x",), "text": "x"}],
-        [{"chunk_id": "chk_x"}],
-        {"chk_a"},
-    )
-    assert decision == "refused"
-    ok = verifier.verify(
-        [{"citation_ids": ("cit_a",), "text": "迟到三次以上记为旷工"}],
-        [{"chunk_id": "chk_a"}],
-        {"chk_a"},
-    )
-    assert ok == "answered"
+    hit = EvidenceHit("chk_a", "doc_a", "ver_a", "迟到三次以上记为旷工")
+    _, claims, citations = draft_from_evidence((hit,))
+    citations[0]["chunk_id"] = "chk_outside"
+    assert verifier.verify(claims, citations, (hit,)) == "refused"
+    _, claims, citations = draft_from_evidence((hit,))
+    assert verifier.verify(claims, citations, (hit,)) == "answered"
 
 
 def test_FR_QA_002_draft_citations_stay_in_evidence_set():

@@ -2,7 +2,7 @@
 
 本文件是所有开发会话进入仓库后的第一份执行指令。项目需求以 [`SPEC.md`](SPEC.md)（SPEC-1.1）为规范源，Agent 细则以其引用的 [`AGENT_SPEC.md`](spec/AGENT_SPEC.md) 为准；模块边界、文件所有权和 Git 协议以 [`MODULE_SPEC.md`](MODULE_SPEC.md)（1.2 主线开发）为准；当前进度以 [`PROGRESS.md`](PROGRESS.md) 与 `progress/modules/` 为准。
 
-当前目标是 **LangGraph StateGraph + 原生工具调用型受控 ReAct Agent**。旧线性 RAG、LangGraph 暂缓申请和历史技术方案不是当前架构依据；新目标尚未实现，默认下一刀 ND-AGENT-01 答案安全 Red 回归。
+当前目标是 **LangGraph StateGraph + 原生工具调用型受控 ReAct Agent**。旧线性 RAG、LangGraph 暂缓申请和历史技术方案不是当前架构依据；真实 Agent 尚未实现；ND-AGENT-01 答案安全迁移基线已修复，默认下一刀为 ND-AGENT-02 的内部 Contract 前置（预算/锁依赖未满足时业务实现 blocked）。
 
 ## 开始任何工作前
 
@@ -52,4 +52,4 @@ npm --prefix web run lint
 
 ## 恢复开发提示
 
-新会话说明“继续主线”或点名下一刀（例如 ND-AGENT-01）即可。先读 [`HANDOFF.md`](HANDOFF.md) 了解 2026-10-02 ReAct 规格迁移与当前实现差距；2026-09 的 Wave 3 历史证据仍保留。不要依赖上一会话的聊天记录；聊天记录不是项目事实，版本化进度文件、commit、tag 和测试证据才是交接依据。
+新会话说明“继续主线”或点名下一刀（例如 ND-AGENT-02 Contract 前置）即可。先读 [`HANDOFF.md`](HANDOFF.md) 了解 2026-10-02 ReAct 规格迁移与当前实现差距；2026-09 的 Wave 3 历史证据仍保留。不要依赖上一会话的聊天记录；聊天记录不是项目事实，版本化进度文件、commit、tag 和测试证据才是交接依据。

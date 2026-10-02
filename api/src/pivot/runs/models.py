@@ -58,5 +58,6 @@ class CitationRecord:
 @dataclass
 class RunBundle:
     run: RunRecord
-    claims: list[ClaimRecord] = field(default_factory=list)
-    citations: list[CitationRecord] = field(default_factory=list)
+    # QA adapters currently return dictionaries; SQL fact records arrive in ND-AGENT-04.
+    claims: list[dict] = field(default_factory=list)
+    citations: list[dict] = field(default_factory=list)

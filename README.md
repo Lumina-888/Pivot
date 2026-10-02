@@ -4,9 +4,9 @@
 
 技术路线：Next.js + FastAPI + LangGraph StateGraph + PostgreSQL/MinIO/Qdrant/Redis + Celery 文档处理。纯 Web，MVP 固定 10 个页面。
 
-> **目标已接受，Agent 尚未实现。** 当前代码仍为纯 Python 线性 RAG；框架/工具循环/checkpoint 待改造，已发现的答案门禁漏洞待修复。Wave 3 夹具与历史测试不等于新 Agent 验收；GATE-P0 全部 unverified，不是已上线系统。
+> **目标已接受，Agent 尚未实现。** 当前代码仍为纯 Python 线性 RAG；框架/工具循环/checkpoint 待改造；ND-AGENT-01 已修复答案一致性/绑定/支持门禁（保守完整原文策略，完整事务/outbox 仍待实现）。Wave 3 夹具与历史测试不等于新 Agent 验收；GATE-P0 全部 unverified，不是已上线系统。
 >
-> 工作区仅为 `E:/AI Project/Pivot` 的 `main`，不要新建 `../Pivot-Mxx-*` worktree。默认下一刀是 **ND-AGENT-01：答案安全 Red 回归与修复**，详见 [PROGRESS.md](PROGRESS.md)。
+> 工作区仅为 `E:/AI Project/Pivot` 的 `main`，不要新建 `../Pivot-Mxx-*` worktree。默认下一刀是 **ND-AGENT-02：内部模型/工具/预算 Contract 前置**，详见 [PROGRESS.md](PROGRESS.md)。
 
 ## 当前规范
 
@@ -37,7 +37,7 @@
 
 ## 开发顺序
 
-1. ND-AGENT-01：修复自由 Markdown 与已验证 Claims 不一致的答案发布路径。
+1. ND-AGENT-01（done）：迁移基线答案安全回归与修复，[证据](evidence/agent-m05/nd-agent-01.md)；不代表完整 Agent 验收。
 2. ND-AGENT-02：冻结模型/工具/预算内部 Contract，接入真实 StateGraph + Fake tool-calling model。
 3. ND-AGENT-03：Run/SSE、取消、澄清恢复与 Web；先冻结新增公开契约。
 4. ND-AGENT-04：Claims/Citation、Postgres checkpoint、执行租约、事件一致性与重启恢复。

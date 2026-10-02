@@ -60,7 +60,7 @@ def _execute_and_commit(
     log = runs.log(run_id)
     try:
         if not is_terminal(bundle.run.state) and log.terminal is None:
-            qa.execute(bundle, log, request_id)
+            qa.execute(bundle, log, request_id, persist_result=runs.commit)
     except Exception:
         if log.terminal is None:
             log.emit("failed", "failed", {"error_code": "PROVIDER_TEMPORARY_ERROR"})

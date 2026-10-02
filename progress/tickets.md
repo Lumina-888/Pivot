@@ -2,7 +2,7 @@
 
 > 配套 [`next-dev-spec.md`](next-dev-spec.md)。需求源为 SPEC-1.1 及其引用的 [AGENT_SPEC](../spec/AGENT_SPEC.md)。\
 > **目标基线**：ADR-009；**实现基线**：`main` / `wave-3-integrated`（旧夹具，≠ ReAct/≠ P0）。\
-> 状态：`ready / blocked / done / superseded`。架构 accepted 不等于每刀 DoR；默认下一刀 ND-AGENT-01。
+> 状态：`ready / blocked / done / superseded`。架构 accepted 不等于每刀 DoR；ND-AGENT-01 done；默认下一刀 ND-AGENT-02 Contract 前置，业务实现仍 blocked。
 
 图例：`S` 约 1 个主线切片；`M` 约 2–3 切片；`L` 多会话或必须人工/受控环境。
 
@@ -12,7 +12,7 @@
 
 | ID | 标题 | 阶段 | 规模 | Accountable | SPEC | 依赖 | 状态 |
 |---|---|---|---|---|---|---|---|
-| ND-AGENT-01 | 答案一致性与支持校验门禁 | Agent S1 | M | M05 | FR-QA-002/004, FR-AGENT-005 | 无新公开接口；ADR-009 | ready |
+| ND-AGENT-01 | 答案一致性与支持校验门禁 | Agent S1 | M | M05 | FR-QA-002/004, FR-AGENT-005 | 无新公开接口；ADR-009 | done（安全子集，完整持久化仍待 04） |
 | ND-AGENT-02 | 工具/模型/预算 Contract 与 LangGraph ReAct | Agent S2 | L | M05 | FR-AGENT-001~004/009 | 01、DR-010、锁依赖 Contract | blocked |
 | ND-AGENT-03 | Run/SSE/取消与澄清恢复/Web | Agent S3 | L | M05 | FR-AGENT-007/008, FR-STREAM | 02、M00 恢复/错误契约 | blocked |
 | ND-AGENT-04 | 结果事实/checkpoint/租约/一致性 | Agent S4 | L | M03 | FR-AGENT-006, FR-QA-002 | 03、DR-011、迁移 Contract | blocked |
@@ -61,6 +61,7 @@
 - **不做**：不装 LangGraph、不增加公开路由、不冻结预算；不把此票视为 Agent 已实现。
 - **测试**：`test_FR_AGENT_005_unverified_markdown_never_published`、`test_FR_QA_002_dangling_citation_rejected`、`test_FR_QA_004_verifier_failure_never_answers`；覆盖旧 QA/Run/SSE/导出路径。
 - **DoD**：原负向复现被测试锁定，未验证事实不能正式发布；正向/负向回归通过，明确记录尚未持久化的差距。
+- **结果**（2026-10-02）：done；M05 实现，M00/M04/M11 贡献。证据 `evidence/agent-m05/nd-agent-01.md`；QA/Run/SSE **79 passed**，全量 **661 passed, 19 skipped**；Web **18/13/8 passed**、typecheck/lint passed。采用完整 Chunk 原文支持门禁，DR-004/010/011 仍开放；Claims/Citation 事务/outbox 未完成，不验收完整 Agent。
 
 ### ND-AGENT-02 LangGraph ReAct 最小闭环
 
@@ -369,7 +370,7 @@
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
 另读 spec/AGENT_SPEC.md、ADR-009。本切片只做 <TICKET-ID>。
-默认下一刀 ND-AGENT-01 答案安全 Red 回归；后续工具/预算/恢复/checkpoint Contract 未满足则 blocked。
+ND-AGENT-01 已完成；默认下一刀 ND-AGENT-02 Contract 前置，预算/锁依赖未满足不得写业务实现；恢复/checkpoint 依赖票仍 blocked。
 先登记 progress/changes/，再 Red；旧 ECS/live 票不覆盖当前 Agent 关键路径。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```

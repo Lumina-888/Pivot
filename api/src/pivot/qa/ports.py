@@ -35,7 +35,9 @@ class Retriever(Protocol):
 
 
 class Verifier(Protocol):
-    def verify(self, claims: list[dict], candidate_chunk_ids: set[str]) -> str: ...
+    def verify(
+        self, claims: list[dict], citations: list[dict], evidence: tuple[EvidenceHit, ...]
+    ) -> str: ...
 
 
 class Classifier(Protocol):

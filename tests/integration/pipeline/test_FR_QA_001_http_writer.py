@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pivot.documents.ports import VersionRecord
@@ -43,8 +44,8 @@ class _StaticRetriever:
         return RetrievalResult(status="ok", evidence=(self._hit,))
 
 
-def _settings(**overrides: object) -> RuntimeSettings:
-    values: dict[str, object] = {
+def _settings(**overrides: Any) -> RuntimeSettings:
+    values: dict[str, Any] = {
         "storage": "memory",
         "token_secret": "runtime-test-secret",
         "access_ttl": 60,
@@ -67,13 +68,15 @@ def _chat(content: str) -> dict:
     return {"choices": [{"message": {"content": content}}]}
 
 
-def _llm_http_settings(**overrides: object) -> RuntimeSettings:
-    values: dict[str, object] = {
+def _llm_http_settings(**overrides: Any) -> RuntimeSettings:
+    values: dict[str, Any] = {
         "llm": "http",
         "llm_endpoint": "https://llm.test/v1/chat/completions",
         "llm_model": "injected-chat-model",
         "llm_api_key": "secret-llm-key",
-        "json_http_client": ScriptedJsonHttpClient([_chat("书面警告。")]),
+        "json_http_client": ScriptedJsonHttpClient([
+            _chat('{"claims":[{"text":"迟到三次以上记为旷工","evidence_index":0}]}')
+        ]),
     }
     values.update(overrides)
     return _settings(**values)
@@ -109,11 +112,12 @@ def test_FR_QA_001_runtime_http_writer_answers():
         idempotency_key="idem_runtime_llm",
         request_id="req_runtime_llm",
     )
+    assert isinstance(assembly.draft_writer, HttpDraftWriter)
     QaOrchestrator(
         _StaticRetriever(ALLOWED_HIT), writer=assembly.draft_writer
     ).execute(bundle, runs.log(bundle.run.id), "req_runtime_llm")
     assert bundle.run.state == "answered"
-    assert bundle.run.answer_markdown == "书面警告。"
+    assert bundle.run.answer_markdown == "迟到三次以上记为旷工"
     assert all(item["chunk_id"] == "chk_a" for item in bundle.citations)
 
 
@@ -135,6 +139,7 @@ def test_FR_QA_003_runtime_http_writer_refuses_when_not_allowed():
         idempotency_key="idem_deny_llm",
         request_id="req_deny_llm",
     )
+    assert isinstance(assembly.draft_writer, HttpDraftWriter)
     QaOrchestrator(_StaticRetriever(hit), writer=assembly.draft_writer).execute(
         bundle, runs.log(bundle.run.id), "req_deny_llm"
     )
