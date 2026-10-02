@@ -2,7 +2,7 @@
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-10-02\
-> **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A 内部 Contract 提案已提交、review 待签认；默认下一刀 02-B 预算提案，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
+> **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A/B 内部与预算 Contract 提案已提交、review 待签认；默认下一刀 02-C 依赖验证/锁定申请，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
 > **当前实现状态**：主线开发（MODULE-SPEC-1.2）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；`PIVOT_PARSER=native` 可装配 PyMuPDF/docx/pptx/xlsx extra（缺省仍启发式/stdlib）；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送（opt-in uvicorn）；opt-in Playwright 十页；企业 Golden Set v0.3 脱敏摘录 120 条（非业务复核，非 GATE）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
 > **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 十页 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条）+ 企业 Golden Set v0.3 脱敏摘录 120 条（annotated_desensitized，Fake Keyword） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + hashed refresh / Conversation / Run/EventLog SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + `worker[parse]` 真实解析库 extra（`PIVOT_PARSER=native`；CI 微型夹具；缺省仍启发式/stdlib） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture） + SSE 长连接（POST 立即返回 received；逐帧推送；Next SSE Route Handler 去缓冲；opt-in uvicorn）。GATE-P0 全部 unverified。
 
@@ -13,9 +13,9 @@
 3. 读取 `MODULE_SPEC.md`；
 4. 读取本文件和本切片涉及的 `progress/modules/Mxx.md`；
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
-6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)、[SPEC-1.1 剩余 Tickets](progress/tickets/spec-1.1-remaining.md)（不是需求源；29 张细化票，4 张 ready 仅前置提案，02-A review 待签认）。Owner 历史 `dev-staging` 环境范围：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
+6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)、[SPEC-1.1 剩余 Tickets](progress/tickets/spec-1.1-remaining.md)（不是需求源；29 张细化票，3 张 ready 仅前置提案，02-A/B review 待签认）。Owner 历史 `dev-staging` 环境范围：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
 
-如果没有指定切片：默认下一刀 **ND-AGENT-02-B DR-010 预算 Contract 提案**，随后 02-C（锁依赖）；02-A [内部模型/工具/State 提案](progress/changes/20261002-M05-agent-internal-contract.md)已提交、review 待消费者/Owner 签认，未发布；ND-AGENT-02 父票业务实现仍 blocked。ND-AGENT-01 done，证据见 `evidence/agent-m05/nd-agent-01.md`。先读 `spec/AGENT_SPEC.md` 和 ADR-009。旧 ECS apply/live 检索工单保留，不覆盖 Agent 关键路径。企业 Golden Set v0.3 已填 120 条脱敏摘录，**不等于**业务复核或 GATE-P0-002。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / 企业 Golden Set 空 schema / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 / ingest 共用 HTTP Embedding / Fake HTTP Writer / Fake MinerU 解析器 / staging Compose overlay / SSE 长连接夹具 / 真实解析库 extra / opt-in Playwright 十页 标成 GATE verified。不要新建 worktree。
+如果没有指定切片：默认下一刀 **ND-AGENT-02-C Python 3.12 依赖验证/锁定申请**；02-A [内部模型/工具/State 提案](progress/changes/20261002-M05-agent-internal-contract.md)及 02-B [DR-010 预算/累计用量提案](progress/changes/20261002-M05-agent-budget-contract.md)已提交、review 待消费者/Owner 签认，未发布；ND-AGENT-02 父票业务实现仍 blocked。ND-AGENT-01 done，证据见 `evidence/agent-m05/nd-agent-01.md`。先读 `spec/AGENT_SPEC.md` 和 ADR-009。旧 ECS apply/live 检索工单保留，不覆盖 Agent 关键路径。企业 Golden Set v0.3 已填 120 条脱敏摘录，**不等于**业务复核或 GATE-P0-002。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / 企业 Golden Set 空 schema / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 / ingest 共用 HTTP Embedding / Fake HTTP Writer / Fake MinerU 解析器 / staging Compose overlay / SSE 长连接夹具 / 真实解析库 extra / opt-in Playwright 十页 标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 
@@ -23,12 +23,12 @@
 
 | 模块 | 状态 | 代码位置 | 基线契约 | 最近证据 | 下一步 |
 |---|---|---|---|---|---|
-| M00 契约治理 | in_progress | `main` | 目标 SPEC-1.1；发布 contract-v0.1 | 公共契约 48 passed；02-A proposed 提案/形状检查，review 待签认，非运行时验收 | 02-A 签认；02-B 预算提案，随后锁依赖/恢复契约 |
+| M00 契约治理 | in_progress | `main` | 目标 SPEC-1.1；发布 contract-v0.1 | 公共契约 48 passed；02-A/B proposed 提案/形状检查，review 待签认，非运行时验收 | 02-A/B 签认；02-C 依赖验证，随后恢复契约 |
 | M01 身份授权 | integrated | `main`（tag `M01-v0.6.0`） | `contract-v0.1` | 37 单元/安全 + 登录/改密/管理用户 HTTP + PATCH 角色/重置 + Compose 注入 Redis 限流 + refresh 跨装配 | 人工标注 Golden Set 或 STG-04 ECS apply |
 | M02 文档接入 | integrated | `main`（tag 目标 `M02-v0.6.0`） | `contract-v0.1` | 27 单元 + 上传/列表/详情/重试/删除/预览/下载 HTTP；runtime 上传后进程内 ingest；`PIVOT_INGEST=celery` 可入队；Compose api 注入 celery ingest；publish 写回 chunk | HTTP 缺省仍 sync ingest |
 | M03 数据基础 | integrated | `main`（tag 目标 `M03-v0.8.0`） | `contract-v0.1` | M03 文档/导出/refresh/会话/Run SQLAlchemy + M00 48 tests passed | 用户目录、文档事实、导出任务、refresh、Conversation 与 Run/EventLog 可走 SQLAlchemy |
 | M04 检索 RAG | integrated | `main`（tag 目标 `M04-v0.5.0`） | `contract-v0.1` | 31 单元 + 搜索 HTTP + Qdrant dense + stdlib BM25 + ingest/检索共用注入 HTTP Embedding/bge + 合成 Golden Set 120 条 + 企业脱敏摘录 120 条 | STG-04 ECS apply 或 live 供应商冒烟 |
-| M05 ReAct/QA/Run/SSE | in_progress | `main`（旧 tag `M05-v0.6.0`） | 目标 AGENT-SPEC-1.0；发布 contract-v0.1 | ND-AGENT-01 done；79 QA/Run/SSE 回归；02-A proposed/review，未验收新 ReAct | 02-A 签认、02-B 预算提案、02-C 锁依赖；Claim/Citation/checkpoint 待实现 |
+| M05 ReAct/QA/Run/SSE | in_progress | `main`（旧 tag `M05-v0.6.0`） | 目标 AGENT-SPEC-1.0；发布 contract-v0.1 | ND-AGENT-01 done；79 QA/Run/SSE 回归；02-A/B proposed/review，未验收新 ReAct | 02-A/B 签认、02-C 依赖验证/锁定申请；Claim/Citation/checkpoint 待实现 |
 | M06 导出/审计 | integrated | `main`（tag 目标 `M06-v0.3.0`） | `contract-v0.1` | 26 单元 + 导出/审计 HTTP + PG 任务跨装配 | 对象字节下载 HTTP 仍不新增（契约仅短时 URL） |
 | M07 Worker/解析/索引 | integrated | `main`（tag `M07-v0.10.0`） | `contract-v0.1` | 79 单元 + ingest→Qdrant + HTTP 进程内 runner + parse 队列消费 + Celery eager ingest + Compose Celery worker + 共享 MinIO/PG runner + worker Qdrant IndexPublisher + ingest HTTP Embedding + MinerU 云解析器 + `worker[parse]` native extra | 缺省仍启发式；OCR 属 P2 |
 | M08 Web 基础 | integrated | `main`（tag `M08-v0.3.0`） | `contract-v0.1` | M08 18 tests + SSE 去缓冲 Route Handler + typecheck/lint 通过 | Compose web 由 M11 装配 |
@@ -241,6 +241,13 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 - [x] 企业 Golden Set v0.3 脱敏摘录已批准：`progress/changes/20260914-M11-golden-set-enterprise-fill.md`。
 
 ## 6. 轮次日志
+
+### 2026-10-02 — ND-AGENT-02-B DR-010 预算 Contract 提案
+
+- **范围 / Accountable**：M05 预算/累计用量设计；M00 工单/计划/契约说明与进度同步，M11 证据路径。新增 `progress/changes/20261002-M05-agent-budget-contract.md` 与 `evidence/agent-m05/nd-agent-02-b.md`；开场 main `715e6d5`，已有 6 个业务源码修改及用户未跟踪文件均保留，不纳入本刀。
+- **结果**：AGENT-BUDGET-0.1-draft.1 proposed；必需策略/单位、全角色预扣/结算、unknown 保守占用、主备/重试/恢复累计、固定期限、图/观察/历史/context/并发门禁、有限 Fixture、18 组 Red 设计及 7 个 pending 签认项。02-B review（非 done/发布），3 张 ready 只开放前置；02-A/B 待签认，父票/业务实现仍 blocked。
+- **验证**（Python 3.12.10 / pytest 9.1.1 / jsonschema 4.26.0 / ruff 0.16.6；PowerShell 5.1）：`.venv/Scripts/python -B .pi/artifacts/nd-agent-02-b/check-proposal.py` → **2 schema / 5 正向 / 175 负向、有限 Fixture 算术、10 Markdown / 71 本地链接 / 29 票（3 ready、2 review、24 blocked）通过**；公共契约 **48 passed**、既有 QA/Run/SSE **79 passed**；artifact 脚本 ruff 与 `git diff --check` passed。pytest basetemp/日志均显式位于仓库 `.pi/artifacts/nd-agent-02-b/`；首轮脚本 E501 已修。主动 Markdown LSP 10 文件 unavailable，artifact 辅助 AST 的 3 项已解释，不宣称 LSP clean；完整命令、版本与限制见证据。
+- **限制 / 下一步**：本轮不写业务源码/路由/公开 schema/依赖/迁移或生产默认，不运行新预算/真实图/恢复/并发/live；DR-010/011、TBD-P0 与全部 GATE 保持未关闭。默认下一刀 02-C Python 3.12 依赖验证/锁定申请；消费者/Owner 未批准前 02-D~H 不开工。
 
 ### 2026-10-02 — ND-AGENT-02-A 内部 Contract 提案
 

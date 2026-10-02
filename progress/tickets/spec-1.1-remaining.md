@@ -1,6 +1,6 @@
 # SPEC-1.1 剩余工作 Tickets
 
-> **版本 / 日期**：TICKETS-1.1 / 2026-10-02。
+> **版本 / 日期**：TICKETS-1.2 / 2026-10-02。
 > **需求源**：[SPEC-1.1](../../SPEC.md)、[AGENT-SPEC-1.0](../../spec/AGENT_SPEC.md)；责任边界：[MODULE-SPEC-1.2](../../MODULE_SPEC.md)。
 > **进度快照**：[PROGRESS.md](../../PROGRESS.md)、[验收矩阵](../../spec/acceptance/matrix.md)；已提交实现基线 `8cd4727`（main）。
 > **性质**：剩余工作拆分，不是新规格、契约发布或验收报告。既有父票和历史完成记录见 [tickets.md](../tickets.md)。
@@ -17,12 +17,12 @@
 
 ## 1. 执行索引
 
-优先顺序：ND-AGENT-02-A → 02-B → 02-C → 02-D/E/F → 02-G/H → 03 → 04 → 05。02-A 已提交 proposed 提案，review 待消费者/Owner 签认；下一刀可开始 02-B 提案，不解锁业务实现。03-A、04-A 可提前编写提案，但不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
+优先顺序：ND-AGENT-02-A → 02-B → 02-C → 02-D/E/F → 02-G/H → 03 → 04 → 05。02-A/B 已提交 proposed 提案，review 待消费者/Owner 签认；下一刀 02-C 依赖验证/申请，不解锁业务实现。03-A、04-A 可提前编写提案，但不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
 
 | 子票 | 工作 | 优先级 / 规模 | Accountable | 状态 | 硬依赖 / 放行条件 |
 |---|---|---|---|---|---|
 | ND-AGENT-02-A | 模型、工具、State 与 EvidenceRegistry 内部 Contract | P0 / S | M05 | review | proposed 提案/Red 设计已提交；消费者/Owner 待签认，非发布 |
-| ND-AGENT-02-B | DR-010 预算策略与累计用量 Contract | P0 / S | M05 | ready | 仅提案/Red；数值需实测/Owner 确认 |
+| ND-AGENT-02-B | DR-010 预算策略与累计用量 Contract | P0 / S | M05 | review | proposed 提案/有限 Fixture/Red 设计已提交；消费者/Owner 待签认，非发布 |
 | ND-AGENT-02-C | Python 3.12 框架/消息/适配依赖验证与锁定方案 | P0 / S | M03 | ready | 仅验证/依赖申请；发布前 Owner 审核 |
 | ND-AGENT-02-D | 两个只读工具与本 Run 证据注册 | P0 / M | M05 | blocked | 02-A/B/C Contract；DR-010 受控执行策略 |
 | ND-AGENT-02-E | 可信上下文、历史与每次调用外发门禁 | P0 / M | M01 | blocked | 02-D；02-A/B/C Contract |
@@ -51,7 +51,7 @@
 | ND-P0-01-A | 120 条企业脱敏集业务复核 | P0 / M | M11 | blocked | Owner 指定业务复核人/样本准入 |
 | ND-STG-04-A | staging ECS apply 与低敏冒烟 | P1 / M | M11 | blocked | Owner SSH/安全组/磁盘/访问拓扑 |
 
-共 29 张细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。当前 4 张 ready 均只开放前置调研；02-A 为 review（proposed 待签认），没有业务实现票解锁。P0/P1 既有门禁票继续沿用，见 §4。
+共 29 张细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。当前 3 张 ready 均只开放前置调研；02-A/B 为 review（proposed 待签认），没有业务实现票解锁。P0/P1 既有门禁票继续沿用，见 §4。
 
 ## 2. Agent Tickets
 
@@ -70,12 +70,13 @@
 ### ND-AGENT-02-B DR-010 预算 Contract
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-004、FR-STREAM-005，AGENT_SPEC §6；Accountable M05，Contributors M00/M06/M11。
-- **状态 / 依赖**：ready，仅策略提案/Red；生产数值无实测来源时仍 TBD-P0。
+- **状态 / 依赖**：review；[AGENT-BUDGET-0.1-draft.1 提案](../changes/20261002-M05-agent-budget-contract.md)、有限 Fixture 与 Red 设计已提交，消费者/Owner 均 pending；未发布、DR-010 未关闭，生产数值仍 TBD-P0。
 - **场景 / 异常**：Given 重写、同 query 重复调用、基础设施重试或主备切换；Then 使用同一累计账本；无必需运行策略时 fail closed，不能使用 recursion_limit 代替业务预算。
 - **范围 / 数据**：冻结维度、单位、预扣/结算、耗尽终态、配置缺失错误、观察截断与上下文窗口策略；覆盖模型/工具数、单步/总时长、token/费用、并发、recursion_limit。保留 rewrite≤2、clarification≤1 已定约束。
 - **路径 / 交付**：`progress/changes/` DR-010 提案、预算 Contract、明确注入有限值的测试 Fixture 与受控实验计划。
 - **计划测试**：`test_FR_AGENT_004_missing_policy_fails_closed`、`test_FR_AGENT_004_repeated_query_consumes_budget`、`test_FR_STREAM_005_fallback_does_not_reset_budget`。
 - **DoD / 证据**：M05/M11 确认策略与 Fixture，Owner 明确受控运行配置批准范围；需要冻结的数值附实测/ADR 并回写规范。仅 schema 完成不等于 DR-010 全部关闭。
+- **本轮证据**：[nd-agent-02-b.md](../../evidence/agent-m05/nd-agent-02-b.md)；2 个拟议 schema 的正负形状检查及有限账本示例算术检查，18 组运行时 Red 仅登记计划；不是预扣/恢复/并发或主备执行验收。
 - **不做**：不私设生产默认，不把 Fixture 值、配置 example 或后续 ND-P0-10 汇总当批准依据。
 
 ### ND-AGENT-02-C 框架依赖与锁定
