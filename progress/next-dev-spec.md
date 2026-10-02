@@ -1,6 +1,6 @@
 # 问枢 Pivot 后续开发计划（ReAct 改造优先）
 
-> **文档 ID**：`NEXT-DEV-1.21`\
+> **文档 ID**：`NEXT-DEV-1.22`\
 > **日期**：2026-10-02\
 > **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，**不等于** P0 通过）。  
 > **性质**：开发计划与工单拆分；剩余工作细化见 [SPEC-1.1 Tickets](tickets/spec-1.1-remaining.md)。\
@@ -11,6 +11,8 @@
 Owner 当前目标是 **LangGraph 受控 ReAct Agent**，见 [AGENT_SPEC](../spec/AGENT_SPEC.md) 和 [ADR-009](changes/20261002-M00-langgraph-react-baseline.md)。历史 dev-staging 范围仍作为低敏开发环境约束，不代表当前 Agent 已实现或改变 GATE。
 
 ## 当前执行计划
+
+最新 [02-A/B/C 技术审核](../evidence/agent-m03/nd-agent-02-abc-review.md)：预算 draft.2 独立累计/执行前门禁已修订，Windows 技术20 probes passed；Linux 无 Docker、WSL/Bash 0x80070422 blocked，须 Owner 提供/恢复获准原生环境。消费者/Owner/安全 pending，无代签/发布；02-D～H 继续 blocked。
 
 | 工单 | 工作 | 状态/依赖 |
 |---|---|---|
@@ -213,3 +215,4 @@ wave-3-integrated 已打（仍全部 GATE unverified）
 | 1.17 | 2026-10-02 | ND-AGENT-01 答案门禁安全子集完成；661 passed / 19 skipped；下一刀 ND-AGENT-02 Contract 前置，仍不验收完整 Agent/GATE |
 | 1.18 | 2026-10-02 | 按 SPEC-1.1/实际进度拆 29 张剩余票；默认 02-A→B→C；补后台/审计/密码生命周期/签名下载验收，保留父票/历史完成证据与全部门禁未验收状态 |
 | 1.21 | 2026-10-02 | 02-C Windows 依赖验证/候选哈希锁提交 review；02-A/B/C 均待签认；2 ready/3 review/24 blocked，优先 Linux 锁与预算映射审核，不解锁业务实现 |
+| 1.22 | 2026-10-02 | 02-B draft.2 补独立累计执行前门禁；Windows 技术20 probes；Linux 环境 blocked/执行单未执行；消费者/Owner/安全签认 pending，D～H 保持 blocked |

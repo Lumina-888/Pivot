@@ -114,6 +114,12 @@
 
 **ADR**：落实 ADR-009 的依赖前置，不新增状态/权限/模型配置裁决；DR-001/007/010/011 不关闭。若审批改变实际模型/外发/恢复策略，须追加对应 ADR，不由依赖提案隐式决定。
 
+### 7.1 2026-10-02 技术审核跟进（非批准）
+
+新增同步/异步 None 恢复、Command 前缀重跑及多节点同 super-step 技术 canary；与原 probe 合计 20 项在 Windows 隔离解释器通过。02-B 已修订为 AGENT-BUDGET-0.1-draft.2（§4.1 独立累计/执行前门禁要求），不再将 min 映射当硬上限。锁一致性 probe 现在要求环境平台匹配；Linux 必须提供独立原生 manifest，不能消费 Windows 哈希。
+
+本机无 docker 命令，WSL/Bash 均 exit 1、0x80070422，Linux 验证当前 **blocked**。已补 [Linux 执行单](../../evidence/agent-m03/nd-agent-02-c/linux-validation.md)与 [审核/签认清单](../../evidence/agent-m03/nd-agent-02-abc-review.md)，没有原生 Linux 锁/镜像证据、没有私自安装或启用环境。候选版本/锁不变；六项审核仍 pending，技术自审不代签 Owner/安全/消费者，不发布正式依赖或解除 D～H。
+
 ## 8. 下一步
 
 02-C 移至 review，不标 done；02-A/B/C 均待签认。优先处理上述六项审核、Linux 锁验证及预算映射修订确认，全部 DoR 满足后才安排 02-D/E/F/G/H。若要先推进不依赖审批的另一文档切片，可选择 ND-AGENT-03-A 恢复公开 Contract 提案（只 proposed），不能发布路由。父票/DR-010/011、TBD-P0、所有 GATE 继续 blocked/unverified。

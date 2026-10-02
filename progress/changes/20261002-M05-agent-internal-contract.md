@@ -288,6 +288,12 @@ Schema 只保证形状，不能证明句子被支持、ID 属于当前 Run、文
 | M06 | ProviderCall 尝试/用量、结果发布/导出消费责任 | pending；无签认 |
 | M11 | Fake 消费者与后续真实图/live 验收区分 | pending；无签认 |
 
+### 9.1 2026-10-02 技术审核跟进（非消费者代签）
+
+本主线会话复核 02-C 候选语义：预格式化 `type=function` 字典不因 bind strict 自动硬化，最终发送的两个工具 wire schema 必须验明 strict/additionalProperties；多调用/未知参数/缺 ID 仍须服务端拒绝。State 白名单必须在 JsonPlusSerializer 前应用，不能把 pickle_fallback=false 当脱敏保证；关闭 LangChain/LangSmith tracing，不把敏感消息自动外发。
+
+02-B 已修订为 AGENT-BUDGET-0.1-draft.2，累计图门禁不能仅依赖 recursion_limit；AgentModel/ToolExecutor/Finalizer/Verifier 全部沿用同一调用预算边界。上述是原不变量的消费约束，不变更本提案接口/字段或公开 contract-v0.1。完整 [技术审核与签认清单](../../evidence/agent-m03/nd-agent-02-abc-review.md)记录 Linux 环境 blocked 和仍缺的审批。上表消费者 pending 不变，技术自审不是各 Owner 签认，02-D～H 继续 blocked。
+
 ## 10. 验证与下一步
 
 本轮只校验提案 JSON schema/正负形状示例、本地 Markdown 链接与既有公共契约/QA 回归；实际命令、版本、结果和工作区限制见 [本轮证据](../../evidence/agent-m05/nd-agent-02-a.md)。JSON Schema 不验证 ID 往返、外发、支持性、预算或恢复行为。

@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-10-02\
-> **本轮修改前基线**：`11e8a8c`（`main`；02-C 仅受控依赖验证/锁定申请）；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
+> **本轮修改前基线**：`bfe8971`（`main`；本次仅 02-A/B/C 技术审核与签认跟进）；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
 > **性质**：当前规格迁移与历史实现交接。需求以 SPEC-1.1 / `spec/AGENT_SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 MODULE-SPEC-1.2 / `AGENTS.md` 为准。\
 > **本文件不是规范源。**
 
@@ -55,6 +55,8 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 3. `must_change_password` 不入库；version.idempotency_key 未入库；初始密码传递机制仍 TBD-P0；OCR 属 P2
 
 ## 4. 当前下一刀
+
+本轮 [02-A/B/C 技术审核](evidence/agent-m03/nd-agent-02-abc-review.md)完成映射修订：02-B AGENT-BUDGET-0.1-draft.2 proposed，独立累计执行前门禁；Windows 技术 probes20 passed（原11+新9），不代表 BudgetGate/业务图通过。本机无 Docker，WSL/Bash 0x80070422，Linux 验证 blocked；[原生执行单](evidence/agent-m03/nd-agent-02-c/linux-validation.md)未执行。先由 Owner 提供/恢复批准的 Linux 环境，再原生锁/镜像/安全审核与逐项消费者/Owner 签认。没有代签/发布/生产数值冻结，D～H 保持 blocked。
 
 ND-AGENT-01 done；02-A/B/C review（proposed 未签认/未发布）。优先 **签认、Linux 锁验证与预算映射确认**；不要因形状/Fixture 算术/依赖探针或旧回归通过变 done。独立前置可选 03-A 恢复 Contract proposed，剩余 2 张 ready 都不是业务实现。全部前置 Contract/DR-010/锁依赖批准后才推进 02-D~H，随后 03 → 04 → 05。预算/恢复/checkpoint/live 环境不满足时保持 blocked。
 

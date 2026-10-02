@@ -2,7 +2,7 @@
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
 > **最后更新**：2026-10-02\
-> **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A/B/C 内部、预算及依赖/锁定提案均 review 待签认；02-C Windows Python 3.12 验证与候选哈希锁已提交，Linux/预算映射/发布审批待补齐，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
+> **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A/B/C 内部、预算及依赖/锁定提案均 review 待签认；02-C Windows Python 3.12 验证与候选哈希锁已提交，预算映射已修订为 proposed draft.2（独立累计执行前门禁），新增9项技术 canary/合计20 probes passed；Linux 本机无 Docker、WSL/Bash 0x80070422 blocked，消费者/Owner/安全签认仍 pending，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
 > **当前实现状态**：主线开发（MODULE-SPEC-1.2）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；`PIVOT_PARSER=native` 可装配 PyMuPDF/docx/pptx/xlsx extra（缺省仍启发式/stdlib）；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送（opt-in uvicorn）；opt-in Playwright 十页；企业 Golden Set v0.3 脱敏摘录 120 条（非业务复核，非 GATE）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
 > **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 十页 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条）+ 企业 Golden Set v0.3 脱敏摘录 120 条（annotated_desensitized，Fake Keyword） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + hashed refresh / Conversation / Run/EventLog SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + `worker[parse]` 真实解析库 extra（`PIVOT_PARSER=native`；CI 微型夹具；缺省仍启发式/stdlib） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture） + SSE 长连接（POST 立即返回 received；逐帧推送；Next SSE Route Handler 去缓冲；opt-in uvicorn）。GATE-P0 全部 unverified。
 
@@ -14,6 +14,8 @@
 4. 读取本文件和本切片涉及的 `progress/modules/Mxx.md`；
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
 6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)、[SPEC-1.1 剩余 Tickets](progress/tickets/spec-1.1-remaining.md)（不是需求源；29 张细化票，2 张 ready 仅前置提案，02-A/B/C review 待签认）。Owner 历史 `dev-staging` 环境范围：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
+
+当前跟进见 [02-A/B/C 审核与待签清单](evidence/agent-m03/nd-agent-02-abc-review.md)：预算 draft.2 映射已修订但未批准，Linux 需 Owner 提供/恢复获准环境，执行 [原生验证单](evidence/agent-m03/nd-agent-02-c/linux-validation.md)。**02-A/B/C review、02-D～H blocked 不变**，主线技术自审不能代签各消费者/Owner。
 
 如果没有指定切片：优先 **02-A/B/C 签认、Linux 锁验证与预算映射确认**；02-A [内部模型/工具/State 提案](progress/changes/20261002-M05-agent-internal-contract.md)、02-B [预算提案](progress/changes/20261002-M05-agent-budget-contract.md)、02-C [依赖/锁定申请](progress/changes/20261002-M03-agent-dependencies-lock.md)均 review 待签认，未发布。02-C Windows 候选 111 个 wheel 哈希、两个隔离 venv/11 探针与旧回归通过，不是生产锁或 Agent 验收；[证据](evidence/agent-m03/nd-agent-02-c.md)。需独立前置时可选择 03-A 恢复 Contract proposed；ND-AGENT-02 父票业务实现仍 blocked。ND-AGENT-01 done，证据见 `evidence/agent-m05/nd-agent-01.md`。先读 `spec/AGENT_SPEC.md` 和 ADR-009。旧 ECS apply/live 检索工单保留，不覆盖 Agent 关键路径。企业 Golden Set v0.3 已填 120 条脱敏摘录，**不等于**业务复核或 GATE-P0-002。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / 企业 Golden Set 空 schema / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 / ingest 共用 HTTP Embedding / Fake HTTP Writer / Fake MinerU 解析器 / staging Compose overlay / SSE 长连接夹具 / 真实解析库 extra / opt-in Playwright 十页 标成 GATE verified。不要新建 worktree。
 
@@ -241,6 +243,13 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 - [x] 企业 Golden Set v0.3 脱敏摘录已批准：`progress/changes/20260914-M11-golden-set-enterprise-fill.md`。
 
 ## 6. 轮次日志
+
+### 2026-10-02 — 02-A/B/C 技术审核、预算映射修订与 Linux 前置阻断
+
+- **基线 / 范围**：main `bfe8971`；M05 内部/预算申请（02-B draft.2）、M03 依赖申请/平台 probe、M11 新增技术探针/审核证据/Linux 执行单、M00/M03/M05/M11 进度与根/交接/工单入口同步。六处已有业务源码和所有用户文件保留，不纳入提交。
+- **结果**：补齐同步/异步 None/Command/多节点同一步边界的技术审核；独立累计图账本/节点体前预扣、恢复 epoch、重放/unknown 保守占用及 provider 双计量要求明确。最终 wire strict/序列化白名单/遥测要求保留；不写业务 BudgetGate 或冒充消费者签认。
+- **验证 / 环境**：Windows CPython 3.12.10 候选隔离 verify/rebuild venv 各技术20 passed（原11+新9），公共契约48 passed、旧 QA/Run/SSE79 passed；错平台 manifest 预期拒绝、2schema/4正向/49负向、14文档/120链接/29票/内嵌Linux Python语法与ruff/git diff检查 passed。首次 QA 未注入源码路径10 collection errors，按既有 harness 的 PYTHONPATH 规则重跑通过；辅助脚本 E501 已修复。WSL/Bash 0x80070422、无 docker，真实 Linux 验证 blocked；详细命令/静态/回归与签认清单见 [本轮证据](evidence/agent-m03/nd-agent-02-abc-review.md)。不以计划执行单或 Windows resolver 冒充 Linux 锁。
+- **审批 / 下一步**：02-A/B/C review；消费者/Owner/安全 pending；2 ready/3 review/24 blocked 不变，02-D～H 继续 blocked。Owner 提供或手动恢复批准 Linux 环境后执行原生验证与独立镜像/供应链审查，逐项签认再发布 Contract/重核 DoR；DR-010/011、生产 TBD-P0 与全部 GATE 不关闭。无正式依赖/CI/镜像/路由/迁移/生产默认变更。
 
 ### 2026-10-02 — ND-AGENT-02-C Python 3.12 依赖验证与锁定申请
 

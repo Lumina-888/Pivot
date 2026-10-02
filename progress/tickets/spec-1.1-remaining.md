@@ -1,6 +1,6 @@
 # SPEC-1.1 剩余工作 Tickets
 
-> **版本 / 日期**：TICKETS-1.3 / 2026-10-02。
+> **版本 / 日期**：TICKETS-1.4 / 2026-10-02。
 > **需求源**：[SPEC-1.1](../../SPEC.md)、[AGENT-SPEC-1.0](../../spec/AGENT_SPEC.md)；责任边界：[MODULE-SPEC-1.2](../../MODULE_SPEC.md)。
 > **进度快照**：[PROGRESS.md](../../PROGRESS.md)、[验收矩阵](../../spec/acceptance/matrix.md)；已提交实现基线 `8cd4727`（main）。
 > **性质**：剩余工作拆分，不是新规格、契约发布或验收报告。既有父票和历史完成记录见 [tickets.md](../tickets.md)。
@@ -16,6 +16,8 @@
 - 以下测试名、交付路径均为 **计划**，除明确引用历史证据外不是现有测试或通过结果。规模 S 约一个主线切片，M 约 2~3 个串行切片；不授权子代理、并行写入或新建 worktree。
 
 ## 1. 执行索引
+
+最新 [02-A/B/C 审核与待签清单](../../evidence/agent-m03/nd-agent-02-abc-review.md)：02-B draft.2 补独立累计/执行前门禁，Windows 技术20 probes passed；Linux 本机无 Docker、WSL/Bash 0x80070422 blocked，[原生执行单](../../evidence/agent-m03/nd-agent-02-c/linux-validation.md)未执行。消费者/Owner/安全 pending，无代签；02-A/B/C review，02-D～H blocked 不变。
 
 优先顺序：ND-AGENT-02-A → 02-B → 02-C → 02-D/E/F → 02-G/H → 03 → 04 → 05。02-A/B/C 已提交 proposed 提案，均 review 待消费者/Owner 签认；02-C Windows 受控验证/候选锁已提交，Linux/预算映射审核待补齐，不解锁业务实现。03-A、04-A 可提前编写提案，但不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
 
@@ -70,7 +72,7 @@
 ### ND-AGENT-02-B DR-010 预算 Contract
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-004、FR-STREAM-005，AGENT_SPEC §6；Accountable M05，Contributors M00/M06/M11。
-- **状态 / 依赖**：review；[AGENT-BUDGET-0.1-draft.1 提案](../changes/20261002-M05-agent-budget-contract.md)、有限 Fixture 与 Red 设计已提交，消费者/Owner 均 pending；未发布、DR-010 未关闭，生产数值仍 TBD-P0。
+- **状态 / 依赖**：review；[AGENT-BUDGET-0.1-draft.2 提案](../changes/20261002-M05-agent-budget-contract.md)、有限 Fixture 与 Red 设计已提交，消费者/Owner 均 pending；未发布、DR-010 未关闭，生产数值仍 TBD-P0。
 - **场景 / 异常**：Given 重写、同 query 重复调用、基础设施重试或主备切换；Then 使用同一累计账本；无必需运行策略时 fail closed，不能使用 recursion_limit 代替业务预算。
 - **范围 / 数据**：冻结维度、单位、预扣/结算、耗尽终态、配置缺失错误、观察截断与上下文窗口策略；覆盖模型/工具数、单步/总时长、token/费用、并发、recursion_limit。保留 rewrite≤2、clarification≤1 已定约束。
 - **路径 / 交付**：`progress/changes/` DR-010 提案、预算 Contract、明确注入有限值的测试 Fixture 与受控实验计划。

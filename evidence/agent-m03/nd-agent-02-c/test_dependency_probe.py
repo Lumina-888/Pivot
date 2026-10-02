@@ -352,13 +352,26 @@ def test_FR_AGENT_009_candidate_lock_matches_isolated_environment():
     import hashlib
     import importlib.metadata as metadata
     import json
+    import os
+    import sys
     from pathlib import Path
 
     directory = Path(__file__).resolve().parent
     root = directory.parents[2]
-    manifest = json.loads((directory / "candidate-manifest.json").read_text(encoding="utf-8"))
+    # Linux must supply its own native resolver manifest, not reuse Windows hashes.
+    supplied = os.environ.get("PIVOT_DEPENDENCY_PROBE_MANIFEST")
+    if sys.platform != "win32":
+        assert supplied, "Native Linux candidate manifest required; Windows lock is not evidence"
+    manifest_path = Path(supplied).resolve() if supplied else directory / "candidate-manifest.json"
+    assert manifest_path.is_relative_to(root)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["environment"]["sys_platform"] == sys.platform
+    lock_path = manifest_path.parent / manifest.get(
+        "candidate_lock_file", "candidate-win-py312.lock.txt"
+    )
+    assert lock_path.resolve().is_relative_to(manifest_path.parent)
     # Git autocrlf must not change a text-lock identity. Wheel hashes remain byte hashes.
-    lock = (directory / "candidate-win-py312.lock.txt").read_text(encoding="utf-8")
+    lock = lock_path.read_text(encoding="utf-8")
     assert manifest["text_hash_normalization"] == "UTF-8 text with LF line endings"
     assert hashlib.sha256(lock.encode("utf-8")).hexdigest() == manifest["candidate_lock_sha256"]
     assert manifest["approval"] == "pending"
