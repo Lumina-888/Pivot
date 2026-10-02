@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-10-02\
-> **本轮修改前基线**：`715e6d5`（`main`；02-B 仅 proposed Contract）；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
+> **本轮修改前基线**：`11e8a8c`（`main`；02-C 仅受控依赖验证/锁定申请）；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
 > **性质**：当前规格迁移与历史实现交接。需求以 SPEC-1.1 / `spec/AGENT_SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 MODULE-SPEC-1.2 / `AGENTS.md` 为准。\
 > **本文件不是规范源。**
 
@@ -9,7 +9,7 @@
 
 1. 工作区：`E:/AI Project/Pivot`，分支：`main`。不要新建 worktree。
 2. 读：`AGENTS.md` → `SPEC.md` → `spec/AGENT_SPEC.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. ND-AGENT-01 已完成；02-A [内部模型/工具/State Contract 提案](progress/changes/20261002-M05-agent-internal-contract.md)及 02-B [DR-010 预算/累计用量提案](progress/changes/20261002-M05-agent-budget-contract.md)已提交、review 待消费者/Owner 签认，未发布。默认下一刀 **ND-AGENT-02-C：Python 3.12 依赖验证/锁定申请**；业务实现仍 blocked。目标已改为 LangGraph 受控 ReAct，旧固定主图/暂缓申请/ND-W3-09 已由 ADR-009 取代。旧 ECS apply/live 检索票不再是默认路径。
+3. ND-AGENT-01 已完成；02-A [内部提案](progress/changes/20261002-M05-agent-internal-contract.md)、02-B [预算提案](progress/changes/20261002-M05-agent-budget-contract.md)、02-C [依赖/锁定申请](progress/changes/20261002-M03-agent-dependencies-lock.md)均 review 待签认、未发布。02-C Windows 双隔离环境/候选哈希锁验证完成，原环境与业务未接入。下一步优先 **02-A/B/C 签认、Linux 锁验证及预算映射确认**，业务仍 blocked；独立文档前置可选 03-A proposed。目标已改为 LangGraph 受控 ReAct，旧固定主图/暂缓申请/ND-W3-09 已由 ADR-009 取代。旧 ECS apply/live 检索票不再是默认路径。
 4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / **企业 Golden Set 脱敏摘录** / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / **Wave 3 夹具收口** / PATCH 角色 HTTP / **ingest 共用 HTTP Embedding** / **Fake HTTP Writer** / **Fake MinerU 解析器** / **staging Compose overlay** / **sqlite refresh/Conversation** / **sqlite Run/EventLog** / **SSE 长连接夹具** / **真实解析库 extra** / **opt-in Playwright 十页** 标成 `GATE-P0 verified`。`wave-3-integrated` **不等于** P0 通过。
 
 ## 1. 产品现状
@@ -22,7 +22,8 @@
 - 预算 DR-010、恢复接口/错误映射 Contract、checkpoint DR-011 仍阻断对应后续票。
 - ND-AGENT-01 Python **661 passed / 19 skipped**；M05 **79 passed**；Web **18/13/8 passed**，typecheck/lint、ruff/compileall passed；证据 `evidence/agent-m05/nd-agent-01.md`。完整事务/outbox/语义 Judge/跨进程恢复仍待后续票。
 - 02-A 只交付 proposed 设计：4 个内嵌 schema 的 **10 正向/28 负向形状检查**，公共契约 **48 passed**、既有 QA/Run/SSE **79 passed**；11 组运行时 Fake/Red 尚未实施，7 个消费者均 pending；证据 `evidence/agent-m05/nd-agent-02-a.md`。
-- 本轮 02-B 只交付 proposed 预算设计：2 个内嵌 schema、有限 unit_fake_only Fixture/预期账本、18 组未实施 Red 与 7 个 pending 签认项；验证结果见 `evidence/agent-m05/nd-agent-02-b.md`。开场 6 个已有业务源码修改及用户未跟踪文件全部保留且不纳入本提交，不冻结数值/运行许可、不关闭 DR-010。以下数字为 2026-09-14 历史记录。
+- 02-B 只交付 proposed 预算设计：2 个内嵌 schema、有限 unit_fake_only Fixture/预期账本、18 组未实施 Red 与 7 个 pending 签认项；证据 `evidence/agent-m05/nd-agent-02-b.md`。
+- 本轮 02-C：Windows CPython 3.12.10 候选 LangGraph 1.2.12/core 1.6.6/openai adapter 1.6.7/checkpoint 4.2.0/PG Saver 3.1.2；111 个 wheel 精确哈希、双 venv offline 重建与 **11 技术探针**，候选环境旧回归 **661 passed/19 skipped**。None 恢复 limit+2、strict 字典 passthrough、serde 不脱敏须由业务 gate 承接；证据 `evidence/agent-m03/nd-agent-02-c.md`。六项审核 pending，未改 pyproject/正式锁/CI/镜像，Linux/真实 PG/live 未验收；原 `.venv` 与六处已有源码/用户未跟踪文件保留，不纳入提交。以下数字为 2026-09-14 历史记录。
 
 ### 历史 Wave 3 实现
 
@@ -55,7 +56,7 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 4. 当前下一刀
 
-ND-AGENT-01 done；02-A/B review（proposed 未签认/未发布）。默认 **02-C Python 3.12 依赖验证/锁定申请**；02-A/B 待签认，不因形状/Fixture 算术检查或旧回归通过变 done。全部前置 Contract/DR-010/锁依赖批准后才推进 02-D~H，随后 03 → 04 → 05。预算/恢复/checkpoint/live 环境不满足时保持 blocked。
+ND-AGENT-01 done；02-A/B/C review（proposed 未签认/未发布）。优先 **签认、Linux 锁验证与预算映射确认**；不要因形状/Fixture 算术/依赖探针或旧回归通过变 done。独立前置可选 03-A 恢复 Contract proposed，剩余 2 张 ready 都不是业务实现。全部前置 Contract/DR-010/锁依赖批准后才推进 02-D~H，随后 03 → 04 → 05。预算/恢复/checkpoint/live 环境不满足时保持 blocked。
 
 不要把脱敏摘录或合成 120 条标成 GATE-P0-002 通过。
 

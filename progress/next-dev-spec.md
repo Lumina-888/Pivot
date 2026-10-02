@@ -1,6 +1,6 @@
 # 问枢 Pivot 后续开发计划（ReAct 改造优先）
 
-> **文档 ID**：`NEXT-DEV-1.20`\
+> **文档 ID**：`NEXT-DEV-1.21`\
 > **日期**：2026-10-02\
 > **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，**不等于** P0 通过）。  
 > **性质**：开发计划与工单拆分；剩余工作细化见 [SPEC-1.1 Tickets](tickets/spec-1.1-remaining.md)。\
@@ -20,7 +20,7 @@ Owner 当前目标是 **LangGraph 受控 ReAct Agent**，见 [AGENT_SPEC](../spe
 | ND-AGENT-04 | Claims/Citation、checkpoint、租约和事件一致性 | blocked；03 + DR-011 + 迁移 |
 | ND-AGENT-05 | 真实模型工具能力与 Agent Golden Set | blocked；前序闭环 + 批准测试环境 |
 
-2026-10-02 按已提交基线 `8cd4727` 细化为 **29 张票**：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。02-A [内部 Contract 提案](changes/20261002-M05-agent-internal-contract.md)与 02-B [DR-010 预算提案](changes/20261002-M05-agent-budget-contract.md)已提交，均 review（proposed 待消费者/Owner 签认，未发布）；当前 3 张 ready 仅允许前置调研，不表示实现 DoR 已满足。默认下一刀 **ND-AGENT-02-C（Python 3.12 依赖验证/锁定申请）**；原 02~05 父票仍 blocked。逐票场景、测试、DoD、SPEC 覆盖与门禁条件见 [剩余 Tickets](tickets/spec-1.1-remaining.md)。
+2026-10-02 按已提交基线 `8cd4727` 细化为 **29 张票**：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。02-A [内部 Contract 提案](changes/20261002-M05-agent-internal-contract.md)与 02-B [DR-010 预算提案](changes/20261002-M05-agent-budget-contract.md)已提交；02-C [Python 3.12 依赖/锁定申请](changes/20261002-M03-agent-dependencies-lock.md)及 Windows 候选验证也已提交。02-A/B/C 均 review（proposed 待签认，未发布）；当前 2 张 ready 仅允许前置调研，不表示实现 DoR 已满足。下一步优先 **02-A/B/C 签认、Linux 锁验证与预算映射确认**，独立文档前置可选 03-A；原 02~05 父票仍 blocked。逐票场景、测试、DoD、SPEC 覆盖与门禁条件见 [剩余 Tickets](tickets/spec-1.1-remaining.md)。
 
 新增缺口：ND-GAP-01 后台 metrics/tasks；02 持久审计统一接线；03 首次改密跨实例生命周期验收；04 签名导出实际下载消费者验收。后两项先确认现有机制/Contract，不能据未验收状态直接断言漏洞或私加字段/路由。
 
@@ -154,7 +154,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. ND-AGENT-01 done；02-A/B review 待签认；读 [细化工单](tickets/spec-1.1-remaining.md)，默认下一刀 **ND-AGENT-02-C 依赖验证/锁定申请**；DR-010/锁依赖未满足时不写业务实现。03-A/04-A 可提前 proposed 设计，不提前发布恢复接口/迁移。旧 ECS apply/live 检索票保留，不能覆盖 Agent 关键路径。
+2. ND-AGENT-01 done；02-A/B/C review 待签认；读 [细化工单](tickets/spec-1.1-remaining.md)，优先 **签认、Linux 锁验证与预算映射确认**；DR-010/锁依赖未满足时不写业务实现。03-A/04-A 可提前 proposed 设计，不提前发布恢复接口/迁移。旧 ECS apply/live 检索票保留，不能覆盖 Agent 关键路径。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。
@@ -212,3 +212,4 @@ wave-3-integrated 已打（仍全部 GATE unverified）
 | 1.16 | 2026-10-02 | SPEC-1.1/AGENT-SPEC 接受 ReAct 目标；旧暂缓取代；ND-AGENT-01 优先，后续按预算/恢复/checkpoint DoR 阻断 |
 | 1.17 | 2026-10-02 | ND-AGENT-01 答案门禁安全子集完成；661 passed / 19 skipped；下一刀 ND-AGENT-02 Contract 前置，仍不验收完整 Agent/GATE |
 | 1.18 | 2026-10-02 | 按 SPEC-1.1/实际进度拆 29 张剩余票；默认 02-A→B→C；补后台/审计/密码生命周期/签名下载验收，保留父票/历史完成证据与全部门禁未验收状态 |
+| 1.21 | 2026-10-02 | 02-C Windows 依赖验证/候选哈希锁提交 review；02-A/B/C 均待签认；2 ready/3 review/24 blocked，优先 Linux 锁与预算映射审核，不解锁业务实现 |

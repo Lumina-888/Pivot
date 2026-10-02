@@ -7,7 +7,7 @@
 
 ## 待审核内部提案
 
-[AGENT-INTERNAL-0.1-draft.1](../../progress/changes/20261002-M05-agent-internal-contract.md) 定义拟议模型/工具/State/EvidenceRegistry Interface 与 Fake/Red 设计。状态 proposed，ND-AGENT-02-A review 待消费者/Owner 签认；不属于本目录已发布机器契约、不加入 manifest、不生成生产客户端。[AGENT-BUDGET-0.1-draft.1](../../progress/changes/20261002-M05-agent-budget-contract.md) 定义拟议累计预算/预扣结算、未知用量、期限/恢复、观察/上下文/并发规则、有限 Fixture 与 Red 设计。状态 proposed，ND-AGENT-02-B review 待签认，同样不属于已发布契约。02-A/B、DR-010 与 02-C 锁依赖尚未批准，不能据内嵌 schema 或 Fixture 算术检查解锁业务实现；默认下一刀 02-C 依赖验证/锁定申请。
+[AGENT-INTERNAL-0.1-draft.1](../../progress/changes/20261002-M05-agent-internal-contract.md) 定义拟议模型/工具/State/EvidenceRegistry Interface 与 Fake/Red 设计。状态 proposed，ND-AGENT-02-A review 待消费者/Owner 签认；不属于本目录已发布机器契约、不加入 manifest、不生成生产客户端。[AGENT-BUDGET-0.1-draft.1](../../progress/changes/20261002-M05-agent-budget-contract.md) 定义拟议累计预算/预扣结算、未知用量、期限/恢复、观察/上下文/并发规则、有限 Fixture 与 Red 设计。状态 proposed，ND-AGENT-02-B review 待签认，同样不属于已发布契约。[AGENT-DEPENDENCIES-0.1-draft.1](../../progress/changes/20261002-M03-agent-dependencies-lock.md) 的 Windows Python 3.12 候选哈希锁/技术验证已提交，ND-AGENT-02-C review，非正式依赖发布；Linux 与预算映射/敏感序列化等六项审核 pending。02-A/B/C、DR-010 尚未批准，不能据内嵌 schema、Fixture 算术或技术探针解锁业务实现；下一步先签认/补齐验证，或独立 03-A 恢复 Contract proposed。
 
 ## 契约文件与来源映射
 
