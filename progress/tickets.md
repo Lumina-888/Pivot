@@ -2,9 +2,10 @@
 
 > 配套 [`next-dev-spec.md`](next-dev-spec.md)。需求源为 SPEC-1.1 及其引用的 [AGENT_SPEC](../spec/AGENT_SPEC.md)。\
 > **目标基线**：ADR-009；**实现基线**：`main` / `wave-3-integrated`（旧夹具，≠ ReAct/≠ P0）。\
-> 状态：`ready / blocked / done / superseded`。架构 accepted 不等于每刀 DoR；ND-AGENT-01 done；默认下一刀 ND-AGENT-02 Contract 前置，业务实现仍 blocked。
+> 状态：`ready / blocked / done / superseded`；历史票的部分完成/限定延期按原记录保留。架构 accepted 不等于每刀 DoR；ND-AGENT-01 done；默认下一刀 **ND-AGENT-02-A 内部 Contract 提案**，业务实现仍 blocked。
+> **2026-10-02 拆票入口**：[SPEC-1.1 剩余工作 Tickets](tickets/spec-1.1-remaining.md)（29 张细化票、逐票场景/依赖/计划测试/DoD、SPEC 覆盖与 P0/P1 门禁映射）。本文件保留既有父票 ID 和历史证据；子票完成不自动关闭父票或门禁。
 
-图例：`S` 约 1 个主线切片；`M` 约 2–3 切片；`L` 多会话或必须人工/受控环境。
+图例：`S` 约 1 个主线切片；`M` 约 2–3 切片；`L` 多个串行切片或必须人工/受控环境，不表示并行会话。
 
 ---
 
@@ -37,9 +38,9 @@
 | ND-STG-03 | MinerU 云 API 解析器（staging） | STG | M | M07 | §6.1 V2 | ND-W3-01 | done |
 | ND-STG-04 | 阿里云 4C8G Compose 部署 | STG | M | M11 | NFR-OBS | A1+STG-01~03 | done（overlay）；apply blocked |
 | ND-P0-02 | 外发/留存/训练审批 | B1 | L | 法务/安全 | GATE-P0-001, DR-001 | 人 | deferred（企业化；staging 不挡） |
-| ND-P0-03 | live Embedding/rerank 冒烟 | B1/STG | S | M04 | FR-RAG-001, GATE-P0-002 | 密钥（staging 不挡在 ND-P0-02） | ready |
+| ND-P0-03 | live Embedding/rerank 冒烟与真实混合检索评测 | B1/STG | M | M04 | FR-RAG-001, GATE-P0-002 | 批准样本/模型/密钥/环境；评测须业务复核集 | blocked（执行）；可先准备计划 |
 | ND-P0-04 | Verifier 阈值与盲评 | B1 | L | 算法/M05 | GATE-P0-004, DR-004 | ND-P0-01 | blocked |
-| ND-P0-05 | 共享库准入规则 | B1 | S | 业务 | DR-005, FR-RBAC-004 | 人 | ready |
+| ND-P0-05 | 共享库准入规则 | B1 | S | M01（业务确认） | DR-005, FR-RBAC-004 | 业务确认准入与管理员会话边界 | blocked（签认）；可先起草规则 |
 | ND-P0-06 | 真实存储一致性与原子发布环境 | B2 | L | M02/M07/M11 | GATE-P0-003 | ND-W3-01, ND-W3-02, Compose 真跑 | blocked |
 | ND-P0-07 | 上线传输/审计/密钥安全验证 | B2 | M | M01/M11 | GATE-P0-005 | HTTPS 拓扑 | blocked |
 | ND-P0-08 | 加密 OSS + 新 ECS 备份恢复 | B3 | L | M11 | GATE-P0-006, NFR-DR, DR-003 | 新 ECS | blocked |
@@ -91,6 +92,23 @@
 - **先决**：前序闭环，批准的模型配置/低敏或脱敏样本/环境。
 - **范围/测试**：主备模型工具协议、用量、外发和超时；Agent Golden Set 的证据支持/工具选择/注入/预算/恢复；FR-AGENT-009/010。
 - **DoD**：Fake/live 报告分开；阈值经业务复核/实测冻结；未满足 GATE 的内容保持 unverified。
+
+---
+
+## 当前细化执行队列
+
+详细工单见 [SPEC-1.1 剩余工作 Tickets](tickets/spec-1.1-remaining.md)，不是重开 Wave 3。5 张 ready 仅允许 Contract 调研/提案与 Red 设计，其他实现票仍 blocked。
+
+| 父票 / 新缺口 | 子票 | 本轮拆分范围 |
+|---|---|---|
+| ND-AGENT-02 | 02-A~H | 内部 Contract、DR-010、依赖锁定、工具、上下文/外发、预算、真实图、答案门禁接图 |
+| ND-AGENT-03 | 03-A~E | 恢复公开 Contract、Run/SSE 投影、取消、interrupt/resume、Web 消费 |
+| ND-AGENT-04 | 04-A~F | DR-011/迁移、结果事务/outbox、PG checkpoint、租约/fencing/在线入口、用量对账、真实故障测试 |
+| ND-AGENT-05 | 05-A~D | 原生工具 HTTP Adapter、主备 live 能力、Agent Golden Set、live 评测 |
+| ND-GAP-01~04 | 4 张独立票 | 后台 metrics/tasks、持久审计接线、首次改密生命周期验收、签名下载消费者验收 |
+| ND-P0-01 / ND-STG-04 | 01-A / 04-A | 业务复核 120 条脱敏集 / ECS apply；既有填写与 overlay 完成记录不变 |
+
+开工默认：**ND-AGENT-02-A → 02-B → 02-C**，经 Contract/DR-010/依赖审批后才推进 02 实现。03-A/04-A 可先写 proposed 设计，不提前发布路由/迁移。人工与环境票不得由编码会话冒充完成。
 
 ---
 
@@ -249,12 +267,13 @@
 - **staging**：规章制度等低敏测试文档 + 注入外部 API 不挡。仍禁止企业合同/人事材料。
 - **产物（企业化）**：审批记录（区域、留存、不训练、删除）。
 
-### ND-P0-03 live Embedding / rerank 冒烟
+### ND-P0-03 live Embedding / rerank 冒烟与真实混合检索评测
 
-- **状态**：ready（staging 用 Owner 注入的密钥；CI 仍 Fake）
-- **映射**：FR-RAG-001、GATE-P0-002
-- **范围**：opt-in 环境变量；CI 默认 skip；不提交 URL/密钥。可与 ND-STG-01 同一切片。
-- **不做**：不标 GATE verified（冒烟 ≠ 评测通过）。
+- **状态**：blocked（live 执行缺批准配置/样本/密钥/环境确认）；可先准备 opt-in 计划。原 ready 是开发准备口径，不是供应商已可调用的证据。
+- **映射**：FR-RAG-001~006、GATE-P0-002、DR-002
+- **范围**：CI 默认 skip，不提交 URL/密钥；先验证 HTTP 能力，再于业务复核集上验证真实 dense+BM25+RRF+bge、过滤/scope/降级/冲突/代次，报告 Recall 与限制。
+- **依赖 / 验收**：冒烟需要批准低敏范围/配置；评测需 ND-P0-01-A 和真实索引环境。详细计划测试/报告见剩余 Tickets §4。
+- **不做**：不标 GATE verified（冒烟 ≠ 评测通过）；不因 staging 延期审批而允许真实企业文档外发。
 
 ### ND-P0-04 Verifier 阈值与模型盲评
 
@@ -263,8 +282,9 @@
 
 ### ND-P0-05 共享库准入规则
 
+- **状态 / Accountable**：blocked（业务签认）；M01，业务贡献准入决策。可先起草，不假定业务已确认。
 - **映射**：DR-005、FR-RBAC-004
-- **产物**：仅低敏全员文档的业务规则；代码已有 `shared_visible`，缺的是业务确认。
+- **产物**：仅低敏、全员可见且允许外发的准入规则；管理员查看他人会话边界明确。代码已有 `shared_visible` 不替代业务确认；不满足共享库前提时走独立 ACL 需求/ADR。
 
 ### ND-P0-06 真实一致性环境
 
@@ -370,7 +390,8 @@
 读 AGENTS.md、SPEC.md、MODULE_SPEC.md、PROGRESS.md、
 progress/next-dev-spec.md、progress/tickets.md。
 另读 spec/AGENT_SPEC.md、ADR-009。本切片只做 <TICKET-ID>。
-ND-AGENT-01 已完成；默认下一刀 ND-AGENT-02 Contract 前置，预算/锁依赖未满足不得写业务实现；恢复/checkpoint 依赖票仍 blocked。
+另读 progress/tickets/spec-1.1-remaining.md，选择一张子票，不一次实现整个父票。
+ND-AGENT-01 已完成；默认下一刀 ND-AGENT-02-A Contract 提案，随后 02-B/02-C；预算/锁依赖未满足不得写业务实现；恢复/checkpoint 依赖票仍 blocked。
 先登记 progress/changes/，再 Red；旧 ECS/live 票不覆盖当前 Agent 关键路径。
 不冻结 TBD-P0，不把 Fake/Compose fixture 标成 GATE verified。
 ```

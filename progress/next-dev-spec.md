@@ -1,9 +1,9 @@
 # 问枢 Pivot 后续开发计划（ReAct 改造优先）
 
-> **文档 ID**：`NEXT-DEV-1.17`\
+> **文档 ID**：`NEXT-DEV-1.18`\
 > **日期**：2026-10-02\
 > **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，**不等于** P0 通过）。  
-> **性质**：开发计划与工单拆分。  
+> **性质**：开发计划与工单拆分；剩余工作细化见 [SPEC-1.1 Tickets](tickets/spec-1.1-remaining.md)。\
 > **本文件不是需求源。** 需求、状态机、错误码、API/SSE/Worker、GATE、`TBD-P0` 仍以 [`SPEC.md`](../SPEC.md) 为准；模块边界以 [`MODULE_SPEC.md`](../MODULE_SPEC.md) 为准；进度以 [`PROGRESS.md`](../PROGRESS.md) 为准。工单目录见 [`tickets.md`](tickets.md)。
 
 与 SPEC 冲突时以 SPEC 为准。不得把本文件解释为已冻结 `TBD-P0`，不得把 Fake/夹具标成 `GATE-P0-*` verified。
@@ -19,6 +19,10 @@ Owner 当前目标是 **LangGraph 受控 ReAct Agent**，见 [AGENT_SPEC](../spe
 | ND-AGENT-03 | Run/SSE/取消、澄清恢复、Web | blocked；02 + M00 恢复/错误契约 |
 | ND-AGENT-04 | Claims/Citation、checkpoint、租约和事件一致性 | blocked；03 + DR-011 + 迁移 |
 | ND-AGENT-05 | 真实模型工具能力与 Agent Golden Set | blocked；前序闭环 + 批准测试环境 |
+
+2026-10-02 按已提交基线 `8cd4727` 细化为 **29 张票**：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。5 张 ready 仅允许 Contract 调研/提案与 Red 设计，不表示实现 DoR 已满足。默认下一刀 **ND-AGENT-02-A**，随后 02-B（DR-010）/02-C（锁依赖）；原 02~05 父票仍 blocked。逐票场景、测试、DoD、SPEC 覆盖与门禁条件见 [剩余 Tickets](tickets/spec-1.1-remaining.md)。
+
+新增缺口：ND-GAP-01 后台 metrics/tasks；02 持久审计统一接线；03 首次改密跨实例生命周期验收；04 签名导出实际下载消费者验收。后两项先确认现有机制/Contract，不能据未验收状态直接断言漏洞或私加字段/路由。
 
 以下 Wave 3/STG/P0 计划保留作为历史上下文和后续基础设施工作，不得覆盖上述关键路径。旧 LangGraph extra 票 ND-W3-09 已被 ND-AGENT-02 取代。
 
@@ -114,16 +118,17 @@ Phase A 可以与规章制度样本准备并行。**B 未完成前禁止把系�
 
 | SPEC 范围 | 已有 | 缺口 | 阶段 |
 |---|---|---|---|
-| 文档事实 PG、对象 MinIO | HTTP/worker 可装配；Compose 已注入变量 | Compose 缺省仍 sync ingest；worker 未必选 Qdrant；无 live 一致性环境 | A1, B2 |
+| 文档事实 PG、对象 MinIO | HTTP/worker 可装配；Compose 已注入 celery ingest 与 Qdrant 选择 | 非 Compose 缺省仍 sync；无真实存储一致性/故障环境；上传幂等持久表达待 Contract | ND-W3-11, B2 |
 | Celery parse 队列 | extra + eager + Compose worker 只听 parse；Compose api 注入 celery ingest | 非 eager、非真实 Redis broker；CI 不 up | A1, B2 |
-| 检索 dense+BM25 | Qdrant 端口 + stdlib BM25 + Fake/HTTP 适配；ingest/检索可共用注入 HTTP Embedding | 无 live embedding；Golden Set 合成 | A1, B1 |
+| 检索 dense+BM25 | Qdrant 端口 + stdlib BM25 + Fake/HTTP 适配；ingest/检索可共用注入 HTTP Embedding | 企业集 120 条为脱敏摘录，业务复核/真实混合检索评测与 live 冒烟仍待 | ND-P0-01-A/03, B1 |
 | 解析 | 启发式 PDF + stdlib OOXML；可注入 native extra 与 MinerU 云 | 缺省仍启发式；OCR 属 P2；无 live MinerU | A3 |
-| 导出 | HTTP + MinIO 字节 + signer；任务可走 SQLAlchemy（CI sqlite） | 无对象字节下载路由（契约如此，不单开破坏契约的票） | A2 |
-| 认证 | 登录/改密/用户 HTTP；Redis 限流可注入；PATCH 角色/重置；hashed refresh 可走 SQLAlchemy（CI sqlite） | 阈值 TBD-P0；初始密码传递机制 TBD-P0 | A2, B2 |
+| 导出 | HTTP + MinIO 字节 + signer；任务可走 SQLAlchemy（CI sqlite） | 签名 URL 实际消费者/授权/到期/文件下载尚需端到端验收；不擅自新增破坏契约的字节路由 | ND-GAP-04, ND-AGENT-04-B |
+| 认证 | 登录/改密/用户 HTTP；Redis 限流可注入；PATCH 角色/重置；hashed refresh 可走 SQLAlchemy（CI sqlite） | 阈值/初始密码传递 TBD-P0；首次改密/重置跨实例机制需确认与验收 | ND-GAP-03, B2 |
+| 审计/后台概览 | 审计领域与 HTTP/表已有；十页夹具已有 | runtime 审计仍为内存且分散接线；admin metrics/tasks HTTP 未挂 | ND-GAP-01/02 |
 | QA/SSE/Agent | 旧线性主图 + Run/SSE HTTP 长连接；Conversation 与 Run/EventLog 可走 SQLAlchemy（CI sqlite） | 无 ReAct/tools/checkpoint；ND-AGENT-01 完整原文门禁已修；Claim/Citation 仍不入库；旧暂缓已取代，新 Contract 待冻结 | ND-AGENT-01~05 |
 | Web | 10 页 Fake fetch；opt-in Playwright 十页；SSE 去缓冲 Route Handler | 企业标注与 live 冒烟仍待 | A3, C |
 | 运维 | Dockerfile/Compose profile `app` | CI 不启动；无固定发布/回滚；无新 ECS/加密 OSS | B3 |
-| 质量 | Golden Set v0.2-synthetic 120 | 企业标注、盲评、NFR-QUAL 实测 | B1 |
+| 质量 | Golden Set v0.2-synthetic 120 + v0.3-enterprise 脱敏摘录 120 | 业务复核、Agent Golden Set、盲评、NFR-QUAL 实测 | ND-P0-01-A, ND-AGENT-05, B1 |
 | 容量 | 5 路 Fake + opt-in 100k | ECS 峰值、P95 | B3 |
 
 ---
@@ -149,7 +154,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. ND-AGENT-01 done；默认下一刀 **ND-AGENT-02 Contract 前置**：冻结内部模型/工具/预算和锁依赖；DR-010 未满足时不写业务实现。旧 ECS apply/live 检索票保留，不能覆盖 Agent 关键路径。
+2. ND-AGENT-01 done；读 [细化工单](tickets/spec-1.1-remaining.md)，默认下一刀 **ND-AGENT-02-A Contract 提案**，再 02-B/02-C；DR-010/锁依赖未满足时不写业务实现。03-A/04-A 可提前 proposed 设计，不提前发布恢复接口/迁移。旧 ECS apply/live 检索票保留，不能覆盖 Agent 关键路径。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。
@@ -206,3 +211,4 @@ wave-3-integrated 已打（仍全部 GATE unverified）
 | 1.15 | 2026-09-14 | ND-P0-01 脱敏摘录 120 条已入库；Fake Keyword 诊断 ≠ GATE；STG-04 ECS apply 仍待 Owner |
 | 1.16 | 2026-10-02 | SPEC-1.1/AGENT-SPEC 接受 ReAct 目标；旧暂缓取代；ND-AGENT-01 优先，后续按预算/恢复/checkpoint DoR 阻断 |
 | 1.17 | 2026-10-02 | ND-AGENT-01 答案门禁安全子集完成；661 passed / 19 skipped；下一刀 ND-AGENT-02 Contract 前置，仍不验收完整 Agent/GATE |
+| 1.18 | 2026-10-02 | 按 SPEC-1.1/实际进度拆 29 张剩余票；默认 02-A→B→C；补后台/审计/密码生命周期/签名下载验收，保留父票/历史完成证据与全部门禁未验收状态 |

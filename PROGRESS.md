@@ -13,9 +13,9 @@
 3. 读取 `MODULE_SPEC.md`；
 4. 读取本文件和本切片涉及的 `progress/modules/Mxx.md`；
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
-6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)（不是需求源）。Owner 近期目标 `dev-staging`：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
+6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)、[SPEC-1.1 剩余 Tickets](progress/tickets/spec-1.1-remaining.md)（不是需求源；29 张细化票，5 张 ready 仅前置提案）。Owner 历史 `dev-staging` 环境范围：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
 
-如果没有指定切片：默认下一刀 **ND-AGENT-02 内部工具/模型/预算 Contract 前置**；ND-AGENT-01 done，证据见 `evidence/agent-m05/nd-agent-01.md`。先读 `spec/AGENT_SPEC.md` 和 ADR-009。旧 ECS apply/live 检索工单保留，不覆盖 Agent 关键路径。企业 Golden Set v0.3 已填 120 条脱敏摘录，**不等于**业务复核或 GATE-P0-002。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / 企业 Golden Set 空 schema / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 / ingest 共用 HTTP Embedding / Fake HTTP Writer / Fake MinerU 解析器 / staging Compose overlay / SSE 长连接夹具 / 真实解析库 extra / opt-in Playwright 十页 标成 GATE verified。不要新建 worktree。
+如果没有指定切片：默认下一刀 **ND-AGENT-02-A 内部模型/工具/State Contract 提案**，随后 02-B（DR-010）/02-C（锁依赖）；ND-AGENT-02 父票业务实现仍 blocked。ND-AGENT-01 done，证据见 `evidence/agent-m05/nd-agent-01.md`。先读 `spec/AGENT_SPEC.md` 和 ADR-009。旧 ECS apply/live 检索工单保留，不覆盖 Agent 关键路径。企业 Golden Set v0.3 已填 120 条脱敏摘录，**不等于**业务复核或 GATE-P0-002。Wave 3 夹具已收口（`wave-3-integrated` **不等于** P0 通过）。不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / 企业 Golden Set 空 schema / Fake embedder / stdlib BM25 / 进程内压测/恢复 / Dockerfile fixture / opt-in 100k Fake retrieve / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / Wave 3 夹具收口 / ingest 共用 HTTP Embedding / Fake HTTP Writer / Fake MinerU 解析器 / staging Compose overlay / SSE 长连接夹具 / 真实解析库 extra / opt-in Playwright 十页 标成 GATE verified。不要新建 worktree。
 
 ## 2. 当前波次与模块状态
 
@@ -23,7 +23,7 @@
 
 | 模块 | 状态 | 代码位置 | 基线契约 | 最近证据 | 下一步 |
 |---|---|---|---|---|---|
-| M00 契约治理 | in_progress | `main` | 目标 SPEC-1.1；发布 contract-v0.1 | 旧契约 48 tests；ReAct 文档/场景已登记，非实现验收 | 冻结模型/工具/预算和恢复契约 |
+| M00 契约治理 | in_progress | `main` | 目标 SPEC-1.1；发布 contract-v0.1 | 公共契约回归 48 passed；剩余工作 29 张细化票与 SPEC/门禁映射，非实现验收 | 02-A 内部 Contract 提案；随后预算/锁依赖及恢复契约 |
 | M01 身份授权 | integrated | `main`（tag `M01-v0.6.0`） | `contract-v0.1` | 37 单元/安全 + 登录/改密/管理用户 HTTP + PATCH 角色/重置 + Compose 注入 Redis 限流 + refresh 跨装配 | 人工标注 Golden Set 或 STG-04 ECS apply |
 | M02 文档接入 | integrated | `main`（tag 目标 `M02-v0.6.0`） | `contract-v0.1` | 27 单元 + 上传/列表/详情/重试/删除/预览/下载 HTTP；runtime 上传后进程内 ingest；`PIVOT_INGEST=celery` 可入队；Compose api 注入 celery ingest；publish 写回 chunk | HTTP 缺省仍 sync ingest |
 | M03 数据基础 | integrated | `main`（tag 目标 `M03-v0.8.0`） | `contract-v0.1` | M03 文档/导出/refresh/会话/Run SQLAlchemy + M00 48 tests passed | 用户目录、文档事实、导出任务、refresh、Conversation 与 Run/EventLog 可走 SQLAlchemy |
@@ -241,6 +241,14 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 - [x] 企业 Golden Set v0.3 脱敏摘录已批准：`progress/changes/20260914-M11-golden-set-enterprise-fill.md`。
 
 ## 6. 轮次日志
+
+### 2026-10-02 — 按当前进度将 SPEC 转为 Tickets
+
+- **范围 / Accountable**：M00 文档治理；新增 `progress/tickets/spec-1.1-remaining.md` 与变更 `progress/changes/20261002-M00-spec-to-tickets.md`，同步父票索引、NEXT-DEV-1.18、验收矩阵执行引用、M00 与根进度。已提交实现基线 `8cd4727`；现有 6 个业务源码修改/用户未跟踪文件均未纳入本刀。
+- **结果**：29 张细化票（23 Agent、4 跨域缺口、2 人工/环境余量），每票场景/异常、唯一 Accountable、依赖、范围/数据、计划测试、DoD/证据与不做项；SPEC 覆盖和八项 P0 门禁映射齐全。原 ND-AGENT-01 done 与历史完成票不重开；其余 Agent 父票仍 blocked，5 张 ready 只允许 Contract 调研/提案与 Red 设计，不授权业务实现。
+- **验证**（Python 3.12.10 / pytest 9.1.1；Windows PowerShell 5.1.22621.4391）：`.venv/Scripts/python -B -m pytest tests/contract --ignore=tests/contract/stream -q -p no:cacheprovider` → **48 passed**；`.pi/artifacts/spec-to-tickets/check-tickets.ps1` 检查本地链接/29 唯一票号/索引/唯一 Owner/5 张前置 ready/显式子票依赖无环/计划测试与 DoD/FR-AGENT 与 P0 映射通过；`git diff --check` 通过。检查脚本保存在仓库 `.pi/artifacts/`，未写 C 盘。
+- **限制**：只整理工单/执行计划，不新增业务源码、依赖、迁移、路由或 schema；计划测试未实施/运行，未重跑全量业务/Web/Compose/live。依赖图检查只证明显式子票边无环，人工审批/父票收口仍需 Owner 证据；TBD-P0/DR-010/011 与所有 GATE 未关闭。
+- **下一步**：ND-AGENT-02-A → 02-B → 02-C。后台指标/任务、运行时持久审计、密码生命周期/实际签名下载验收分别由 ND-GAP-01~04 追踪；业务复核与 ECS apply 继续人工/环境 blocked。
 
 ### 2026-10-02 — ND-AGENT-01 答案安全回归与修复
 
