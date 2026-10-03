@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGENT-PERSISTENCE-0.1-draft.1",
+  "description": "Unpublished ND-AGENT-04-A internal metadata shapes; not SQL constraints or runtime acceptance.",
+  "x-status": "proposed",
+  "$ref": "#/$defs/LeaseToken",
+  "$defs": {
+    "Id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "\\S"},
+    "Version": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "UtcTimestamp": {
+      "type": "string", "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "Positive": {"type": "integer", "minimum": 1},
+    "Nonnegative": {"type": "integer", "minimum": 0},
+    "LeaseToken": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "executor_id", "fencing_token", "state_version", "expires_at"],
+      "properties": {
+        "run_id": {"$ref": "#/$defs/Id"},
+        "executor_id": {"$ref": "#/$defs/Id"},
+        "fencing_token": {"$ref": "#/$defs/Positive"},
+        "state_version": {"$ref": "#/$defs/Nonnegative"},
+        "expires_at": {"$ref": "#/$defs/UtcTimestamp"}
+      }
+    },
+    "VersionBundle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["graph", "state", "prompt", "tools", "model", "dependency_lock", "budget_policy"],
+      "properties": {
+        "graph": {"$ref": "#/$defs/Version"},
+        "state": {"$ref": "#/$defs/Version"},
+        "prompt": {"$ref": "#/$defs/Version"},
+        "tools": {"$ref": "#/$defs/Version"},
+        "model": {"$ref": "#/$defs/Version"},
+        "dependency_lock": {"$ref": "#/$defs/Version"},
+        "budget_policy": {"$ref": "#/$defs/Version"}
+      }
+    },
+    "CheckpointBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["run_id", "thread_id", "checkpoint_id", "fencing_token", "state_version", "execution_epoch", "budget_ledger_version", "versions"],
+      "properties": {
+        "run_id": {"$ref": "#/$defs/Id"},
+        "thread_id": {"$ref": "#/$defs/Id"},
+        "checkpoint_id": {"$ref": "#/$defs/Id"},
+        "fencing_token": {"$ref": "#/$defs/Positive"},
+        "state_version": {"$ref": "#/$defs/Nonnegative"},
+        "execution_epoch": {"$ref": "#/$defs/Positive"},
+        "budget_ledger_version": {"$ref": "#/$defs/Nonnegative"},
+        "versions": {"$ref": "#/$defs/VersionBundle"}
+      }
+    },
+    "ResultCommitReceipt": {
+      "type": "object", "additionalProperties": false,
+      "required": ["run_id", "result_id", "message_id", "terminal_state", "state_version", "committed_at"],
+      "properties": {
+        "run_id": {"$ref": "#/$defs/Id"},
+        "result_id": {"$ref": "#/$defs/Id"},
+        "message_id": {"$ref": "#/$defs/Id"},
+        "terminal_state": {"enum": ["answered", "uncertain", "refused", "failed", "cancelled"]},
+        "state_version": {"$ref": "#/$defs/Positive"},
+        "committed_at": {"$ref": "#/$defs/UtcTimestamp"}
+      }
+    },
+    "OutboxRecord": {
+      "description": "Metadata only. Actual payload must use the existing SSE envelope and approved safe projection.",
+      "type": "object", "additionalProperties": false,
+      "required": ["event_id", "run_id", "publication_key", "seq", "event", "projection_version", "committed_at"],
+      "properties": {
+        "event_id": {"$ref": "#/$defs/Id"},
+        "run_id": {"$ref": "#/$defs/Id"},
+        "publication_key": {"$ref": "#/$defs/Id"},
+        "seq": {"$ref": "#/$defs/Positive"},
+        "event": {"enum": ["run_started", "stage", "token", "citation", "warning", "completed", "uncertain", "refused", "failed", "cancelled"]},
+        "projection_version": {"$ref": "#/$defs/Version"},
+        "committed_at": {"$ref": "#/$defs/UtcTimestamp"}
+      }
+    },
+    "ProviderAttempt": {
+      "type": "object", "additionalProperties": false,
+      "required": ["run_id", "action_id", "attempt_id", "reservation_id", "fencing_token", "request_id", "role", "model_version", "pricing_version", "dispatch_state", "usage_status", "input_tokens", "output_tokens", "estimated_cost_microunits", "currency"],
+      "properties": {
+        "run_id": {"$ref": "#/$defs/Id"},
+        "action_id": {"$ref": "#/$defs/Id"},
+        "attempt_id": {"$ref": "#/$defs/Id"},
+        "reservation_id": {"$ref": "#/$defs/Id"},
+        "fencing_token": {"$ref": "#/$defs/Positive"},
+        "request_id": {"$ref": "#/$defs/Id"},
+        "role": {"enum": ["planner", "finalizer", "verifier", "embedding", "rerank"]},
+        "model_version": {"$ref": "#/$defs/Version"},
+        "pricing_version": {"$ref": "#/$defs/Version"},
+        "dispatch_state": {"enum": ["reserved", "dispatching", "returned", "not_dispatched"]},
+        "usage_status": {"enum": ["reported", "unreconciled"]},
+        "input_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "output_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "estimated_cost_microunits": {"type": ["integer", "null"], "minimum": 0},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}
+      },
+      "allOf": [{
+        "if": {"properties": {"usage_status": {"const": "reported"}}},
+        "then": {"properties": {
+          "input_tokens": {"type": "integer"},
+          "output_tokens": {"type": "integer"},
+          "estimated_cost_microunits": {"type": "integer"}
+        }},
+        "else": {"properties": {
+          "input_tokens": {"type": "null"},
+          "output_tokens": {"type": "null"},
+          "estimated_cost_microunits": {"type": "null"}
+        }}
+      }]
+    },
+    "GovernancePolicy": {
+      "description": "All values require approved policy; finite test fixtures are not production defaults. Cross-field timing/retention checks are runtime requirements.",
+      "type": "object", "additionalProperties": false,
+      "required": ["policy_id", "approval_ref", "lease_duration_ms", "renew_interval_ms", "checkpoint_retention_seconds", "resume_input_retention_seconds", "tombstone_retention_seconds", "backup_retention_seconds", "encryption_key_ref", "access_policy_ref", "deletion_policy_ref", "backup_policy_ref"],
+      "properties": {
+        "policy_id": {"$ref": "#/$defs/Version"},
+        "approval_ref": {"$ref": "#/$defs/Version"},
+        "lease_duration_ms": {"$ref": "#/$defs/Positive"},
+        "renew_interval_ms": {"$ref": "#/$defs/Positive"},
+        "checkpoint_retention_seconds": {"$ref": "#/$defs/Positive"},
+        "resume_input_retention_seconds": {"$ref": "#/$defs/Positive"},
+        "tombstone_retention_seconds": {"$ref": "#/$defs/Positive"},
+        "backup_retention_seconds": {"$ref": "#/$defs/Positive"},
+        "encryption_key_ref": {"$ref": "#/$defs/Version"},
+        "access_policy_ref": {"$ref": "#/$defs/Version"},
+        "deletion_policy_ref": {"$ref": "#/$defs/Version"},
+        "backup_policy_ref": {"$ref": "#/$defs/Version"}
+      }
+    }
+  }
+}

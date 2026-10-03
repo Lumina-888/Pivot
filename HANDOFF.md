@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-10-03\
-> **本轮修改前基线**：`20e8f15`（`main`；本次ND-AGENT-03-A恢复Contract前置）；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
+> **本轮修改前基线**：`d613318`（`main`；本次ND-AGENT-04-A持久化Contract前置）；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
 > **性质**：当前规格迁移与历史实现交接。需求以 SPEC-1.1 / `spec/AGENT_SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 MODULE-SPEC-1.2 / `AGENTS.md` 为准。\
 > **本文件不是规范源。**
 
@@ -11,7 +11,7 @@
 
 1. 工作区：`/home/lumina888/Projects/Pivot`，分支：`main`。`E:/AI Project/Pivot` 是历史 Windows 路径；不要新建 worktree。
 2. 读：`AGENTS.md` → `SPEC.md` → `spec/AGENT_SPEC.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. ND-AGENT-01 已完成；02-A [内部提案](progress/changes/20261002-M05-agent-internal-contract.md)、02-B [预算提案](progress/changes/20261002-M05-agent-budget-contract.md)、02-C [依赖/锁定申请](progress/changes/20261002-M03-agent-dependencies-lock.md)均 review 待签认、未发布。02-C Windows 双隔离环境/候选哈希锁验证完成，原环境与业务未接入。下一步优先 **02-A/B/C 签认、Linux 锁验证及预算映射确认**，业务仍 blocked；03-A [恢复提案](progress/changes/20261003-M00-agent-resume-contract.md)与独立proposed schema/62项shape检查已提交、review待签认，未发布API；独立文档前置可选04-A proposed。目标已改为 LangGraph 受控 ReAct，旧固定主图/暂缓申请/ND-W3-09 已由 ADR-009 取代。旧 ECS apply/live 检索票不再是默认路径。
+3. ND-AGENT-01 已完成；02-A [内部提案](progress/changes/20261002-M05-agent-internal-contract.md)、02-B [预算提案](progress/changes/20261002-M05-agent-budget-contract.md)、02-C [依赖/锁定申请](progress/changes/20261002-M03-agent-dependencies-lock.md)均 review 待签认、未发布。02-C Windows 双隔离环境/候选哈希锁验证完成，原环境与业务未接入。下一步优先 **02-A/B/C 签认、Linux 锁验证及预算映射确认**，业务仍 blocked；03-A [恢复提案](progress/changes/20261003-M00-agent-resume-contract.md)与独立proposed schema/62项shape检查已提交、review待签认，未发布API；04-A [持久化提案](progress/changes/20261003-M03-agent-persistence-contract.md)与独立schema/173项shape检查也已提交、review待7项签认；前置提案已全部提交，0 ready/5 review/24 blocked，下一步签认/目标平台锁/批准PG环境。目标已改为 LangGraph 受控 ReAct，旧固定主图/暂缓申请/ND-W3-09 已由 ADR-009 取代。旧 ECS apply/live 检索票不再是默认路径。
 4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / **企业 Golden Set 脱敏摘录** / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / **Wave 3 夹具收口** / PATCH 角色 HTTP / **ingest 共用 HTTP Embedding** / **Fake HTTP Writer** / **Fake MinerU 解析器** / **staging Compose overlay** / **sqlite refresh/Conversation** / **sqlite Run/EventLog** / **SSE 长连接夹具** / **真实解析库 extra** / **opt-in Playwright 十页** 标成 `GATE-P0 verified`。`wave-3-integrated` **不等于** P0 通过。
 
 ## 1. 产品现状
@@ -58,11 +58,13 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 4. 当前下一刀
 
+2026-10-03 [04-A证据](evidence/agent-m03/nd-agent-04-a.md)：AGENT-PERSISTENCE-0.1-draft.1 proposed/review；Saver写入fencing、已确认checkpoint/版本/累计账本、原Message事实事务/outbox、unknown尝试/敏感治理/回滚候选均待审核。173项shape通过，分组895 passed/**1 failed**/19 skipped；已有staging本机`.env`存在性断言失败保留，不读取/删除配置或修宽测试。ruff/compileall通过；LSP Python导入home/venv错配记录，不冒称整体clean。未改业务/公开Contract/依赖/迁移，真实PG/Saver/恢复未验收，7项签认pending。
+
 2026-10-03 [03-A证据](evidence/agent-m00/nd-agent-03-a.md)：M00已提交恢复公开Contract提案，schema62与旧公共契约48、QA/Run/SSE79 passed；全量分组724 passed/**1 failed**/17 skipped（已有staging测试要求根`.env`不存在，与gitignored本地配置冲突），静态ruff/compileall通过。未读取/删除用户配置或改无关测试；不宣称全量通过。LSP导入为home/项目venv错配，Markdown不可用限制如实记录。无业务路由/客户端/依赖/迁移变更。
 
 本轮 [02-A/B/C 技术审核](evidence/agent-m03/nd-agent-02-abc-review.md)完成映射修订：02-B AGENT-BUDGET-0.1-draft.2 proposed，独立累计执行前门禁；Windows 技术 probes20 passed（原11+新9），不代表 BudgetGate/业务图通过。旧 Windows 环境无 Docker、WSL/Bash 0x80070422，Linux 验证 blocked；当前 Arch 本机开发环境已配置，但 Docker 下载/代理授权、目标平台原生锁与审核未完成；[原生执行单](evidence/agent-m03/nd-agent-02-c/linux-validation.md)未执行。先由 Owner 提供/恢复批准的 Linux 环境，再原生锁/镜像/安全审核与逐项消费者/Owner 签认。没有代签/发布/生产数值冻结，D～H 保持 blocked。
 
-ND-AGENT-01 done；02-A/B/C review（proposed 未签认/未发布）。优先 **签认、Linux 锁验证与预算映射确认**；不要因形状/Fixture 算术/依赖探针或旧回归通过变 done。03-A恢复Contract现已proposed/review，7项消费者/Owner签认pending；1张ready仅04-A前置，4张review/24张blocked，没有业务实现解锁。全部前置 Contract/DR-010/锁依赖批准后才推进 02-D~H，随后 03 → 04 → 05。预算/恢复/checkpoint/live 环境不满足时保持 blocked。
+ND-AGENT-01 done；02-A/B/C review（proposed 未签认/未发布）。优先 **签认、Linux 锁验证与预算映射确认**；不要因形状/Fixture 算术/依赖探针或旧回归通过变 done。03-A恢复与04-A持久化Contract均proposed/review，各7项消费者/Owner签认pending；0张ready、5张review/24张blocked，没有业务实现解锁。全部前置 Contract/DR-010/锁依赖批准后才推进 02-D~H，随后 03 → 04 → 05。预算/恢复/checkpoint/live 环境不满足时保持 blocked。
 
 不要把脱敏摘录或合成 120 条标成 GATE-P0-002 通过。
 

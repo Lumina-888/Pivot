@@ -87,6 +87,7 @@
 - **先决**：03；DR-011、checkpoint/Claims/Citation/租约/事件一致性迁移 Contract。
 - **范围/测试**：Postgres Checkpointer、一 Run 一 thread、单执行者/fencing、预算恢复、业务结果事务/outbox；FR-AGENT-006 和宕机/争用/取消测试。
 - **DoD**：跨进程恢复证据，不重复业务发布；明确供应商调用/计费不保证 exactly-once，记录风险与对账。
+- **前置进度**（2026-10-03）：04-A [持久化Contract提案](changes/20261003-M03-agent-persistence-contract.md)/独立schema与173项元数据shape检查已提交，review待7项签认；[证据](../evidence/agent-m03/nd-agent-04-a.md)。不修改迁移/依赖/业务，DR-011及父票/04-B~F仍blocked。
 
 ### ND-AGENT-05 模型能力与评测
 
@@ -99,7 +100,7 @@
 
 ## 当前细化执行队列
 
-详细工单见 [SPEC-1.1 剩余工作 Tickets](tickets/spec-1.1-remaining.md)，不是重开 Wave 3。当前1张ready（04-A）仅允许Contract调研/提案与Red设计，02-A/B/C与03-A共4张review待签认，24张blocked；没有业务实现票解锁。
+详细工单见 [SPEC-1.1 剩余工作 Tickets](tickets/spec-1.1-remaining.md)，不是重开 Wave 3。当前0张ready，02-A/B/C、03-A、04-A共5张review待签认，24张blocked；独立前置提案已提交，没有业务实现票解锁。
 
 | 父票 / 新缺口 | 子票 | 本轮拆分范围 |
 |---|---|---|
@@ -110,7 +111,7 @@
 | ND-GAP-01~04 | 4 张独立票 | 后台 metrics/tasks、持久审计接线、首次改密生命周期验收、签名下载消费者验收 |
 | ND-P0-01 / ND-STG-04 | 01-A / 04-A | 业务复核 120 条脱敏集 / ECS apply；既有填写与 overlay 完成记录不变 |
 
-下一步优先：**02-A/B/C 签认、Linux 锁验证与预算映射确认**；经全部 Contract/DR-010/依赖审批后才推进 02 实现。03-A恢复Contract已proposed/review；独立前置可编写04-A设计，不提前发布路由/迁移。人工与环境票不得由编码会话冒充完成。
+下一步优先：**02-A/B/C 签认、Linux 锁验证与预算映射确认**；经全部 Contract/DR-010/依赖审批后才推进 02 实现。03-A恢复与04-A持久化Contract均proposed/review，待消费者/Owner签认及批准PG环境，不提前发布路由/迁移。人工与环境票不得由编码会话冒充完成。
 
 ---
 

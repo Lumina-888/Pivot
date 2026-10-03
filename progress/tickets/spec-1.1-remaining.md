@@ -1,6 +1,6 @@
 # SPEC-1.1 剩余工作 Tickets
 
-> **版本 / 日期**：TICKETS-1.5 / 2026-10-03。
+> **版本 / 日期**：TICKETS-1.6 / 2026-10-03。
 > **需求源**：[SPEC-1.1](../../SPEC.md)、[AGENT-SPEC-1.0](../../spec/AGENT_SPEC.md)；责任边界：[MODULE-SPEC-1.2](../../MODULE_SPEC.md)。
 > **进度快照**：[PROGRESS.md](../../PROGRESS.md)、[验收矩阵](../../spec/acceptance/matrix.md)；已提交实现基线 `8cd4727`（main）。
 > **性质**：剩余工作拆分，不是新规格、契约发布或验收报告。既有父票和历史完成记录见 [tickets.md](../tickets.md)。
@@ -19,7 +19,7 @@
 
 最新 [02-A/B/C 审核与待签清单](../../evidence/agent-m03/nd-agent-02-abc-review.md)：02-B draft.2 补独立累计/执行前门禁，Windows 技术20 probes passed；Linux 本机无 Docker、WSL/Bash 0x80070422 blocked，[原生执行单](../../evidence/agent-m03/nd-agent-02-c/linux-validation.md)未执行。消费者/Owner/安全 pending，无代签；02-A/B/C review，02-D～H blocked 不变。
 
-优先顺序：ND-AGENT-02-A → 02-B → 02-C → 02-D/E/F → 02-G/H → 03 → 04 → 05。02-A/B/C 已提交 proposed 提案，均 review 待消费者/Owner 签认；02-C Windows 受控验证/候选锁已提交，Linux/预算映射审核待补齐，不解锁业务实现。03-A [恢复提案](../changes/20261003-M00-agent-resume-contract.md)已提交 proposed，review 待签认；04-A 可提前编写提案，均不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
+优先顺序：ND-AGENT-02-A → 02-B → 02-C → 02-D/E/F → 02-G/H → 03 → 04 → 05。02-A/B/C 已提交 proposed 提案，均 review 待消费者/Owner 签认；02-C Windows 受控验证/候选锁已提交，Linux/预算映射审核待补齐，不解锁业务实现。03-A [恢复提案](../changes/20261003-M00-agent-resume-contract.md)与04-A [持久化提案](../changes/20261003-M03-agent-persistence-contract.md)均已提交 proposed/review，待签认；不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
 
 | 子票 | 工作 | 优先级 / 规模 | Accountable | 状态 | 硬依赖 / 放行条件 |
 |---|---|---|---|---|---|
@@ -36,7 +36,7 @@
 | ND-AGENT-03-C | 调用边界取消与晚到结果竞争 | P0 / S | M05 | blocked | 03-B |
 | ND-AGENT-03-D | 一轮 interrupt 与授权幂等 resume | P0 / M | M05 | blocked | 03-A 发布；03-B/C |
 | ND-AGENT-03-E | Web 恢复/等待/取消与 SSE 消费 | P1 / M | M08 | blocked | 03-D；03-A 发布 |
-| ND-AGENT-04-A | DR-011 checkpoint/租约/事实/outbox 迁移 Contract | P0 / M | M03 | ready | 仅提案；发布须 03 关闭/治理审核 |
+| ND-AGENT-04-A | DR-011 checkpoint/租约/事实/outbox 迁移 Contract | P0 / M | M03 | review | proposed/schema/故障Red设计已提交；发布须03关闭/治理审核 |
 | ND-AGENT-04-B | Claims/Citation/Message/终态事务与 outbox | P0 / M | M03 | blocked | 04-A 发布；03 关闭 |
 | ND-AGENT-04-C | PostgreSQL Checkpointer 与版本固定恢复 | P0 / M | M03 | blocked | 04-A/B；DR-011 |
 | ND-AGENT-04-D | 数据库租约/fencing 与独立在线执行入口 | P0 / M | M03 | blocked | 04-B/C；03-C |
@@ -53,7 +53,7 @@
 | ND-P0-01-A | 120 条企业脱敏集业务复核 | P0 / M | M11 | blocked | Owner 指定业务复核人/样本准入 |
 | ND-STG-04-A | staging ECS apply 与低敏冒烟 | P1 / M | M11 | blocked | Owner SSH/安全组/磁盘/访问拓扑 |
 
-共 29 张细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。当前 1 张 ready（04-A）只开放前置调研；02-A/B/C 与03-A 共4张 review（proposed 待签认），24张 blocked，没有业务实现票解锁。P0/P1 既有门禁票继续沿用，见 §4。
+共 29 张细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。当前 0 张 ready；02-A/B/C、03-A、04-A 共5张 review（proposed 待签认），24张 blocked，没有业务实现票解锁。P0/P1 既有门禁票继续沿用，见 §4。
 
 ## 2. Agent Tickets
 
@@ -207,12 +207,13 @@
 ### ND-AGENT-04-A DR-011 与迁移契约
 
 - **父票 / 来源 / 责任**：ND-AGENT-04；FR-AGENT-006、FR-QA-002、SPEC §2/§7.3；Accountable M03，Contributors M00/M01/M05/M06/M11。
-- **状态 / 依赖**：ready，仅 proposed 设计；发布与迁移实现须 03 关闭、DR-011/Owner 审核。
+- **状态 / 依赖**：review；[AGENT-PERSISTENCE-0.1-draft.1](../changes/20261003-M03-agent-persistence-contract.md)、独立schema与故障Red设计已提交，7项签认pending；发布与迁移实现须03关闭、DR-011/Owner审核。
 - **场景 / 异常**：Given 崩溃/并发/取消；Then checkpoint、Run、结果、事件与调用尝试有明确提交/重放边界，不能由 Redis/进程锁承担唯一事实。
 - **范围 / 数据**：checkpoint 表/保留/加密/删除/访问/备份、thread/State/图版本、租约/fencing、结果 Unit of Work、outbox/序号唯一性、ProviderCall 尝试/对账与迁移回滚。
 - **路径 / 交付**：`progress/changes/` ADR/迁移 Contract；`spec/contracts/` 内部说明与 M03/M05/M06/M11 消费者确认。
 - **计划测试**：`test_FR_AGENT_006_fencing_rejects_stale_executor`、`test_FR_AGENT_006_checkpoint_has_no_credentials`、`test_FR_QA_002_result_transaction_rolls_back`。
 - **DoD / 证据**：一致性时序/故障窗口、敏感治理、迁移/回滚与调用重复计费残余风险获签认；不存在偷偷冻结保留期。
+- **本轮证据**：[nd-agent-04-a.md](../../evidence/agent-m03/nd-agent-04-a.md)；173项内部元数据形状检查通过，不验证实际Saver fencing/PG事务/恢复/加密；这些运行时Red仍未实施，不解锁04-B~F。
 - **不做**：不把 checkpoint 当业务事实，不宣称框架自动 exactly-once。
 
 ### ND-AGENT-04-B 结果事务与 outbox
