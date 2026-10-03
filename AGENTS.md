@@ -53,6 +53,6 @@ npm --prefix web run lint
 
 ## 恢复开发提示
 
-本机开发/测试环境见 [`ops/runbook-local-linux.md`](ops/runbook-local-linux.md)：Python 3.12.10 与已有回归/浏览器测试可用，Docker 真实存储联调仍待代理授权；不得把本机配置当成 02-C 目标平台锁验证或 Agent 签认。
+本机开发/测试环境见 [`ops/runbook-local-linux.md`](ops/runbook-local-linux.md)：Python 3.12.10 与已有回归/浏览器测试可用，Docker 真实存储联调仍待代理授权。02-C 只完成 Debian bookworm runtime 候选验证，Ubuntu CI/供应链/签认未完成；不得把 Arch 宿主或该候选锁当成发布依赖或 Agent 签认。
 
 新会话说明“继续主线”或点名下一刀（例如 ND-AGENT-02 Contract 前置）即可。先读 [`HANDOFF.md`](HANDOFF.md) 了解 2026-10-02 ReAct 规格迁移与当前实现差距；2026-09 的 Wave 3 历史证据仍保留。不要依赖上一会话的聊天记录；聊天记录不是项目事实，版本化进度文件、commit、tag 和测试证据才是交接依据。

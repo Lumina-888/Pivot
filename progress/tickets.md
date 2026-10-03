@@ -2,7 +2,7 @@
 
 > 配套 [`next-dev-spec.md`](next-dev-spec.md)。需求源为 SPEC-1.1 及其引用的 [AGENT_SPEC](../spec/AGENT_SPEC.md)。\
 > **目标基线**：ADR-009；**实现基线**：`main` / `wave-3-integrated`（旧夹具，≠ ReAct/≠ P0）。\
-> 状态：`ready / review / blocked / done / superseded`；历史票的部分完成/限定延期按原记录保留。架构 accepted 不等于每刀 DoR；ND-AGENT-01 done；02-A/B/C proposed 提案已提交、review 待签认；02-C Windows 依赖验证/候选锁完成，优先补 Linux/预算映射审核，业务实现仍 blocked。
+> 状态：`ready / review / blocked / done / superseded`；历史票的部分完成/限定延期按原记录保留。架构 accepted 不等于每刀 DoR；ND-AGENT-01 done；02-A/B/C proposed 提案已提交、review 待签认；02-C Windows 与 Debian bookworm runtime 候选锁已验证，Ubuntu CI/供应链/签认未完成，业务实现仍 blocked。
 > **2026-10-02 拆票入口**：[SPEC-1.1 剩余工作 Tickets](tickets/spec-1.1-remaining.md)（29 张细化票、逐票场景/依赖/计划测试/DoD、SPEC 覆盖与 P0/P1 门禁映射）。本文件保留既有父票 ID 和历史证据；子票完成不自动关闭父票或门禁。
 
 图例：`S` 约 1 个主线切片；`M` 约 2–3 切片；`L` 多个串行切片或必须人工/受控环境，不表示并行会话。

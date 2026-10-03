@@ -12,7 +12,7 @@ Owner 当前目标是 **LangGraph 受控 ReAct Agent**，见 [AGENT_SPEC](../spe
 
 ## 当前执行计划
 
-最新 [02-A/B/C 技术审核](../evidence/agent-m03/nd-agent-02-abc-review.md)：预算 draft.2 独立累计/执行前门禁已修订，Windows 技术20 probes passed；Linux 无 Docker、WSL/Bash 0x80070422 blocked，须 Owner 提供/恢复获准原生环境。消费者/Owner/安全 pending，无代签/发布；02-D～H 继续 blocked。
+最新 [02-A/B/C 技术审核](../evidence/agent-m03/nd-agent-02-abc-review.md)：预算 draft.2 独立累计/执行前门禁已修订，Windows 技术20 probes passed。2026-10-03 Debian bookworm runtime 候选锁/20 probes 已验证，见 [证据](../evidence/agent-m03/nd-agent-02-c/linux-bookworm.md)；Ubuntu CI、供应链与消费者/Owner/安全签认仍 pending，无代签/发布；02-D～H 继续 blocked。
 
 | 工单 | 工作 | 状态/依赖 |
 |---|---|---|
