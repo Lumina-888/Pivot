@@ -1,7 +1,7 @@
 # 问枢 Pivot 后续开发计划（ReAct 改造优先）
 
-> **文档 ID**：`NEXT-DEV-1.22`\
-> **日期**：2026-10-02\
+> **文档 ID**：`NEXT-DEV-1.23`\
+> **日期**：2026-10-03\
 > **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，**不等于** P0 通过）。  
 > **性质**：开发计划与工单拆分；剩余工作细化见 [SPEC-1.1 Tickets](tickets/spec-1.1-remaining.md)。\
 > **本文件不是需求源。** 需求、状态机、错误码、API/SSE/Worker、GATE、`TBD-P0` 仍以 [`SPEC.md`](../SPEC.md) 为准；模块边界以 [`MODULE_SPEC.md`](../MODULE_SPEC.md) 为准；进度以 [`PROGRESS.md`](../PROGRESS.md) 为准。工单目录见 [`tickets.md`](tickets.md)。
@@ -22,7 +22,7 @@ Owner 当前目标是 **LangGraph 受控 ReAct Agent**，见 [AGENT_SPEC](../spe
 | ND-AGENT-04 | Claims/Citation、checkpoint、租约和事件一致性 | blocked；03 + DR-011 + 迁移 |
 | ND-AGENT-05 | 真实模型工具能力与 Agent Golden Set | blocked；前序闭环 + 批准测试环境 |
 
-2026-10-02 按已提交基线 `8cd4727` 细化为 **29 张票**：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。02-A [内部 Contract 提案](changes/20261002-M05-agent-internal-contract.md)与 02-B [DR-010 预算提案](changes/20261002-M05-agent-budget-contract.md)已提交；02-C [Python 3.12 依赖/锁定申请](changes/20261002-M03-agent-dependencies-lock.md)及 Windows 候选验证也已提交。02-A/B/C 均 review（proposed 待签认，未发布）；当前 2 张 ready 仅允许前置调研，不表示实现 DoR 已满足。下一步优先 **02-A/B/C 签认、Linux 锁验证与预算映射确认**，独立文档前置可选 03-A；原 02~05 父票仍 blocked。逐票场景、测试、DoD、SPEC 覆盖与门禁条件见 [剩余 Tickets](tickets/spec-1.1-remaining.md)。
+2026-10-02 按已提交基线 `8cd4727` 细化为 **29 张票**：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。02-A [内部 Contract 提案](changes/20261002-M05-agent-internal-contract.md)与 02-B [DR-010 预算提案](changes/20261002-M05-agent-budget-contract.md)已提交；02-C [Python 3.12 依赖/锁定申请](changes/20261002-M03-agent-dependencies-lock.md)及 Windows 候选验证也已提交。02-A/B/C 均 review（proposed 待签认，未发布）；03-A [恢复Contract提案](changes/20261003-M00-agent-resume-contract.md)与独立proposed schema/62项形状检查已提交、review待签认，未发布API。当前1张ready（04-A）仅允许前置调研，4张review/24张blocked，不表示实现DoR已满足。下一步优先 **02-A/B/C 签认、Linux 锁验证与预算映射确认**，独立文档前置可选04-A；原02~05父票仍blocked。逐票场景、测试、DoD、SPEC 覆盖与门禁条件见 [剩余 Tickets](tickets/spec-1.1-remaining.md)。
 
 新增缺口：ND-GAP-01 后台 metrics/tasks；02 持久审计统一接线；03 首次改密跨实例生命周期验收；04 签名导出实际下载消费者验收。后两项先确认现有机制/Contract，不能据未验收状态直接断言漏洞或私加字段/路由。
 

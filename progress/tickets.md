@@ -79,6 +79,7 @@
 - **先决**：02；M00 先冻结恢复 endpoint/字段/幂等/错误映射及消费者契约。
 - **范围/测试**：粗粒度状态映射、interrupt/授权 resume、取消、白名单公开阶段、校验后 token；FR-AGENT-007/008 与 FR-STREAM 负向/重连测试。
 - **DoD**：晚到答案不覆盖取消，SSE 不泄漏消息或重执行，十页/引用抽屉无回归。
+- **前置进度**（2026-10-03）：03-A [恢复 Contract 提案](changes/20261003-M00-agent-resume-contract.md)/独立 proposed schema/62项形状检查已提交，review待7项消费者/Owner签认；[证据](../evidence/agent-m00/nd-agent-03-a.md)。未发布路由/客户端，运行时恢复仍未实施，父票blocked。
 
 ### ND-AGENT-04 持久恢复与事实一致性
 
@@ -98,7 +99,7 @@
 
 ## 当前细化执行队列
 
-详细工单见 [SPEC-1.1 剩余工作 Tickets](tickets/spec-1.1-remaining.md)，不是重开 Wave 3。当前 2 张 ready 仅允许 Contract 调研/提案与 Red 设计，02-A/B/C review 待签认，其他实现票仍 blocked。
+详细工单见 [SPEC-1.1 剩余工作 Tickets](tickets/spec-1.1-remaining.md)，不是重开 Wave 3。当前1张ready（04-A）仅允许Contract调研/提案与Red设计，02-A/B/C与03-A共4张review待签认，24张blocked；没有业务实现票解锁。
 
 | 父票 / 新缺口 | 子票 | 本轮拆分范围 |
 |---|---|---|
@@ -109,7 +110,7 @@
 | ND-GAP-01~04 | 4 张独立票 | 后台 metrics/tasks、持久审计接线、首次改密生命周期验收、签名下载消费者验收 |
 | ND-P0-01 / ND-STG-04 | 01-A / 04-A | 业务复核 120 条脱敏集 / ECS apply；既有填写与 overlay 完成记录不变 |
 
-下一步优先：**02-A/B/C 签认、Linux 锁验证与预算映射确认**；经全部 Contract/DR-010/依赖审批后才推进 02 实现。独立前置可先编写 03-A 恢复 Contract proposed。03-A/04-A 可先写 proposed 设计，不提前发布路由/迁移。人工与环境票不得由编码会话冒充完成。
+下一步优先：**02-A/B/C 签认、Linux 锁验证与预算映射确认**；经全部 Contract/DR-010/依赖审批后才推进 02 实现。03-A恢复Contract已proposed/review；独立前置可编写04-A设计，不提前发布路由/迁移。人工与环境票不得由编码会话冒充完成。
 
 ---
 

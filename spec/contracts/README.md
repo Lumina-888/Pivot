@@ -7,9 +7,13 @@
 
 ## 待审核内部提案
 
-[AGENT-INTERNAL-0.1-draft.1](../../progress/changes/20261002-M05-agent-internal-contract.md) 定义拟议模型/工具/State/EvidenceRegistry Interface 与 Fake/Red 设计。状态 proposed，ND-AGENT-02-A review 待消费者/Owner 签认；不属于本目录已发布机器契约、不加入 manifest、不生成生产客户端。[AGENT-BUDGET-0.1-draft.2](../../progress/changes/20261002-M05-agent-budget-contract.md) 定义拟议累计预算/预扣结算、未知用量、期限/恢复、观察/上下文/并发规则、有限 Fixture 与 Red 设计。状态 proposed，ND-AGENT-02-B review 待签认，同样不属于已发布契约。[AGENT-DEPENDENCIES-0.1-draft.1](../../progress/changes/20261002-M03-agent-dependencies-lock.md) 的 Windows Python 3.12 候选哈希锁/技术验证已提交，ND-AGENT-02-C review，非正式依赖发布；Linux 与预算映射/敏感序列化等六项审核 pending。02-A/B/C、DR-010 尚未批准，不能据内嵌 schema、Fixture 算术或技术探针解锁业务实现；下一步先签认/补齐验证，或独立 03-A 恢复 Contract proposed。
+[AGENT-INTERNAL-0.1-draft.1](../../progress/changes/20261002-M05-agent-internal-contract.md) 定义拟议模型/工具/State/EvidenceRegistry Interface 与 Fake/Red 设计。状态 proposed，ND-AGENT-02-A review 待消费者/Owner 签认；不属于本目录已发布机器契约、不加入 manifest、不生成生产客户端。[AGENT-BUDGET-0.1-draft.2](../../progress/changes/20261002-M05-agent-budget-contract.md) 定义拟议累计预算/预扣结算、未知用量、期限/恢复、观察/上下文/并发规则、有限 Fixture 与 Red 设计。状态 proposed，ND-AGENT-02-B review 待签认，同样不属于已发布契约。[AGENT-DEPENDENCIES-0.1-draft.1](../../progress/changes/20261002-M03-agent-dependencies-lock.md) 的 Windows Python 3.12 候选哈希锁/技术验证已提交，ND-AGENT-02-C review，非正式依赖发布；Linux 与预算映射/敏感序列化等六项审核 pending。02-A/B/C、DR-010 尚未批准，不能据内嵌 schema、Fixture 算术或技术探针解锁业务实现；下一步先签认/补齐验证，03-A恢复Contract现已proposed/review；独立前置可选04-A。
 
 本轮 [02-A/B/C 技术审核/签认清单](../../evidence/agent-m03/nd-agent-02-abc-review.md)已修订累计图映射与前置门禁，Windows20项技术探针通过；Linux 环境 blocked、消费者/Owner/安全 pending。没有发布任何新 Contract 或正式锁，02-D～H 继续 blocked。
+
+## 待审核恢复提案
+
+[AGENT-RESUME-0.1-draft.1](../../progress/changes/20261003-M00-agent-resume-contract.md)与 [proposals/](proposals/README.md) 的独立机器schema已提交；ND-AGENT-03-A review，7项消费者/Owner签认pending。62项拟议字段/类型/错误配对检查不证明运行时owner/幂等/取消/恢复。该目录不属于contract-v0.1，不新增公开路由/错误枚举，不生成生产客户端；02/03父票仍blocked。证据见 [nd-agent-03-a.md](../../evidence/agent-m00/nd-agent-03-a.md)。
 
 ## 契约文件与来源映射
 
