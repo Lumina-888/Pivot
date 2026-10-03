@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-10-03\
-> **本轮修改前基线**：`93f7e50`（`main`；本次02-C Debian bookworm runtime候选锁）；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
+> **本轮修改前基线**：`8009841`（`main`；02-C离线供应链材料/Ubuntu下载阻断）；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
 > **性质**：当前规格迁移与历史实现交接。需求以 SPEC-1.1 / `spec/AGENT_SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 MODULE-SPEC-1.2 / `AGENTS.md` 为准。\
 > **本文件不是规范源。**
 
@@ -57,6 +57,8 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 3. `must_change_password` 不入库；version.idempotency_key 未入库；初始密码传递机制仍 TBD-P0；OCR 属 P2
 
 ## 4. 当前下一刀
+
+2026-10-03 [02-C供应链材料](evidence/agent-m03/nd-agent-02-c/supply-chain.md)：109个bookworm wheel哈希/身份相符，107检出随包许可证文本，grpcio-tools/langsmith 2项待补齐；PyMuPDF双许可/psycopg LGPL等仅记录声明，不代签安全/法律结论。Ubuntu24.04镜像检查通过，Actions Python3.12.10构建两次240秒下载超时，未生成Ubuntu锁/CI证据。bookworm verify既有探针20 passed；其余受影响回归见证据收尾。许可证兼容性/CVE/遥测/原生库/消费者与Owner签认仍pending，0 ready/5 review/24 blocked不变，不写blocked业务实现。
 
 2026-10-03 [bookworm 候选锁](evidence/agent-m03/nd-agent-02-c/linux-bookworm.md)：`python:3.12.10-slim-bookworm` digest `sha256:fd95fa221297a88e1cf49c55ec1828edd7c5a428187e67b5d1805692d11588db`。109 个 wheel 与 Windows 候选版本差 0，仅少 colorama/pywin32；双 venv 离线重建、哈希负向 exit 1、技术探针各 20 passed。分组 895 passed/1 failed/19 skipped，失败仍是根 `.env` 存在性断言。未发布依赖，Ubuntu CI/供应链/镜像构建未做，02-C 仍 review。
 

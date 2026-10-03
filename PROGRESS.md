@@ -1,7 +1,7 @@
 # 问枢 Pivot 开发进度
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
-> **最后更新**：2026-10-03（bookworm 候选锁）\
+> **最后更新**：2026-10-03（02-C 离线许可证材料；Ubuntu Python 下载 blocked）\
 > **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A/B/C 内部、预算及依赖/锁定提案、03-A恢复与04-A持久化Contract提案均review待签认；04-A新增173项元数据shape检查通过，不代表PG恢复/迁移/租约实施；02-C Windows Python 3.12 验证与候选哈希锁已提交，预算映射已修订为 proposed draft.2（独立累计执行前门禁），新增9项技术 canary/合计20 probes passed；旧 Windows 环境 Linux 验证因无 Docker/WSL 故障 blocked；当前 Arch 本机开发环境已配置并通过既有回归/浏览器组，Docker 镜像拉取及 daemon proxy 授权仍 blocked，02-C 目标平台原生锁与消费者/Owner/安全签认仍 pending，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
 > **当前实现状态**：主线开发（MODULE-SPEC-1.2）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；`PIVOT_PARSER=native` 可装配 PyMuPDF/docx/pptx/xlsx extra（缺省仍启发式/stdlib）；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送（opt-in uvicorn）；opt-in Playwright 十页；企业 Golden Set v0.3 脱敏摘录 120 条（非业务复核，非 GATE）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
 > **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 十页 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条）+ 企业 Golden Set v0.3 脱敏摘录 120 条（annotated_desensitized，Fake Keyword） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + hashed refresh / Conversation / Run/EventLog SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + `worker[parse]` 真实解析库 extra（`PIVOT_PARSER=native`；CI 微型夹具；缺省仍启发式/stdlib） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture） + SSE 长连接（POST 立即返回 received；逐帧推送；Next SSE Route Handler 去缓冲；opt-in uvicorn）。GATE-P0 全部 unverified。
@@ -16,6 +16,8 @@
 6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)、[SPEC-1.1 剩余 Tickets](progress/tickets/spec-1.1-remaining.md)（不是需求源；29张细化票，0张ready，02-A/B/C、03-A、04-A共5张review待签认，24张blocked）。Owner 历史 `dev-staging` 环境范围：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
 
 本机开发/测试入口见 [Linux runbook](ops/runbook-local-linux.md) 与 [2026-10-03 环境证据](evidence/local-linux-20261003.md)。Python 3.12.10、Node/npm、现有 extras、Playwright 与 loopback API/Web 可用；Python 661 passed/19 skipped、Web 18/13/8 passed、浏览器11 passed。Docker daemon/组权限已配置，但真实依赖镜像与代理授权未完成；memory 模式 readyz=503、检索为空，不宣称真实存储/RAG 就绪。未安装未批准 Agent 依赖、不关闭 02-C 或 GATE。
+
+02-C 新增 [离线供应链材料与 Ubuntu 下载阻断](evidence/agent-m03/nd-agent-02-c/supply-chain.md)：109 个 bookworm wheel 哈希/身份相符、107 个检出随包许可证文本，2 个待补齐；许可证兼容性/CVE/遥测仍 pending。Ubuntu 镜像可运行，但固定 Python 构建连续下载超时，未生成 Ubuntu 锁，不解除业务 DoR。
 
 当前跟进见 [02-A/B/C 审核与待签清单](evidence/agent-m03/nd-agent-02-abc-review.md)：预算 draft.2 映射已修订但未批准。Debian bookworm runtime 候选锁已验证（109 wheel、双环境 20 probes、895/1/19），见 [证据](evidence/agent-m03/nd-agent-02-c/linux-bookworm.md)；Ubuntu CI、供应链与签认仍 pending，执行单见 [原生验证单](evidence/agent-m03/nd-agent-02-c/linux-validation.md)。**02-A/B/C review、02-D～H blocked 不变**，技术验证不能代签各消费者/Owner。
 
@@ -245,6 +247,13 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 - [x] 企业 Golden Set v0.3 脱敏摘录已批准：`progress/changes/20260914-M11-golden-set-enterprise-fill.md`。
 
 ## 6. 轮次日志
+
+### 2026-10-03 — ND-AGENT-02-C 离线供应链材料与 Ubuntu 阻断
+
+- **范围 / 基线**：main `8009841`，开场 clean；M11 证据/生成清单，M03 候选/进度，根与交接同步。未改业务源码、正式依赖/锁、CI/镜像/迁移或用户配置，未安装新包。
+- **结果**：109 个既有 bookworm wheel 原始 SHA-256 与 METADATA 身份相符；62 有 SPDX 表达式、45 有旧 License 字段、45 有 classifier（覆盖重叠），107 检出随包许可证文件，grpcio-tools/langsmith 2 项待补齐。PyMuPDF 双许可/psycopg LGPL 等只记录声明，不代签法律/安全判断。Ubuntu 24.04 镜像检查通过；Actions Python 3.12.10 构建两次 240 秒下载超时，未安装/解析/生成 Ubuntu 锁。详见 [证据](evidence/agent-m03/nd-agent-02-c/supply-chain.md)。
+- **验证**：bookworm verify 既有技术探针 **20 passed**；公共 Contract/DB **331 passed**，QA/Run/SSE **79 passed**，109 项清单复核、6 文档/69 本地链接、JSON/内嵌命令语法与 ruff 检查通过。上一轮全量 `.env` 存在性失败未修、不读删配置，未将部分回归当全量绿。
+- **下一步**：完整且经审核的 Ubuntu 固定 Python 构建、原生锁/双重建/CI，许可证兼容性/CVE/遥测/原生库与角色锁/构建审核、消费者/Owner 签认。02-C review、0 ready / 5 review / 24 blocked、DR-010/011 与全部 GATE 不变。
 
 ### 2026-10-03 — ND-AGENT-02-C Debian bookworm 候选锁
 
