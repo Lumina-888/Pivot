@@ -6,7 +6,7 @@
 
 ## 开始任何工作前
 
-1. 确认工作区是 `E:/AI Project/Pivot`，分支是 `main`。不要进入或新建 `../Pivot-Mxx-*` worktree。
+1. 确认工作区是仓库根 `Pivot/`，分支是 `main`。当前 Linux 路径为 `/home/lumina888/Projects/Pivot`；`E:/AI Project/Pivot` 是历史 Windows 路径。不要进入或新建 `../Pivot-Mxx-*` worktree。
 2. 读取 `SPEC.md`、`spec/AGENT_SPEC.md`、`MODULE_SPEC.md`、`PROGRESS.md`；
 3. 确认本切片范围，以及涉及模块的 `progress/modules/Mxx.md`；
 4. 若 DoR 不满足，先写进度/变更申请，不要直接写业务代码。
@@ -36,7 +36,8 @@
 ## 常用命令
 
 ```bash
-cd "E:/AI Project/Pivot"
+cd /home/lumina888/Projects/Pivot
+source .venv/bin/activate
 git status --short
 git log --oneline --decorate -20
 
@@ -51,5 +52,7 @@ npm --prefix web run lint
 不要执行 `git worktree add "../Pivot-Mxx-*"`。历史 worktree 由 Owner 手动删除。
 
 ## 恢复开发提示
+
+本机开发/测试环境见 [`ops/runbook-local-linux.md`](ops/runbook-local-linux.md)：Python 3.12.10 与已有回归/浏览器测试可用，Docker 真实存储联调仍待代理授权；不得把本机配置当成 02-C 目标平台锁验证或 Agent 签认。
 
 新会话说明“继续主线”或点名下一刀（例如 ND-AGENT-02 Contract 前置）即可。先读 [`HANDOFF.md`](HANDOFF.md) 了解 2026-10-02 ReAct 规格迁移与当前实现差距；2026-09 的 Wave 3 历史证据仍保留。不要依赖上一会话的聊天记录；聊天记录不是项目事实，版本化进度文件、commit、tag 和测试证据才是交接依据。

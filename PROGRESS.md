@@ -1,19 +1,21 @@
 # 问枢 Pivot 开发进度
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
-> **最后更新**：2026-10-02\
-> **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A/B/C 内部、预算及依赖/锁定提案均 review 待签认；02-C Windows Python 3.12 验证与候选哈希锁已提交，预算映射已修订为 proposed draft.2（独立累计执行前门禁），新增9项技术 canary/合计20 probes passed；Linux 本机无 Docker、WSL/Bash 0x80070422 blocked，消费者/Owner/安全签认仍 pending，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
+> **最后更新**：2026-10-03\
+> **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A/B/C 内部、预算及依赖/锁定提案均 review 待签认；02-C Windows Python 3.12 验证与候选哈希锁已提交，预算映射已修订为 proposed draft.2（独立累计执行前门禁），新增9项技术 canary/合计20 probes passed；旧 Windows 环境 Linux 验证因无 Docker/WSL 故障 blocked；当前 Arch 本机开发环境已配置并通过既有回归/浏览器组，Docker 镜像拉取及 daemon proxy 授权仍 blocked，02-C 目标平台原生锁与消费者/Owner/安全签认仍 pending，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
 > **当前实现状态**：主线开发（MODULE-SPEC-1.2）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；`PIVOT_PARSER=native` 可装配 PyMuPDF/docx/pptx/xlsx extra（缺省仍启发式/stdlib）；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送（opt-in uvicorn）；opt-in Playwright 十页；企业 Golden Set v0.3 脱敏摘录 120 条（非业务复核，非 GATE）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
 > **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 十页 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条）+ 企业 Golden Set v0.3 脱敏摘录 120 条（annotated_desensitized，Fake Keyword） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + hashed refresh / Conversation / Run/EventLog SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + `worker[parse]` 真实解析库 extra（`PIVOT_PARSER=native`；CI 微型夹具；缺省仍启发式/stdlib） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture） + SSE 长连接（POST 立即返回 received；逐帧推送；Next SSE Route Handler 去缓冲；opt-in uvicorn）。GATE-P0 全部 unverified。
 
 ## 1. 新会话恢复入口
 
-1. 确认 cwd 为 `E:/AI Project/Pivot`，分支为 `main`；不要进入 `../Pivot-Mxx-*`；
+1. 确认 cwd 为当前 Linux 仓库 `/home/lumina888/Projects/Pivot`，分支为 `main`；`E:/AI Project/Pivot` 是历史 Windows 路径，不要进入 `../Pivot-Mxx-*`；
 2. 读取 `AGENTS.md`；
 3. 读取 `MODULE_SPEC.md`；
 4. 读取本文件和本切片涉及的 `progress/modules/Mxx.md`；
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
 6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)、[SPEC-1.1 剩余 Tickets](progress/tickets/spec-1.1-remaining.md)（不是需求源；29 张细化票，2 张 ready 仅前置提案，02-A/B/C review 待签认）。Owner 历史 `dev-staging` 环境范围：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
+
+本机开发/测试入口见 [Linux runbook](ops/runbook-local-linux.md) 与 [2026-10-03 环境证据](evidence/local-linux-20261003.md)。Python 3.12.10、Node/npm、现有 extras、Playwright 与 loopback API/Web 可用；Python 661 passed/19 skipped、Web 18/13/8 passed、浏览器11 passed。Docker daemon/组权限已配置，但真实依赖镜像与代理授权未完成；memory 模式 readyz=503、检索为空，不宣称真实存储/RAG 就绪。未安装未批准 Agent 依赖、不关闭 02-C 或 GATE。
 
 当前跟进见 [02-A/B/C 审核与待签清单](evidence/agent-m03/nd-agent-02-abc-review.md)：预算 draft.2 映射已修订但未批准，Linux 需 Owner 提供/恢复获准环境，执行 [原生验证单](evidence/agent-m03/nd-agent-02-c/linux-validation.md)。**02-A/B/C review、02-D～H blocked 不变**，主线技术自审不能代签各消费者/Owner。
 
@@ -243,6 +245,12 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 - [x] 企业 Golden Set v0.3 脱敏摘录已批准：`progress/changes/20260914-M11-golden-set-enterprise-fill.md`。
 
 ## 6. 轮次日志
+
+### 2026-10-03 — 本机 Linux 开发环境与清华默认源
+
+- **范围 / 基线**：main `8782c7c`，开场 clean；M11 用户授权本机配置与验证，M03 解释器记录，M00 恢复入口。配置独立 Python 3.12.10/.venv、现有 extras、原 Web lock、Playwright、loopback 用户服务；pip/Arch 首选清华。系统 Python、正式依赖/锁、CI/镜像、业务源码/迁移/契约不变。
+- **验证**：Python 十组 **661 passed/19 skipped**、ruff/compileall passed；Web **18/13/8 passed**、typecheck/lint passed；真实浏览器组 **11 passed**。本地 health/login/native PDF 解析/无证据 refused/SSE 通过，完整命令与初轮超时记录见 [环境证据](evidence/local-linux-20261003.md)。整体 harness 在 npm 阶段超时，Web 独立补跑，不宣称单次 harness exit 0。
+- **限制 / 下一步**：Docker client/server 已验证、用户组已配置；官方镜像直连超时，daemon proxy 两次 pkexec 等待超时，四容器未启动。memory 默认未连检索索引，readyz 真实503/四依赖false；只能本机开发/测试，真实存储联调待 Owner 授权。操作见 [runbook](ops/runbook-local-linux.md)，[变更边界](progress/changes/20261003-M11-local-linux-environment.md)。Arch 环境不替代 Debian runtime/Ubuntu CI 候选锁，02-A/B/C review、D~H blocked、DR-010/011/TBD-P0/全部 GATE 不变。
 
 ### 2026-10-02 — 02-A/B/C 技术审核、预算映射修订与 Linux 前置阻断
 
