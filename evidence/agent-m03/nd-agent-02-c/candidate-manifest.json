@@ -50,6 +50,7 @@
     "PyYAML>=6.0"
   ],
   "text_hash_normalization": "UTF-8 text with LF line endings",
+  "candidate_lock_file": "candidate-win-py312.lock.txt",
   "candidate_lock_sha256": "b3e303cbc37c682de4b7244329f62e4a1a1ba63cbf88c4b1e49cf9aebfcf126d",
   "project_input_sha256": {
     "api/pyproject.toml": "1959b7d56011449d96287276d0a09e4e6f303a63d1b4781de92bfaec03ea6f04",
