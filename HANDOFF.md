@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-10-04\
-> **本轮修改前基线**：`3460a2f`（`main`；Ubuntu独立候选锁/双重建）；`93c24fe`为清华源Ubuntu源码构建/候选解析前基线；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
+> **本轮修改前基线**：`75cf0aa`（`main`；M11私有配置回归修正）；`3460a2f`为Ubuntu独立候选锁/双重建前基线；`93c24fe`为清华源Ubuntu源码构建/候选解析前基线；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
 > **性质**：当前规格迁移与历史实现交接。需求以 SPEC-1.1 / `spec/AGENT_SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 MODULE-SPEC-1.2 / `AGENTS.md` 为准。\
 > **本文件不是规范源。**
 
@@ -58,7 +58,9 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 4. 当前下一刀
 
-最新 [Ubuntu独立候选锁](evidence/agent-m03/nd-agent-02-c/linux-ubuntu.md)：2026-10-04新Ubuntu容器/目录原生重新解析109 wheel、独立生成proposed锁；bookworm缓存字节按本轮report逐个hash核验后复用，两个全新venv离线hashes安装/pip check通过、错误哈希dry-run exit1、技术探针各20 passed。完整Python分组895 passed/1 failed/19 skipped、ruff/compileall通过；唯一失败仍是根`.env`存在性断言，未读删配置或放宽测试。工具等待600秒超时后容器继续执行，最终wait/inspect exit1/running=false。manifest显式记录source-built diagnostic/not-hosted-ci；正式Ubuntu CI/Actions工具链/角色锁/供应链/消费者与Owner签认仍pending，02-C review、0 ready/5 review/24 blocked及DR/GATE不变。
+最新[M11私有配置回归修正](evidence/wave3-m11/private-env-regression.md)：原`.env`存在性误报已修，改为Git索引与仓库真实忽略来源检查；新增9项临时仓库用例，强制暂存/规则缺失/注释/本地或全局排除不能放行。本机Python分组**905 passed/19 skipped/0 failed**、harness exit0、ruff/compileall通过，未读删用户配置。测试要求Git可执行文件和工作区元数据；未重跑目标候选/正式Ubuntu CI/Web/真实PG/live，不解除Agent签认或GATE。历史下文失败数字保持原事实记录，不能作为本轮结果。
+
+此前 [Ubuntu独立候选锁](evidence/agent-m03/nd-agent-02-c/linux-ubuntu.md)：2026-10-04新Ubuntu容器/目录原生重新解析109 wheel、独立生成proposed锁；bookworm缓存字节按本轮report逐个hash核验后复用，两个全新venv离线hashes安装/pip check通过、错误哈希dry-run exit1、技术探针各20 passed。完整Python分组895 passed/1 failed/19 skipped、ruff/compileall通过；唯一失败仍是根`.env`存在性断言，未读删配置或放宽测试。工具等待600秒超时后容器继续执行，最终wait/inspect exit1/running=false。manifest显式记录source-built diagnostic/not-hosted-ci；正式Ubuntu CI/Actions工具链/角色锁/供应链/消费者与Owner签认仍pending，02-C review、0 ready/5 review/24 blocked及DR/GATE不变。
 
 上轮 [清华源Ubuntu诊断](evidence/agent-m03/nd-agent-02-c/linux-ubuntu-tuna.md)：Python3.12.10源码20.5MB/3.4秒下载，摘要与官方HTTPS Sigstore bundle相符（未验完整签名链）；Ubuntu源码构建/运行库/stdlib/pip25.0.1验证通过，清华pip原生dry-run解析109个wheel，与bookworm候选包集合/版本/报告哈希差异0。清华源只用于临时容器，宿主/主.venv/业务不变。源码构建不等于Actions artifact或Hosted CI；未做独立Ubuntu锁/双重建/探针/分组，仍待工具链/供应链/消费者与Owner审核，02-C review与0 ready/5 review/24 blocked不变。
 

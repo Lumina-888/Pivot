@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import socket
+import subprocess
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -239,11 +240,39 @@ def test_NFR_OBS_compose_staging_does_not_self_host_models():
 
 
 def test_NFR_OBS_compose_staging_env_is_gitignored():
-    text = _GITIGNORE.read_text(encoding="utf-8")
-    assert ".env" in text
-    assert "*.env" in text or "compose.staging.env" in text
-    assert not (_ROOT / "ops" / "compose.staging.env").exists()
-    assert not (_ROOT / ".env").exists()
+    private_paths = (".env", "ops/compose.staging.env")
+    git = ["git", "-C", str(_ROOT), "-c", f"core.excludesFile={os.devnull}"]
+    tracked = subprocess.run(
+        [*git, "ls-files", "--cached", "-z", "--", *private_paths],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert not tracked.stdout, "private environment configuration is in the Git index"
+    ignored = subprocess.run(
+        [*git, "check-ignore", "--no-index", "--verbose", "-z", "--stdin"],
+        input="\0".join(private_paths) + "\0",
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert ignored.returncode in (0, 1), "Git ignore-rule query failed"
+    assert ignored.returncode == 0, (
+        "private environment paths must match repository .gitignore"
+    )
+    fields = ignored.stdout.split("\0")
+    assert fields[-1] == "" and len(fields) == 4 * len(private_paths) + 1, (
+        "private environment paths must match repository .gitignore"
+    )
+    for index, relative in enumerate(private_paths):
+        source, _, pattern, path = fields[index * 4 : index * 4 + 4]
+        assert source == _GITIGNORE.relative_to(_ROOT).as_posix(), (
+            "private environment paths must match repository .gitignore"
+        )
+        assert path == relative
+        assert not pattern.startswith("!"), "private environment path is explicitly unignored"
     example = _ENV_EXAMPLE.read_text(encoding="utf-8")
     assert "TBD-P0" in example
     assert "PIVOT_TOKEN_SECRET=" in example
@@ -251,6 +280,66 @@ def test_NFR_OBS_compose_staging_env_is_gitignored():
     assert _example_assignment(example, "PIVOT_EMBEDDING") == "hash"
     assert _example_assignment(example, "PIVOT_LLM") == "local"
     assert _example_assignment(example, "PIVOT_PARSER") == "local"
+
+
+@pytest.fixture
+def private_env_repo(tmp_path, monkeypatch):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, capture_output=True)
+    gitignore = tmp_path / ".gitignore"
+    gitignore.write_text("/.env\n/ops/compose.staging.env\n", encoding="utf-8")
+    (tmp_path / "ops").mkdir()
+    monkeypatch.setattr(f"{__name__}._ROOT", tmp_path)
+    monkeypatch.setattr(f"{__name__}._GITIGNORE", gitignore)
+    return tmp_path
+
+
+@pytest.mark.parametrize("present", [False, True])
+def test_NFR_SEC_014_private_env_local_files_are_allowed(private_env_repo, present):
+    if present:
+        for relative in (".env", "ops/compose.staging.env"):
+            (private_env_repo / relative).write_text("fixture_only=true\n", encoding="utf-8")
+    test_NFR_OBS_compose_staging_env_is_gitignored()
+
+
+@pytest.mark.parametrize("relative", [".env", "ops/compose.staging.env"])
+def test_NFR_SEC_014_private_env_force_staged_is_rejected(private_env_repo, relative):
+    (private_env_repo / relative).write_text("fixture_only=true\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(private_env_repo), "add", "--force", "--", relative],
+        check=True,
+        capture_output=True,
+    )
+    with pytest.raises(AssertionError, match="in the Git index"):
+        test_NFR_OBS_compose_staging_env_is_gitignored()
+
+
+@pytest.mark.parametrize("relative", [".env", "ops/compose.staging.env"])
+def test_NFR_SEC_014_private_env_missing_rule_is_rejected(private_env_repo, relative):
+    other = "ops/compose.staging.env" if relative == ".env" else ".env"
+    (private_env_repo / ".gitignore").write_text(f"/{other}\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="must match repository"):
+        test_NFR_OBS_compose_staging_env_is_gitignored()
+
+
+@pytest.mark.parametrize("exclude_source", ["comment", "local", "global"])
+def test_NFR_SEC_014_private_env_non_repo_rules_are_rejected(private_env_repo, exclude_source):
+    (private_env_repo / ".gitignore").write_text(
+        "# .env and *.env must be ignored\n", encoding="utf-8"
+    )
+    if exclude_source == "local":
+        (private_env_repo / ".git" / "info" / "exclude").write_text(
+            "/.env\n/ops/compose.staging.env\n", encoding="utf-8"
+        )
+    elif exclude_source == "global":
+        excludes = private_env_repo / "global-ignore"
+        excludes.write_text("/.env\n/ops/compose.staging.env\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(private_env_repo), "config", "core.excludesFile", str(excludes)],
+            check=True,
+            capture_output=True,
+        )
+    with pytest.raises(AssertionError, match="must match repository"):
+        test_NFR_OBS_compose_staging_env_is_gitignored()
 
 
 def test_NFR_OBS_compose_staging_env_example_has_no_vendor_secrets():
