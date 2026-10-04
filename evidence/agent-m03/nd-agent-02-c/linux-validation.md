@@ -4,6 +4,8 @@
 - **责任**：M03 候选解析/锁，M11 环境/回归/镜像，M01 供应链审查，M00 归档，Owner 提供或批准环境。
 - **前置记录**：[02-A/B/C 审核与签认清单](../nd-agent-02-abc-review.md)。不得复制 Windows wheel 哈希、用宿主 `pip --platform` 冒充原生 Linux，或自行启用 WSL/安装 Docker/使用未知 SSH 主机。
 
+2026-10-04 已版本化[Ubuntu 手动候选 CI 入口](../../../.github/workflows/candidate-ubuntu.yml)与[准备证据](ubuntu-ci-preparation.md)：固定Ubuntu24.04/Python3.12.10，原生report/候选hash/双离线环境/负向/探针/旧回归可按独立workflow_dispatch执行，确认项默认false。本地61项检查/原环境1031 passed不等于Hosted CI执行；本轮未推送或dispatch。Owner审查并远端实际执行后再补本单正式CI结果，角色锁/供应链与签认门槛仍保留。
+
 ## 1. 环境与输出
 
 先取得批准的 Linux x86_64 CPython 3.12.10 环境（Debian bookworm runtime 与 Ubuntu CI **分别**执行）。记录 OS、glibc、架构、Python/pip 与镜像 digest（容器时）。Native venv 验证不自动证明 API 镜像构建；镜像/角色锁/构建工具/许可证/CVE 仍独立审核。

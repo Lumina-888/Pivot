@@ -1,7 +1,7 @@
 # 问枢 Pivot 开发进度
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
-> **最后更新**：2026-10-04（02-C压缩wheel错误脱敏修正/新增9项回归；Python 970 passed/19 skipped，正式 Ubuntu CI 与安全/Agent 签认仍 pending）\
+> **最后更新**：2026-10-04（02-C Ubuntu 手动候选 CI 入口准备/新增61项检查；Python 1031 passed/19 skipped，Hosted CI 尚未执行，安全/Agent 签认仍 pending）\
 > **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A/B/C 内部、预算及依赖/锁定提案、03-A恢复与04-A持久化Contract提案均review待签认；04-A新增173项元数据shape检查通过，不代表PG恢复/迁移/租约实施；02-C Windows Python 3.12 验证与候选哈希锁已提交，预算映射已修订为 proposed draft.2（独立累计执行前门禁），新增9项技术 canary/合计20 probes passed；旧 Windows 环境 Linux 验证因无 Docker/WSL 故障 blocked；当前 Arch 本机开发环境已配置并通过既有回归/浏览器组，Docker 镜像拉取及 daemon proxy 授权仍 blocked，02-C 目标平台原生锁与消费者/Owner/安全签认仍 pending，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
 > **当前实现状态**：主线开发（MODULE-SPEC-1.2）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；`PIVOT_PARSER=native` 可装配 PyMuPDF/docx/pptx/xlsx extra（缺省仍启发式/stdlib）；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送（opt-in uvicorn）；opt-in Playwright 十页；企业 Golden Set v0.3 脱敏摘录 120 条（非业务复核，非 GATE）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
 > **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 十页 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条）+ 企业 Golden Set v0.3 脱敏摘录 120 条（annotated_desensitized，Fake Keyword） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + hashed refresh / Conversation / Run/EventLog SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + `worker[parse]` 真实解析库 extra（`PIVOT_PARSER=native`；CI 微型夹具；缺省仍启发式/stdlib） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture） + SSE 长连接（POST 立即返回 received；逐帧推送；Next SSE Route Handler 去缓冲；opt-in uvicorn）。GATE-P0 全部 unverified。
@@ -17,7 +17,9 @@
 
 本机开发/测试入口见 [Linux runbook](ops/runbook-local-linux.md) 与 [2026-10-03 环境证据](evidence/local-linux-20261003.md)。Python 3.12.10、Node/npm、现有 extras、Playwright 与 loopback API/Web 可用；Python 661 passed/19 skipped、Web 18/13/8 passed、浏览器11 passed。Docker daemon/组权限已配置，但真实依赖镜像与代理授权未完成；memory 模式 readyz=503、检索为空，不宣称真实存储/RAG 就绪。未安装未批准 Agent 依赖、不关闭 02-C 或 GATE。
 
-最新 [02-C压缩wheel错误脱敏回归](evidence/agent-m03/nd-agent-02-c/compression-errors.md)：修复离线核验工具未捕获DEFLATE/LZMA底层解压异常、CLI泄漏traceback/本机路径的问题，沿用既有脱敏分类。新增三种压缩格式9项正负向测试，Red4 failed/5 passed后安全组67 passed；原环境完整Python**970 passed/19 skipped/0 failed**、harness exit0、ruff/compileall与两Python文件主动LSP clean。Windows111项材料、bookworm/Ubuntu各109个缓存wheel复核通过；未改业务/依赖/锁/CI/用户配置，未重跑目标候选/正式CI/Web/PG/live。02-C review、0 ready/5 review/24 blocked及签认/DR/GATE不变，下一步仍须前置提案签认与批准验证环境。
+最新 [02-C Ubuntu 手动候选 CI 入口准备](evidence/agent-m03/nd-agent-02-c/ubuntu-ci-preparation.md)：新增仅手动确认触发的 Ubuntu24.04/Python3.12.10 验证流程，Actions 固定 commit、隔离 driver/native resolver/双离线重建/哈希负向/20技术探针与旧回归；准备工具严格拒绝平台/材料漂移、非官方URL、畸形JSON及越界/旧输出。新增61项本地检查，安全组128 passed；原环境完整Python **1031 passed/19 skipped/0 failed**、harness exit0、ruff/compileall通过，工具/测试/YAML主动LSP clean。本机Arch前检正确拒绝且无输出，主.venv未装LangGraph。未推送或触发Hosted CI，默认ci.yml/正式依赖/既有候选/业务不变；02-C review、0 ready/5 review/24 blocked、所有签认/DR/GATE不变。下一步经Owner审查后在远端运行手动CI并归档真实证据，不把入口准备当CI passed。
+
+此前 [02-C压缩wheel错误脱敏回归](evidence/agent-m03/nd-agent-02-c/compression-errors.md)：修复离线核验工具未捕获DEFLATE/LZMA底层解压异常、CLI泄漏traceback/本机路径的问题，沿用既有脱敏分类。新增三种压缩格式9项正负向测试，Red4 failed/5 passed后安全组67 passed；原环境完整Python**970 passed/19 skipped/0 failed**、harness exit0、ruff/compileall与两Python文件主动LSP clean。Windows111项材料、bookworm/Ubuntu各109个缓存wheel复核通过；未改业务/依赖/锁/CI/用户配置，未重跑目标候选/正式CI/Web/PG/live。02-C review、0 ready/5 review/24 blocked及签认/DR/GATE不变，下一步仍须前置提案签认与批准验证环境。
 
 此前 [02-C离线候选一致性工具](evidence/agent-m03/nd-agent-02-c/integrity-tool.md)：`ops/check_candidate_integrity.py`严格核验manifest/锁集合、文本摘要、固定项目输入和可选wheel字节/METADATA，拒绝重复项/越界路径，CLI错误脱敏且明确不等于批准。Windows manifest补齐锁文件名（版本/哈希不变）；Windows111项材料、bookworm/Ubuntu各109个缓存wheel复核通过。新增56项安全测试，原环境完整Python**961 passed/19 skipped/0 failed**、ruff/compileall与两Python文件主动LSP clean。未改业务/依赖/锁/CI/用户配置，未重跑目标候选/正式CI/Web/PG/live；02-C review、0 ready/5 review/24 blocked、所有签认/DR/GATE不变。
 
@@ -259,6 +261,13 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 - [x] 企业 Golden Set v0.3 脱敏摘录已批准：`progress/changes/20260914-M11-golden-set-enterprise-fill.md`。
 
 ## 6. 轮次日志
+
+### 2026-10-04 — ND-AGENT-02-C Ubuntu 手动候选 CI 入口准备
+
+- **范围 / 基线**：main `4fb1693`，开场clean；用户确认继续正式Ubuntu CI验证准备。M11工作流/准备工具/bootstrap候选锁/安全测试/证据，M03模块进度，根/交接同步。默认CI、pyproject/既有候选、业务/公开Contract/迁移/镜像、主环境与用户配置不变。见[范围记录](progress/changes/20261004-M11-candidate-ubuntu-ci-preparation.md)/[证据](evidence/agent-m03/nd-agent-02-c/ubuntu-ci-preparation.md)。
+- **交付 / Red**：仅workflow_dispatch且确认默认false；Ubuntu24.04/Python3.12.10与三Actions固定commit，隔离hash driver/native report/双离线venv/各20 probes/错误hash负向/旧回归，失败保留有限artifact。准备工具拒绝漂移/非官方URL/重复项/畸形JSON/越界和旧输出。Red先缺入口，再暴露roots6项、report25项、CLI/workflow及整数URL问题，逐段Green；新增61项通过，无业务Agent实现。
+- **验证 / 限制**：Python3.12.10/pip25.0.1/pytest9.1.1/ruff0.16.6；安全组128 passed，完整Python十组 **1031 passed/19 skipped/0 failed**、harness exit0、ruff/compileall通过，工具/测试/YAML三路径主动LSP clean。Arch CLI预期exit1/native_environment且无目录，主.venv无LangGraph。actionlint未安装，未跑Web/Hosted CI/目标候选/PG/live/镜像；不宣称正式Ubuntu CI通过，不推送或dispatch。
+- **下一步**：Owner审核入口与待验证ref，远端手动运行并归档run/真实环境/双重建/负向/探针/回归证据；角色锁、来源/供应链及消费者/Owner签认仍pending。02-C review、0 ready/5 review/24 blocked、02-D～H/DR-010/011/TBD-P0/全部GATE不变。
 
 ### 2026-10-04 — ND-AGENT-02-C 离线候选一致性工具
 
