@@ -412,6 +412,8 @@ def test_FR_AGENT_009_ci_workflow_installs_isolated_hashes_without_live_services
 def test_FR_AGENT_009_ci_workflow_artifacts_exclude_environments_and_wheels(workflow):
     upload = workflow["jobs"]["candidate-validation"]["steps"][-1]
     assert upload["if"] == "${{ always() }}"
+    # upload-artifact v4 excludes every file beneath the hidden .pi directory by default.
+    assert upload["with"].get("include-hidden-files") is True
     paths = upload["with"]["path"].splitlines()
     assert paths and all(
         path.startswith("${{ env.PIVOT_CANDIDATE_TRIAL }}/") for path in paths

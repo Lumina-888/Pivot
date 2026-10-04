@@ -125,5 +125,7 @@ jobs:
             ${{ env.PIVOT_CANDIDATE_TRIAL }}/*.json
             ${{ env.PIVOT_CANDIDATE_TRIAL }}/*.log
             ${{ env.PIVOT_CANDIDATE_TRIAL }}/*.txt
+          # .pi is hidden; keep the non-recursive file allowlist above.
+          include-hidden-files: true
           retention-days: 7
           if-no-files-found: warn

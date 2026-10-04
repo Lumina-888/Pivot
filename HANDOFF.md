@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-10-04\
-> **本轮修改前基线**：`4fb1693`（`main`；02-C Ubuntu 手动候选 CI 入口准备）；`b84670a`为02-C压缩wheel错误脱敏修正前基线；`fa291b2`为02-C离线候选一致性工具前基线；`497c15c`为02-C公开供应链诊断前基线；`75cf0aa`为M11私有配置回归修正前基线；`3460a2f`为Ubuntu独立候选锁/双重建前基线；`93c24fe`为清华源Ubuntu源码构建/候选解析前基线；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
+> **本轮修改前基线**：`60a6455`（`main`；02-C隐藏目录证据归档修正）；`4fb1693`（`main`；02-C Ubuntu 手动候选 CI 入口准备）；`b84670a`为02-C压缩wheel错误脱敏修正前基线；`fa291b2`为02-C离线候选一致性工具前基线；`497c15c`为02-C公开供应链诊断前基线；`75cf0aa`为M11私有配置回归修正前基线；`3460a2f`为Ubuntu独立候选锁/双重建前基线；`93c24fe`为清华源Ubuntu源码构建/候选解析前基线；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
 > **性质**：当前规格迁移与历史实现交接。需求以 SPEC-1.1 / `spec/AGENT_SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 MODULE-SPEC-1.2 / `AGENTS.md` 为准。\
 > **本文件不是规范源。**
 
@@ -58,7 +58,9 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 4. 当前下一刀
 
-最新[02-C Ubuntu 手动候选 CI 入口准备](evidence/agent-m03/nd-agent-02-c/ubuntu-ci-preparation.md)：新增仅workflow_dispatch/确认默认false的Ubuntu24.04/Python3.12.10流程，三Actions固定commit、隔离hash driver/native report/独立候选锁/wheel核验/双离线重建/各20探针/错误hash负向/旧回归。准备工具严格拒绝漂移/非官方URL/畸形JSON/重复项/越界/旧输出。新增61项检查，原环境安全组128 passed、完整Python1031 passed/19 skipped/0 failed、harness exit0、ruff/compileall与工具/测试/YAML主动LSP clean；本机Arch正确拒绝且无输出，主.venv无LangGraph。未推送或dispatch、未跑Hosted CI/目标候选/Web/PG/live/镜像，默认CI/正式依赖/既有候选/业务未改。**下一步先Owner审查入口与待验证ref，远端手动运行并归档真实run/环境/双重建/负向/探针/回归证据**；入口准备不是正式CI passed，角色锁/来源/供应链与消费者签认仍pending，02-C review、0 ready/5 review/24 blocked与DR/GATE不变。
+最新[02-C隐藏目录证据上传修正](evidence/agent-m03/nd-agent-02-c/hidden-artifacts.md)：固定upload-artifact默认排除`.pi/`中的文件，本轮显式允许隐藏目录读取，仍只归档本次trial顶层JSON/log/txt，不上传配置/wheel/venv。既有上传契约Red1 failed→安全组128 passed；完整Python重跑1031 passed/19 skipped/0 failed、harness exit0、ruff/compileall与Python/YAML主动LSP clean。首次180秒工具等待超时已确认无遗留，420秒上限重跑完整通过；已有YAML长行风格限制如实记录。未推送/dispatch/验证Hosted上传，未重跑目标候选/Web/PG/live/镜像；02-C review、0 ready/5 review/24 blocked与所有签认/DR/GATE不变。**下一步须Owner审查待验证ref并批准远端手动CI，归档真实run与可下载artifact**。
+
+此前[02-C Ubuntu 手动候选 CI 入口准备](evidence/agent-m03/nd-agent-02-c/ubuntu-ci-preparation.md)：新增仅workflow_dispatch/确认默认false的Ubuntu24.04/Python3.12.10流程，三Actions固定commit、隔离hash driver/native report/独立候选锁/wheel核验/双离线重建/各20探针/错误hash负向/旧回归。准备工具严格拒绝漂移/非官方URL/畸形JSON/重复项/越界/旧输出。新增61项检查，原环境安全组128 passed、完整Python1031 passed/19 skipped/0 failed、harness exit0、ruff/compileall与工具/测试/YAML主动LSP clean；本机Arch正确拒绝且无输出，主.venv无LangGraph。未推送或dispatch、未跑Hosted CI/目标候选/Web/PG/live/镜像，默认CI/正式依赖/既有候选/业务未改。**下一步先Owner审查入口与待验证ref，远端手动运行并归档真实run/环境/双重建/负向/探针/回归证据**；入口准备不是正式CI passed，角色锁/来源/供应链与消费者签认仍pending，02-C review、0 ready/5 review/24 blocked与DR/GATE不变。
 
 此前[02-C压缩wheel错误脱敏回归](evidence/agent-m03/nd-agent-02-c/compression-errors.md)：修复离线工具未捕获DEFLATE/LZMA解压异常、CLI输出traceback/路径的问题；新增三种压缩格式9项正负向回归，Red4 failed/5 passed→安全组67 passed。原环境完整Python**970 passed/19 skipped/0 failed**、harness exit0、ruff/compileall与两Python文件主动LSP clean。Windows111项材料、bookworm/Ubuntu各109个缓存wheel复核通过；未改业务/依赖/锁/CI/用户配置，未重跑目标候选/正式CI/Web/PG/live。02-C review、0 ready/5 review/24 blocked、签认/DR/GATE不变，下一步仍须前置提案签认与批准验证环境。
 
