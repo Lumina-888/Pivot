@@ -120,6 +120,14 @@
 
 本机无 docker 命令，WSL/Bash 均 exit 1、0x80070422，Linux 验证当前 **blocked**。已补 [Linux 执行单](../../evidence/agent-m03/nd-agent-02-c/linux-validation.md)与 [审核/签认清单](../../evidence/agent-m03/nd-agent-02-abc-review.md)，没有原生 Linux 锁/镜像证据、没有私自安装或启用环境。候选版本/锁不变；六项审核仍 pending，技术自审不代签 Owner/安全/消费者，不发布正式依赖或解除 D～H。
 
+### 7.2 2026-10-04 Linux 与公开供应链跟进（非批准）
+
+上文 Windows/Linux 未验证表述保留为提案时历史事实。此后 bookworm 与 Ubuntu 源码诊断环境已分别原生解析109 wheel、双离线重建/20技术探针通过，证据见 [bookworm](../../evidence/agent-m03/nd-agent-02-c/linux-bookworm.md)/[Ubuntu](../../evidence/agent-m03/nd-agent-02-c/linux-ubuntu.md)；原候选回归唯一`.env`断言失败后已由独立M11切片修正，本机905/19skip通过，但目标候选环境尚未重跑。源码Ubuntu不是正式Hosted CI/Actions工具链。
+
+最新[公开供应链材料](../../evidence/agent-m03/nd-agent-02-c/supply-chain-public-check.md)：两Linux候选包名/版本相同，OSV109项未返回命中且已知漏洞对照通过；不能解释为零漏洞/完整覆盖。grpcio-tools/langsmith补充上游版本标签主LICENSE全文、固定commit/blob与静态版本绑定，源码hash/身份已核验；wheel内缺文本仍保留，来源签名/构建归属/许可兼容/CVE/遥测/内嵌库审核仍pending。原项目完整Python905 passed/19 skipped/0 failed、ruff/compileall通过；未改业务/正式依赖或安装新包。
+
+正式Ubuntu CI、角色锁/构建/系统库、消费者/Owner/安全签认仍pending；六项审核不代签，02-C review、D～H与DR/GATE不解除。
+
 ## 8. 下一步
 
 02-C 移至 review，不标 done；02-A/B/C 均待签认。优先处理上述六项审核、Linux 锁验证及预算映射修订确认，全部 DoR 满足后才安排 02-D/E/F/G/H。若要先推进不依赖审批的另一文档切片，可选择 ND-AGENT-03-A 恢复公开 Contract 提案（只 proposed），不能发布路由。父票/DR-010/011、TBD-P0、所有 GATE 继续 blocked/unverified。

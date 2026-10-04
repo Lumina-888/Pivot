@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-10-04\
-> **本轮修改前基线**：`75cf0aa`（`main`；M11私有配置回归修正）；`3460a2f`为Ubuntu独立候选锁/双重建前基线；`93c24fe`为清华源Ubuntu源码构建/候选解析前基线；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
+> **本轮修改前基线**：`497c15c`（`main`；02-C公开供应链诊断）；`75cf0aa`为M11私有配置回归修正前基线；`3460a2f`为Ubuntu独立候选锁/双重建前基线；`93c24fe`为清华源Ubuntu源码构建/候选解析前基线；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
 > **性质**：当前规格迁移与历史实现交接。需求以 SPEC-1.1 / `spec/AGENT_SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 MODULE-SPEC-1.2 / `AGENTS.md` 为准。\
 > **本文件不是规范源。**
 
@@ -58,7 +58,9 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 4. 当前下一刀
 
-最新[M11私有配置回归修正](evidence/wave3-m11/private-env-regression.md)：原`.env`存在性误报已修，改为Git索引与仓库真实忽略来源检查；新增9项临时仓库用例，强制暂存/规则缺失/注释/本地或全局排除不能放行。本机Python分组**905 passed/19 skipped/0 failed**、harness exit0、ruff/compileall通过，未读删用户配置。测试要求Git可执行文件和工作区元数据；未重跑目标候选/正式Ubuntu CI/Web/真实PG/live，不解除Agent签认或GATE。历史下文失败数字保持原事实记录，不能作为本轮结果。
+最新[02-C公开供应链诊断](evidence/agent-m03/nd-agent-02-c/supply-chain-public-check.md)：109个Linux候选公开包名/版本OSV查询无命中、已知漏洞正/负对照通过；不等于零漏洞/完整覆盖或签认。补充grpcio-tools/langsmith对应上游标签主LICENSE全文、固定commit/blob及静态版本绑定，sdist hash/PKG-INFO核验，wheel缺文本事实保留；官方不完整下载未采用，清华完整字节hash匹配。本机完整Python**905 passed/19 skipped/0 failed**、ruff/compileall与离线报告复核通过；未安装包、改业务/锁/CI或发送项目数据。正式Ubuntu CI/角色锁/来源签名/许可证兼容/CVE/遥测/内嵌库与消费者/Owner签认仍pending，不解锁业务/DR/TBD-P0/GATE。
+
+此前[M11私有配置回归修正](evidence/wave3-m11/private-env-regression.md)：原`.env`存在性误报已修，改为Git索引与仓库真实忽略来源检查；新增9项临时仓库用例，强制暂存/规则缺失/注释/本地或全局排除不能放行。本机Python分组**905 passed/19 skipped/0 failed**、harness exit0、ruff/compileall通过，未读删用户配置。测试要求Git可执行文件和工作区元数据；未重跑目标候选/正式Ubuntu CI/Web/真实PG/live，不解除Agent签认或GATE。历史下文失败数字保持原事实记录，不能作为本轮结果。
 
 此前 [Ubuntu独立候选锁](evidence/agent-m03/nd-agent-02-c/linux-ubuntu.md)：2026-10-04新Ubuntu容器/目录原生重新解析109 wheel、独立生成proposed锁；bookworm缓存字节按本轮report逐个hash核验后复用，两个全新venv离线hashes安装/pip check通过、错误哈希dry-run exit1、技术探针各20 passed。完整Python分组895 passed/1 failed/19 skipped、ruff/compileall通过；唯一失败仍是根`.env`存在性断言，未读删配置或放宽测试。工具等待600秒超时后容器继续执行，最终wait/inspect exit1/running=false。manifest显式记录source-built diagnostic/not-hosted-ci；正式Ubuntu CI/Actions工具链/角色锁/供应链/消费者与Owner签认仍pending，02-C review、0 ready/5 review/24 blocked及DR/GATE不变。
 
