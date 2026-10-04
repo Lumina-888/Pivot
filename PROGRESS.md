@@ -1,7 +1,7 @@
 # 问枢 Pivot 开发进度
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
-> **最后更新**：2026-10-03（清华源 Ubuntu Python 源码构建/候选解析成功；正式 CI 仍 pending）\
+> **最后更新**：2026-10-04（Ubuntu 源码诊断候选锁/双重建/探针完成；正式 CI 与签认仍 pending）\
 > **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A/B/C 内部、预算及依赖/锁定提案、03-A恢复与04-A持久化Contract提案均review待签认；04-A新增173项元数据shape检查通过，不代表PG恢复/迁移/租约实施；02-C Windows Python 3.12 验证与候选哈希锁已提交，预算映射已修订为 proposed draft.2（独立累计执行前门禁），新增9项技术 canary/合计20 probes passed；旧 Windows 环境 Linux 验证因无 Docker/WSL 故障 blocked；当前 Arch 本机开发环境已配置并通过既有回归/浏览器组，Docker 镜像拉取及 daemon proxy 授权仍 blocked，02-C 目标平台原生锁与消费者/Owner/安全签认仍 pending，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
 > **当前实现状态**：主线开发（MODULE-SPEC-1.2）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；`PIVOT_PARSER=native` 可装配 PyMuPDF/docx/pptx/xlsx extra（缺省仍启发式/stdlib）；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送（opt-in uvicorn）；opt-in Playwright 十页；企业 Golden Set v0.3 脱敏摘录 120 条（非业务复核，非 GATE）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
 > **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 十页 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条）+ 企业 Golden Set v0.3 脱敏摘录 120 条（annotated_desensitized，Fake Keyword） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + hashed refresh / Conversation / Run/EventLog SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + `worker[parse]` 真实解析库 extra（`PIVOT_PARSER=native`；CI 微型夹具；缺省仍启发式/stdlib） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture） + SSE 长连接（POST 立即返回 received；逐帧推送；Next SSE Route Handler 去缓冲；opt-in uvicorn）。GATE-P0 全部 unverified。
@@ -17,7 +17,9 @@
 
 本机开发/测试入口见 [Linux runbook](ops/runbook-local-linux.md) 与 [2026-10-03 环境证据](evidence/local-linux-20261003.md)。Python 3.12.10、Node/npm、现有 extras、Playwright 与 loopback API/Web 可用；Python 661 passed/19 skipped、Web 18/13/8 passed、浏览器11 passed。Docker daemon/组权限已配置，但真实依赖镜像与代理授权未完成；memory 模式 readyz=503、检索为空，不宣称真实存储/RAG 就绪。未安装未批准 Agent 依赖、不关闭 02-C 或 GATE。
 
-最新 [清华源 Ubuntu 诊断](evidence/agent-m03/nd-agent-02-c/linux-ubuntu-tuna.md)：Python3.12.10源码20.5MB/3.4秒下载，摘要与官方HTTPS Sigstore bundle相符（未做完整签名链验证）；Ubuntu24.04/glibc2.39源码构建、stdlib与pip25.0.1验证通过，清华pip原生dry-run解析109个wheel，版本/报告哈希与bookworm差异0。仅临时容器配置清华apt/pip；未装Agent依赖，未做独立Ubuntu锁/双重建/探针/Hosted CI，不代签或解锁业务。
+最新 [Ubuntu 独立候选锁验证](evidence/agent-m03/nd-agent-02-c/linux-ubuntu.md)：在新容器/目录原生重新解析109 wheel，逐字节核验已有缓存后完成双venv离线hashes安装/pip check、错误哈希负向与技术探针各20 passed。完整Python分组895 passed/1 failed/19 skipped、ruff/compileall通过；唯一失败仍是根`.env`存在性断言，未读删配置或放宽测试。已提交独立proposed锁/含源码工具链来源的manifest；Ubuntu源码诊断不等于Actions artifact/Hosted CI，正式CI/角色锁/供应链/签认仍pending，不解锁业务。
+
+上轮 [清华源 Ubuntu 诊断](evidence/agent-m03/nd-agent-02-c/linux-ubuntu-tuna.md)：Python3.12.10源码20.5MB/3.4秒下载，摘要与官方HTTPS Sigstore bundle相符（未做完整签名链验证）；Ubuntu24.04/glibc2.39源码构建、stdlib与pip25.0.1验证通过，清华pip原生dry-run解析109个wheel，版本/报告哈希与bookworm差异0。仅临时容器配置清华apt/pip；未装Agent依赖，未做独立Ubuntu锁/双重建/探针/Hosted CI，不代签或解锁业务。
 
 02-C 新增 [离线供应链材料与 Ubuntu 下载阻断](evidence/agent-m03/nd-agent-02-c/supply-chain.md)：109 个 bookworm wheel 哈希/身份相符、107 个检出随包许可证文本，2 个待补齐；许可证兼容性/CVE/遥测仍 pending。Ubuntu 镜像可运行，但固定 Python 构建连续下载超时，未生成 Ubuntu 锁，不解除业务 DoR。
 
@@ -34,7 +36,7 @@
 | M00 契约治理 | in_progress | `main` | 目标 SPEC-1.1；发布 contract-v0.1 | 公共契约48 passed；03-A schema62/04-A schema173 passed；5前置review | 消费者签认；Linux/预算映射；04-A治理审核 |
 | M01 身份授权 | integrated | `main`（tag `M01-v0.6.0`） | `contract-v0.1` | 37 单元/安全 + 登录/改密/管理用户 HTTP + PATCH 角色/重置 + Compose 注入 Redis 限流 + refresh 跨装配 | 人工标注 Golden Set 或 STG-04 ECS apply |
 | M02 文档接入 | integrated | `main`（tag 目标 `M02-v0.6.0`） | `contract-v0.1` | 27 单元 + 上传/列表/详情/重试/删除/预览/下载 HTTP；runtime 上传后进程内 ingest；`PIVOT_INGEST=celery` 可入队；Compose api 注入 celery ingest；publish 写回 chunk | HTTP 缺省仍 sync ingest |
-| M03 数据基础 | in_progress | `main`（旧 tag 目标 `M03-v0.8.0`） | `contract-v0.1`；依赖 draft proposed | 02-C Windows+bookworm候选锁；04-A持久化proposed/schema173 passed；旧 SQL 基线保留 | Ubuntu CI 锁、供应链与依赖审核；04-A签认/DR-011/批准PG环境 |
+| M03 数据基础 | in_progress | `main`（旧 tag 目标 `M03-v0.8.0`） | `contract-v0.1`；依赖 draft proposed | 02-C Windows/bookworm/Ubuntu源码诊断候选锁与双重建；04-A proposed/schema173 passed；旧 SQL 基线保留 | 正式Ubuntu CI/角色锁、供应链与依赖审核；04-A签认/DR-011/批准PG环境 |
 | M04 检索 RAG | integrated | `main`（tag 目标 `M04-v0.5.0`） | `contract-v0.1` | 31 单元 + 搜索 HTTP + Qdrant dense + stdlib BM25 + ingest/检索共用注入 HTTP Embedding/bge + 合成 Golden Set 120 条 + 企业脱敏摘录 120 条 | STG-04 ECS apply 或 live 供应商冒烟 |
 | M05 ReAct/QA/Run/SSE | in_progress | `main`（旧 tag `M05-v0.6.0`） | 目标 AGENT-SPEC-1.0；发布 contract-v0.1 | ND-AGENT-01 done；79 QA/Run/SSE 回归；02-A/B/C proposed/review，未验收新 ReAct | 签认累计硬预算与 strict/serde 约束；Claim/Citation/checkpoint 待实现 |
 | M06 导出/审计 | integrated | `main`（tag 目标 `M06-v0.3.0`） | `contract-v0.1` | 26 单元 + 导出/审计 HTTP + PG 任务跨装配 | 对象字节下载 HTTP 仍不新增（契约仅短时 URL） |
@@ -249,6 +251,13 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 - [x] 企业 Golden Set v0.3 脱敏摘录已批准：`progress/changes/20260914-M11-golden-set-enterprise-fill.md`。
 
 ## 6. 轮次日志
+
+### 2026-10-04 — ND-AGENT-02-C Ubuntu 独立候选锁与双重建
+
+- **范围 / 基线**：main `3460a2f`，开场clean；M03独立候选锁/manifest，M11新隔离容器/回归/证据与执行单，根/交接同步。未改业务源码、pyproject/正式锁、CI/Dockerfile/Compose、迁移、主.venv、宿主源或用户配置。
+- **结果**：固定Ubuntu24.04/glibc2.39、上轮只读源码CPython3.12.10/pip25.0.1，新resolver原生解析109 wheel；与bookworm集合/版本/hash差异0，Windows-only为colorama/pywin32。缓存wheel按本轮report逐字节核验，两全新venv离线hashes安装/pip check成功；独立proposed manifest显式标记source-built diagnostic/not-hosted-ci。见 [证据](evidence/agent-m03/nd-agent-02-c/linux-ubuntu.md)/[变更记录](progress/changes/20261004-M11-ubuntu-candidate-rebuild.md)。
+- **验证 / 限制**：xxhash错误哈希dry-run exit1/hash mismatch；技术探针各20 passed；完整Python分组**895 passed/1 failed/19 skipped**，ruff/compileall passed。唯一失败仍是本机gitignored根`.env`与已有不存在断言冲突，未读取/删除/放宽测试，不宣称全量绿。docker run工具等待600秒超时后容器继续，最终wait/inspect exit1/running=false，不重跑或遗留运行。
+- **下一步**：正式Ubuntu CI/Actions工具链、角色锁/系统库/构建工具、完整签名链/许可证/CVE/遥测与消费者/Owner签认仍pending；未跑Web/真实PG/Saver/live/应用镜像。02-C review、0 ready/5 review/24 blocked、DR-010/011/TBD-P0/全部GATE不变；全部业务DoR满足后才推进02-D～H。
 
 ### 2026-10-03 — ND-AGENT-02-C 清华源 Ubuntu 诊断
 

@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
-> **日期**：2026-10-03\
-> **本轮修改前基线**：`93c24fe`（`main`；清华源Ubuntu源码构建/候选解析诊断）；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
+> **日期**：2026-10-04\
+> **本轮修改前基线**：`3460a2f`（`main`；Ubuntu独立候选锁/双重建）；`93c24fe`为清华源Ubuntu源码构建/候选解析前基线；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
 > **性质**：当前规格迁移与历史实现交接。需求以 SPEC-1.1 / `spec/AGENT_SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 MODULE-SPEC-1.2 / `AGENTS.md` 为准。\
 > **本文件不是规范源。**
 
@@ -9,7 +9,7 @@
 
 本机环境见 [Linux runbook](ops/runbook-local-linux.md) 和 [2026-10-03 证据](evidence/local-linux-20261003.md)：独立 Python 3.12.10/.venv、Node/npm、现有 extras/Playwright 与 loopback Web/API 已配置；Python661/19skip、Web18/13/8、浏览器11 passed。Docker daemon/组权限可用，但代理授权与四容器镜像仍 blocked；memory readyz=503、搜索为空，不宣称真实 RAG 就绪，不代签 02-C 或任何 GATE。
 
-1. 工作区：`/home/lumina888/Projects/Pivot`，分支：`main`。`E:/AI Project/Pivot` 是历史 Windows 路径；不要新建 worktree。02-C 的 Debian bookworm runtime 候选已有独立锁/20 probes，**Ubuntu CI 与签认未完成**，见 [bookworm 证据](evidence/agent-m03/nd-agent-02-c/linux-bookworm.md)。
+1. 工作区：`/home/lumina888/Projects/Pivot`，分支：`main`。`E:/AI Project/Pivot` 是历史 Windows 路径；不要新建 worktree。02-C 的 Debian bookworm runtime 与 Ubuntu 源码诊断候选已有独立锁/双重建/20 probes，**正式 Ubuntu CI 与签认未完成**，见 [bookworm 证据](evidence/agent-m03/nd-agent-02-c/linux-bookworm.md)与 [Ubuntu 证据](evidence/agent-m03/nd-agent-02-c/linux-ubuntu.md)。
 2. 读：`AGENTS.md` → `SPEC.md` → `spec/AGENT_SPEC.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
 3. ND-AGENT-01 已完成；02-A [内部提案](progress/changes/20261002-M05-agent-internal-contract.md)、02-B [预算提案](progress/changes/20261002-M05-agent-budget-contract.md)、02-C [依赖/锁定申请](progress/changes/20261002-M03-agent-dependencies-lock.md)均 review 待签认、未发布。02-C Windows 双隔离环境/候选哈希锁验证完成，原环境与业务未接入。下一步优先 **02-A/B/C 签认、Linux 锁验证及预算映射确认**，业务仍 blocked；03-A [恢复提案](progress/changes/20261003-M00-agent-resume-contract.md)与独立proposed schema/62项shape检查已提交、review待签认，未发布API；04-A [持久化提案](progress/changes/20261003-M03-agent-persistence-contract.md)与独立schema/173项shape检查也已提交、review待7项签认；前置提案已全部提交，0 ready/5 review/24 blocked，下一步签认/目标平台锁/批准PG环境。目标已改为 LangGraph 受控 ReAct，旧固定主图/暂缓申请/ND-W3-09 已由 ADR-009 取代。旧 ECS apply/live 检索票不再是默认路径。
 4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / **企业 Golden Set 脱敏摘录** / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / **Wave 3 夹具收口** / PATCH 角色 HTTP / **ingest 共用 HTTP Embedding** / **Fake HTTP Writer** / **Fake MinerU 解析器** / **staging Compose overlay** / **sqlite refresh/Conversation** / **sqlite Run/EventLog** / **SSE 长连接夹具** / **真实解析库 extra** / **opt-in Playwright 十页** 标成 `GATE-P0 verified`。`wave-3-integrated` **不等于** P0 通过。
@@ -58,7 +58,9 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 4. 当前下一刀
 
-最新 [清华源Ubuntu诊断](evidence/agent-m03/nd-agent-02-c/linux-ubuntu-tuna.md)：Python3.12.10源码20.5MB/3.4秒下载，摘要与官方HTTPS Sigstore bundle相符（未验完整签名链）；Ubuntu源码构建/运行库/stdlib/pip25.0.1验证通过，清华pip原生dry-run解析109个wheel，与bookworm候选包集合/版本/报告哈希差异0。清华源只用于临时容器，宿主/主.venv/业务不变。源码构建不等于Actions artifact或Hosted CI；未做独立Ubuntu锁/双重建/探针/分组，仍待工具链/供应链/消费者与Owner审核，02-C review与0 ready/5 review/24 blocked不变。
+最新 [Ubuntu独立候选锁](evidence/agent-m03/nd-agent-02-c/linux-ubuntu.md)：2026-10-04新Ubuntu容器/目录原生重新解析109 wheel、独立生成proposed锁；bookworm缓存字节按本轮report逐个hash核验后复用，两个全新venv离线hashes安装/pip check通过、错误哈希dry-run exit1、技术探针各20 passed。完整Python分组895 passed/1 failed/19 skipped、ruff/compileall通过；唯一失败仍是根`.env`存在性断言，未读删配置或放宽测试。工具等待600秒超时后容器继续执行，最终wait/inspect exit1/running=false。manifest显式记录source-built diagnostic/not-hosted-ci；正式Ubuntu CI/Actions工具链/角色锁/供应链/消费者与Owner签认仍pending，02-C review、0 ready/5 review/24 blocked及DR/GATE不变。
+
+上轮 [清华源Ubuntu诊断](evidence/agent-m03/nd-agent-02-c/linux-ubuntu-tuna.md)：Python3.12.10源码20.5MB/3.4秒下载，摘要与官方HTTPS Sigstore bundle相符（未验完整签名链）；Ubuntu源码构建/运行库/stdlib/pip25.0.1验证通过，清华pip原生dry-run解析109个wheel，与bookworm候选包集合/版本/报告哈希差异0。清华源只用于临时容器，宿主/主.venv/业务不变。源码构建不等于Actions artifact或Hosted CI；未做独立Ubuntu锁/双重建/探针/分组，仍待工具链/供应链/消费者与Owner审核，02-C review与0 ready/5 review/24 blocked不变。
 
 2026-10-03 [02-C供应链材料](evidence/agent-m03/nd-agent-02-c/supply-chain.md)：109个bookworm wheel哈希/身份相符，107检出随包许可证文本，grpcio-tools/langsmith 2项待补齐；PyMuPDF双许可/psycopg LGPL等仅记录声明，不代签安全/法律结论。Ubuntu24.04镜像检查通过，Actions Python3.12.10构建两次240秒下载超时，未生成Ubuntu锁/CI证据。bookworm verify既有探针20 passed；其余受影响回归见证据收尾。许可证兼容性/CVE/遥测/原生库/消费者与Owner签认仍pending，0 ready/5 review/24 blocked不变，不写blocked业务实现。
 

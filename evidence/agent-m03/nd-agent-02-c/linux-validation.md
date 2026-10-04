@@ -1,6 +1,6 @@
-# 02-C 原生 Linux 验证执行单（尚未执行）
+# 02-C 原生 Linux 验证执行单（部分执行）
 
-- **状态**：部分执行。2026-10-03 Debian bookworm runtime 候选已完成，见 [linux-bookworm.md](linux-bookworm.md)；Ubuntu CI 仍未执行。本文件不是完整 Linux 测试报告或正式锁。
+- **状态**：部分执行。2026-10-03 Debian bookworm runtime 候选已完成，见 [linux-bookworm.md](linux-bookworm.md)；2026-10-04 Ubuntu 源码工具链诊断候选锁/双重建/探针完成，见 [linux-ubuntu.md](linux-ubuntu.md)。正式 Ubuntu CI/工具链签认仍未完成；本文件不是完整 Linux 验收报告或正式锁。
 - **责任**：M03 候选解析/锁，M11 环境/回归/镜像，M01 供应链审查，M00 归档，Owner 提供或批准环境。
 - **前置记录**：[02-A/B/C 审核与签认清单](../nd-agent-02-abc-review.md)。不得复制 Windows wheel 哈希、用宿主 `pip --platform` 冒充原生 Linux，或自行启用 WSL/安装 Docker/使用未知 SSH 主机。
 
@@ -36,12 +36,13 @@ uname -a > "$trial/environment.txt"
 
 ```bash
 "$py" -B - <<'PY'
-import json, os
+import json, os, re
 from pathlib import Path
 trial = Path(os.environ['TRIAL'])
 source = json.loads(Path('evidence/agent-m03/nd-agent-02-c/candidate-manifest.json').read_text())
 (trial/'roots.txt').write_text('\n'.join(source['roots'])+'\n', encoding='utf-8')
-(trial/'versions-only.txt').write_text('\n'.join(p['name']+'=='+p['version'] for p in source['packages'])+'\n', encoding='utf-8')
+canon = lambda name: re.sub(r'[-_.]+', '-', name).lower()
+(trial/'versions-only.txt').write_text('\n'.join(canon(p['name'])+'=='+p['version'] for p in source['packages'])+'\n', encoding='utf-8')
 PY
 "$py" -B -m pip --isolated --disable-pip-version-check --no-cache-dir install \
   --dry-run --ignore-installed --only-binary=:all: --index-url https://pypi.org/simple \
