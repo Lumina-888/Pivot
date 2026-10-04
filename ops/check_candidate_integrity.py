@@ -11,8 +11,10 @@ import hashlib
 import json
 import re
 from email.parser import BytesParser
+from lzma import LZMAError
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
+from zlib import error as ZlibError
 
 from packaging.utils import canonicalize_name, parse_wheel_filename
 from packaging.version import Version
@@ -167,7 +169,9 @@ def check_candidate(manifest: Path, project_root: Path, wheelhouse: Path | None 
         }
     except IntegrityError:
         raise
-    except (OSError, ValueError, TypeError, BadZipFile, KeyError, RuntimeError):
+    except (
+        OSError, ValueError, TypeError, BadZipFile, KeyError, RuntimeError, ZlibError, LZMAError
+    ):
         raise IntegrityError("unreadable_or_invalid_material") from None
 
 

@@ -1,7 +1,7 @@
 # 问枢 Pivot 会话交接清单
 
 > **日期**：2026-10-04\
-> **本轮修改前基线**：`fa291b2`（`main`；02-C离线候选一致性工具）；`497c15c`为02-C公开供应链诊断前基线；`75cf0aa`为M11私有配置回归修正前基线；`3460a2f`为Ubuntu独立候选锁/双重建前基线；`93c24fe`为清华源Ubuntu源码构建/候选解析前基线；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
+> **本轮修改前基线**：`b84670a`（`main`；02-C压缩wheel错误脱敏修正）；`fa291b2`为02-C离线候选一致性工具前基线；`497c15c`为02-C公开供应链诊断前基线；`75cf0aa`为M11私有配置回归修正前基线；`3460a2f`为Ubuntu独立候选锁/双重建前基线；`93c24fe`为清华源Ubuntu源码构建/候选解析前基线；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
 > **性质**：当前规格迁移与历史实现交接。需求以 SPEC-1.1 / `spec/AGENT_SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 MODULE-SPEC-1.2 / `AGENTS.md` 为准。\
 > **本文件不是规范源。**
 
@@ -58,7 +58,9 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 4. 当前下一刀
 
-最新[02-C离线候选一致性工具](evidence/agent-m03/nd-agent-02-c/integrity-tool.md)：新增版本化 `ops/check_candidate_integrity.py` 与56项安全测试；严格核验JSON/锁集合/摘要/固定项目输入/可选wheel字节与METADATA，拒绝重复项/越界路径，错误脱敏。Windows manifest只补齐锁文件名，版本/哈希不变；Windows111项材料、bookworm/Ubuntu各109个既有缓存wheel复核通过，不安装/执行依赖。原环境Python**961 passed/19 skipped/0 failed**、ruff/compileall通过，主动LSP两Python文件clean；未重跑目标候选/正式CI/Web/PG/live。输出明确不等于依赖批准，02-C review、0 ready/5 review/24 blocked、签认/DR/GATE不变。
+最新[02-C压缩wheel错误脱敏回归](evidence/agent-m03/nd-agent-02-c/compression-errors.md)：修复离线工具未捕获DEFLATE/LZMA解压异常、CLI输出traceback/路径的问题；新增三种压缩格式9项正负向回归，Red4 failed/5 passed→安全组67 passed。原环境完整Python**970 passed/19 skipped/0 failed**、harness exit0、ruff/compileall与两Python文件主动LSP clean。Windows111项材料、bookworm/Ubuntu各109个缓存wheel复核通过；未改业务/依赖/锁/CI/用户配置，未重跑目标候选/正式CI/Web/PG/live。02-C review、0 ready/5 review/24 blocked、签认/DR/GATE不变，下一步仍须前置提案签认与批准验证环境。
+
+此前[02-C离线候选一致性工具](evidence/agent-m03/nd-agent-02-c/integrity-tool.md)：新增版本化 `ops/check_candidate_integrity.py` 与56项安全测试；严格核验JSON/锁集合/摘要/固定项目输入/可选wheel字节与METADATA，拒绝重复项/越界路径，错误脱敏。Windows manifest只补齐锁文件名，版本/哈希不变；Windows111项材料、bookworm/Ubuntu各109个既有缓存wheel复核通过，不安装/执行依赖。原环境Python**961 passed/19 skipped/0 failed**、ruff/compileall通过，主动LSP两Python文件clean；未重跑目标候选/正式CI/Web/PG/live。输出明确不等于依赖批准，02-C review、0 ready/5 review/24 blocked、签认/DR/GATE不变。
 
 此前[02-C公开供应链诊断](evidence/agent-m03/nd-agent-02-c/supply-chain-public-check.md)：109个Linux候选公开包名/版本OSV查询无命中、已知漏洞正/负对照通过；不等于零漏洞/完整覆盖或签认。补充grpcio-tools/langsmith对应上游标签主LICENSE全文、固定commit/blob及静态版本绑定，sdist hash/PKG-INFO核验，wheel缺文本事实保留；官方不完整下载未采用，清华完整字节hash匹配。本机完整Python**905 passed/19 skipped/0 failed**、ruff/compileall与离线报告复核通过；未安装包、改业务/锁/CI或发送项目数据。正式Ubuntu CI/角色锁/来源签名/许可证兼容/CVE/遥测/内嵌库与消费者/Owner签认仍pending，不解锁业务/DR/TBD-P0/GATE。
 

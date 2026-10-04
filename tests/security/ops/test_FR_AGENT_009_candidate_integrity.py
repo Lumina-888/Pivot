@@ -5,10 +5,11 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import struct
 import subprocess
 import sys
 from pathlib import Path
-from zipfile import ZipFile
+from zipfile import ZIP_BZIP2, ZIP_DEFLATED, ZIP_LZMA, ZipFile
 
 import pytest
 
@@ -293,6 +294,77 @@ def test_FR_AGENT_009_candidate_rejects_duplicate_json_keys(candidate):
     candidate[0].write_text('{"status":"proposed","status":"approved"}')
     with pytest.raises(checker.IntegrityError, match="duplicate_json_key"):
         check(candidate)
+
+
+@pytest.fixture(params=[ZIP_DEFLATED, ZIP_BZIP2, ZIP_LZMA], ids=["deflate", "bzip2", "lzma"])
+def compressed_candidate(candidate, request):
+    wheel = candidate[2] / candidate[3]["packages"][0]["wheel"]
+    with ZipFile(wheel, "w", compression=request.param) as archive:
+        archive.writestr(
+            "demo_pkg-1.0.dist-info/METADATA",
+            "Metadata-Version: 2.1\nName: demo-pkg\nVersion: 1.0\n\n",
+        )
+    data = bytearray(wheel.read_bytes())
+    name_length, extra_length = struct.unpack_from("<HH", data, 26)
+    offset = 30 + name_length + extra_length
+    # Corrupt codec headers, leaving the ZIP directory and identities intact.
+    if request.param == ZIP_DEFLATED:
+        data[offset] = 7  # Reserved DEFLATE block type.
+    elif request.param == ZIP_BZIP2:
+        data[offset] = 0  # Invalid bzip2 signature.
+    else:
+        data[offset + 4] = 255  # Invalid LZMA properties.
+    return candidate, wheel, data
+
+
+def sync_wheel_digest(candidate, wheel):
+    row = candidate[3]["packages"][0]
+    row["sha256"] = digest(wheel.read_bytes())
+    lock = candidate[0].parent / candidate[3]["candidate_lock_file"]
+    lock.write_text(f"demo-pkg==1.0 --hash=sha256:{row['sha256']}\n")
+    candidate[3]["candidate_lock_sha256"] = digest(lock.read_bytes())
+    save(candidate)
+
+
+def test_FR_AGENT_009_candidate_accepts_valid_compressed_metadata(compressed_candidate):
+    candidate, wheel, _ = compressed_candidate
+    sync_wheel_digest(candidate, wheel)
+    assert check(candidate)["status"] == "consistent"
+
+
+def test_FR_AGENT_009_candidate_rejects_corrupt_compressed_metadata(compressed_candidate):
+    candidate, wheel, corrupt_data = compressed_candidate
+    wheel.write_bytes(corrupt_data)
+    sync_wheel_digest(candidate, wheel)
+    with pytest.raises(checker.IntegrityError, match="^unreadable_or_invalid_material$"):
+        check(candidate)
+
+
+def test_FR_AGENT_009_candidate_compression_cli_errors_are_redacted(compressed_candidate):
+    candidate, wheel, corrupt_data = compressed_candidate
+    wheel.write_bytes(corrupt_data)
+    sync_wheel_digest(candidate, wheel)
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(TOOL),
+            "--manifest",
+            str(candidate[0]),
+            "--project-root",
+            str(candidate[1]),
+            "--wheelhouse",
+            str(candidate[2]),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == {
+        "status": "invalid",
+        "category": "unreadable_or_invalid_material",
+    }
 
 
 def test_FR_AGENT_009_candidate_cli_errors_are_redacted(candidate):
