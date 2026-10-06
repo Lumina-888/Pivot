@@ -58,7 +58,7 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 4. 当前下一刀
 
-以 main `8a81946` 的版本化证据为准：Ubuntu Hosted 候选 CI 已 success，三份前置提案仍 review、未发布。先按 [审批入口 §0](evidence/agent-m03/nd-agent-02-abc-review.md)明确审核责任人，逐项记录 INTERNAL draft.1 / BUDGET draft.2 / DEPENDENCIES draft.1 的结论和许可范围；角色锁/构建与安全待审事项不能被 CI 通过代替。消费者确认、Owner 明确许可并经 M00 发布后，再逐票核 02-D/F 的 DoR，按依赖推进 E/G/H。03-A/04-A、PG/live 与 DR-011 仍有独立门禁；目前 **0 ready / 5 review / 24 blocked**。
+以 main `8a81946` 的版本化证据为准：Ubuntu Hosted 候选 CI 已 success，三份前置提案仍 review、未发布。先按 [审批入口 §0](evidence/agent-m03/nd-agent-02-abc-review.md)明确审核责任人，逐项记录 INTERNAL draft.1（含PR-01）/ BUDGET draft.3 / DEPENDENCIES draft.1 的结论和许可范围；02-A Owner设计已批准，02-B严格费用及实际调用硬门禁/图辅助熔断分工已确认，见 [单项记录](progress/approvals/20261006-02-b-call-graph-separation.md)。draft.3取代精确逐super-step原子账本前置，不降低收费派发预留/累计恢复账本；下一项仍是执行与澄清等待期限，消费者/整份提案/额度/运行许可未获批；角色锁/构建与安全待审事项不能被 CI 通过代替。消费者确认、Owner 明确许可并经 M00 发布后，再逐票核 02-D/F 的 DoR，按依赖推进 E/G/H。03-A/04-A、PG/live 与 DR-011 仍有独立门禁；目前 **0 ready / 5 review / 24 blocked**。
 
 下文是历史记录；其中“未推送/dispatch/Hosted CI 未验证”仅描述对应轮次，不是当前待办。本轮未重查远端状态或下载 artifact，未改源码/正式依赖或代签。
 

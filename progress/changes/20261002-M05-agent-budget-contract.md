@@ -1,8 +1,9 @@
 # ND-AGENT-02-B：DR-010 预算与累计用量 Contract 提案
 
-- **日期 / 状态**：2026-10-02 / proposed；Owner 已选择严格费用控制方向，整份提案及消费者仍待签认；不是已发布 Contract、运行许可或 DR-010 关闭记录。
+- **日期 / 状态**：2026-10-02（2026-10-06 修订）/ proposed；Owner 已选择严格费用控制及调用/图熔断分工，整份提案及消费者仍待签认；不是已发布 Contract、运行许可或 DR-010 关闭记录。
 - **Owner 费用方向**：2026-10-06 确认执行前费用预留、返回后结算、unknown 保留预留及不可验证时停止新收费调用；见 [单项方向确认](../approvals/20261006-02-b-strict-cost-direction.md)。只确认费用子集，不确认具体额度、图 super-step 或澄清期限语义。
-- **提案版本**：AGENT-BUDGET-0.1-draft.2（累计图预算映射修订；仍 proposed）；拟与 [02-A 内部 Contract](20261002-M05-agent-internal-contract.md) 配套，不进入 contract-v0.1 manifest。
+- **Owner 分工确认**：2026-10-06 同意实际调用硬预算、图步数辅助熔断；见 [单项确认](../approvals/20261006-02-b-call-graph-separation.md)。澄清等待期限与具体额度未确认。
+- **提案版本**：AGENT-BUDGET-0.1-draft.3（实际调用硬门禁与图熔断分工；仍 proposed）；取代 draft.2 的精确累计 super-step 原子账本前置要求，拟与 [02-A 内部 Contract](20261002-M05-agent-internal-contract.md) 配套，不进入 contract-v0.1 manifest。
 - **Accountable / Contributors**：M05；M00/M06/M11，恢复与跨进程预扣接口另需 M03/M01 确认。
 - **来源 / 基线**：[SPEC §7.3/§8.3](../../SPEC.md)、[AGENT_SPEC §5~6/§8](../../spec/AGENT_SPEC.md)、[ADR-009](20261002-M00-langgraph-react-baseline.md)；main `715e6d5`，发布 contract-v0.1。
 - **工单 / DoR**：[ND-AGENT-02-B](../tickets/spec-1.1-remaining.md) 只允许提案、有限 Fixture 与 Red 设计；02-A Owner 设计已批准但消费者/发布待完成，02-C 未锁依赖，父票及业务实现继续 blocked。
@@ -28,7 +29,7 @@
 | history_messages_max / history_chars_max | 本 Run 开始时加载的授权业务历史消息数/正文 code point 数，按完整问答组取最近窗口 | TBD-P0 |
 | context_tokens_max | 每次模型输入完整请求的 token 上界，含 system/问题/历史/原生调用/观察/工具 schema；不等于历史窗口 | TBD-P0 |
 | active_runs_max / principal_active_runs_max | 部署范围/同 principal 同时执行的 Run 槽位；不是累计调用量 | TBD-P0 |
-| graph_supersteps_max / recursion_limit | Run 累计图 super-step 上限 / 单次 invoke 技术上限；二者都需显式注入 | TBD-P0 |
+| recursion_limit | 单次图执行的辅助循环熔断，显式注入；不计费用或实际调用次数，不承诺跨恢复精确累计 super-step 上限 | TBD-P0 |
 | retry_max_attempts / retry_backoff_ms | 每个稳定 action 的总 attempt 上限（含首次/主备），退避表长度为 attempts-1，退避消耗总期限 | TBD-P0 |
 | rewrite_max / clarification_max | 初次搜索不计 rewrite，后续 query 改变计一次 / 进入澄清等待最多一次 | 已定：2 / 1 |
 | pricing_version / token_counter_version | 各主备/Embedding/Rerank 计价上界及输入 token 计数器版本；Run 固定，恢复不静默换表 | 待能力与策略签认 |
@@ -45,13 +46,13 @@ JSON Schema 只保证类型/必填，不保证跨字段关系、许可真实性�
   "title": "AgentBudgetPolicy",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "policy_id", "approval_ref", "model_calls_max", "tool_calls_max", "run_timeout_ms", "step_timeout_ms", "tokens_max", "model_output_tokens_max", "cost_microunits_max", "currency", "observation_chars_max", "history_messages_max", "history_chars_max", "context_tokens_max", "active_runs_max", "principal_active_runs_max", "graph_supersteps_max", "recursion_limit", "retry_max_attempts", "retry_backoff_ms", "rewrite_max", "clarification_max", "pricing_version", "token_counter_version"],
+  "required": ["schema_version", "policy_id", "approval_ref", "model_calls_max", "tool_calls_max", "run_timeout_ms", "step_timeout_ms", "tokens_max", "model_output_tokens_max", "cost_microunits_max", "currency", "observation_chars_max", "history_messages_max", "history_chars_max", "context_tokens_max", "active_runs_max", "principal_active_runs_max", "recursion_limit", "retry_max_attempts", "retry_backoff_ms", "rewrite_max", "clarification_max", "pricing_version", "token_counter_version"],
   "$defs": {
     "positive": {"type": "integer", "minimum": 1},
     "ref": {"type": "string", "pattern": "\\S"}
   },
   "properties": {
-    "schema_version": {"const": "budget-policy-0.1-draft.2"},
+    "schema_version": {"const": "budget-policy-0.1-draft.3"},
     "policy_id": {"$ref": "#/$defs/ref"},
     "approval_ref": {"$ref": "#/$defs/ref"},
     "model_calls_max": {"$ref": "#/$defs/positive"},
@@ -68,7 +69,6 @@ JSON Schema 只保证类型/必填，不保证跨字段关系、许可真实性�
     "context_tokens_max": {"$ref": "#/$defs/positive"},
     "active_runs_max": {"$ref": "#/$defs/positive"},
     "principal_active_runs_max": {"$ref": "#/$defs/positive"},
-    "graph_supersteps_max": {"$ref": "#/$defs/positive"},
     "recursion_limit": {"$ref": "#/$defs/positive"},
     "retry_max_attempts": {"$ref": "#/$defs/positive"},
     "retry_backoff_ms": {"type": "array", "items": {"type": "integer", "minimum": 0}},
@@ -80,7 +80,7 @@ JSON Schema 只保证类型/必填，不保证跨字段关系、许可真实性�
 }
 ```
 
-语义校验另须拒绝 step_timeout_ms > run_timeout_ms、principal_active_runs_max > active_runs_max、recursion_limit > graph_supersteps_max、退避表长度不匹配及无完整消息可装入的策略。context_tokens_max 必须不超过所选模型实际输入容量；输入上界+输出上限还须满足模型总上下文容量、tokens_max 与费用余量。schema 合法而语义不合法的策略不启动 Agent。
+语义校验另须拒绝 step_timeout_ms > run_timeout_ms、principal_active_runs_max > active_runs_max、退避表长度不匹配及无完整消息可装入的策略。context_tokens_max 必须不超过所选模型实际输入容量；输入上界+输出上限还须满足模型总上下文容量、tokens_max 与费用余量。schema 合法而语义不合法的策略不启动 Agent。
 
 ## 3. 预扣、派发与结算
 
@@ -88,7 +88,7 @@ JSON Schema 只保证类型/必填，不保证跨字段关系、许可真实性�
 
 | Interface | 输入 / 输出与责任 |
 |---|---|
-| BudgetGate.reserve | 可信 run_id、稳定 step/action/attempt、操作/模型版本、输入与输出 token/费用上界；返回 reservation 或内部拒绝分类 |
+| BudgetGate.reserve | 可信 run_id、稳定 action/attempt、操作/模型版本、输入与输出 token/费用上界；返回 reservation 或内部拒绝分类，不依赖框架 super-step 身份 |
 | BudgetGate.mark_dispatched | 在实际 I/O 前标记尝试；不能证明请求未发送的崩溃窗口按已派发/未知结算处理 |
 | BudgetGate.settle | 同一 reservation 的实际用量或显式 unreconciled；幂等应用，不按新事件重复累加 |
 | BudgetGate.snapshot / restore | 策略引用/账本 revision/累计及预扣/游标/期限；恢复须对账且不得回滚消费 |
@@ -150,36 +150,39 @@ unreconciled 不是“无消费”；完整原始用量片段可以另存脱敏�
 - **可重试分类**：仅超时、429、临时 5xx/网络错误。每个 action 的 retry_max_attempts 含首次与主备，不另送备用次数；每次重检策略、主备能力与预算，退避不得超过余下总期限。非法 JSON/工具协议、权限、禁止外发不是可重试故障。
 - **澄清**：稳定 clarification action 成功进入 waiting_for_user 时计一次，interrupt 重跑不重复计；第二次拒绝。总期限不暂停、不续期，等待过期不调用模型。公开等待期限/错误映射仍须 03-A；批准前不新增 endpoint 或公开 timeout 字段。
 - **deadline**：由服务端首次受理时固定总期限，排队、等待、恢复均不能重置；运行期间使用 monotonic 计时并与可信 UTC deadline 取更小余量，恢复重建计时而不延长 deadline。时钟倒退/期限无法验证 fail closed；生产可信时间/持久期限由 04-A/D 确认。
-- **累计图预算**：不同 invoke/None/Command(resume) 共享 Run 累计图账本；`recursion_limit = min(显式技术上限, Run 剩余 super-steps)` **只作技术熔断提示，不是硬上限证明**。候选 LangGraph 1.2.12 的 None 恢复会执行 limit+2 个 tick；不得用减 2、调低默认值或捕获 GraphRecursionError 后补账代替派发前门禁。独立累计计数、重放身份与前置阻断要求见 §4.1；框架读取不扣，实际重执行不免费。02-F/G 未提供安全接缝证据前不得启用业务图。
-- **BudgetSnapshot**：保存 policy/pricing/token-counter 版本引用、run 绑定、账本 revision、固定 deadline、model/tool/super-step 消费、tokens/费用的 settled+unreconciled+reserved 分量、query/rewrite/clarification 游标、稳定 attempt/结算状态。checkpoint 不是预算唯一事实；恢复与 attempt 账本对账，较旧快照不覆盖新消费，无法一致则停止。持久协议属 DR-011/04-A/E。
+- **图循环熔断**：`recursion_limit` 只作单次图执行的辅助防循环控制；不同 invoke/None/Command(resume) 不以框架局部步数计算或重置模型/工具/费用累计账本。候选版本恢复会产生额外 tick 的技术证据保留，不能据此推算跨恢复精确图上限。收费调用以 §3/§4.1 执行前门禁为准；02-F/G 尚须证明无绕过、无收费循环有时限/取消/熔断，不能仅捕获 GraphRecursionError 后补账。
+- **BudgetSnapshot**：保存 policy/pricing/token-counter 版本引用、run 绑定、账本 revision、固定 deadline、model/tool 消费、tokens/费用的 settled+unreconciled+reserved 分量、query/rewrite/clarification 游标、稳定 attempt/结算状态。图步数可作诊断，但不是收费准入凭证或必须持久化的费用事实。checkpoint 不是预算唯一事实；恢复与 attempt 账本对账，较旧快照不覆盖新消费，无法一致则停止。持久协议属 DR-011/04-A/E。
 - **并发槽位**：waiting_for_user/终态释放执行槽位，恢复重新申请；累计账本不释放。部署与 principal 槽位需同时原子申请，多进程不能各自给出同一额度。进程内 Fake 只验证 Interface，不证明生产并发门禁/租约。
 
-### 4.1 累计图预算映射审核（draft.2，待消费者签认）
+### 4.1 实际调用硬门禁与图循环熔断（draft.3，待消费者签认）
 
-本节替代 draft.1 仅靠 min 映射的充分性假设；不改变生产数值、公开状态或已发布 schema。技术 canary 见 [本轮审核](../../evidence/agent-m03/nd-agent-02-abc-review.md)，**不是 BudgetGate Green**。
+Owner 同意“实际调用负责硬预算，图步数负责防循环”，本节取代 draft.2 的逐 super-step 精确原子预扣前置要求。不改变严格费用控制、生产数值、公开状态或已发布 schema；旧版及技术 canary 保留在输入 commit `e06fb6f` 与 [历史审核](../../evidence/agent-m03/nd-agent-02-abc-review.md)，**不是 BudgetGate Green**。
 
-| 执行边界 | 必需映射 / 阻断条件 |
+| 执行边界 | 必需控制 / 阻断条件 |
 |---|---|
-| 首次 invoke / ainvoke | 可信 Run 绑定、固定策略与账本 revision；先验证剩余图额度，再打开本次服务端 execution epoch。epoch 不是新预算，也不是客户端 thread_id |
-| None / Command 恢复 | 先与最新账本对账；新 epoch 继承全部消费/预扣/deadline。框架本地 step 或恢复后的 recursion_limit 不能清零累计值 |
-| 每一实际 super-step | 在该步任何节点体执行前取得累计图许可；成功占用恰好一个图额度。同一步多节点共享该许可，各自模型/工具 attempt 仍独立预扣；禁止通过 fan-out 把两个 I/O 计成一次调用 |
-| 中断/异常/崩溃 | 已开始执行的步保留消费，包括 interrupt 前缀、失败步与无法证明未执行的预扣；不可依赖节点返回时更新 state 才记账。checkpoint 未提交不等于没有执行 |
-| 读取/重放 | 纯读取、事件重放不消费。仅同一已登记执行的确认/结算幂等；再实际执行必须取得新的许可/attempt，不能复用旧成功 ID 免费执行 |
-| 同步/异步/取消竞争 | 使用同一账本规则，取得许可后才进入节点；晚到结果不退款已执行的图/模型/工具消费，不覆盖终态 |
-| 余量 0 / 无法验证 step 身份或前置接缝 | 不调用图/节点/I/O，fail closed；不调用“免费 Finalizer”，不切线性 fallback |
+| 首次 invoke / ainvoke | 校验可信 Run、执行资格、策略、最新累计账本、取消及剩余期限，注入有限图熔断；图入口不直接授权任何收费调用 |
+| None / Command 恢复 | 重新授权并与最新 attempt 账本对账，继承消费/预留/固定 deadline；框架局部步数不能重置或扩大业务预算 |
+| 每次模型/工具派发 | 以真实 action/attempt 为身份，在 I/O 前检查次数、token/费用上界并原子预留；PR-01、Finalizer、Verifier、重试/主备均无例外 |
+| 检索子调用 / fan-out | 各收费 provider 请求单独预留，关联其父 action；在并发派发前核足全部所需额度，不以同一图步或一个工具 action 隐藏多次收费 |
+| interrupt 前缀 / 崩溃重执行 | 实际再派发登记新 attempt 并重新准入；无法证明未派发的窗口保留次数和预留，不依赖节点 return/checkpoint 提交才记账 |
+| 读取 / 事件重放 | 纯读取或结算重放不再次消费，但也不授权新的派发；旧快照不能覆盖较新累计账本 |
+| 同步 / 异步 / 取消竞争 | 使用同一调用门禁，晚到用量仍对账，不退款已派发消费，不覆盖终态 |
+| 无收费的图循环 | 必须受有限单次图熔断、不可自动续期的执行期限及取消控制；超限停止，不无限自动 re-invoke 以刷新图额度 |
+| 费用/次数不足或账本不可验证 | 阻断相关模型/工具/收费 I/O，不执行“免费 Finalizer”，不切线性 fallback；不要求阻止无 I/O 的安全收尾 |
 
-**计数身份与原子性**：图许可绑定 `(run_id, execution_epoch, dispatch_step_id)`；标识来自服务端调度边界，不从模型消息、公开 SSE 或未经核验的 checkpoint 推导。许可应在该 super-step 第一个节点体之前原子预扣，其他同一步节点只能验证/使用已取得的许可；下一步及实际重执行必须申请新许可。未知执行窗口保守保留占用；持久预扣/恢复一致性和 fencing 归 04-A/D/E，02-F/G 的单进程 Fake 不能验收生产原子性。
+**调用身份与原子性**：业务门禁以服务端稳定 `(run_id, action_id, attempt_id)` 关联实际派发与预留。图 node/step 可作追踪信息，但不能授权 I/O 或代替调用次数；不要求识别框架内部精确 super-step。多进程费用预留/执行资格/fencing、未知派发和恢复对账仍由 04-A/D/E 承接，不因取消图账本要求而取消。
 
-**接缝准入**：02-G 必须证明锁定框架同步/异步、条件分支与恢复均能在执行前识别调度步并阻断，不能只消费 `stream(debug)` 的事后事件或公开日志。若仅有节点入口接缝，须证明图每步只有一个可执行节点、入口先取得许可且无绕过/子图隐藏步骤，或另提保守多节点预扣映射获批准；不得静默把 node 次数当 super-step 次数。无法满足则业务启用 blocked，而不是填一个看似安全的 recursion_limit。
+**实施准入**：02-F/G 须证明所有同步/异步/条件路由/恢复/嵌套收费路径都在实际调用前经过同一门禁，并验证无收费循环的时限/取消/图熔断及无自动无限重入；仅节点入口检查或事后 `stream(debug)` 观察不足以证明 I/O 无绕过。图熔断的具体目标版本行为必须验证，不能把其当金额封顶保证。无法满足上述条件时业务启用仍 blocked。
 
 新增/细化计划 Red（均未实施业务测试）：
 
-- `test_FR_AGENT_004_zero_graph_budget_blocks_node_entry`：剩余 0 时节点体、工具、模型调用均为 0；首次/None/Command 与同步/异步分别覆盖。
-- `test_FR_AGENT_004_interrupted_prefix_is_charged_before_execution`：interrupt 前缀两次实际进入各有消费；只有 state return 一次不能少记一次。
-- `test_FR_AGENT_004_fanout_shares_step_but_not_provider_reservation`：同一步两个节点共享图许可；各 I/O 单独预扣，任一余额不足不得派发。
-- `test_FR_AGENT_004_replay_read_does_not_authorize_new_dispatch`：旧快照/同 ID 重放只读不扣，但再次执行需新许可；未提交/未知执行不得退款或免费重放。
+- `test_FR_AGENT_004_zero_call_budget_blocks_dispatch`：次数或费用不足时模型/工具/收费 I/O 派发为 0；首次/None/Command 与同步/异步分别覆盖，安全收尾不调用模型。
+- `test_FR_AGENT_004_interrupted_prefix_dispatch_is_reserved`：interrupt 前缀中的收费请求每次真实派发均有独立准入与 attempt，旧 checkpoint 不退款；纯本地前缀不伪装收费调用。
+- `test_FR_AGENT_004_fanout_reserves_each_provider_attempt`：同一图步两个收费分支分别预留，任一额度不足不启动该组并发派发，不把两次 I/O 算作一次模型调用。
+- `test_FR_AGENT_004_replay_read_does_not_authorize_new_dispatch`：只读/幂等结算重放不重复扣账；再次实际派发须新 attempt，未提交/未知派发不退款。
+- `test_FR_AGENT_004_free_loop_stops_without_reinvoke`：Fake 模型/收费 I/O 为 0 的循环仍在图熔断、有限执行期限或取消时停止，不能自动无限重新 invoke；具体次数只作测试参数，不宣称跨恢复精确 super-step 上限。
 
-消费者签认需同时确认语义、可实现前置接缝与验收边界；技术审核完成不等于已签认实施或 DR-010 accepted。
+消费者仍须确认严格调用前门禁、图熔断与恢复验收；Owner 分工选择不等于消费者签认、运行许可或 DR-010 accepted。
 
 ## 5. 观察、历史与上下文
 
@@ -214,7 +217,7 @@ unreconciled 不是“无消费”；完整原始用量片段可以另存脱敏�
   "fixture_scope": "unit_fake_only",
   "approval_status": "pending",
   "policy": {
-    "schema_version": "budget-policy-0.1-draft.2",
+    "schema_version": "budget-policy-0.1-draft.3",
     "policy_id": "fixture-budget-01",
     "approval_ref": "fixture-only-not-approved",
     "model_calls_max": 6,
@@ -231,7 +234,6 @@ unreconciled 不是“无消费”；完整原始用量片段可以另存脱敏�
     "context_tokens_max": 1024,
     "active_runs_max": 2,
     "principal_active_runs_max": 1,
-    "graph_supersteps_max": 80,
     "recursion_limit": 40,
     "retry_max_attempts": 2,
     "retry_backoff_ms": [25],
@@ -270,7 +272,7 @@ Fake 测试可复制策略并仅改变一个有限维度，如 model_calls_max=1
 | test_FR_STREAM_005_protocol_error_not_retried | 格式/权限/禁止外发失败，已派发有用量 | 不切备用，不退款已消费；无工具越权 | 02-E/F |
 | test_FR_AGENT_004_all_provider_roles_share_budget | Planner/Finalizer/Verifier/Embedding/Rerank/收费失败 | 所有收费 attempt 可追踪并预扣；本地纯校验不冒充模型 | 02-F/H、04-E |
 | test_FR_AGENT_004_deadline_survives_wait_and_resume | FakeClock 等待/退避/排队/恢复/时钟倒退 | 期限不延长，超时不派发；单步不超余下总期限 | 02-F、03-D、04-C |
-| test_FR_AGENT_004_graph_budget_survives_resume | 多次 invoke/interrupt 重跑与递归极限 | 技术/累计双门禁，恢复无免费 super-step | 02-C/G、03-D |
+| test_FR_AGENT_004_call_budget_survives_graph_resume | 多次 invoke/interrupt 重跑与递归极限 | 图熔断不重置调用/费用账本；每次真实收费派发独立预留，不宣称精确累计 super-step 保证 | 02-C/F/G、03-D |
 | test_FR_AGENT_004_observation_truncation_preserves_protocol | 中文/emoji/JSON escaping/定位过长 | 完整 JSON 限长，ID/locator 不伪造；无残缺/孤立 ToolMessage | 02-D/F/G |
 | test_FR_AGENT_003_history_window_rechecks_egress | 历史问答组禁外发/撤权，窗口满 | 整组移除；无受限摘要外发、无隐藏摘要模型调用 | 02-E/F |
 | test_FR_AGENT_004_context_limit_never_drops_pending_call | 工具消息组+schema 超输入容量 | 不裁 pending call/system；无下一模型调用 | 02-F/G |
@@ -296,23 +298,29 @@ Schema/示例算术检查不能把这些行为测试标 passed；真实图、int
 | 消费者 / 审批人 | 待确认事项 | 状态 |
 |---|---|---|
 | M00 | 内部版本、停止分类与公开映射隔离、受控/生产发布门禁 | pending；无签认 |
-| M05 | 全角色调用/预扣/结算、重写/重试/期限与真实图预算 | pending；提案作者不等于批准 |
+| M05 | 全角色实际调用/预扣/结算、重写/重试/期限与真实图熔断 | pending；提案作者不等于批准 |
 | M06 | 非 float 计价、未知用量/attempt 对账、ProviderCall 兼容 | pending；无签认 |
 | M11 | Fixture 边界、计量/性能实验、主备上界验证与证据 | pending；无签认 |
 | M03 | snapshot 对账/原子预扣/并发、04-A/E 持久协议承接 | pending；无签认 |
 | M01 | 恢复授权/历史外发重检、principal 并发不信模型参数 | pending；无签认 |
 | Owner / 业务 / 运维 | 明确受控运行许可、成本与期限语义；生产数值实测批准 | pending；无签认 |
 
-### 9.1 2026-10-02 签认跟进
+### 9.1 2026-10-02 签认跟进（draft.2 历史记录，图账本要求由 draft.3 取代）
 
 主线会话完成技术自审：draft.1 的 min 映射不能充当硬门禁，按 §4.1 修订为 draft.2；预扣/未知用量/所有模型角色与 graph/provider 双计量无绕过要求保留。审核记录及待签清单见 [02-A/B/C 审核](../../evidence/agent-m03/nd-agent-02-abc-review.md)。**这不是消费者或 Owner 代签**；上表 pending 不变。运行时 Red 仍未实施，生产数值与受控运行许可均未批准。
 
-### 9.2 2026-10-06 Owner 严格费用控制方向确认
+### 9.2 2026-10-06 Owner 严格费用控制方向确认（分工确认前历史记录）
 
 用户在主流框架设计对照后明确回复“那就严格费用把控方向”。按 [OWNER-02-B-COST-20261006](../approvals/20261006-02-b-strict-cost-direction.md)仅记录费用控制方向，包含 02-A PR-01 重写模型调用的累计消费；不把方向选择视为整份 draft.2 批准。
 
 本次未调整 §2/§4 的图 super-step、时限字段或机器 schema。图硬账本与调用门禁/熔断的职责、执行与澄清等待期限拆分仍待单独审核决定；其他消费者及受控/生产运行许可保持 pending。02-B 仍 review，具体额度仍 TBD-P0，DR-010/011 与业务票未解锁。
 
+### 9.3 2026-10-06 Owner 调用/图熔断分工确认
+
+用户对明确提出的“实际调用负责硬预算，图步数负责防循环”修订回复“同意”；见 [OWNER-02-B-GRAPH-20261006](../approvals/20261006-02-b-call-graph-separation.md)。本次将提案升为 draft.3，拟议 policy 版本同步，移除未发布的 `graph_supersteps_max` 字段及与 recursion_limit 的大小关系；其他示例数值不变，settlement 形状不变。旧字段/版本应被新版严格 shape 拒绝，不作静默兼容或转成生产默认。
+
+本次仅确认设计分工，不批准整份 draft.3；§2/§4 中原有时限/澄清条款保持待审，期限拆分留到下一项。消费者须针对 draft.3 重新审核，旧形状检查/探针不证明本修订的运行时门禁；不关闭 DR-010，不发布内部 Contract 或实施 Agent。
+
 ## 10. 本轮结论与下一步
 
-02-B 进入 review（proposed 提案与 Red 设计已提交，**非 done**）；有限 Fixture 形状与算术检查只验证文档 artifact。完整验证与限制见 [nd-agent-02-b.md](../../evidence/agent-m05/nd-agent-02-b.md)。02-A Owner 设计已批准，02-B Owner 仅确认严格费用方向；消费者、02-B 剩余设计和运行许可仍待签认。02-C 候选技术验证已有证据，正式依赖发布仍须独立批准。02-D~H/父票继续 blocked，DR-010/011、恢复契约、TBD-P0 与全部 GATE 未关闭。
+02-B 进入 review（proposed 提案与 Red 设计已提交，**非 done**）；有限 Fixture 形状与算术检查只验证文档 artifact。完整验证与限制见 [nd-agent-02-b.md](../../evidence/agent-m05/nd-agent-02-b.md)。02-A Owner 设计已批准，02-B Owner 已确认严格费用方向及实际调用/图熔断分工；消费者、02-B 期限等剩余设计和运行许可仍待签认。02-C 候选技术验证已有证据，正式依赖发布仍须独立批准。02-D~H/父票继续 blocked，DR-010/011、恢复契约、TBD-P0 与全部 GATE 未关闭。

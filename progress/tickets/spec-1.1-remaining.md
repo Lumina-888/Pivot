@@ -17,7 +17,7 @@
 
 ## 1. 执行索引
 
-最新 [02-A/B/C 审核与待签清单 §0](../../evidence/agent-m03/nd-agent-02-abc-review.md)：Ubuntu 候选 CI Run `37420501217` 在 `7958feb` 上 success，见 [CI 证据](../../evidence/agent-m03/nd-agent-02-c/ubuntu-ci-20261006.md)。Windows/bookworm/Ubuntu 候选技术验证已有证据；不再安排已完成的同一次 CI。02-B draft.2 独立累计/执行前门禁、正式角色锁/构建/安全范围及消费者/Owner 签认仍 pending；02-A/B/C review，02-D～H blocked 不变。
+最新 [02-A/B/C 审核与待签清单 §0](../../evidence/agent-m03/nd-agent-02-abc-review.md)：Ubuntu 候选 CI Run `37420501217` 在 `7958feb` 上 success，见 [CI 证据](../../evidence/agent-m03/nd-agent-02-c/ubuntu-ci-20261006.md)。Windows/bookworm/Ubuntu 候选技术验证已有证据；不再安排已完成的同一次 CI。02-B当前draft.3，Owner确认严格费用与实际调用硬门禁/图辅助熔断分工；期限等剩余设计、正式角色锁/构建/安全范围及消费者/运行许可仍pending；02-A/B/C review，02-D～H blocked 不变。
 
 优先顺序：ND-AGENT-02-A → 02-B → 02-C → 02-D/E/F → 02-G/H → 03 → 04 → 05。02-A/B/C 已提交 proposed 提案，均 review 待消费者/Owner 签认；02-C Windows/Linux 候选及 Ubuntu Hosted CI 已通过技术验证；预算映射签认、正式锁发布与安全审核待补齐，不解锁业务实现。03-A [恢复提案](../changes/20261003-M00-agent-resume-contract.md)与04-A [持久化提案](../changes/20261003-M03-agent-persistence-contract.md)均已提交 proposed/review，待签认；不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
 
@@ -72,8 +72,8 @@
 ### ND-AGENT-02-B DR-010 预算 Contract
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-004、FR-STREAM-005，AGENT_SPEC §6；Accountable M05，Contributors M00/M06/M11。
-- **状态 / 依赖**：review；[AGENT-BUDGET-0.1-draft.2 提案](../changes/20261002-M05-agent-budget-contract.md)、有限 Fixture 与 Red 设计已提交，消费者/Owner 均 pending；未发布、DR-010 未关闭，生产数值仍 TBD-P0。
-- **场景 / 异常**：Given 重写、同 query 重复调用、基础设施重试或主备切换；Then 使用同一累计账本；无必需运行策略时 fail closed，不能使用 recursion_limit 代替业务预算。
+- **状态 / 依赖**：review；[AGENT-BUDGET-0.1-draft.3 提案](../changes/20261002-M05-agent-budget-contract.md)、有限 Fixture 与 Red 设计已提交；Owner已确认严格费用及实际调用硬门禁/图辅助熔断分工，期限等剩余设计、消费者与运行许可pending；未发布、DR-010 未关闭，生产数值仍 TBD-P0。
+- **场景 / 异常**：Given 重写、同 query 重复调用、基础设施重试/主备/恢复；Then 每次真实派发使用同一累计硬账本；无必需策略/可信上界时 fail closed。recursion_limit只辅助防循环，不代替费用或次数；不以精确逐super-step原子计量为收费门禁前置，无收费循环仍须时限/取消/熔断及禁止无限自动重入。
 - **范围 / 数据**：冻结维度、单位、预扣/结算、耗尽终态、配置缺失错误、观察截断与上下文窗口策略；覆盖模型/工具数、单步/总时长、token/费用、并发、recursion_limit。保留 rewrite≤2、clarification≤1 已定约束。
 - **路径 / 交付**：`progress/changes/` DR-010 提案、预算 Contract、明确注入有限值的测试 Fixture 与受控实验计划。
 - **计划测试**：`test_FR_AGENT_004_missing_policy_fails_closed`、`test_FR_AGENT_004_repeated_query_consumes_budget`、`test_FR_STREAM_005_fallback_does_not_reset_budget`。

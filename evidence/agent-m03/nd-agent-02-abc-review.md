@@ -5,7 +5,7 @@
 - **责任 / 路径**：M05 内部/预算提案，M03 依赖及候选 probe，M11 技术证据/环境执行单，M00 治理/进度同步。本次没有修改业务源码、正式依赖、CI/镜像、公开契约、生产策略或迁移。
 - **工作区**：保留开场六处源码修改（qa draft/orchestrator/verifier/writer、retrieval providers、runs http）与全部既有未跟踪文件，均不纳入本次提交。旧 QA 回归在含这些改动的工作区执行，不单独验收它们。
 
-## 0. 2026-10-06 当前审批入口（02-A设计已批准，02-B费用方向已确认，消费者待签认）
+## 0. 2026-10-06 当前审批入口（02-A设计、02-B费用及调用/图分工已确认，消费者待签认）
 
 本节基于 main `8a81946` 的版本化证据更新当前状态；下文 2026-10-02 的环境、测试与待办保留为历史快照，不再表示 Ubuntu CI 尚未执行。本轮没有重新查询远端 Run、下载 artifact 或重跑候选环境。
 
@@ -14,12 +14,14 @@ Ubuntu 候选 CI 在 `7958feb` 上通过：Run `37420501217`、Job `112128562855
 | 审批对象 / 版本 | 本轮需要明确的决定 | 可审查证据 / 未完成边界 |
 |---|---|---|
 | [02-A / INTERNAL draft.1 + PR-01 待审补充](../../progress/changes/20261002-M05-agent-internal-contract.md) | 确认单工具调用、严格参数/调用 ID、State 白名单、证据字段来源、每次调用外发责任及 §3.4 用户输入 Prompt 重写 | 提案 §3.4/§8/§9 与下文 §2/§3；[Owner 已批准设计方向](../../progress/approvals/20261006-02-a-owner-design.md)（输入 `32dd4e7`）；PR-01 原意/约束保留、输入/输出关联及累计预算消费仍须消费者审核，既有证据不覆盖；运行时测试未实施、消费者签认/发布 pending |
-| [02-B / BUDGET draft.2](../../progress/changes/20261002-M05-agent-budget-contract.md) | 确认独立累计执行前门禁、unknown 用量保守处理与 unit_fake_only 策略的批准范围 | [Owner 已选择严格费用控制方向](../../progress/approvals/20261006-02-b-strict-cost-direction.md)（输入 `edc962f`），仅费用子集确认；图步数/期限语义、具体额度及消费者/运行许可仍待确认。提案 §3/§4.1/§7/§9；技术探针不证明业务 BudgetGate，生产数值仍 TBD-P0，DR-010 未关闭 |
+| [02-B / BUDGET draft.3](../../progress/changes/20261002-M05-agent-budget-contract.md) | 确认剩余期限语义、unknown 用量与 unit_fake_only 范围；消费者审核实际调用硬门禁/图熔断分工 | [严格费用方向](../../progress/approvals/20261006-02-b-strict-cost-direction.md)及 [调用/图分工](../../progress/approvals/20261006-02-b-call-graph-separation.md)已获Owner确认；后者输入 `e06fb6f`，取代逐super-step精确原子账本前置，policy升draft.3且移除graph_supersteps_max。期限、具体额度及消费者/运行许可pending；原技术探针不证明新版BudgetGate，DR-010未关闭 |
 | [02-C / DEPENDENCIES draft.1](../../progress/changes/20261002-M03-agent-dependencies-lock.md) | 确认候选版本及后续角色锁/可选适配/构建与回滚范围，记录安全审核结论 | Windows/bookworm/Ubuntu 原生候选与上述 Hosted CI；正式角色锁、镜像、许可证兼容/CVE/遥测/来源完整审核仍 pending |
 
-每项实际签认须记录：审核人/角色、提案版本、输入 commit、证据链接、批准/拒绝/附条件结论、许可范围、残余风险和时间。本编码会话仅转录用户明确给出的 02-A Owner 设计批准及 02-B 严格费用方向选择，不替任何消费者、业务、运维或安全审核人代签；“继续开发”不等于其他待签项已批准。
+每项实际签认须记录：审核人/角色、提案版本、输入 commit、证据链接、批准/拒绝/附条件结论、许可范围、残余风险和时间。本编码会话仅转录用户明确给出的 02-A Owner 设计批准及 02-B 严格费用/实际调用与图熔断分工选择，不替任何消费者、业务、运维或安全审核人代签；“继续开发”不等于其他待签项已批准。
 
-**下一步**：02-A Owner 设计确认已记录，消费者仍待审核；02-B 严格费用方向已选择，剩余设计仍须明确，02-C 与其他待签项继续逐项确认，Owner 另行明确审批责任人及受控 Fake 实施/依赖发布范围；消费者逐项确认后由 M00 发布相应内部 Contract，再重新核验 02-D/F 的 DoR，按依赖推进 E/G/H。附条件批准不得忽略条件或把 D～H 一次性标 ready。03-A 恢复、04-A 持久化/DR-011、真实 PG 和 live 模型仍有独立门禁。当前仍为 **0 ready / 5 review / 24 blocked**，无生产安装、公开契约发布或 GATE 放行。
+**下一步**：02-A Owner 设计确认已记录，消费者仍待审核；02-B 严格费用与调用/图分工已选择，下一项明确执行与澄清等待期限，剩余设计仍须审核，02-C 与其他待签项继续逐项确认，Owner 另行明确审批责任人及受控 Fake 实施/依赖发布范围；消费者逐项确认后由 M00 发布相应内部 Contract，再重新核验 02-D/F 的 DoR，按依赖推进 E/G/H。附条件批准不得忽略条件或把 D～H 一次性标 ready。03-A 恢复、04-A 持久化/DR-011、真实 PG 和 live 模型仍有独立门禁。当前仍为 **0 ready / 5 review / 24 blocked**，无生产安装、公开契约发布或 GATE 放行。
+
+下文 §1～§5 为 2026-10-02 历史记录，其中 draft.2 精确累计图账本要求已由当前 draft.3 取代；历史探针/旧证据不自动验收新版费用门禁。
 
 ## 1. Linux 环境核查：未通过执行前置
 

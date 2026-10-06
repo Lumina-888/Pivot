@@ -12,7 +12,7 @@ Owner 当前目标是 **LangGraph 受控 ReAct Agent**，见 [AGENT_SPEC](../spe
 
 ## 当前执行计划
 
-最新 [02-A/B/C 技术审核](../evidence/agent-m03/nd-agent-02-abc-review.md)：预算 draft.2 独立累计/执行前门禁已修订，Windows 技术20 probes passed。2026-10-03 Debian bookworm runtime 候选锁/20 probes 已验证，见 [证据](../evidence/agent-m03/nd-agent-02-c/linux-bookworm.md)；Ubuntu CI、供应链与消费者/Owner/安全签认仍 pending，无代签/发布；02-D～H 继续 blocked。
+最新 [02-A/B/C 审批入口](../evidence/agent-m03/nd-agent-02-abc-review.md)：02-A含PR-01的Owner设计已批准；02-B当前 draft.3，Owner确认严格费用与实际调用硬门禁/图辅助熔断分工，取代精确逐super-step原子账本前置，未改生产数值或发布机器契约。下一项确认执行与澄清等待期限，消费者/整份提案/运行许可仍pending。Windows/bookworm/Ubuntu候选及Ubuntu Hosted CI技术验证已有证据，正式锁/供应链/安全签认待完成；历史20 probes不验收draft.3门禁，02-D～H继续blocked。
 
 | 工单 | 工作 | 状态/依赖 |
 |---|---|---|
