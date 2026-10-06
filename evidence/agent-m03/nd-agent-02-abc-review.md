@@ -5,6 +5,22 @@
 - **责任 / 路径**：M05 内部/预算提案，M03 依赖及候选 probe，M11 技术证据/环境执行单，M00 治理/进度同步。本次没有修改业务源码、正式依赖、CI/镜像、公开契约、生产策略或迁移。
 - **工作区**：保留开场六处源码修改（qa draft/orchestrator/verifier/writer、retrieval providers、runs http）与全部既有未跟踪文件，均不纳入本次提交。旧 QA 回归在含这些改动的工作区执行，不单独验收它们。
 
+## 0. 2026-10-06 当前审批入口（未签认）
+
+本节基于 main `8a81946` 的版本化证据更新当前状态；下文 2026-10-02 的环境、测试与待办保留为历史快照，不再表示 Ubuntu CI 尚未执行。本轮没有重新查询远端 Run、下载 artifact 或重跑候选环境。
+
+Ubuntu 候选 CI 在 `7958feb` 上通过：Run `37420501217`、Job `112128562855`、artifact `candidate-ubuntu-37420501217-1`（ID `11393246071`）。固定环境、双离线重建、20 项技术探针、哈希负向与旧回归见 [CI 证据](nd-agent-02-c/ubuntu-ci-20261006.md)。候选 CI 技术验证已完成，不再重复申请同一次手动运行；正式角色锁、镜像/构建发布与安全签认仍未完成。
+
+| 审批对象 / 版本 | 本轮需要明确的决定 | 可审查证据 / 未完成边界 |
+|---|---|---|
+| [02-A / INTERNAL draft.1](../../progress/changes/20261002-M05-agent-internal-contract.md) | 确认单工具调用、严格参数/调用 ID、State 白名单、证据字段来源与每次调用外发责任 | 提案 §8/§9 与下文 §2/§3；消费者运行时测试未实施，全部签认 pending |
+| [02-B / BUDGET draft.2](../../progress/changes/20261002-M05-agent-budget-contract.md) | 确认独立累计执行前门禁、unknown 用量保守处理与 unit_fake_only 策略的批准范围 | 提案 §4.1/§7/§9；技术探针不证明业务 BudgetGate，生产数值仍 TBD-P0，DR-010 未关闭 |
+| [02-C / DEPENDENCIES draft.1](../../progress/changes/20261002-M03-agent-dependencies-lock.md) | 确认候选版本及后续角色锁/可选适配/构建与回滚范围，记录安全审核结论 | Windows/bookworm/Ubuntu 原生候选与上述 Hosted CI；正式角色锁、镜像、许可证兼容/CVE/遥测/来源完整审核仍 pending |
+
+每项实际签认须记录：审核人/角色、提案版本、输入 commit、证据链接、批准/拒绝/附条件结论、许可范围、残余风险和时间。本编码会话没有替任何消费者、Owner、业务、运维或安全审核人填写批准结论；“继续开发”不等于上述待签项已批准。
+
+**下一步**：Owner 先明确审批责任人及受控 Fake 实施/依赖发布范围；消费者逐项确认后由 M00 发布相应内部 Contract，再重新核验 02-D/F 的 DoR，按依赖推进 E/G/H。附条件批准不得忽略条件或把 D～H 一次性标 ready。03-A 恢复、04-A 持久化/DR-011、真实 PG 和 live 模型仍有独立门禁。当前仍为 **0 ready / 5 review / 24 blocked**，无生产安装、公开契约发布或 GATE 放行。
+
 ## 1. Linux 环境核查：未通过执行前置
 
 | 本机命令 / 检查 | 实际结果 | 判定 |

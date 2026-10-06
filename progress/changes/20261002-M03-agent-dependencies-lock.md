@@ -107,7 +107,7 @@
 |---|---|---|
 | M03 | 精确版本/角色锁、构建工具、跨平台 artifact、版本固定及回滚范围 | pending；作者不等于批准 |
 | M05 | core 消息/strict 工具适配、recursion_limit 恢复差异；02-B 独立硬门禁 | pending；未发布预算修订 |
-| M11 | Linux 3.12 真实安装/分组/镜像验证，CI 锁执行与角色隔离 | pending；无 Linux/镜像证据 |
+| M11 | Linux 3.12 真实安装/分组/镜像验证，CI 锁执行与角色隔离 | pending；Linux 原生候选及 Ubuntu Hosted CI 技术通过，正式角色锁/业务镜像未验收 |
 | M01 | 新增 SDK/遥测/序列化白名单、依赖许可证/漏洞与 artifact 来源审核 | pending；无全量安全结论 |
 | M00 | 02-A/B/C 版本兼容、发布门禁、事实/公开契约无隐式变化 | pending；不加入 contract-v0.1 manifest |
 | Owner / 运维 | 可选适配安装范围、受控 artifact 与变更/回滚授权 | pending；不选择供应商/模型或授权生产安装 |
@@ -128,6 +128,12 @@
 
 正式Ubuntu CI、角色锁/构建/系统库、消费者/Owner/安全签认仍pending；六项审核不代签，02-C review、D～H与DR/GATE不解除。
 
+### 7.3 2026-10-06 Ubuntu Hosted CI 跟进（非批准）
+
+修复提交 `7958feb` 上 candidate-ubuntu Run `37420501217` / Job `112128562855` success；双离线重建、20 项技术探针、哈希负向与既有 Python 回归/静态检查通过，见 [CI 证据](../../evidence/agent-m03/nd-agent-02-c/ubuntu-ci-20261006.md)。本节取代上文作为当前状态的“Ubuntu CI 未执行”表述，历史执行记录保持原样。
+
+角色锁/构建与系统库、业务镜像、供应链/许可证/遥测及消费者/Owner 签认仍 pending；六项审批无代签。后续决策及版本/证据/许可范围记录要求见 [当前审批入口](../../evidence/agent-m03/nd-agent-02-abc-review.md)。候选 CI 通过不发布依赖或关闭 DR-010/011。
+
 ## 8. 下一步
 
-02-C 移至 review，不标 done；02-A/B/C 均待签认。优先处理上述六项审核、Linux 锁验证及预算映射修订确认，全部 DoR 满足后才安排 02-D/E/F/G/H。若要先推进不依赖审批的另一文档切片，可选择 ND-AGENT-03-A 恢复公开 Contract 提案（只 proposed），不能发布路由。父票/DR-010/011、TBD-P0、所有 GATE 继续 blocked/unverified。
+02-C 保持 review，不标 done；02-A/B/C 均待签认。优先处理上述六项审核、正式角色锁/构建范围与预算映射签认，不重复安排已有 Ubuntu 候选 CI。03-A 与 04-A 提案也已提交/review，不能再次当作 ready 开发或发布路由。消费者确认、Owner 明确许可及 M00 发布后，逐票重核 02-D/F 的 DoR，再按依赖推进 E/G/H。父票/DR-010/011、TBD-P0、所有 GATE 继续 blocked/unverified。

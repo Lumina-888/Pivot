@@ -1,6 +1,6 @@
 # 问枢 Pivot 会话交接清单
 
-> **日期**：2026-10-04\
+> **日期**：2026-10-06（当前入口同步；历史轮次记录保留）\
 > **本轮修改前基线**：`60a6455`（`main`；02-C隐藏目录证据归档修正）；`4fb1693`（`main`；02-C Ubuntu 手动候选 CI 入口准备）；`b84670a`为02-C压缩wheel错误脱敏修正前基线；`fa291b2`为02-C离线候选一致性工具前基线；`497c15c`为02-C公开供应链诊断前基线；`75cf0aa`为M11私有配置回归修正前基线；`3460a2f`为Ubuntu独立候选锁/双重建前基线；`93c24fe`为清华源Ubuntu源码构建/候选解析前基线；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
 > **性质**：当前规格迁移与历史实现交接。需求以 SPEC-1.1 / `spec/AGENT_SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 MODULE-SPEC-1.2 / `AGENTS.md` 为准。\
 > **本文件不是规范源。**
@@ -9,9 +9,9 @@
 
 本机环境见 [Linux runbook](ops/runbook-local-linux.md) 和 [2026-10-03 证据](evidence/local-linux-20261003.md)：独立 Python 3.12.10/.venv、Node/npm、现有 extras/Playwright 与 loopback Web/API 已配置；Python661/19skip、Web18/13/8、浏览器11 passed。Docker daemon/组权限可用，但代理授权与四容器镜像仍 blocked；memory readyz=503、搜索为空，不宣称真实 RAG 就绪，不代签 02-C 或任何 GATE。
 
-1. 工作区：`/home/lumina888/Projects/Pivot`，分支：`main`。`E:/AI Project/Pivot` 是历史 Windows 路径；不要新建 worktree。02-C 的 Debian bookworm runtime 与 Ubuntu 源码诊断候选已有独立锁/双重建/20 probes，**正式 Ubuntu CI 与签认未完成**，见 [bookworm 证据](evidence/agent-m03/nd-agent-02-c/linux-bookworm.md)与 [Ubuntu 证据](evidence/agent-m03/nd-agent-02-c/linux-ubuntu.md)。
+1. 工作区：`/home/lumina888/Projects/Pivot`，分支：`main`。`E:/AI Project/Pivot` 是历史 Windows 路径；不要新建 worktree。02-C 的 Windows/Linux 原生候选已有独立验证；**Ubuntu Hosted 候选 CI 技术通过，签认未完成**，见 [2026-10-06 CI 证据](evidence/agent-m03/nd-agent-02-c/ubuntu-ci-20261006.md)。Run `37420501217` 在 `7958feb` 上 success，不重复安排该候选 CI；正式角色锁/构建/安全审核仍 pending。
 2. 读：`AGENTS.md` → `SPEC.md` → `spec/AGENT_SPEC.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. ND-AGENT-01 已完成；02-A [内部提案](progress/changes/20261002-M05-agent-internal-contract.md)、02-B [预算提案](progress/changes/20261002-M05-agent-budget-contract.md)、02-C [依赖/锁定申请](progress/changes/20261002-M03-agent-dependencies-lock.md)均 review 待签认、未发布。02-C Windows 双隔离环境/候选哈希锁验证完成，原环境与业务未接入。下一步优先 **02-A/B/C 签认、Linux 锁验证及预算映射确认**，业务仍 blocked；03-A [恢复提案](progress/changes/20261003-M00-agent-resume-contract.md)与独立proposed schema/62项shape检查已提交、review待签认，未发布API；04-A [持久化提案](progress/changes/20261003-M03-agent-persistence-contract.md)与独立schema/173项shape检查也已提交、review待7项签认；前置提案已全部提交，0 ready/5 review/24 blocked，下一步签认/目标平台锁/批准PG环境。目标已改为 LangGraph 受控 ReAct，旧固定主图/暂缓申请/ND-W3-09 已由 ADR-009 取代。旧 ECS apply/live 检索票不再是默认路径。
+3. ND-AGENT-01 已完成；02-A [内部提案](progress/changes/20261002-M05-agent-internal-contract.md)、02-B [预算提案](progress/changes/20261002-M05-agent-budget-contract.md)、02-C [依赖/锁定申请](progress/changes/20261002-M03-agent-dependencies-lock.md)均 review 待签认、未发布。02-C Windows 双隔离环境/候选哈希锁验证完成，原环境与业务未接入。下一步优先 [02-A/B/C 审批入口](evidence/agent-m03/nd-agent-02-abc-review.md)中的**消费者/Owner 签认、角色锁/安全范围与预算映射确认**，业务仍 blocked；03-A [恢复提案](progress/changes/20261003-M00-agent-resume-contract.md)与独立proposed schema/62项shape检查已提交、review待签认，未发布API；04-A [持久化提案](progress/changes/20261003-M03-agent-persistence-contract.md)与独立schema/173项shape检查也已提交、review待7项签认；前置提案已全部提交，0 ready/5 review/24 blocked，下一步签认/目标平台锁/批准PG环境。目标已改为 LangGraph 受控 ReAct，旧固定主图/暂缓申请/ND-W3-09 已由 ADR-009 取代。旧 ECS apply/live 检索票不再是默认路径。
 4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / **企业 Golden Set 脱敏摘录** / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / **Wave 3 夹具收口** / PATCH 角色 HTTP / **ingest 共用 HTTP Embedding** / **Fake HTTP Writer** / **Fake MinerU 解析器** / **staging Compose overlay** / **sqlite refresh/Conversation** / **sqlite Run/EventLog** / **SSE 长连接夹具** / **真实解析库 extra** / **opt-in Playwright 十页** 标成 `GATE-P0 verified`。`wave-3-integrated` **不等于** P0 通过。
 
 ## 1. 产品现状
@@ -58,7 +58,11 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 4. 当前下一刀
 
-最新[02-C隐藏目录证据上传修正](evidence/agent-m03/nd-agent-02-c/hidden-artifacts.md)：固定upload-artifact默认排除`.pi/`中的文件，本轮显式允许隐藏目录读取，仍只归档本次trial顶层JSON/log/txt，不上传配置/wheel/venv。既有上传契约Red1 failed→安全组128 passed；完整Python重跑1031 passed/19 skipped/0 failed、harness exit0、ruff/compileall与Python/YAML主动LSP clean。首次180秒工具等待超时已确认无遗留，420秒上限重跑完整通过；已有YAML长行风格限制如实记录。未推送/dispatch/验证Hosted上传，未重跑目标候选/Web/PG/live/镜像；02-C review、0 ready/5 review/24 blocked与所有签认/DR/GATE不变。**下一步须Owner审查待验证ref并批准远端手动CI，归档真实run与可下载artifact**。
+以 main `8a81946` 的版本化证据为准：Ubuntu Hosted 候选 CI 已 success，三份前置提案仍 review、未发布。先按 [审批入口 §0](evidence/agent-m03/nd-agent-02-abc-review.md)明确审核责任人，逐项记录 INTERNAL draft.1 / BUDGET draft.2 / DEPENDENCIES draft.1 的结论和许可范围；角色锁/构建与安全待审事项不能被 CI 通过代替。消费者确认、Owner 明确许可并经 M00 发布后，再逐票核 02-D/F 的 DoR，按依赖推进 E/G/H。03-A/04-A、PG/live 与 DR-011 仍有独立门禁；目前 **0 ready / 5 review / 24 blocked**。
+
+下文是历史记录；其中“未推送/dispatch/Hosted CI 未验证”仅描述对应轮次，不是当前待办。本轮未重查远端状态或下载 artifact，未改源码/正式依赖或代签。
+
+此前[02-C隐藏目录证据上传修正](evidence/agent-m03/nd-agent-02-c/hidden-artifacts.md)：固定upload-artifact默认排除`.pi/`中的文件，本轮显式允许隐藏目录读取，仍只归档本次trial顶层JSON/log/txt，不上传配置/wheel/venv。既有上传契约Red1 failed→安全组128 passed；完整Python重跑1031 passed/19 skipped/0 failed、harness exit0、ruff/compileall与Python/YAML主动LSP clean。首次180秒工具等待超时已确认无遗留，420秒上限重跑完整通过；已有YAML长行风格限制如实记录。未推送/dispatch/验证Hosted上传，未重跑目标候选/Web/PG/live/镜像；02-C review、0 ready/5 review/24 blocked与所有签认/DR/GATE不变。**下一步须Owner审查待验证ref并批准远端手动CI，归档真实run与可下载artifact**。
 
 此前[02-C Ubuntu 手动候选 CI 入口准备](evidence/agent-m03/nd-agent-02-c/ubuntu-ci-preparation.md)：新增仅workflow_dispatch/确认默认false的Ubuntu24.04/Python3.12.10流程，三Actions固定commit、隔离hash driver/native report/独立候选锁/wheel核验/双离线重建/各20探针/错误hash负向/旧回归。准备工具严格拒绝漂移/非官方URL/畸形JSON/重复项/越界/旧输出。新增61项检查，原环境安全组128 passed、完整Python1031 passed/19 skipped/0 failed、harness exit0、ruff/compileall与工具/测试/YAML主动LSP clean；本机Arch正确拒绝且无输出，主.venv无LangGraph。未推送或dispatch、未跑Hosted CI/目标候选/Web/PG/live/镜像，默认CI/正式依赖/既有候选/业务未改。**下一步先Owner审查入口与待验证ref，远端手动运行并归档真实run/环境/双重建/负向/探针/回归证据**；入口准备不是正式CI passed，角色锁/来源/供应链与消费者签认仍pending，02-C review、0 ready/5 review/24 blocked与DR/GATE不变。
 

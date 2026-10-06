@@ -1,6 +1,6 @@
 # SPEC-1.1 剩余工作 Tickets
 
-> **版本 / 日期**：TICKETS-1.6 / 2026-10-03。
+> **版本 / 日期**：TICKETS-1.7 / 2026-10-06（同步候选 CI 与待签入口；票状态不变）。
 > **需求源**：[SPEC-1.1](../../SPEC.md)、[AGENT-SPEC-1.0](../../spec/AGENT_SPEC.md)；责任边界：[MODULE-SPEC-1.2](../../MODULE_SPEC.md)。
 > **进度快照**：[PROGRESS.md](../../PROGRESS.md)、[验收矩阵](../../spec/acceptance/matrix.md)；已提交实现基线 `8cd4727`（main）。
 > **性质**：剩余工作拆分，不是新规格、契约发布或验收报告。既有父票和历史完成记录见 [tickets.md](../tickets.md)。
@@ -17,15 +17,15 @@
 
 ## 1. 执行索引
 
-最新 [02-A/B/C 审核与待签清单](../../evidence/agent-m03/nd-agent-02-abc-review.md)：02-B draft.2 补独立累计/执行前门禁，Windows 技术20 probes passed。Debian bookworm runtime 候选已按 [原生执行单](../../evidence/agent-m03/nd-agent-02-c/linux-validation.md) 部分执行，见 [证据](../../evidence/agent-m03/nd-agent-02-c/linux-bookworm.md)；Ubuntu CI 未执行。消费者/Owner/安全 pending，无代签；02-A/B/C review，02-D～H blocked 不变。
+最新 [02-A/B/C 审核与待签清单 §0](../../evidence/agent-m03/nd-agent-02-abc-review.md)：Ubuntu 候选 CI Run `37420501217` 在 `7958feb` 上 success，见 [CI 证据](../../evidence/agent-m03/nd-agent-02-c/ubuntu-ci-20261006.md)。Windows/bookworm/Ubuntu 候选技术验证已有证据；不再安排已完成的同一次 CI。02-B draft.2 独立累计/执行前门禁、正式角色锁/构建/安全范围及消费者/Owner 签认仍 pending；02-A/B/C review，02-D～H blocked 不变。
 
-优先顺序：ND-AGENT-02-A → 02-B → 02-C → 02-D/E/F → 02-G/H → 03 → 04 → 05。02-A/B/C 已提交 proposed 提案，均 review 待消费者/Owner 签认；02-C Windows 受控验证/候选锁已提交，Linux/预算映射审核待补齐，不解锁业务实现。03-A [恢复提案](../changes/20261003-M00-agent-resume-contract.md)与04-A [持久化提案](../changes/20261003-M03-agent-persistence-contract.md)均已提交 proposed/review，待签认；不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
+优先顺序：ND-AGENT-02-A → 02-B → 02-C → 02-D/E/F → 02-G/H → 03 → 04 → 05。02-A/B/C 已提交 proposed 提案，均 review 待消费者/Owner 签认；02-C Windows/Linux 候选及 Ubuntu Hosted CI 已通过技术验证；预算映射签认、正式锁发布与安全审核待补齐，不解锁业务实现。03-A [恢复提案](../changes/20261003-M00-agent-resume-contract.md)与04-A [持久化提案](../changes/20261003-M03-agent-persistence-contract.md)均已提交 proposed/review，待签认；不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
 
 | 子票 | 工作 | 优先级 / 规模 | Accountable | 状态 | 硬依赖 / 放行条件 |
 |---|---|---|---|---|---|
 | ND-AGENT-02-A | 模型、工具、State 与 EvidenceRegistry 内部 Contract | P0 / S | M05 | review | proposed 提案/Red 设计已提交；消费者/Owner 待签认，非发布 |
 | ND-AGENT-02-B | DR-010 预算策略与累计用量 Contract | P0 / S | M05 | review | proposed 提案/有限 Fixture/Red 设计已提交；消费者/Owner 待签认，非发布 |
-| ND-AGENT-02-C | Python 3.12 框架/消息/适配依赖验证与锁定方案 | P0 / S | M03 | review | Windows 与 bookworm runtime 候选哈希锁已验证；Ubuntu CI/消费者/Owner 审核未完成，非发布 |
+| ND-AGENT-02-C | Python 3.12 框架/消息/适配依赖验证与锁定方案 | P0 / S | M03 | review | Windows/Linux 候选与 Ubuntu Hosted CI 技术验证通过；角色锁/安全/消费者/Owner 审核未完成，非发布 |
 | ND-AGENT-02-D | 两个只读工具与本 Run 证据注册 | P0 / M | M05 | blocked | 02-A/B/C Contract；DR-010 受控执行策略 |
 | ND-AGENT-02-E | 可信上下文、历史与每次调用外发门禁 | P0 / M | M01 | blocked | 02-D；02-A/B/C Contract |
 | ND-AGENT-02-F | 调用、重写、重试及主备累计预算 | P0 / M | M05 | blocked | 02-A/B/C；DR-010 受控执行策略 |
@@ -84,13 +84,13 @@
 ### ND-AGENT-02-C 框架依赖与锁定
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-009，AGENT_SPEC §8.1/§10；Accountable M03，Contributors M05/M11。
-- **状态 / 依赖**：review；[依赖/锁定申请](../changes/20261002-M03-agent-dependencies-lock.md)、Windows CPython 3.12 候选与 Debian bookworm runtime 候选已验证，六项审核 pending；Ubuntu CI/预算映射/正式依赖发布未完成，非 done。
+- **状态 / 依赖**：review；[依赖/锁定申请](../changes/20261002-M03-agent-dependencies-lock.md)、Windows/bookworm/Ubuntu 候选已验证，Ubuntu Hosted CI Run `37420501217` success；六项审核 pending，预算映射签认/角色锁/安全/正式依赖发布未完成，非 done。
 - **场景 / 异常**：Given 启用 Agent 模式；Then StateGraph、消息/工具接口及 checkpointer 版本兼容；缺依赖/不支持 tools 失败，不静默切旧线性实现。
 - **范围 / 数据**：确认 LangGraph/langchain-core/模型适配/checkpointer 版本组合、锁文件策略、CI/Docker 安装范围及升级/回滚限制；版本须随 Run 追踪。
 - **路径 / 交付**：`progress/changes/` 依赖申请；批准后由 M03 串行维护 `api/pyproject.toml`/锁文件，M11 同步 CI/镜像。
 - **计划测试**：`test_FR_AGENT_009_missing_graph_dependency_fails_closed`、`test_FR_AGENT_006_checkpoint_version_compatible`。
 - **DoD / 证据**：Python 3.12 版本矩阵、受控导入/消息序列化验证与可重建锁定记录；无未经批准包或生产安装声明。
-- **本轮证据**：[nd-agent-02-c.md](../../evidence/agent-m03/nd-agent-02-c.md)；111 个精确 wheel 哈希、两个隔离环境离线重建/11 技术探针、含候选的既有 661 passed/19 skipped。确认 None 恢复 limit+2、strict 字典 passthrough、serde 不脱敏；02-B 预算硬门禁须签认。未改 pyproject/正式锁/CI/镜像，未验证 PG/Linux/live，不解锁业务票。
+- **证据**：历史 [Windows 验证](../../evidence/agent-m03/nd-agent-02-c.md)为 111 个 wheel/双离线环境/11 技术探针；后续累计 20 项探针及 Linux 原生候选见 [审核清单](../../evidence/agent-m03/nd-agent-02-abc-review.md)，[Ubuntu Hosted CI](../../evidence/agent-m03/nd-agent-02-c/ubuntu-ci-20261006.md)已通过。None 恢复 limit+2、strict 字典 passthrough、serde 不脱敏仍须业务门禁承接。仅新增候选手动 CI，未改 pyproject/正式锁/业务镜像；PG/live 未验收，不解锁业务票。
 - **不做**：不承诺仅安装 LangGraph 就完成 FR-AGENT-001，不默认升级无关依赖。
 
 ### ND-AGENT-02-D 只读工具与 EvidenceRegistry

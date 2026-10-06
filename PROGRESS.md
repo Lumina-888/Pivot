@@ -1,8 +1,8 @@
 # 问枢 Pivot 开发进度
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
-> **最后更新**：2026-10-06（02-C Ubuntu 候选在修复提交上通过；候选技术验证已归档，依赖/预算/恢复签认与 Agent 业务门禁仍 pending）\
-> **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A/B/C 内部、预算及依赖/锁定提案、03-A恢复与04-A持久化Contract提案均review待签认；04-A新增173项元数据shape检查通过，不代表PG恢复/迁移/租约实施；02-C Windows Python 3.12 验证与候选哈希锁已提交，预算映射已修订为 proposed draft.2（独立累计执行前门禁），新增9项技术 canary/合计20 probes passed；旧 Windows 环境 Linux 验证因无 Docker/WSL 故障 blocked；当前 Arch 本机开发环境已配置并通过既有回归/浏览器组，Docker 镜像拉取及 daemon proxy 授权仍 blocked，02-C 目标平台原生锁与消费者/Owner/安全签认仍 pending，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
+> **最后更新**：2026-10-06（Ubuntu 候选 CI 技术通过；恢复入口/工单已同步，02-A/B/C 审批范围待确认，业务门禁仍 pending）\
+> **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A/B/C 内部、预算及依赖/锁定提案、03-A恢复与04-A持久化Contract提案均review待签认；04-A新增173项元数据shape检查通过，不代表PG恢复/迁移/租约实施；02-C Windows Python 3.12 验证与候选哈希锁已提交，预算映射已修订为 proposed draft.2（独立累计执行前门禁），新增9项技术 canary/合计20 probes passed；旧 Windows 环境 Linux 验证因无 Docker/WSL 故障 blocked；当前 Arch 本机开发环境已配置并通过既有回归/浏览器组，Docker 镜像拉取及 daemon proxy 授权仍 blocked，02-C Windows/Linux 原生候选与 Ubuntu Hosted CI 技术验证已通过，正式角色锁/构建及消费者/Owner/安全签认仍 pending，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
 > **当前实现状态**：主线开发（MODULE-SPEC-1.2）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；`PIVOT_PARSER=native` 可装配 PyMuPDF/docx/pptx/xlsx extra（缺省仍启发式/stdlib）；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送（opt-in uvicorn）；opt-in Playwright 十页；企业 Golden Set v0.3 脱敏摘录 120 条（非业务复核，非 GATE）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
 > **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 十页 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条）+ 企业 Golden Set v0.3 脱敏摘录 120 条（annotated_desensitized，Fake Keyword） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + hashed refresh / Conversation / Run/EventLog SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + `worker[parse]` 真实解析库 extra（`PIVOT_PARSER=native`；CI 微型夹具；缺省仍启发式/stdlib） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture） + SSE 长连接（POST 立即返回 received；逐帧推送；Next SSE Route Handler 去缓冲；opt-in uvicorn）。GATE-P0 全部 unverified。
 
@@ -17,7 +17,9 @@
 
 本机开发/测试入口见 [Linux runbook](ops/runbook-local-linux.md) 与 [2026-10-03 环境证据](evidence/local-linux-20261003.md)。Python 3.12.10、Node/npm、现有 extras、Playwright 与 loopback API/Web 可用；Python 661 passed/19 skipped、Web 18/13/8 passed、浏览器11 passed。Docker daemon/组权限已配置，但真实依赖镜像与代理授权未完成；memory 模式 readyz=503、检索为空，不宣称真实存储/RAG 就绪。未安装未批准 Agent 依赖、不关闭 02-C 或 GATE。
 
-最新 [02-C 隐藏目录证据上传修正](evidence/agent-m03/nd-agent-02-c/hidden-artifacts.md)：固定 upload-artifact 默认排除隐藏目录，而 trial 位于 `.pi/`；显式启用隐藏目录读取，保留本次 trial 顶层 JSON/log/txt 非递归白名单，不上传配置/wheel/venv。既有上传契约 Red1 failed→安全组128 passed；完整Python重跑 **1031 passed/19 skipped/0 failed**、harness exit0、ruff/compileall与改动Python/YAML主动LSP通过。首次180秒工具等待超时且无遗留进程，第二次420秒上限完整通过。未推送/dispatch/验证Hosted上传；02-C review、0 ready/5 review/24 blocked与所有签认/DR/GATE不变，下一步仍须Owner审查待验证ref并批准远端手动CI。
+当前 [02-A/B/C 审批入口](evidence/agent-m03/nd-agent-02-abc-review.md)：Ubuntu 候选 CI Run `37420501217` 已在 `7958feb` 上 success，见 [2026-10-06 证据](evidence/agent-m03/nd-agent-02-c/ubuntu-ci-20261006.md)。HANDOFF、剩余 Tickets 与依赖申请已同步，过往“Ubuntu CI 未执行”只作为历史记录。下一步明确消费者审核人与 Owner 许可范围，签认 INTERNAL draft.1 / BUDGET draft.2 / DEPENDENCIES draft.1；正式角色锁/安全审核仍 pending。没有代签、发布或解锁，仍 **0 ready / 5 review / 24 blocked**。以下为历史执行记录，不重复安排已完成候选 CI。
+
+此前 [02-C 隐藏目录证据上传修正](evidence/agent-m03/nd-agent-02-c/hidden-artifacts.md)：固定 upload-artifact 默认排除隐藏目录，而 trial 位于 `.pi/`；显式启用隐藏目录读取，保留本次 trial 顶层 JSON/log/txt 非递归白名单，不上传配置/wheel/venv。既有上传契约 Red1 failed→安全组128 passed；完整Python重跑 **1031 passed/19 skipped/0 failed**、harness exit0、ruff/compileall与改动Python/YAML主动LSP通过。首次180秒工具等待超时且无遗留进程，第二次420秒上限完整通过。未推送/dispatch/验证Hosted上传；02-C review、0 ready/5 review/24 blocked与所有签认/DR/GATE不变，下一步仍须Owner审查待验证ref并批准远端手动CI。
 
 此前 [02-C Ubuntu 手动候选 CI 入口准备](evidence/agent-m03/nd-agent-02-c/ubuntu-ci-preparation.md)：新增仅手动确认触发的 Ubuntu24.04/Python3.12.10 验证流程，Actions 固定 commit、隔离 driver/native resolver/双离线重建/哈希负向/20技术探针与旧回归；准备工具严格拒绝平台/材料漂移、非官方URL、畸形JSON及越界/旧输出。新增61项本地检查，安全组128 passed；原环境完整Python **1031 passed/19 skipped/0 failed**、harness exit0、ruff/compileall通过，工具/测试/YAML主动LSP clean。本机Arch前检正确拒绝且无输出，主.venv未装LangGraph。未推送或触发Hosted CI，默认ci.yml/正式依赖/既有候选/业务不变；02-C review、0 ready/5 review/24 blocked、所有签认/DR/GATE不变。下一步经Owner审查后在远端运行手动CI并归档真实证据，不把入口准备当CI passed。
 
@@ -48,7 +50,7 @@
 | M00 契约治理 | in_progress | `main` | 目标 SPEC-1.1；发布 contract-v0.1 | 公共契约48 passed；03-A schema62/04-A schema173 passed；5前置review | 消费者签认；Linux/预算映射；04-A治理审核 |
 | M01 身份授权 | integrated | `main`（tag `M01-v0.6.0`） | `contract-v0.1` | 37 单元/安全 + 登录/改密/管理用户 HTTP + PATCH 角色/重置 + Compose 注入 Redis 限流 + refresh 跨装配 | 人工标注 Golden Set 或 STG-04 ECS apply |
 | M02 文档接入 | integrated | `main`（tag 目标 `M02-v0.6.0`） | `contract-v0.1` | 27 单元 + 上传/列表/详情/重试/删除/预览/下载 HTTP；runtime 上传后进程内 ingest；`PIVOT_INGEST=celery` 可入队；Compose api 注入 celery ingest；publish 写回 chunk | HTTP 缺省仍 sync ingest |
-| M03 数据基础 | in_progress | `main`（旧 tag 目标 `M03-v0.8.0`） | `contract-v0.1`；依赖 draft proposed | 02-C Windows/bookworm/Ubuntu源码诊断候选锁与双重建；04-A proposed/schema173 passed；旧 SQL 基线保留 | 正式Ubuntu CI/角色锁、供应链与依赖审核；04-A签认/DR-011/批准PG环境 |
+| M03 数据基础 | in_progress | `main`（旧 tag 目标 `M03-v0.8.0`） | `contract-v0.1`；依赖 draft proposed | 02-C Windows/Linux 原生候选与 Ubuntu Hosted CI 技术通过；04-A proposed/schema173 passed；旧 SQL 基线保留 | 角色锁/构建、供应链与依赖签认；04-A签认/DR-011/批准PG环境 |
 | M04 检索 RAG | integrated | `main`（tag 目标 `M04-v0.5.0`） | `contract-v0.1` | 31 单元 + 搜索 HTTP + Qdrant dense + stdlib BM25 + ingest/检索共用注入 HTTP Embedding/bge + 合成 Golden Set 120 条 + 企业脱敏摘录 120 条 | STG-04 ECS apply 或 live 供应商冒烟 |
 | M05 ReAct/QA/Run/SSE | in_progress | `main`（旧 tag `M05-v0.6.0`） | 目标 AGENT-SPEC-1.0；发布 contract-v0.1 | ND-AGENT-01 done；79 QA/Run/SSE 回归；02-A/B/C proposed/review，未验收新 ReAct | 签认累计硬预算与 strict/serde 约束；Claim/Citation/checkpoint 待实现 |
 | M06 导出/审计 | integrated | `main`（tag 目标 `M06-v0.3.0`） | `contract-v0.1` | 26 单元 + 导出/审计 HTTP + PG 任务跨装配 | 对象字节下载 HTTP 仍不新增（契约仅短时 URL） |
@@ -263,6 +265,13 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 - [x] 企业 Golden Set v0.3 脱敏摘录已批准：`progress/changes/20260914-M11-golden-set-enterprise-fill.md`。
 
 ## 6. 轮次日志
+
+### 2026-10-06 — 02-A/B/C 审批与恢复入口同步
+
+- **范围 / 基线**：main `8a81946` 开场 clean；M00 工单/交接/根进度与审核入口、M03 依赖申请/模块进度同步。只修改文档，不改业务、公开 Contract、依赖/锁、CI/镜像、迁移或用户配置。
+- **结果**：移除当前入口把已完成 Ubuntu Hosted CI 安排成下一刀的过期指引，历史日志保留；审批清单明确三份提案版本、真实证据、决策范围和审核记录要求。不冒充消费者/Owner 签认，0 ready/5 review/24 blocked、DR-010/011/TBD-P0/GATE 不变。
+- **验证**：Python3.12.10/pytest9.1.1；原 `.venv` 独立运行契约组 **283 passed**（含恢复/持久化 proposed shape），旧 QA/Run/SSE **79 passed**，合计 **362 passed**。Node26.8.2 只读检查7份文档/163个本地链接、执行索引29票（0 ready/5 review/24 blocked）及5处当前CI Run引用通过；`git diff --check` 与修改时Markdown检查通过。
+- **命令 / 限制**：从 `/home/lumina888` 运行 `env PYTHONPATH=/home/lumina888/Projects/Pivot/api/src:/home/lumina888/Projects/Pivot/worker/src /home/lumina888/Projects/Pivot/.venv/bin/python -m pytest /home/lumina888/Projects/Pivot/tests/contract --ignore=/home/lumina888/Projects/Pivot/tests/contract/stream -q -p no:cacheprovider`；第二组同一环境执行 `-m pytest /home/lumina888/Projects/Pivot/tests/unit/qa /home/lumina888/Projects/Pivot/tests/unit/runs /home/lumina888/Projects/Pivot/tests/contract/stream -q -p no:cacheprovider`。首次合并契约/stream收集因既有同名conftest导入冲突出现5 errors，拆组通过，未改测试规避；首次文档辅助检查误统计§4历史门禁行，限定§1执行索引后通过。未重查远端/下载artifact，未跑全量/候选/PG/live/Web；无Python业务改动，未重跑Ruff/compileall。下一步须确认审核责任与受控实施/依赖发布许可，再逐票核 DoR。
 
 ### 2026-10-06 — ND-AGENT-02-C Ubuntu 候选 CI 通过
 
