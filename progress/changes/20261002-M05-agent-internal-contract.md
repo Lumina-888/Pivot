@@ -1,7 +1,7 @@
 # ND-AGENT-02-A：模型、工具与状态内部 Contract 提案
 
 - **日期 / 状态**：2026-10-02 / proposed；设计提交待审核，不是已发布契约或业务实现。
-- **提案版本**：AGENT-INTERNAL-0.1-draft.1；只适用于待实现的新 Agent，不进入 contract-v0.1 manifest。
+- **提案版本**：AGENT-INTERNAL-0.1-draft.1；追加待审补充 PR-01（用户输入 Prompt 重写），本次签认须明确包含该补充；只适用于待实现的新 Agent，不进入 contract-v0.1 manifest。
 - **Accountable / Contributors**：M05；M00/M01/M03/M04/M06/M11。
 - **来源**：[SPEC §4.5/§7/§8.3](../../SPEC.md)、[AGENT_SPEC §3~5/§7/§10](../../spec/AGENT_SPEC.md)、[ADR-009](20261002-M00-langgraph-react-baseline.md)。
 - **工单 / 原基线**：[ND-AGENT-02-A](../tickets/spec-1.1-remaining.md)；main `cdadc53`，发布 contract-v0.1，ND-AGENT-01 安全基线 `8cd4727`。
@@ -148,6 +148,20 @@
 
 `finalize` 不是 answered；无合法证据时不得调用 Finalizer。澄清最多一轮，等待/恢复 Contract 在 03-A/D；模型的 refuse 不能替代服务端对执行故障、安全拒绝或预算耗尽的终态判断。
 
+### 3.4 用户输入 Prompt 重写（PR-01，追加待审核）
+
+按 Owner 本轮要求，在输入安全检查与可信上下文加载后、首次 Agent 决策前，对用户输入做 Prompt 重写：整理表达、明确已给出的任务与约束，使后续模型更准确理解问题。这里重写的是用户请求，不是系统 Prompt、权限策略或工具指令。本补充只是需求与内部接口提案，不构成 02-A 签认、规格发布或业务实现许可；既有 draft.1 形状检查和技术证据不覆盖此能力。
+
+拟议 `InputRewriter.rewrite` 接收原始用户输入及经授权的必要上下文，返回非空的重写请求和重写策略版本引用；具体机器 schema 与消费者接口须审核后冻结。原始输入仍是用户意图、Run 幂等比较及业务消息的依据，不以重写结果覆盖；原文、重写结果和版本引用按敏感状态白名单关联保存，不直接写普通日志或公开 SSE。
+
+- 重写必须保留原始意图、实体、数字、日期、否定、条件、版本限定及用户明确的输出要求；不得补造事实、代替用户选择歧义解释，或删去影响答案的约束。存在实质歧义时进入既有有界澄清路径，澄清总次数仍最多一轮。
+- 服务端身份、owner、scope、文档资格、外发策略和工具白名单不可由原文或重写结果修改；两者始终作为不可信用户数据，不提升为 system/developer 指令。原始输入的安全检查不得因重写而省略。
+- 若重写使用模型，必须经过与 Agent/Finalizer/Verifier 相同的身份、取消、外发与执行前累计预算门禁；原始输入及上下文均检查，调用 attempt、已知或 unknown 用量均登记。未获批准的策略、供应商、费用或数据范围不得调用，不新增生产默认值或预算豁免。
+- 输入 Prompt 重写与检索 query rewrite 分开追踪，不能用本步骤清零或绕过 query rewrite 最多 2 次的约束。后续改变搜索 query 仍按既有规则计量；重试、恢复和主备切换共享同一 Run 累计预算。重写已完成时恢复复用其版本化结果，不无条件重复收费调用。
+- 非法、空白或违反保留约束的重写结果不得进入 Agent，也不得用于答案或工具执行；不静默补造另一份请求。失败、澄清及取消沿用服务端门禁，具体内部分类与公开映射经消费者审核，不在本补充新增公开错误码。
+
+本能力的模型/规则实现选择、意图保留验证方式、长度与时限策略，以及状态持久化消费须由 M05/M01/M03/M06/M11 与 M00 审核；涉及预算或恢复的消费责任分别关联 02-B/04-A，不视为这两项已经批准。
+
 ## 4. Observation 与 EvidenceRegistry
 
 ### 4.1 工具 Observation（拟议字段，不是公开 SSE）
@@ -271,6 +285,9 @@ Schema 只保证形状，不能证明句子被支持、ID 属于当前 Run、文
 | test_FR_AGENT_001_observation_drives_next_tool | 搜索分别返回合法空与足够证据 | Fake 模型分别改写或 read/finalize；真实图动作随观察改变，非固定两次搜索 | M05/M11；02-G |
 | test_FR_AGENT_005_unverified_markdown_never_published | Finalizer 带自由 markdown、未知 ID 或百万美元奖金 Claim | 未验证内容不进入正文/消息/导出；任一 Claim 不通过整份拒绝 | M05/M06；02-H |
 | test_FR_AGENT_006_checkpoint_has_no_credentials | runtime context 含 Secret/依赖/私有 reasoning | 白名单 state 序列化不含它们；不把本例当真实 PG checkpoint 验收 | M03/M01；04-A/C |
+| test_FR_AGENT_001_input_rewrite_preserves_constraints | 原始问题包含数字/日期/否定/条件/版本和输出要求；Fake 返回保留约束或篡改约束的重写 | 保留时 Agent 消费关联的重写请求，原始消息/幂等依据不变；篡改、空白或非法输出不进入 Agent；实质歧义不擅自补全 | M05/M11；PR-01，02-G |
+| test_FR_AGENT_003_input_rewrite_cannot_expand_scope | 原文或重写结果要求越权/外发受限上下文/修改工具白名单 | 身份与 scope 不变；禁止外发时 Rewriter Fake 调用次数 0；重写结果不成为高权限指令 | M01/M05；PR-01，02-E/G |
+| test_FR_AGENT_004_input_rewrite_shares_run_budget | 重写调用返回已知或 unknown 用量；随后工具、重试或恢复 | 重写 attempt 纳入同一执行前预算门禁；unknown 不记零、query rewrite 计数不重置；已完成重写的恢复不无条件再调用 | M05/M06/M03；PR-01，02-F/G、04-A/C |
 
 ## 9. 影响、兼容与待签认
 
@@ -295,6 +312,8 @@ Schema 只保证形状，不能证明句子被支持、ID 属于当前 Run、文
 02-B 已修订为 AGENT-BUDGET-0.1-draft.2，累计图门禁不能仅依赖 recursion_limit；AgentModel/ToolExecutor/Finalizer/Verifier 全部沿用同一调用预算边界。上述是原不变量的消费约束，不变更本提案接口/字段或公开 contract-v0.1。完整 [技术审核与签认清单](../../evidence/agent-m03/nd-agent-02-abc-review.md)记录 Linux 环境 blocked 和仍缺的审批。上表消费者 pending 不变，技术自审不是各 Owner 签认，02-D～H 继续 blocked。
 
 ## 10. 验证与下一步
+
+PR-01 为本轮新增待审核设计及三组 Red 用例设计，未实施运行时测试；以下原始证据仅覆盖补充前的 draft.1，不得用于宣称输入重写已验证。02-A 仍 review，所有消费者/Owner 签认及其他四项前置审批保持 pending。
 
 本轮只校验提案 JSON schema/正负形状示例、本地 Markdown 链接与既有公共契约/QA 回归；实际命令、版本、结果和工作区限制见 [本轮证据](../../evidence/agent-m05/nd-agent-02-a.md)。JSON Schema 不验证 ID 往返、外发、支持性、预算或恢复行为。
 

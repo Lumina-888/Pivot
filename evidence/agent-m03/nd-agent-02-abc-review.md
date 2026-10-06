@@ -13,7 +13,7 @@ Ubuntu 候选 CI 在 `7958feb` 上通过：Run `37420501217`、Job `112128562855
 
 | 审批对象 / 版本 | 本轮需要明确的决定 | 可审查证据 / 未完成边界 |
 |---|---|---|
-| [02-A / INTERNAL draft.1](../../progress/changes/20261002-M05-agent-internal-contract.md) | 确认单工具调用、严格参数/调用 ID、State 白名单、证据字段来源与每次调用外发责任 | 提案 §8/§9 与下文 §2/§3；消费者运行时测试未实施，全部签认 pending |
+| [02-A / INTERNAL draft.1 + PR-01 待审补充](../../progress/changes/20261002-M05-agent-internal-contract.md) | 确认单工具调用、严格参数/调用 ID、State 白名单、证据字段来源、每次调用外发责任及 §3.4 用户输入 Prompt 重写 | 提案 §3.4/§8/§9 与下文 §2/§3；PR-01 原意/约束保留、输入/输出关联及累计预算消费须单独审核，既有证据不覆盖；消费者运行时测试未实施，全部签认 pending |
 | [02-B / BUDGET draft.2](../../progress/changes/20261002-M05-agent-budget-contract.md) | 确认独立累计执行前门禁、unknown 用量保守处理与 unit_fake_only 策略的批准范围 | 提案 §4.1/§7/§9；技术探针不证明业务 BudgetGate，生产数值仍 TBD-P0，DR-010 未关闭 |
 | [02-C / DEPENDENCIES draft.1](../../progress/changes/20261002-M03-agent-dependencies-lock.md) | 确认候选版本及后续角色锁/可选适配/构建与回滚范围，记录安全审核结论 | Windows/bookworm/Ubuntu 原生候选与上述 Hosted CI；正式角色锁、镜像、许可证兼容/CVE/遥测/来源完整审核仍 pending |
 
