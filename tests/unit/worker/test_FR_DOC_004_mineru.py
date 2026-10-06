@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 from zipfile import ZipFile
 
 import pytest
@@ -64,12 +65,12 @@ def _batch_done(*, zip_url: str = "https://download.test/result.zip") -> dict:
 
 
 def _parser(client, **overrides) -> MinerUCloudParser:
-    values = dict(
-        endpoint=_ENDPOINT,
-        token=_TOKEN,
-        kind="pdf",
-        sleep=lambda _seconds: None,
-    )
+    values: dict[str, Any] = {
+        "endpoint": _ENDPOINT,
+        "token": _TOKEN,
+        "kind": "pdf",
+        "sleep": lambda _seconds: None,
+    }
     values.update(overrides)
     return MinerUCloudParser(client, **values)
 
@@ -114,6 +115,68 @@ def test_FR_DOC_004_mineru_uploads_bytes_and_polls_batch():
     assert polls[0]["url"] == f"{_ENDPOINT}/extract-results/batch/batch_1"
     download = next(item for item in client.calls if item["method"] == "GET_BYTES")
     assert download["url"] == "https://download.test/result.zip"
+
+
+@pytest.mark.parametrize(
+    "upload_url",
+    [
+        "https://upload.test/obj?signature=fixture-upload",
+        "https://parser.test/api/v4/upload?signature=fixture-upload",
+    ],
+)
+def test_FR_DOC_004_mineru_upload_does_not_send_api_token(upload_url):
+    accepted = _batch_accepted()
+    accepted["data"]["file_urls"] = [upload_url]
+    client = ScriptedMinerUHttpClient(
+        post_responses=[accepted],
+        get_responses=[_batch_done()],
+        byte_responses=[_zip(markdown="Attendance policy")],
+    )
+    content = pdf_with_text("Attendance policy")
+
+    parsed = _parser(client, timeout_seconds=3.0).parse(content)
+
+    assert "Attendance policy" in parsed.text
+    assert client.uploads == [content]
+    upload = next(item for item in client.calls if item["method"] == "PUT")
+    assert upload["url"] == upload_url
+    assert upload["timeout"] == 3.0
+    assert upload["headers"] == {}
+    api_calls = [item for item in client.calls if item["method"] in {"POST", "GET"}]
+    assert api_calls
+    assert all(
+        item["headers"] == {"Authorization": "Bearer secret-mineru-token"}
+        for item in api_calls
+    )
+
+
+@pytest.mark.parametrize(
+    "download_url",
+    [
+        "https://download.test/result.zip?signature=fixture-download",
+        "https://parser.test/api/v4/result.zip?signature=fixture-download",
+    ],
+)
+def test_FR_DOC_004_mineru_download_does_not_send_api_token(download_url):
+    client = ScriptedMinerUHttpClient(
+        post_responses=[_batch_accepted()],
+        get_responses=[_batch_done(zip_url=download_url)],
+        byte_responses=[_zip(markdown="Attendance policy")],
+    )
+
+    parsed = _parser(client, timeout_seconds=3.0).parse(pdf_with_text())
+
+    assert "Attendance policy" in parsed.text
+    download = next(item for item in client.calls if item["method"] == "GET_BYTES")
+    assert download["url"] == download_url
+    assert download["timeout"] == 3.0
+    assert download["headers"] == {}
+    api_calls = [item for item in client.calls if item["method"] in {"POST", "GET"}]
+    assert api_calls
+    assert all(
+        item["headers"] == {"Authorization": "Bearer secret-mineru-token"}
+        for item in api_calls
+    )
 
 
 def test_FR_DOC_004_mineru_parses_zip_markdown_and_content_list():

@@ -247,7 +247,7 @@ class MinerUCloudParser:
         try:
             batch = self._submit(content, headers)
             zip_url = self._poll(batch, headers)
-            blob = self._client.get_bytes(zip_url, headers, timeout=self._timeout)
+            blob = self._client.get_bytes(zip_url, {}, timeout=self._timeout)
         except Exception as exc:
             _map_transport(exc, self._token)
         return _document_from_zip(self.kind, blob, self._token)
@@ -285,7 +285,7 @@ class MinerUCloudParser:
         upload_url = str(urls[0] or "").strip()
         if not upload_url:
             _raise("PROVIDER_TEMPORARY_ERROR", "parser empty", self._token)
-        self._client.put_bytes(upload_url, content, headers, timeout=self._timeout)
+        self._client.put_bytes(upload_url, content, {}, timeout=self._timeout)
         return batch_id
 
     def _poll(self, batch_id: str, headers: Mapping[str, str]) -> str:
