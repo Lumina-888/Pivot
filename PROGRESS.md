@@ -1,7 +1,7 @@
 # 问枢 Pivot 开发进度
 
 > **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
-> **最后更新**：2026-10-04（02-C 修正隐藏目录候选证据上传并补强既有回归；Python 1031 passed/19 skipped，Hosted CI 尚未执行，安全/Agent 签认仍 pending）\
+> **最后更新**：2026-10-06（02-C Ubuntu 候选首次运行定位并修正 CI 临时目录测试边界；候选前置检查通过、既有回归因测试夹具失败，修复后普通 CI success，候选待重跑）\
 > **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；当前代码仍是旧线性 RAG，框架/工具循环/checkpoint 尚未接入；ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。ND-AGENT-02-A/B/C 内部、预算及依赖/锁定提案、03-A恢复与04-A持久化Contract提案均review待签认；04-A新增173项元数据shape检查通过，不代表PG恢复/迁移/租约实施；02-C Windows Python 3.12 验证与候选哈希锁已提交，预算映射已修订为 proposed draft.2（独立累计执行前门禁），新增9项技术 canary/合计20 probes passed；旧 Windows 环境 Linux 验证因无 Docker/WSL 故障 blocked；当前 Arch 本机开发环境已配置并通过既有回归/浏览器组，Docker 镜像拉取及 daemon proxy 授权仍 blocked，02-C 目标平台原生锁与消费者/Owner/安全签认仍 pending，不满足 DR-010/锁依赖时禁止业务实现。架构 accepted 不等于 implemented/verified；预算 DR-010、恢复契约、checkpoint DR-011 仍待关闭。
 > **当前实现状态**：主线开发（MODULE-SPEC-1.2）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；`PIVOT_PARSER=native` 可装配 PyMuPDF/docx/pptx/xlsx extra（缺省仍启发式/stdlib）；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送（opt-in uvicorn）；opt-in Playwright 十页；企业 Golden Set v0.3 脱敏摘录 120 条（非业务复核，非 GATE）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
 > **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 十页 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条）+ 企业 Golden Set v0.3 脱敏摘录 120 条（annotated_desensitized，Fake Keyword） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + hashed refresh / Conversation / Run/EventLog SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + `worker[parse]` 真实解析库 extra（`PIVOT_PARSER=native`；CI 微型夹具；缺省仍启发式/stdlib） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture） + SSE 长连接（POST 立即返回 received；逐帧推送；Next SSE Route Handler 去缓冲；opt-in uvicorn）。GATE-P0 全部 unverified。
@@ -263,6 +263,14 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 - [x] 企业 Golden Set v0.3 脱敏摘录已批准：`progress/changes/20260914-M11-golden-set-enterprise-fill.md`。
 
 ## 6. 轮次日志
+
+### 2026-10-06 — ND-AGENT-02-C Ubuntu 候选回归边界修正
+
+- **范围 / 基线**：候选工作流 `37412192293` 在 `07fa3d3` 上运行；不改依赖、公开 Contract、业务实现或正式锁。M11 修正候选安全测试，M03 同步 02-C 证据，根进度归档。
+- **失败定位**：候选解析、精确 wheel 哈希、双离线重建、20 项技术探针和错误哈希负向全部通过；`M11-security-ops` 仅 `test_FR_AGENT_009_ci_preparation_cli_fails_closed_without_leaking_paths` 失败。工作流将 `TMPDIR` 指向试验输出树，pytest `tmp_path` 因此不是真正越界路径，CLI 合法返回 `prepared`。
+- **修复 / Red-Green**：提交 `c4ee4ec` 将该测试改为仓库根目录之外的显式 `TemporaryDirectory`；在同等 `TMPDIR` 重定向下目标测试 **1 passed**，完整候选测试文件 **61 passed**。`git diff --check` 通过；推送后普通 CI `37417516926` **success**。
+- **限制 / 下一步**：candidate-ubuntu 尚未在 `c4ee4ec` 上重跑；依赖/预算/恢复/checkpoint Contract、Owner 签认、DR-010/DR-011 和全部 GATE-P0 仍 pending。下一步从 GitHub Actions 手动重跑 `candidate-ubuntu`，不以普通 CI 或候选技术通过代签业务门禁。
+
 
 ### 2026-10-04 — ND-AGENT-02-C Ubuntu 手动候选 CI 入口准备
 
