@@ -54,6 +54,16 @@ The skipped case depends on an unavailable live staging deployment. This regress
 
 The commands above were inline local diagnostic runners, not committed reusable live harnesses. They did not install dependencies or execute the application's HTTP provider adapters. No full regression, browser, real database, LangGraph or end-to-end ingest/retrieval/answer acceptance run was performed.
 
-Next: replace or renew the official MinerU API token locally, then explicitly rerun the bounded synthetic PDF check. Do not silently retry the rejected credential. Preserve the distinction between direct supplier protocol checks and approved runtime integration.
+## MinerU Retest After Owner Credential Update
+
+After the Owner reported updating the private Token, a fresh bounded probe was run from main at `317e6a8`. This adds one authenticated submission request to the initial ten; no chat, embedding or rerank requests were repeated.
+
+- The visible private entry was reloaded using `util.parseEnv`; the Token assignment was unique and nonempty. File mode 600, the symlink target and both Git-ignore checks passed.
+- The Token had no extra `Bearer` prefix or internal whitespace and did not equal another configured provider credential. Its expiration could not be established; these checks do not prove validity or that the value changed from the previous attempt.
+- A one-page synthetic PDF was generated in memory (863 bytes). Submission to the official v4 batch upload interface again returned HTTP 401. Submission count: 1; uploads, polls, downloads and automatic retries: 0. No batch ID or parsing task was obtained.
+- The redacted diagnostic state is retained locally at `.pi/artifacts/mineru-live-20261006-retest/state.json`, which is Git-ignored. No credential, authorization header, signed URL or document content was stored in that artifact.
+- The updated credential remains blocked at authentication. No production code, budget contract or service configuration was changed, and no alternative endpoint or authentication bypass was attempted.
+
+Next: confirm the official API-management Token is enabled, valid and copied in full. A new PDF probe requires an explicitly confirmed credential correction; do not repeat this rejected credential automatically. Preserve the distinction between direct supplier protocol checks and approved runtime integration.
 
 All ND-AGENT proposal approvals, production budget/checkpoint contracts, DR-010/DR-011, ticket DoR and GATE-P0 decisions remain unchanged.
