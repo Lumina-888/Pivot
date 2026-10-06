@@ -64,6 +64,18 @@ After the Owner reported updating the private Token, a fresh bounded probe was r
 - The redacted diagnostic state is retained locally at `.pi/artifacts/mineru-live-20261006-retest/state.json`, which is Git-ignored. No credential, authorization header, signed URL or document content was stored in that artifact.
 - The updated credential remains blocked at authentication. No production code, budget contract or service configuration was changed, and no alternative endpoint or authentication bypass was attempted.
 
-Next: confirm the official API-management Token is enabled, valid and copied in full. A new PDF probe requires an explicitly confirmed credential correction; do not repeat this rejected credential automatically. Preserve the distinction between direct supplier protocol checks and approved runtime integration.
+## MinerU Read-only Authentication Diagnosis
+
+The Owner subsequently confirmed the Token was newly created and enabled, and requested continued diagnosis. One authenticated GET queried the official v4 batch-result interface using a randomly generated, nonexistent batch identifier. It returned HTTP 401 with the sanitized JSON message `user authenticate failed`. No submission, PDF upload, status polling, result download, retry or alternate supplier was used. Total authenticated API attempts across these rounds: 12 (the previous 11 plus this one read-only diagnostic query); public documentation fetches are excluded.
+
+Secret-safe local checks found no surrounding quotes, whitespace, non-ASCII characters, three-dot or Unicode ellipsis masks, asterisk masks or obvious placeholder. The value is longer than twenty characters, does not have UUID shape and is not a decodable JWT. None of these observations establishes validity, expiry, account association or a required token format.
+
+Public official API-management frontend code confirms the v4 Bearer authorization convention. Its token-creation success dialog copies the returned full token; the token table masks display values and conditionally offers copying for values longer than twenty characters without `...`. The current local value does not match those obvious masking indicators, so a masked copy is not established as the cause. No signed-in browser session, token-management API or personal account data was accessed.
+
+Official documentation distinguishes authenticated precision parsing v4 from a separate unauthenticated lightweight Agent parsing API. The latter was not called: it would not diagnose v4 authentication or validate the requested `vlm` workflow.
+
+The read-only failure shows submission payload/PDF content is not needed to reproduce the authentication rejection. It does not prove whether the credential, account configuration, transport or provider authentication service is responsible. Next: confirm whether the local value came from the creation-success dialog's Copy Token action, without sending it in chat. A new PDF probe requires an explicitly confirmed credential correction or a concrete new diagnostic hypothesis; do not repeat this rejected credential automatically. Preserve the distinction between direct supplier protocol checks and approved runtime integration.
+
+Documentation-only diagnosis verification: the same private-configuration safety regression passed again (22 passed, 1 skipped in 1.04s); `git diff --check`, configured-secret scans of the three changed documents, private mode 600 and both actual Git-ignore checks passed. No application code or private credential was changed.
 
 All ND-AGENT proposal approvals, production budget/checkpoint contracts, DR-010/DR-011, ticket DoR and GATE-P0 decisions remain unchanged.
