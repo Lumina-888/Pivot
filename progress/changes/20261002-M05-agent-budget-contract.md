@@ -1,10 +1,11 @@
 # ND-AGENT-02-B：DR-010 预算与累计用量 Contract 提案
 
-- **日期 / 状态**：2026-10-02 / proposed；待消费者及 Owner 签认，不是已发布 Contract、运行许可或 DR-010 关闭记录。
+- **日期 / 状态**：2026-10-02 / proposed；Owner 已选择严格费用控制方向，整份提案及消费者仍待签认；不是已发布 Contract、运行许可或 DR-010 关闭记录。
+- **Owner 费用方向**：2026-10-06 确认执行前费用预留、返回后结算、unknown 保留预留及不可验证时停止新收费调用；见 [单项方向确认](../approvals/20261006-02-b-strict-cost-direction.md)。只确认费用子集，不确认具体额度、图 super-step 或澄清期限语义。
 - **提案版本**：AGENT-BUDGET-0.1-draft.2（累计图预算映射修订；仍 proposed）；拟与 [02-A 内部 Contract](20261002-M05-agent-internal-contract.md) 配套，不进入 contract-v0.1 manifest。
 - **Accountable / Contributors**：M05；M00/M06/M11，恢复与跨进程预扣接口另需 M03/M01 确认。
 - **来源 / 基线**：[SPEC §7.3/§8.3](../../SPEC.md)、[AGENT_SPEC §5~6/§8](../../spec/AGENT_SPEC.md)、[ADR-009](20261002-M00-langgraph-react-baseline.md)；main `715e6d5`，发布 contract-v0.1。
-- **工单 / DoR**：[ND-AGENT-02-B](../tickets/spec-1.1-remaining.md) 只允许提案、有限 Fixture 与 Red 设计；02-A 未签认、02-C 未锁依赖，父票及业务实现继续 blocked。
+- **工单 / DoR**：[ND-AGENT-02-B](../tickets/spec-1.1-remaining.md) 只允许提案、有限 Fixture 与 Red 设计；02-A Owner 设计已批准但消费者/发布待完成，02-C 未锁依赖，父票及业务实现继续 blocked。
 
 ## 1. 目的与实施边界
 
@@ -306,6 +307,12 @@ Schema/示例算术检查不能把这些行为测试标 passed；真实图、int
 
 主线会话完成技术自审：draft.1 的 min 映射不能充当硬门禁，按 §4.1 修订为 draft.2；预扣/未知用量/所有模型角色与 graph/provider 双计量无绕过要求保留。审核记录及待签清单见 [02-A/B/C 审核](../../evidence/agent-m03/nd-agent-02-abc-review.md)。**这不是消费者或 Owner 代签**；上表 pending 不变。运行时 Red 仍未实施，生产数值与受控运行许可均未批准。
 
+### 9.2 2026-10-06 Owner 严格费用控制方向确认
+
+用户在主流框架设计对照后明确回复“那就严格费用把控方向”。按 [OWNER-02-B-COST-20261006](../approvals/20261006-02-b-strict-cost-direction.md)仅记录费用控制方向，包含 02-A PR-01 重写模型调用的累计消费；不把方向选择视为整份 draft.2 批准。
+
+本次未调整 §2/§4 的图 super-step、时限字段或机器 schema。图硬账本与调用门禁/熔断的职责、执行与澄清等待期限拆分仍待单独审核决定；其他消费者及受控/生产运行许可保持 pending。02-B 仍 review，具体额度仍 TBD-P0，DR-010/011 与业务票未解锁。
+
 ## 10. 本轮结论与下一步
 
-02-B 进入 review（proposed 提案与 Red 设计已提交，**非 done**）；有限 Fixture 形状与算术检查只验证文档 artifact。完整验证与限制见 [nd-agent-02-b.md](../../evidence/agent-m05/nd-agent-02-b.md)。02-A/B 消费者及 Owner 均待签认；默认下一刀 02-C Python 3.12 依赖验证/锁定申请。02-D~H/父票继续 blocked，DR-010/011、恢复契约、TBD-P0 与全部 GATE 未关闭。
+02-B 进入 review（proposed 提案与 Red 设计已提交，**非 done**）；有限 Fixture 形状与算术检查只验证文档 artifact。完整验证与限制见 [nd-agent-02-b.md](../../evidence/agent-m05/nd-agent-02-b.md)。02-A Owner 设计已批准，02-B Owner 仅确认严格费用方向；消费者、02-B 剩余设计和运行许可仍待签认。02-C 候选技术验证已有证据，正式依赖发布仍须独立批准。02-D~H/父票继续 blocked，DR-010/011、恢复契约、TBD-P0 与全部 GATE 未关闭。
