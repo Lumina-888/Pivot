@@ -82,4 +82,26 @@ This comparison makes an error specific to the original HTTP client or explicit 
 
 Documentation-only diagnosis verification: the same private-configuration safety regression passed again (22 passed, 1 skipped in 1.04s); `git diff --check`, configured-secret scans of the three changed documents, private mode 600 and both actual Git-ignore checks passed. No application code or private credential was changed.
 
+## MinerU Success After Credential Source Correction
+
+The Owner identified the credential-management page as the OpenXLab SSO account center, displaying Access Key ID and Secret Access Key. These are not interchangeable with the Bearer API Token required by the MinerU v4 API. After being directed to MinerU's own API Token management page, the Owner reported updating the local private field. The probe reloaded that field without displaying it. This establishes a successful result after credential-source correction; the previous value was not disclosed or compared to identify which signing field had been used.
+
+- One read-only query for a random nonexistent batch returned HTTP 200 and provider code `-60012`, rather than the previous authentication rejection. The successful submission below independently confirms the corrected Token authenticated.
+- One batch submission using `model_version: vlm` returned HTTP 200/code 0. One in-memory synthetic PDF (one page, 1006 bytes) was uploaded once. Seven bounded status polls completed the parse, followed by one ZIP download (2855 bytes).
+- Bounded ZIP inspection found `full.md` and verified the exact marker `PIVOT SYNTHETIC LIVE TEST`. No enterprise document, real account data or sensitive content was uploaded. The PDF, ZIP and Markdown were not retained in versioned evidence.
+- This round made nine authenticated API requests (one diagnostic query, one submission, seven polls) and two unauthenticated storage requests. Cumulative authenticated requests across recorded rounds: 22. No automatic retry, model fallback, alternate supplier or lightweight parsing API was used.
+- API and storage requests rejected redirects. Storage URLs had to match the explicit HTTPS host allowlist; no API Token was attached to upload/download requests. Limits: 120-second overall deadline, at most 20 seconds per request, 30 polls at two-second intervals, 8 MiB ZIP download, bounded archive entry count/expanded bytes/Markdown inspection. These are probe limits, not approved production defaults.
+- Sanitized counts and outcome are saved locally in `.pi/artifacts/mineru-live-20261006-correct-token/state.json`, mode 600 and Git-ignored; no Token, batch identifier, signed URL or document content is stored there.
+
+MinerU direct-cloud authentication/upload/parse/result retrieval is now verified for this single synthetic sample. Earlier failure records remain as history. This inline runner did not exercise `MinerUCloudParser`, the application composition root or a complete ingest/retrieval/Agent workflow. Source inspection also shows the existing adapter passes its API authorization headers to storage upload/download calls; the probe did not follow that behavior. Storage credential isolation needs a scoped test-first fix before live application integration. No application code or contract was changed here.
+
+Post-success existing configuration and MinerU adapter regressions:
+
+```text
+.venv/bin/python -m pytest tests/integration/pipeline/test_NFR_OBS_compose_staging.py tests/unit/worker/test_FR_DOC_004_mineru.py tests/integration/pipeline/test_FR_DOC_004_mineru_parser.py -q
+43 passed, 1 skipped, 2 warnings in 6.01s
+```
+
+The skip requires live staging; the warnings are existing Starlette/httpx and AnyIO deprecations. These fixture tests do not prove storage credential isolation or live application integration. Configured-secret scans of changed documents and the sanitized artifact, private/artifact mode 600, three Git-ignore checks and `git diff --check` passed. No full regression, browser, real database or LangGraph acceptance run was performed; actual billing deductions remain unqueried and no monetary hard cap was implemented.
+
 All ND-AGENT proposal approvals, production budget/checkpoint contracts, DR-010/DR-011, ticket DoR and GATE-P0 decisions remain unchanged.
