@@ -8,6 +8,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -314,21 +315,24 @@ def test_FR_AGENT_009_ci_report_rejects_symlink_escape(
     assert not (trial / "candidate-manifest.json").exists()
 
 
-def test_FR_AGENT_009_ci_preparation_cli_fails_closed_without_leaking_paths(tmp_path):
-    trial = tmp_path / "DO_NOT_ECHO_PRIVATE_PATH"
-    result = subprocess.run(
-        [sys.executable, str(TOOL), "--stage", "prepare", "--trial", str(trial)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 1
-    assert result.stderr == ""
-    response = json.loads(result.stdout)
-    assert response["status"] == "invalid"
-    assert response["category"] in {"native_environment", "trial_boundary"}
-    assert str(trial) not in result.stdout
-    assert not trial.exists()
+def test_FR_AGENT_009_ci_preparation_cli_fails_closed_without_leaking_paths():
+    # The candidate workflow redirects TMPDIR into the allowed trial tree; keep this
+    # fixture outside the repository so it remains an actual boundary violation.
+    with tempfile.TemporaryDirectory(dir=ROOT.parent) as outside:
+        trial = Path(outside) / "DO_NOT_ECHO_PRIVATE_PATH"
+        result = subprocess.run(
+            [sys.executable, str(TOOL), "--stage", "prepare", "--trial", str(trial)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 1
+        assert result.stderr == ""
+        response = json.loads(result.stdout)
+        assert response["status"] == "invalid"
+        assert response["category"] in {"native_environment", "trial_boundary"}
+        assert str(trial) not in result.stdout
+        assert not trial.exists()
 
 
 @pytest.fixture
