@@ -1,7 +1,8 @@
 # ND-AGENT-02-A：模型、工具与状态内部 Contract 提案
 
 - **日期 / 状态**：2026-10-02 / proposed；设计提交待审核，不是已发布契约或业务实现。
-- **提案版本**：AGENT-INTERNAL-0.1-draft.1；追加待审补充 PR-01（用户输入 Prompt 重写），本次签认须明确包含该补充；只适用于待实现的新 Agent，不进入 contract-v0.1 manifest。
+- **提案版本**：AGENT-INTERNAL-0.1-draft.1；包含 PR-01（用户输入 Prompt 重写）补充；只适用于待实现的新 Agent，不进入 contract-v0.1 manifest。
+- **Owner 决策**：2026-10-06 同意本提案及 PR-01 设计方向，批准输入为 `32dd4e7`；见 [单项批准记录](../approvals/20261006-02-a-owner-design.md)。消费者签认/契约发布仍 pending，不批准业务开工或运行启用。
 - **Accountable / Contributors**：M05；M00/M01/M03/M04/M06/M11。
 - **来源**：[SPEC §4.5/§7/§8.3](../../SPEC.md)、[AGENT_SPEC §3~5/§7/§10](../../spec/AGENT_SPEC.md)、[ADR-009](20261002-M00-langgraph-react-baseline.md)。
 - **工单 / 原基线**：[ND-AGENT-02-A](../tickets/spec-1.1-remaining.md)；main `cdadc53`，发布 contract-v0.1，ND-AGENT-01 安全基线 `8cd4727`。
@@ -311,9 +312,13 @@ Schema 只保证形状，不能证明句子被支持、ID 属于当前 Run、文
 
 02-B 已修订为 AGENT-BUDGET-0.1-draft.2，累计图门禁不能仅依赖 recursion_limit；AgentModel/ToolExecutor/Finalizer/Verifier 全部沿用同一调用预算边界。上述是原不变量的消费约束，不变更本提案接口/字段或公开 contract-v0.1。完整 [技术审核与签认清单](../../evidence/agent-m03/nd-agent-02-abc-review.md)记录 Linux 环境 blocked 和仍缺的审批。上表消费者 pending 不变，技术自审不是各 Owner 签认，02-D～H 继续 blocked。
 
+### 9.2 2026-10-06 Owner 单项设计批准
+
+当前项目会话用户在明确的“02-A 原提案及 PR-01 补充”确认问题后回复“同意”。按 [OWNER-02-A-20261006](../approvals/20261006-02-a-owner-design.md)记录为 Owner 设计批准；不代替上表消费者审核，不提高父票或实施票状态。02-A 仍 review，02-B/C、03-A、04-A 各自审批不变；依赖安装、收费/外发、业务开工、发布和生产启用未获本次许可。
+
 ## 10. 验证与下一步
 
-PR-01 为本轮新增待审核设计及三组 Red 用例设计，未实施运行时测试；以下原始证据仅覆盖补充前的 draft.1，不得用于宣称输入重写已验证。02-A 仍 review，所有消费者/Owner 签认及其他四项前置审批保持 pending。
+PR-01 为本轮新增待审核设计及三组 Red 用例设计，未实施运行时测试；以下原始证据仅覆盖补充前的 draft.1，不得用于宣称输入重写已验证。02-A 仍 review，Owner 已批准含 PR-01 的设计方向；所有消费者签认、契约发布及其他四项前置审批保持 pending。
 
 本轮只校验提案 JSON schema/正负形状示例、本地 Markdown 链接与既有公共契约/QA 回归；实际命令、版本、结果和工作区限制见 [本轮证据](../../evidence/agent-m05/nd-agent-02-a.md)。JSON Schema 不验证 ID 往返、外发、支持性、预算或恢复行为。
 
