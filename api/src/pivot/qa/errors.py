@@ -8,3 +8,21 @@ class WriterError(Exception):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+class AnswerNotPublishedError(Exception):
+    """Answer did not pass verification gate."""
+
+    pass
+
+
+class AgentToolError(Exception):
+    """Agent 工具执行错误（参数错误、权限错误等）"""
+
+    pass
+
+
+class UnknownToolError(Exception):
+    """工具不在白名单中"""
+
+    pass
