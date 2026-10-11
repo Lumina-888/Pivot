@@ -9,11 +9,8 @@ ND-AGENT-02-H 单元测试：Finalizer 集成
 
 from __future__ import annotations
 
-import pytest
-
 from pivot.qa.agent_finalizer import StructuredFinalizer
 from pivot.qa.ports import EvidenceHit
-
 
 # ====================
 # Fake DraftWriter
