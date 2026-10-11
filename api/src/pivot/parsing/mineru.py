@@ -157,9 +157,7 @@ def _redact(message: str, token: str) -> str:
     return message
 
 
-def _raise(
-    code: str, message: str, token: str, exc: BaseException | None = None
-) -> NoReturn:
+def _raise(code: str, message: str, token: str, exc: BaseException | None = None) -> NoReturn:
     error = parse_error(code, _redact(message, token))
     if exc is not None:
         raise error from exc
