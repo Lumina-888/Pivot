@@ -1,0 +1,217 @@
+"""
+Agent 预算管理实现
+
+实现 FR-AGENT-004：执行前预算门禁
+- 累计预算追踪（模型调用、工具调用、查询改写）
+- 执行前预扣，未知用量 fail closed
+- 独立图门禁，不依赖 recursion_limit
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass
+class BudgetPolicy:
+    """
+    预算策略
+
+    定义 Agent 执行的资源限制
+    """
+
+    max_model_calls: int
+    max_tool_calls: int
+    max_rewrite_count: int
+    timeout_seconds: float
+
+    def __post_init__(self) -> None:
+        if self.max_model_calls < 1:
+            raise ValueError("max_model_calls must be at least 1")
+        if self.max_tool_calls < 0:
+            raise ValueError("max_tool_calls must be non-negative")
+        if self.max_rewrite_count < 0:
+            raise ValueError("max_rewrite_count must be non-negative")
+        if self.timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+
+
+@dataclass
+class BudgetState:
+    """
+    预算状态
+
+    追踪当前执行的资源消耗
+    """
+
+    model_calls: int = 0
+    tool_calls: int = 0
+    rewrite_count: int = 0
+    elapsed_seconds: float = 0.0
+
+    def remaining_model_calls(self, policy: BudgetPolicy) -> int:
+        """剩余模型调用次数"""
+        return max(0, policy.max_model_calls - self.model_calls)
+
+    def remaining_tool_calls(self, policy: BudgetPolicy) -> int:
+        """剩余工具调用次数"""
+        return max(0, policy.max_tool_calls - self.tool_calls)
+
+    def remaining_rewrites(self, policy: BudgetPolicy) -> int:
+        """剩余改写次数"""
+        return max(0, policy.max_rewrite_count - self.rewrite_count)
+
+    def is_exhausted(self, policy: BudgetPolicy) -> bool:
+        """预算是否耗尽"""
+        return (
+            self.model_calls >= policy.max_model_calls
+            or self.tool_calls >= policy.max_tool_calls
+            or self.rewrite_count >= policy.max_rewrite_count
+            or self.elapsed_seconds >= policy.timeout_seconds
+        )
+
+    def check_can_call_model(self, policy: BudgetPolicy) -> None:
+        """
+        检查是否可以调用模型
+
+        Raises:
+            BudgetExhaustedError: 预算不足
+        """
+        if self.model_calls >= policy.max_model_calls:
+            raise BudgetExhaustedError(
+                f"Model call budget exhausted: {self.model_calls}/{policy.max_model_calls}"
+            )
+
+    def check_can_call_tool(self, policy: BudgetPolicy, count: int = 1) -> None:
+        """
+        检查是否可以调用工具
+
+        Args:
+            policy: 预算策略
+            count: 要调用的工具数量
+
+        Raises:
+            BudgetExhaustedError: 预算不足
+        """
+        if self.tool_calls + count > policy.max_tool_calls:
+            raise BudgetExhaustedError(
+                f"Tool call budget exhausted: {self.tool_calls + count} > {policy.max_tool_calls}"
+            )
+
+    def check_can_rewrite(self, policy: BudgetPolicy) -> None:
+        """
+        检查是否可以改写查询
+
+        Raises:
+            BudgetExhaustedError: 预算不足
+        """
+        if self.rewrite_count >= policy.max_rewrite_count:
+            raise BudgetExhaustedError(
+                f"Rewrite budget exhausted: {self.rewrite_count}/{policy.max_rewrite_count}"
+            )
+
+    def consume_model_call(self) -> None:
+        """消耗一次模型调用"""
+        self.model_calls += 1
+
+    def consume_tool_call(self, count: int = 1) -> None:
+        """消耗工具调用"""
+        self.tool_calls += count
+
+    def consume_rewrite(self) -> None:
+        """消耗一次查询改写"""
+        self.rewrite_count += 1
+
+    def update_elapsed(self, seconds: float) -> None:
+        """更新已用时间"""
+        self.elapsed_seconds = seconds
+
+
+class BudgetExhaustedError(Exception):
+    """预算耗尽错误"""
+
+    pass
+
+
+class BudgetGuard:
+    """
+    预算守卫
+
+    在执行前检查预算，执行后更新状态
+    """
+
+    def __init__(self, policy: BudgetPolicy, state: BudgetState) -> None:
+        self.policy = policy
+        self.state = state
+
+    def before_model_call(self) -> None:
+        """
+        模型调用前检查
+
+        Raises:
+            BudgetExhaustedError: 预算不足
+        """
+        self.state.check_can_call_model(self.policy)
+
+    def after_model_call(self) -> None:
+        """模型调用后更新"""
+        self.state.consume_model_call()
+
+    def before_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
+        """
+        工具调用前检查
+
+        Args:
+            tool_calls: 工具调用列表
+
+        Raises:
+            BudgetExhaustedError: 预算不足
+        """
+        count = len(tool_calls)
+        self.state.check_can_call_tool(self.policy, count)
+
+    def after_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
+        """工具调用后更新"""
+        count = len(tool_calls)
+        self.state.consume_tool_call(count)
+
+    def before_rewrite(self) -> None:
+        """
+        查询改写前检查
+
+        Raises:
+            BudgetExhaustedError: 预算不足
+        """
+        self.state.check_can_rewrite(self.policy)
+
+    def after_rewrite(self) -> None:
+        """查询改写后更新"""
+        self.state.consume_rewrite()
+
+    def is_exhausted(self) -> bool:
+        """检查预算是否耗尽"""
+        return self.state.is_exhausted(self.policy)
+
+    def get_summary(self) -> dict[str, Any]:
+        """获取预算使用摘要"""
+        return {
+            "model_calls": {
+                "used": self.state.model_calls,
+                "limit": self.policy.max_model_calls,
+                "remaining": self.state.remaining_model_calls(self.policy),
+            },
+            "tool_calls": {
+                "used": self.state.tool_calls,
+                "limit": self.policy.max_tool_calls,
+                "remaining": self.state.remaining_tool_calls(self.policy),
+            },
+            "rewrites": {
+                "used": self.state.rewrite_count,
+                "limit": self.policy.max_rewrite_count,
+                "remaining": self.state.remaining_rewrites(self.policy),
+            },
+            "elapsed_seconds": self.state.elapsed_seconds,
+            "timeout_seconds": self.policy.timeout_seconds,
+            "exhausted": self.is_exhausted(),
+        }
