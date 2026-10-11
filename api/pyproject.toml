@@ -14,6 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+llama-index = ["llama-index-core==0.11.23"]
 postgres = ["psycopg[binary]>=3.1,<4.0"]
 minio = ["minio>=7.2,<8"]
 qdrant = ["qdrant-client>=1.12,<1.13"]

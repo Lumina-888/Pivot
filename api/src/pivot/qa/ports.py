@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 
 @dataclass(frozen=True)
@@ -14,6 +14,9 @@ class EvidenceHit:
     text: str
     locator: str = ""
     external_llm_allowed: bool = False
+    index_generation: str = ""
+    embedding_model_version: str = ""
+    retrieval_config_version: str = ""
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,20 @@ class Retriever(Protocol):
         scope_document_id: str | None,
         principal_id: str,
     ) -> RetrievalResult: ...
+
+
+@runtime_checkable
+class EvidenceResolver(Protocol):
+    """Optional retrieval capability for reading a candidate against current facts."""
+
+    def resolve_evidence(
+        self,
+        chunk_id: str,
+        *,
+        scope_type: str,
+        scope_document_id: str | None,
+        principal_id: str,
+    ) -> EvidenceHit | None: ...
 
 
 class Verifier(Protocol):

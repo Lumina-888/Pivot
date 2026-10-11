@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from pivot.qa.errors import AgentToolError, UnknownToolError
-from pivot.qa.ports import EvidenceHit, Retriever
+from pivot.qa.ports import EvidenceHit, EvidenceResolver, Retriever
 
 # ====================
 # 工具协议
@@ -136,9 +136,56 @@ class EvidenceRegistry:
 
     def list_for_run(self, run_id: str) -> list[dict[str, Any]]:
         """列出指定 Run 的所有证据"""
-        return [
-            entry for entry in self._registry.values() if entry.get("run_id") == run_id
-        ]
+        return [entry for entry in self._registry.values() if entry.get("run_id") == run_id]
+
+    def snapshot(self) -> dict[str, Any]:
+        """Sensitive server-side graph state, never a public response."""
+        return {key: dict(entry) for key, entry in self._registry.items()}
+
+    @classmethod
+    def restore(
+        cls,
+        data: dict[str, Any],
+        *,
+        run_id: str,
+        principal_id: str,
+    ) -> EvidenceRegistry:
+        registry = cls()
+        fields = {
+            "evidence_id",
+            "run_id",
+            "tool_call_id",
+            "principal_id",
+            "document_id",
+            "version_id",
+            "chunk_id",
+            "text",
+            "locator",
+            "external_llm_allowed",
+        }
+        for evidence_id, entry in data.items():
+            if (
+                not isinstance(entry, dict)
+                or set(entry) != fields
+                or entry.get("run_id") != run_id
+                or entry.get("principal_id") != principal_id
+                or entry.get("evidence_id") != evidence_id
+                or type(entry.get("external_llm_allowed")) is not bool
+                or any(not isinstance(entry[key], str) for key in fields - {"external_llm_allowed"})
+            ):
+                raise AgentToolError("invalid evidence registry state")
+            prefix, separator, number = evidence_id.partition("_")
+            if prefix != "ev" or not separator or not number.isdecimal() or int(number) < 1:
+                raise AgentToolError("invalid evidence registry state")
+            registry._registry[evidence_id] = dict(entry)
+            registry._next_id = max(registry._next_id, int(number) + 1)
+        return registry
+
+    def record_tool_call(self, evidence_ids: list[str], *, run_id: str, tool_call_id: str):
+        for evidence_id in evidence_ids:
+            entry = self.get(evidence_id, run_id=run_id)
+            if entry is not None:
+                entry["tool_call_id"] = tool_call_id
 
 
 # ====================
@@ -221,6 +268,9 @@ class SearchKnowledgeTool:
 class ReadEvidenceTool:
     """read_evidence 工具：读取证据详情"""
 
+    def __init__(self, resolver: EvidenceResolver | None = None) -> None:
+        self._resolver = resolver
+
     @property
     def name(self) -> str:
         return "read_evidence"
@@ -265,8 +315,30 @@ class ReadEvidenceTool:
             # 不泄露是否存在
             raise AgentToolError(f"evidence_id not found or not accessible: {evidence_id}")
 
-        # TODO: 重新检查版本/删除/外发权限
-        # 当前简化实现，返回证据内容
+        if evidence["principal_id"] != principal_id or (
+            scope_type == "document" and evidence["document_id"] != scope_document_id
+        ):
+            raise AgentToolError("evidence not accessible")
+        if self._resolver is not None:
+            hit = self._resolver.resolve_evidence(
+                evidence["chunk_id"],
+                principal_id=principal_id,
+                scope_type=scope_type,
+                scope_document_id=scope_document_id,
+            )
+            if hit is None or (hit.document_id, hit.version_id) != (
+                evidence["document_id"],
+                evidence["version_id"],
+            ):
+                raise AgentToolError("evidence not accessible")
+            evidence = {
+                **evidence,
+                "text": hit.text,
+                "locator": hit.locator,
+                "external_llm_allowed": hit.external_llm_allowed,
+            }
+        if evidence["external_llm_allowed"] is not True:
+            raise AgentToolError("evidence external use not allowed")
 
         return {
             "evidence_id": evidence_id,
@@ -293,7 +365,9 @@ class ToolExecutor:
     def __init__(self, retriever: Retriever) -> None:
         self._tools: dict[str, AgentTool] = {
             "search_knowledge": SearchKnowledgeTool(retriever),
-            "read_evidence": ReadEvidenceTool(),
+            "read_evidence": ReadEvidenceTool(
+                retriever if isinstance(retriever, EvidenceResolver) else None,
+            ),
         }
 
     def execute(
@@ -331,8 +405,7 @@ class ToolExecutor:
         # 白名单检查
         if tool_name not in self._tools:
             raise UnknownToolError(
-                f"Tool '{tool_name}' is not allowed. "
-                f"Allowed tools: {sorted(self._tools.keys())}"
+                f"Tool '{tool_name}' is not allowed. Allowed tools: {sorted(self._tools.keys())}"
             )
 
         tool = self._tools[tool_name]
@@ -347,6 +420,13 @@ class ToolExecutor:
                 scope_document_id=scope_document_id,
                 evidence_registry=evidence_registry,
             )
+
+            if tool_name == "search_knowledge":
+                evidence_registry.record_tool_call(
+                    result["evidence_ids"],
+                    run_id=run_id,
+                    tool_call_id=tool_call_id or "",
+                )
 
             # 返回 ToolMessage 格式
             return {

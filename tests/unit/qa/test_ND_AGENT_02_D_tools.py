@@ -285,6 +285,7 @@ def test_read_evidence_returns_full_content():
         version_id="ver_1",
         text="完整考勤规定内容...",
         locator="page=1,section=2",
+        external_llm_allowed=True,
     )
     evidence_ids = registry.register_search_result(
         (hit,), run_id="run_1", tool_call_id="call_1", principal_id="user_1"

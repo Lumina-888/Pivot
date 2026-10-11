@@ -93,14 +93,11 @@ class StructuredFinalizer:
         # 将 citations 映射到 evidence_ids
         structured_claims = []
         for claim in claims:
-            claim_citations = [
-                c for c in citations if c.get("claim_index") == claim.get("index")
-            ]
+            claim_citations = [c for c in citations if c.get("claim_index") == claim.get("index")]
             evidence_ids = [
                 evidences[c["evidence_index"]]["evidence_id"]
                 for c in claim_citations
-                if c.get("evidence_index") is not None
-                and c["evidence_index"] < len(evidences)
+                if c.get("evidence_index") is not None and c["evidence_index"] < len(evidences)
             ]
 
             structured_claims.append(

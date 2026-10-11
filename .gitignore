@@ -48,6 +48,8 @@ logs/
 .claude/
 .pi/sessions/
 .pi/artifacts/
+# 本机检查器解释器路径（绝对路径，不发布）
+.pi-lens.json
 
 # ===== IDE / 系统 =====
 .idea/
@@ -56,6 +58,7 @@ logs/
 Thumbs.db
 
 # ===== 测试与报告生成物 =====
+tests/fixtures/index/
 test-results/
 playwright-report/
 coverage/

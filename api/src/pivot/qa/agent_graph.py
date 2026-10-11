@@ -10,8 +10,10 @@ Agent StateGraph 实现
 
 from __future__ import annotations
 
+import json
 from typing import Annotated, Any, Literal
 
+from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
@@ -33,7 +35,7 @@ class AgentState(TypedDict):
     包含消息历史、上下文信息和预算状态
     """
 
-    messages: Annotated[list[dict[str, Any]], add_messages]
+    messages: Annotated[list[Any], add_messages]
     run_id: str
     principal_id: str
     scope_type: str
@@ -113,15 +115,20 @@ class AgentNodes:
         budget_state = BudgetState(**state["budget_state"])
         budget_guard = BudgetGuard(self.budget_policy, budget_state)
 
-        evidence_registry = EvidenceRegistry()
-        # TODO: 恢复 evidence_registry 状态
+        evidence_registry = EvidenceRegistry.restore(
+            state["evidence_registry_data"],
+            run_id=state["run_id"],
+            principal_id=state["principal_id"],
+        )
 
-        # 获取最后一条 AI 消息
+        # add_messages converts dictionaries to native LangChain messages.
         last_message = state["messages"][-1]
-        if last_message["type"] != "ai":
+        if isinstance(last_message, AIMessage):
+            tool_calls: list[dict[str, Any]] = [dict(call) for call in last_message.tool_calls]
+        elif isinstance(last_message, dict) and last_message.get("type") == "ai":
+            tool_calls = last_message.get("tool_calls", [])
+        else:
             raise ValueError("Last message must be AI message with tool calls")
-
-        tool_calls = last_message.get("tool_calls", [])
         if not tool_calls:
             raise ValueError("No tool calls found")
 
@@ -143,20 +150,18 @@ class AgentNodes:
                     evidence_registry=evidence_registry,
                 )
                 tool_messages.append(
-                    {
-                        "type": "tool",
-                        "tool_call_id": result["tool_call_id"],
-                        "content": result["content"],
-                    }
+                    ToolMessage(
+                        tool_call_id=result["tool_call_id"],
+                        content=json.dumps(result["content"], ensure_ascii=False),
+                    )
                 )
-            except (AgentToolError, UnknownToolError) as e:
-                # 工具错误也作为 ToolMessage 返回
+            except (AgentToolError, UnknownToolError):
+                # Do not send raw backend errors or protected parameters to a model.
                 tool_messages.append(
-                    {
-                        "type": "tool",
-                        "tool_call_id": tool_call.get("id"),
-                        "content": {"error": str(e)},
-                    }
+                    ToolMessage(
+                        tool_call_id=tool_call["id"],
+                        content=json.dumps({"error": "tool_execution_failed"}),
+                    )
                 )
 
         # 更新预算
@@ -172,7 +177,7 @@ class AgentNodes:
                 "rewrite_count": budget_state.rewrite_count,
                 "elapsed_seconds": budget_state.elapsed_seconds,
             },
-            "evidence_registry_data": {},  # TODO: 序列化 evidence_registry
+            "evidence_registry_data": evidence_registry.snapshot(),
         }
 
     def finalize(self, state: AgentState) -> AgentState:
@@ -293,7 +298,7 @@ def run_agent(
     budget_policy: BudgetPolicy,
     run_id: str,
     principal_id: str,
-    scope_type: str = "shared",
+    scope_type: str = "global",
     scope_document_id: str | None = None,
 ) -> dict[str, Any]:
     """
