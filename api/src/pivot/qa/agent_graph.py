@@ -57,9 +57,11 @@ class AgentNodes:
         self,
         retriever: Retriever,
         budget_policy: BudgetPolicy,
+        model: Any | None = None,
     ) -> None:
         self.retriever = retriever
         self.budget_policy = budget_policy
+        self.model = model
 
     def decide(self, state: AgentState) -> AgentState:
         """
@@ -75,19 +77,53 @@ class AgentNodes:
         # 预算检查
         budget_guard.before_model_call()
 
-        # TODO: 调用真实模型
-        # 当前使用占位符响应
-        ai_message = {
-            "type": "ai",
-            "content": "",
-            "tool_calls": [
+        # 调用真实模型（如果有）
+        if self.model is not None:
+            from pivot.qa.agent_model import get_tool_schemas
+
+            # 转换消息格式
+            formatted_messages = [
                 {
-                    "id": "call_placeholder",
-                    "name": "search_knowledge",
-                    "args": {"query": "考勤规定"},
+                    "role": msg.get("role", msg.get("type", "user")),
+                    "content": msg.get("content", ""),
                 }
-            ],
-        }
+                for msg in state["messages"]
+            ]
+
+            response = self.model.decide(
+                messages=formatted_messages,
+                tools=get_tool_schemas(),
+            )
+
+            # 转换为 dict 格式
+            ai_message = {
+                "type": "ai",
+                "content": response.content or "",
+            }
+
+            # 处理 tool_calls
+            if response.tool_calls:
+                ai_message["tool_calls"] = [
+                    {
+                        "id": tc["id"],
+                        "name": tc["name"],
+                        "args": tc["args"],
+                    }
+                    for tc in response.tool_calls
+                ]
+        else:
+            # 使用占位符响应（用于测试）
+            ai_message = {
+                "type": "ai",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_placeholder",
+                        "name": "search_knowledge",
+                        "args": {"query": "考勤规定"},
+                    }
+                ],
+            }
 
         # 更新预算
         budget_guard.after_model_call()
@@ -254,6 +290,7 @@ def should_continue(state: AgentState) -> Literal["tools", "finalize", "end"]:
 def create_agent_graph(
     retriever: Retriever,
     budget_policy: BudgetPolicy,
+    model: Any | None = None,
 ) -> StateGraph:
     """
     创建 Agent StateGraph
@@ -261,11 +298,12 @@ def create_agent_graph(
     Args:
         retriever: 检索器
         budget_policy: 预算策略
+        model: 可选的模型实例（AgentModel），用于真实决策
 
     Returns:
         配置好的 StateGraph
     """
-    nodes = AgentNodes(retriever, budget_policy)
+    nodes = AgentNodes(retriever, budget_policy, model)
 
     # 创建图
     workflow = StateGraph(AgentState)
