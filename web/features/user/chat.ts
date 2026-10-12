@@ -9,6 +9,7 @@ import type {
   ConversationSummary,
   MessageList,
   ResolvedScope,
+  ResumeAccepted,
   RunCreated,
   ScopeType,
 } from "./types";
@@ -32,6 +33,8 @@ export function createEmptyChatState(scope?: ResolvedScope): ChatViewState {
     errorMessage: null,
     scopeType: scope?.scope_type ?? "global",
     scopeDocumentId: scope?.scope_document_id ?? null,
+    clarificationId: null,
+    clarificationPrompt: null,
   };
 }
 
@@ -72,6 +75,21 @@ export function applyStreamEvent(state: ChatViewState, event: StreamEvent): Chat
   }
   if (event.type === "citation") {
     return { ...next, citations: [...state.citations, citationFromPayload(event.data.payload)] };
+  }
+  if (event.type === "waiting_for_user") {
+    const clarificationId = typeof event.data.payload.clarification_id === "string" 
+      ? event.data.payload.clarification_id 
+      : null;
+    const clarificationPrompt = typeof event.data.payload.prompt === "string"
+      ? event.data.payload.prompt
+      : "请提供更多信息以继续回答。";
+    return {
+      ...next,
+      status: "waiting_for_user",
+      clarificationId,
+      clarificationPrompt,
+      evidenceOpen: false,
+    };
   }
   if (event.type === "completed") {
     return { ...next, status: "answered", evidenceOpen: false };
@@ -217,4 +235,40 @@ export async function startQuestion(input: {
     input.fetcher,
   );
   return { conversation, run, scope };
+}
+
+export async function resumeRun(
+  input: {
+    runId: string;
+    clarificationId: string;
+    answer: string;
+    idempotencyKey?: string;
+  },
+  accessToken?: string,
+  fetcher?: typeof fetch,
+): Promise<ResumeAccepted> {
+  const body = {
+    clarification_id: input.clarificationId,
+    answer: input.answer,
+    idempotency_key: input.idempotencyKey ?? newIdempotencyKey(),
+  };
+  return api.post<ResumeAccepted>(
+    `/runs/${encodeURIComponent(input.runId)}/resume`,
+    body,
+    token(accessToken),
+    fetcher,
+  );
+}
+
+export async function cancelRun(
+  runId: string,
+  accessToken?: string,
+  fetcher?: typeof fetch,
+): Promise<{ run_id: string; state: string }> {
+  return api.post<{ run_id: string; state: string }>(
+    `/runs/${encodeURIComponent(runId)}/cancel`,
+    undefined,
+    token(accessToken),
+    fetcher,
+  );
 }

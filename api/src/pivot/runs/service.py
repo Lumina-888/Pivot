@@ -74,24 +74,24 @@ class RunService:
 
     def count_total(self) -> int:
         """Return total number of runs."""
-        if hasattr(self._store, '_runs'):
+        if hasattr(self._store, "_runs"):
             return len(self._store._runs)
         return len(self._runs)
 
     def count_completed(self) -> int:
         """Return number of completed runs."""
-        runs = self._store._runs.values() if hasattr(self._store, '_runs') else self._runs.values()
-        return sum(1 for bundle in runs if bundle.run.status == 'completed')
+        runs = self._store._runs.values() if hasattr(self._store, "_runs") else self._runs.values()
+        return sum(1 for bundle in runs if bundle.run.status == "completed")
 
     def count_failed(self) -> int:
         """Return number of failed runs."""
-        runs = self._store._runs.values() if hasattr(self._store, '_runs') else self._runs.values()
-        return sum(1 for bundle in runs if bundle.run.status in ('failed', 'refused', 'uncertain'))
+        runs = self._store._runs.values() if hasattr(self._store, "_runs") else self._runs.values()
+        return sum(1 for bundle in runs if bundle.run.status in ("failed", "refused", "uncertain"))
 
     def count_in_progress(self) -> int:
         """Return number of in-progress runs."""
-        runs = self._store._runs.values() if hasattr(self._store, '_runs') else self._runs.values()
-        in_progress_statuses = ('received', 'retrieving', 'drafting', 'verifying')
+        runs = self._store._runs.values() if hasattr(self._store, "_runs") else self._runs.values()
+        in_progress_statuses = ("received", "retrieving", "drafting", "verifying")
         return sum(1 for bundle in runs if bundle.run.status in in_progress_statuses)
 
     def create(
@@ -154,6 +154,37 @@ class RunService:
         if log.terminal is None:
             log.emit("cancelled", "cancelled", {})
         self.commit(bundle)
+        return bundle
+
+    def resume(
+        self,
+        run_id: str,
+        clarification_id: str,
+        answer: str,
+        idempotency_key: str,
+        request_id: str,
+    ) -> RunBundle:
+        """Resume a waiting run with user's clarification answer."""
+        bundle = self.get(run_id, request_id)
+        # Store clarification details for idempotency
+        if not hasattr(bundle, "_resume_keys"):
+            bundle._resume_keys = {}
+
+        # Check idempotency
+        if idempotency_key in bundle._resume_keys:
+            stored = bundle._resume_keys[idempotency_key]
+            if stored["clarification_id"] != clarification_id or stored["answer"] != answer:
+                from pivot.runs.errors import conflict
+
+                raise conflict(request_id)
+            return bundle
+
+        # Store for idempotency
+        bundle._resume_keys[idempotency_key] = {
+            "clarification_id": clarification_id,
+            "answer": answer,
+        }
+
         return bundle
 
     def log(self, run_id: str) -> EventLog:

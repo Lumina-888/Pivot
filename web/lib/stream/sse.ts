@@ -6,6 +6,7 @@ export const SSE_EVENTS = [
   "token",
   "citation",
   "warning",
+  "waiting_for_user",
   "completed",
   "uncertain",
   "refused",

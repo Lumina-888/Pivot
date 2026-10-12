@@ -33,6 +33,13 @@ class CreateRunBody(BaseModel):
     scope_document_id: str | None = None
 
 
+class ResumeRunBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    clarification_id: str = Field(min_length=1)
+    answer: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+
+
 def run_error_response(exc: RunError) -> JSONResponse:
     return JSONResponse(exc.to_envelope(), status_code=_STATUS.get(exc.code, 400))
 
@@ -53,9 +60,7 @@ def _principal(request: Request, auth: AuthService):
     return request_id, principal
 
 
-def _execute_and_commit(
-    runs: RunService, qa: QaOrchestrator, run_id: str, request_id: str
-) -> None:
+def _execute_and_commit(runs: RunService, qa: QaOrchestrator, run_id: str, request_id: str) -> None:
     bundle = runs.get(run_id, request_id)
     log = runs.log(run_id)
     try:
@@ -156,5 +161,33 @@ def build_runs_router(runs: RunService, qa: QaOrchestrator, auth: AuthService) -
         auth.authorize_conversation(principal, bundle.run.conversation_id, request_id)
         cancelled = runs.cancel(id, request_id)
         return {"run_id": cancelled.run.id, "state": cancelled.run.state}
+
+    @router.post("/runs/{id}/resume")
+    def resume_run(
+        request: Request, id: str, body: ResumeRunBody, background: BackgroundTasks
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        bundle = runs.get(id, request_id)
+        auth.ensure_conversation_owner(principal, bundle.run.conversation_id, request_id)
+
+        # Resume the run with clarification answer
+        resumed = runs.resume(
+            run_id=id,
+            clarification_id=body.clarification_id,
+            answer=body.answer,
+            idempotency_key=body.idempotency_key,
+            request_id=request_id,
+        )
+
+        # Execute the resumed run
+        _ensure_execution(runs, qa, id, request_id, background)
+
+        return {
+            "run_id": resumed.run.id,
+            "message_id": resumed.run.message_id,
+            "clarification_id": body.clarification_id,
+            "state": "resuming",
+            "request_id": request_id,
+        }
 
     return router

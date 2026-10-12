@@ -93,6 +93,14 @@ export type RunCreated = {
   request_id: string;
 };
 
+export type ResumeAccepted = {
+  run_id: string;
+  message_id: string;
+  clarification_id: string;
+  state: string;
+  request_id: string;
+};
+
 export type ExportFormat = "markdown" | "docx";
 
 export type ExportCreated = {
@@ -122,7 +130,8 @@ export type ChatStatus =
   | "uncertain"
   | "refused"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  | "waiting_for_user";
 
 export type ChatViewState = {
   conversationId: string | null;
@@ -138,6 +147,8 @@ export type ChatViewState = {
   errorMessage: string | null;
   scopeType: ScopeType;
   scopeDocumentId: string | null;
+  clarificationId: string | null;
+  clarificationPrompt: string | null;
 };
 
 export type ResolvedScope = {
