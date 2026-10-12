@@ -11,11 +11,13 @@ import { getAccessToken } from "../../../lib/auth/session";
 import { followRunEvents } from "../../../lib/stream/sse";
 import {
   applyStreamEvent,
+  cancelRun,
   closeEvidence,
   createEmptyChatState,
   listConversations,
   listMessages,
   openEvidence,
+  resumeRun,
   runEventsUrl,
   startQuestion,
 } from "../chat";
@@ -42,6 +44,7 @@ export function ChatWorkspace({
     }),
   );
   const [draft, setDraft] = useState(parsed.question);
+  const [clarificationAnswer, setClarificationAnswer] = useState("");
   const [listError, setListError] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
@@ -156,6 +159,60 @@ export function ChatWorkspace({
     }
   }
 
+  async function onCancel() {
+    if (!state.runId || state.status === "cancelled") {
+      return;
+    }
+    try {
+      await cancelRun(state.runId);
+      setState((current) => ({ ...current, status: "cancelled" }));
+      abortRef.current?.abort();
+    } catch (caught) {
+      setState((current) => ({
+        ...current,
+        status: "failed",
+        errorMessage: caught instanceof ApiError ? caught.envelope.message : "取消失败",
+      }));
+    }
+  }
+
+  async function onResume(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const answer = clarificationAnswer.trim();
+    if (!answer || !state.runId || !state.clarificationId || state.status !== "waiting_for_user") {
+      return;
+    }
+    try {
+      const idempotencyKey = `resume_${state.runId}_${state.clarificationId}_${Date.now()}`;
+      await resumeRun({
+        runId: state.runId,
+        clarificationId: state.clarificationId,
+        answer,
+        idempotencyKey,
+      });
+      setState((current) => ({ ...current, status: "loading" }));
+      setClarificationAnswer("");
+      
+      // Continue following SSE events
+      const controller = new AbortController();
+      abortRef.current = controller;
+      await followRunEvents({
+        url: runEventsUrl(state.runId),
+        token: getAccessToken() ?? undefined,
+        signal: controller.signal,
+        onEvent: (eventItem) => {
+          setState((current) => applyStreamEvent(current, eventItem));
+        },
+      });
+    } catch (caught) {
+      setState((current) => ({
+        ...current,
+        status: "failed",
+        errorMessage: caught instanceof ApiError ? caught.envelope.message : "恢复失败",
+      }));
+    }
+  }
+
   async function onExport(format: ExportFormat) {
     const sourceId = state.conversationId ?? conversationId;
     if (!sourceId) {
@@ -218,7 +275,23 @@ export function ChatWorkspace({
           </Button>
         </div>
         <div className="msgs">
-          {state.status === "loading" ? <StatusBanner tone="loading">正在生成回答…</StatusBanner> : null}
+          {state.status === "loading" ? (
+            <>
+              <StatusBanner tone="loading">正在生成回答…</StatusBanner>
+              {state.runId ? (
+                <div style={{ marginTop: 8 }}>
+                  <Button variant="ghost" onClick={onCancel}>
+                    取消
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {state.status === "waiting_for_user" ? (
+            <StatusBanner tone="loading">
+              {state.clarificationPrompt ?? "请提供更多信息以继续回答。"}
+            </StatusBanner>
+          ) : null}
           {state.status === "failed" ? (
             <StatusBanner tone="error">{state.errorMessage ?? "问答失败"}</StatusBanner>
           ) : null}
@@ -227,6 +300,9 @@ export function ChatWorkspace({
           ) : null}
           {state.status === "refused" ? (
             <StatusBanner tone="refused">已拒答：缺少可引用的企业文档依据。</StatusBanner>
+          ) : null}
+          {state.status === "cancelled" ? (
+            <StatusBanner tone="error">问答已取消。</StatusBanner>
           ) : null}
           {messages.map((message) => (
             <div key={message.message_id} className={message.sender === "user" ? "mq" : "ma"}>
@@ -254,19 +330,44 @@ export function ChatWorkspace({
             </div>
           ) : null}
         </div>
-        <form className="composer" onSubmit={onSend}>
-          <textarea
-            rows={3}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="输入问题，Enter 发送。文档 scope 不会扩大到全局。"
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-            <Button type="submit" loading={state.status === "loading"}>
-              发送
-            </Button>
-          </div>
-        </form>
+        {state.status === "waiting_for_user" ? (
+          <form className="composer" onSubmit={onResume}>
+            <label htmlFor="clarification-input" className="sr-only">
+              澄清回复
+            </label>
+            <textarea
+              id="clarification-input"
+              rows={3}
+              value={clarificationAnswer}
+              onChange={(event) => setClarificationAnswer(event.target.value)}
+              placeholder="请提供补充信息…"
+              aria-label="澄清回复"
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8, gap: 8 }}>
+              <Button type="button" variant="ghost" onClick={onCancel}>
+                取消
+              </Button>
+              <Button type="submit">
+                继续
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <form className="composer" onSubmit={onSend}>
+            <textarea
+              rows={3}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="输入问题，Enter 发送。文档 scope 不会扩大到全局。"
+              disabled={state.status === "loading"}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+              <Button type="submit" loading={state.status === "loading"}>
+                发送
+              </Button>
+            </div>
+          </form>
+        )}
       </section>
       <Drawer
         open={state.evidenceOpen}
