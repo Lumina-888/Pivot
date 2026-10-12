@@ -1,0 +1,6 @@
+# OpenBao 配置文件
+.env.openbao
+
+# OpenBao 数据卷
+openbao-data/
+openbao-logs/

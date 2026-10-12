@@ -17,12 +17,13 @@
 | 契约 ID | 版本 | 发布日期 | 状态 | 适用范围 |
 |---|---|---|---|---|
 | AGENT-RESUME | 0.2.0 | 2026-10-12 | released | Agent 澄清恢复公开 API (contract-v0.2) |
+| AGENT-PERSISTENCE | 0.1.0 | 2026-10-12 | released | Agent checkpoint/租约/事实/outbox 内部契约 |
 
 ### 待发布契约（review 状态）
 
 | 契约 ID | 版本 | 提案状态 | 工单 |
 |---|---|---|---|
-| AGENT-PERSISTENCE | 0.1.0-draft.1 | proposed | ND-AGENT-04-A |
+| (无) | - | - | - |
 
 ## 发布纪律
 
