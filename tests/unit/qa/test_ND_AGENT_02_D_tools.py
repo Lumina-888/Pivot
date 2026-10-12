@@ -272,6 +272,95 @@ def test_read_evidence_rejects_foreign_run_evidence():
     assert "not found or not accessible" in str(exc_info.value)
 
 
+class RevokingResolver:
+    def __init__(self, hit: EvidenceHit | None) -> None:
+        self.hit = hit
+        self.calls: list[dict] = []
+
+    def resolve_evidence(self, chunk_id, *, scope_type, scope_document_id, principal_id):
+        self.calls.append(
+            {
+                "chunk_id": chunk_id,
+                "scope_type": scope_type,
+                "scope_document_id": scope_document_id,
+                "principal_id": principal_id,
+            }
+        )
+        return self.hit
+
+
+def _registered_evidence() -> tuple[EvidenceRegistry, str]:
+    registry = EvidenceRegistry()
+    evidence_id = registry.register_search_result(
+        (
+            EvidenceHit(
+                chunk_id="chk_1",
+                document_id="doc_1",
+                version_id="ver_1",
+                text="搜索时可见",
+                locator="page=1",
+                external_llm_allowed=True,
+            ),
+        ),
+        run_id="run_1",
+        tool_call_id="call_1",
+        principal_id="user_1",
+    )[0]
+    return registry, evidence_id
+
+
+def test_read_evidence_rechecks_current_authorization():
+    """读取必须按当前事实重新授权，不能沿用搜索时的正文。"""
+    registry, evidence_id = _registered_evidence()
+    current = EvidenceHit(
+        chunk_id="chk_1",
+        document_id="doc_1",
+        version_id="ver_1",
+        text="当前正文",
+        locator="page=2",
+        external_llm_allowed=True,
+    )
+    resolver = RevokingResolver(current)
+
+    result = ReadEvidenceTool(resolver).execute(
+        {"evidence_id": evidence_id},
+        run_id="run_1",
+        principal_id="user_1",
+        scope_type="document",
+        scope_document_id="doc_1",
+        evidence_registry=registry,
+    )
+
+    assert result["text"] == "当前正文"
+    assert result["locator"] == "page=2"
+    assert resolver.calls[0]["principal_id"] == "user_1"
+    assert resolver.calls[0]["scope_document_id"] == "doc_1"
+
+
+@pytest.mark.parametrize("current", [None, EvidenceHit(
+    chunk_id="chk_1", document_id="doc_1", version_id="ver_2",
+    text="新版本", external_llm_allowed=True,
+), EvidenceHit(
+    chunk_id="chk_1", document_id="doc_1", version_id="ver_1",
+    text="已禁止外发", external_llm_allowed=False,
+)])
+def test_read_evidence_rejects_revoked_changed_or_restricted(current):
+    """删除、版本变化或取消外发后，读取使用同一拒绝，不返回旧正文。"""
+    registry, evidence_id = _registered_evidence()
+
+    with pytest.raises(AgentToolError, match="not accessible") as exc_info:
+        ReadEvidenceTool(RevokingResolver(current)).execute(
+            {"evidence_id": evidence_id},
+            run_id="run_1",
+            principal_id="user_1",
+            scope_type="shared",
+            scope_document_id=None,
+            evidence_registry=registry,
+        )
+
+    assert "搜索时可见" not in str(exc_info.value)
+
+
 def test_read_evidence_returns_full_content():
     """
     Given: 证据已注册

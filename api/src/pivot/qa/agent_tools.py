@@ -392,9 +392,13 @@ class ReadEvidenceTool:
                 scope_type=scope_type,
                 scope_document_id=scope_document_id,
             )
-            if hit is None or (hit.document_id, hit.version_id) != (
-                evidence["document_id"],
-                evidence["version_id"],
+            if (
+                hit is None
+                or (hit.document_id, hit.version_id) != (
+                    evidence["document_id"],
+                    evidence["version_id"],
+                )
+                or hit.external_llm_allowed is not True
             ):
                 raise AgentToolError("evidence not accessible")
             evidence = {
@@ -403,8 +407,8 @@ class ReadEvidenceTool:
                 "locator": hit.locator,
                 "external_llm_allowed": hit.external_llm_allowed,
             }
-        if evidence["external_llm_allowed"] is not True:
-            raise AgentToolError("evidence external use not allowed")
+        elif evidence["external_llm_allowed"] is not True:
+            raise AgentToolError("evidence not accessible")
 
         return {
             "evidence_id": evidence_id,
