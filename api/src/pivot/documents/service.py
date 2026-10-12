@@ -60,6 +60,25 @@ class DocumentService:
         self._limits = limits or ResourceLimits()
         self._clock = clock
 
+    def count_total(self) -> int:
+        """Return total number of documents."""
+        return len(self._documents.list_active())
+
+    def count_indexed(self) -> int:
+        """Return number of indexed documents."""
+        all_docs = self._documents.list_active()
+        return sum(1 for doc in all_docs if is_searchable(doc.status))
+
+    def count_pending(self) -> int:
+        """Return number of pending documents."""
+        all_docs = self._documents.list_active()
+        return sum(1 for doc in all_docs if doc.status in ('uploaded', 'parsing', 'indexing'))
+
+    def count_failed(self) -> int:
+        """Return number of failed documents."""
+        all_docs = self._documents.list_active()
+        return sum(1 for doc in all_docs if doc.status in TERMINAL_FAILURE)
+
     def upload(
         self,
         *,

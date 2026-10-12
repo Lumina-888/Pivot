@@ -145,4 +145,12 @@ def create_app(
 
         app.include_router(build_audit_router(audits, auth), prefix="/api/v1")
 
+    if auth is not None:
+        from pivot.http.admin import build_admin_router
+
+        app.include_router(
+            build_admin_router(auth, probes=probes, document_stats=documents, run_stats=runs),
+            prefix="/api/v1",
+        )
+
     return app

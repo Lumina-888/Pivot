@@ -72,6 +72,28 @@ class RunService:
         self._executing: set[str] = set()
         self._executing_lock = threading.Lock()
 
+    def count_total(self) -> int:
+        """Return total number of runs."""
+        if hasattr(self._store, '_runs'):
+            return len(self._store._runs)
+        return len(self._runs)
+
+    def count_completed(self) -> int:
+        """Return number of completed runs."""
+        runs = self._store._runs.values() if hasattr(self._store, '_runs') else self._runs.values()
+        return sum(1 for bundle in runs if bundle.run.status == 'completed')
+
+    def count_failed(self) -> int:
+        """Return number of failed runs."""
+        runs = self._store._runs.values() if hasattr(self._store, '_runs') else self._runs.values()
+        return sum(1 for bundle in runs if bundle.run.status in ('failed', 'refused', 'uncertain'))
+
+    def count_in_progress(self) -> int:
+        """Return number of in-progress runs."""
+        runs = self._store._runs.values() if hasattr(self._store, '_runs') else self._runs.values()
+        in_progress_statuses = ('received', 'retrieving', 'drafting', 'verifying')
+        return sum(1 for bundle in runs if bundle.run.status in in_progress_statuses)
+
     def create(
         self,
         *,
