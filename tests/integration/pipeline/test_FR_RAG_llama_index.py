@@ -30,15 +30,27 @@ def test_FR_AGENT_002_graph_search_then_read_returns_indexed_evidence(tmp_path):
     from langchain_core.messages import AIMessage
     from langgraph.graph import END, START, StateGraph
     from pivot.qa.agent_budget import BudgetPolicy
+    from pivot.qa.agent_context import RunContext
     from pivot.qa.agent_graph import AgentNodes, AgentState
 
     from scripts.build_test_index import build_test_index, create_demo_retriever
 
     documents = Path(__file__).resolve().parents[2] / "fixtures" / "documents"
     index = build_test_index(documents, tmp_path / "index")
-    nodes = AgentNodes(create_demo_retriever(index), BudgetPolicy(
-        max_model_calls=3, max_tool_calls=3, max_rewrite_count=2, timeout_seconds=60,
-    ))
+    context = RunContext(
+        run_id="run-demo",
+        principal_id="demo-user",
+        scope_type="document",
+        scope_document_id="sample_attendance",
+        conversation_id="conv-demo",
+    )
+    nodes = AgentNodes(
+        create_demo_retriever(index),
+        BudgetPolicy(
+            max_model_calls=3, max_tool_calls=3, max_rewrite_count=2, timeout_seconds=60,
+        ),
+        context,
+    )
     graph = StateGraph(AgentState)
     graph.add_node("search", nodes.execute_tools)
 
