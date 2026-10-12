@@ -1,6 +1,6 @@
 # SPEC-1.1 剩余工作 Tickets
 
-> **版本 / 日期**：TICKETS-1.7 / 2026-10-06（同步候选 CI 与待签入口；票状态不变）。
+> **版本 / 日期**：TICKETS-1.8 / 2026-10-12（02-A/B/C 内部契约发布；02-D/F 开发解锁，不批准运行）。
 > **需求源**：[SPEC-1.1](../../SPEC.md)、[AGENT-SPEC-1.0](../../spec/AGENT_SPEC.md)；责任边界：[MODULE-SPEC-1.2](../../MODULE_SPEC.md)。
 > **进度快照**：[PROGRESS.md](../../PROGRESS.md)、[验收矩阵](../../spec/acceptance/matrix.md)；已提交实现基线 `8cd4727`（main）。
 > **性质**：剩余工作拆分，不是新规格、契约发布或验收报告。既有父票和历史完成记录见 [tickets.md](../tickets.md)。
@@ -17,18 +17,18 @@
 
 ## 1. 执行索引
 
-最新 [02-A/B/C 审核与待签清单 §0](../../evidence/agent-m03/nd-agent-02-abc-review.md)：Ubuntu 候选 CI Run `37420501217` 在 `7958feb` 上 success，见 [CI 证据](../../evidence/agent-m03/nd-agent-02-c/ubuntu-ci-20261006.md)。Windows/bookworm/Ubuntu 候选技术验证已有证据；不再安排已完成的同一次 CI。02-B当前draft.3，Owner确认严格费用与实际调用硬门禁/图辅助熔断分工；期限等剩余设计、正式角色锁/构建/安全范围及消费者/运行许可仍pending；02-A/B/C review，02-D～H blocked 不变。
+2026-10-12：02-A/B/C 消费者签认已完成，内部契约发布为 [AGENT-INTERNAL / BUDGET / DEPENDENCIES 0.1.0](../contracts/README.md)。这不是 contract-v0.1 公开契约，也不关闭 DR-010/GATE。生产数值、期限、正式角色锁、遥测/许可证/原生组件审核与运行许可仍 pending。
 
-优先顺序：ND-AGENT-02-A → 02-B → 02-C → 02-D/E/F → 02-G/H → 03 → 04 → 05。02-A/B/C 已提交 proposed 提案，均 review 待消费者/Owner 签认；02-C Windows/Linux 候选及 Ubuntu Hosted CI 已通过技术验证；预算映射签认、正式锁发布与安全审核待补齐，不解锁业务实现。03-A [恢复提案](../changes/20261003-M00-agent-resume-contract.md)与04-A [持久化提案](../changes/20261003-M03-agent-persistence-contract.md)均已提交 proposed/review，待签认；不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
+优先顺序：02-D 与 02-F（可并行设计，串行落地）→ 02-E → 02-G/H → 03 → 04 → 05。02-D/F 为 **implementation-ready**：允许按已发布内部契约写开发实现与测试，禁止生产部署、真实付费 API、关闭 GATE。02-E 仍 blocked（依赖 02-D）。02-G/H 仍 blocked。03-A [恢复提案](../changes/20261003-M00-agent-resume-contract.md)与04-A [持久化提案](../changes/20261003-M03-agent-persistence-contract.md)仍 proposed/review，待签认；不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
 
 | 子票 | 工作 | 优先级 / 规模 | Accountable | 状态 | 硬依赖 / 放行条件 |
 |---|---|---|---|---|---|
-| ND-AGENT-02-A | 模型、工具、State 与 EvidenceRegistry 内部 Contract | P0 / S | M05 | review | proposed 提案/Red 设计已提交；消费者/Owner 待签认，非发布 |
-| ND-AGENT-02-B | DR-010 预算策略与累计用量 Contract | P0 / S | M05 | review | proposed 提案/有限 Fixture/Red 设计已提交；消费者/Owner 待签认，非发布 |
-| ND-AGENT-02-C | Python 3.12 框架/消息/适配依赖验证与锁定方案 | P0 / S | M03 | review | Windows/Linux 候选与 Ubuntu Hosted CI 技术验证通过；角色锁/安全/消费者/Owner 审核未完成，非发布 |
-| ND-AGENT-02-D | 两个只读工具与本 Run 证据注册 | P0 / M | M05 | blocked | 02-A/B/C Contract；DR-010 受控执行策略 |
-| ND-AGENT-02-E | 可信上下文、历史与每次调用外发门禁 | P0 / M | M01 | blocked | 02-D；02-A/B/C Contract |
-| ND-AGENT-02-F | 调用、重写、重试及主备累计预算 | P0 / M | M05 | blocked | 02-A/B/C；DR-010 受控执行策略 |
+| ND-AGENT-02-A | 模型、工具、State 与 EvidenceRegistry 内部 Contract | P0 / S | M05 | released | [AGENT-INTERNAL-0.1.0](../contracts/AGENT-INTERNAL-0.1.0.md)；非 contract-v0.1 |
+| ND-AGENT-02-B | DR-010 预算策略与累计用量 Contract | P0 / S | M05 | released | [AGENT-BUDGET-0.1.0](../contracts/AGENT-BUDGET-0.1.0.md)；生产数值 TBD-P0，DR-010 未关闭 |
+| ND-AGENT-02-C | Python 3.12 框架/消息/适配依赖验证与锁定方案 | P0 / S | M03 | released-conditional | [AGENT-DEPENDENCIES-0.1.0](../contracts/AGENT-DEPENDENCIES-0.1.0.md)；遥测/许可证 7 日内，原生组件生产前 |
+| ND-AGENT-02-D | 两个只读工具与本 Run 证据注册 | P0 / M | M05 | implementation-ready | 内部契约已发布；仅开发/测试，不批准运行 |
+| ND-AGENT-02-E | 可信上下文、历史与每次调用外发门禁 | P0 / M | M01 | blocked | 02-D 落地；内部契约已发布 |
+| ND-AGENT-02-F | 调用、重写、重试及主备累计预算 | P0 / M | M05 | implementation-ready | 内部契约已发布；Fixture 开发，生产数值 TBD-P0，不批准运行 |
 | ND-AGENT-02-G | 真实 StateGraph 原生工具条件循环 | P0 / M | M05 | blocked | 02-D/E/F |
 | ND-AGENT-02-H | Finalizer/Verifier 补证与全量答案门禁接图 | P0 / S | M05 | blocked | 02-G；01 安全回归 |
 | ND-AGENT-03-A | 恢复 API、错误映射与消费者 Contract 提案 | P0 / S | M00 | review | proposed schema/形状检查/用例设计已提交；发布须 02 闭环/消费者确认 |
@@ -53,14 +53,14 @@
 | ND-P0-01-A | 120 条企业脱敏集业务复核 | P0 / M | M11 | blocked | Owner 指定业务复核人/样本准入 |
 | ND-STG-04-A | staging ECS apply 与低敏冒烟 | P1 / M | M11 | blocked | Owner SSH/安全组/磁盘/访问拓扑 |
 
-共 29 张细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。当前 0 张 ready；02-A/B/C、03-A、04-A 共5张 review（proposed 待签认），24张 blocked，没有业务实现票解锁。P0/P1 既有门禁票继续沿用，见 §4。
+共 29 张细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。当前 02-A/B released、02-C released-conditional；02-D/F implementation-ready（开发，不批准运行）；03-A、04-A 仍 review；其余 blocked。P0/P1 既有门禁票继续沿用，见 §4。
 
 ## 2. Agent Tickets
 
 ### ND-AGENT-02-A 内部模型/工具/状态契约
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-001/002/003/009，AGENT_SPEC §3~5/§10；Accountable M05，Contributors M00/M01/M03/M04/M06/M11。
-- **状态 / 依赖**：review；ND-AGENT-01 done；[AGENT-INTERNAL-0.1-draft.1 提案](../changes/20261002-M05-agent-internal-contract.md)与 Red 设计已提交，消费者/Owner 均 pending，不是已发布契约或 done。
+- **状态 / 依赖**：released；[AGENT-INTERNAL-0.1.0](../contracts/AGENT-INTERNAL-0.1.0.md) 已发布（2026-10-12）。不是 contract-v0.1，不关闭 GATE，不批准生产启用。
 - **场景 / 异常**：Given 模型返回行动；When 解码；Then 只接受单个合法 tool_call 或 finalize/clarify/refuse 控制意图；未知工具、多调用、额外参数、无调用 ID、非法结构 fail closed，不作临时故障重试。
 - **范围 / 数据**：定义模型能力、AIMessage/ToolMessage 关联、严格工具参数、可信 RunContext 与可序列化 AgentState 分界、EvidenceRegistry 来源/去重、Finalizer 输入输出及内部错误分类；供应商端口不泄漏 URL/key。
 - **路径 / 交付**：`progress/changes/` 内部 Contract 提案；按 Owner 确认的 `spec/contracts/` 内部说明与 Fake 消费者用例设计。业务端口落地归 02-D/F/G。
@@ -72,7 +72,7 @@
 ### ND-AGENT-02-B DR-010 预算 Contract
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-004、FR-STREAM-005，AGENT_SPEC §6；Accountable M05，Contributors M00/M06/M11。
-- **状态 / 依赖**：review；[AGENT-BUDGET-0.1-draft.3 提案](../changes/20261002-M05-agent-budget-contract.md)、有限 Fixture 与 Red 设计已提交；Owner已确认严格费用及实际调用硬门禁/图辅助熔断分工，期限等剩余设计、消费者与运行许可pending；未发布、DR-010 未关闭，生产数值仍 TBD-P0。
+- **状态 / 依赖**：released；[AGENT-BUDGET-0.1.0](../contracts/AGENT-BUDGET-0.1.0.md) 已发布。DR-010 未关闭，生产数值/期限/运行许可仍 TBD-P0，不批准真实付费调用。
 - **场景 / 异常**：Given 重写、同 query 重复调用、基础设施重试/主备/恢复；Then 每次真实派发使用同一累计硬账本；无必需策略/可信上界时 fail closed。recursion_limit只辅助防循环，不代替费用或次数；不以精确逐super-step原子计量为收费门禁前置，无收费循环仍须时限/取消/熔断及禁止无限自动重入。
 - **范围 / 数据**：冻结维度、单位、预扣/结算、耗尽终态、配置缺失错误、观察截断与上下文窗口策略；覆盖模型/工具数、单步/总时长、token/费用、并发、recursion_limit。保留 rewrite≤2、clarification≤1 已定约束。
 - **路径 / 交付**：`progress/changes/` DR-010 提案、预算 Contract、明确注入有限值的测试 Fixture 与受控实验计划。
@@ -84,7 +84,7 @@
 ### ND-AGENT-02-C 框架依赖与锁定
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-009，AGENT_SPEC §8.1/§10；Accountable M03，Contributors M05/M11。
-- **状态 / 依赖**：review；[依赖/锁定申请](../changes/20261002-M03-agent-dependencies-lock.md)、Windows/bookworm/Ubuntu 候选已验证，Ubuntu Hosted CI Run `37420501217` success；六项审核 pending，预算映射签认/角色锁/安全/正式依赖发布未完成，非 done。
+- **状态 / 依赖**：released-conditional；[AGENT-DEPENDENCIES-0.1.0](../contracts/AGENT-DEPENDENCIES-0.1.0.md) 已发布，pyproject 已钉 langgraph 1.2.12 / langchain-core 1.6.6。正式角色锁、遥测/许可证（7 日内）与原生组件（生产前）仍 pending。
 - **场景 / 异常**：Given 启用 Agent 模式；Then StateGraph、消息/工具接口及 checkpointer 版本兼容；缺依赖/不支持 tools 失败，不静默切旧线性实现。
 - **范围 / 数据**：确认 LangGraph/langchain-core/模型适配/checkpointer 版本组合、锁文件策略、CI/Docker 安装范围及升级/回滚限制；版本须随 Run 追踪。
 - **路径 / 交付**：`progress/changes/` 依赖申请；批准后由 M03 串行维护 `api/pyproject.toml`/锁文件，M11 同步 CI/镜像。
@@ -96,7 +96,7 @@
 ### ND-AGENT-02-D 只读工具与 EvidenceRegistry
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-002、FR-RAG-002/003/005/006；Accountable M05，Contributors M01/M04。
-- **状态 / 依赖**：blocked；02-A/B/C Contract 与 DR-010 受控执行策略。
+- **状态 / 依赖**：implementation-ready；02-A/B/C 内部契约已发布。允许开发与测试，不批准运行、不关闭 DR-010。
 - **场景 / 异常**：Given search_knowledge 已登记候选；When read_evidence；Then 只读取本 Run 合法 evidence_id，并重新检查版本/删除/期限/权限/外发；猜测他 Run ID 不泄露存在性。
 - **范围 / 数据**：复用 M04 混合检索；服务端注入 principal/scope；严格单参数 schema、限长观察、按版本去重保留来源/调用 ID、冲突元数据；历史引用须重新解析授权登记。
 - **路径 / 交付**：`api/src/pivot/qa/**`；跨 M04/M01 的端口修改先走变更申请；`tests/unit/qa/**`、`tests/security/retrieval/**`。
@@ -107,7 +107,7 @@
 ### ND-AGENT-02-E 可信上下文与外发
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-003、FR-RBAC、SPEC §8.3；Accountable M01，Contributors M05/M04/M03。
-- **状态 / 依赖**：blocked；02-D 与 02-A/B/C Contract。
+- **状态 / 依赖**：blocked；内部契约已发布，仍等待 02-D 落地。
 - **场景 / 异常**：Given 客户端/模型伪造身份、scope 或文档含指令；Then 不扩大权限；受限正文及其摘要/历史不能发送给任一外部 Planner/Finalizer/Verifier/备用模型。
 - **范围 / 数据**：服务端重建 RunContext；授权历史窗口、Observation 与衍生数据；每次模型/工具调用前后检查 active/owner/scope/最新文档资格；恢复重检逻辑供 03-D/04-C 复用。
 - **路径 / 交付**：`api/src/pivot/auth/**`、`security/**` 及 M05 调用边界；`tests/security/auth/**`/Agent 安全集成测试。
@@ -118,7 +118,7 @@
 ### ND-AGENT-02-F 累计预算与重试
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-004、FR-STREAM-005；Accountable M05，Contributors M06/M11。
-- **状态 / 依赖**：blocked；02-A/B/C 与 DR-010 受控执行策略。
+- **状态 / 依赖**：implementation-ready；内部契约已发布。允许 Fixture 开发与测试；生产数值 TBD-P0，不批准运行。
 - **场景 / 异常**：首次搜索不算 rewrite，后续 query 改变计 rewrite；重复 query 仍消耗调用预算；超时/429/临时5xx/网络错误可有限重试，非法格式/权限/外发不可重试。
 - **范围 / 数据**：调用前预检、返回后用量登记、稳定 step/attempt、主备累计、单步/总超时与观察限长；AgentState 保存预算游标以供 04-C 恢复。
 - **路径 / 交付**：`api/src/pivot/qa/**`、`runs/**`、`tests/unit/qa/**`、`tests/unit/runs/**`；M06 提供 ProviderCall 端口。

@@ -9,7 +9,7 @@
 
 [AGENT-INTERNAL-0.1-draft.1](../../progress/changes/20261002-M05-agent-internal-contract.md) 定义拟议模型/工具/State/EvidenceRegistry Interface 与 Fake/Red 设计。状态 proposed，ND-AGENT-02-A review 待消费者/Owner 签认；不属于本目录已发布机器契约、不加入 manifest、不生成生产客户端。[AGENT-BUDGET-0.1-draft.3](../../progress/changes/20261002-M05-agent-budget-contract.md) 定义实际调用累计硬预算/预扣结算、图辅助熔断、未知用量、期限/恢复、观察/上下文/并发规则、有限 Fixture 与 Red 设计；取代draft.2精确逐super-step原子账本前置，拟议policy移除graph_supersteps_max。状态 proposed，ND-AGENT-02-B review 待签认，同样不属于已发布契约。[AGENT-DEPENDENCIES-0.1-draft.1](../../progress/changes/20261002-M03-agent-dependencies-lock.md) 的 Windows Python 3.12 候选哈希锁/技术验证已提交，ND-AGENT-02-C review，非正式依赖发布；Linux 与预算映射/敏感序列化等六项审核 pending。02-A/B/C、DR-010 尚未批准，不能据内嵌 schema、Fixture 算术或技术探针解锁业务实现；下一步先签认/补齐验证，03-A恢复与04-A持久化Contract现均proposed/review，待签认，没有ready业务票。
 
-当前 [02-A/B/C 审批入口](../../evidence/agent-m03/nd-agent-02-abc-review.md)记录02-A含PR-01的Owner设计批准、02-B严格费用方向与调用/图分工确认；期限、消费者及运行许可仍待确认，不代表整份提案获批。Ubuntu候选CI技术验证已有证据；历史Windows20项探针不证明draft.3运行时门禁，正式锁/安全签认仍pending。没有发布任何新 Contract 或正式锁，02-D～H 继续 blocked。
+2026-10-12 起，02-A/B/C 的**内部**契约已发布到 [`progress/contracts/`](../../progress/contracts/README.md)（AGENT-INTERNAL / BUDGET / DEPENDENCIES 0.1.0）。它们**不加入**本目录 contract-v0.1 manifest，不生成公开客户端。期限、正式角色锁、遥测/许可证/原生组件与运行许可仍 pending；02-D/F 仅开发解锁，02-E/G/H 继续 blocked，不关闭 DR-010 或任一 GATE。
 
 ## 待审核恢复提案
 
