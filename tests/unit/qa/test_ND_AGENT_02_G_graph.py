@@ -287,11 +287,11 @@ def test_FR_AGENT_001_empty_observation_changes_query():
     # 验证：两次查询不同
     assert retriever.queries[0] != retriever.queries[1]
 
-    # 验证：rewrite_count 增加（注意：首次搜索不算 rewrite）
-    # 当前实现：rewrite 逻辑尚未集成到图中，需要在工具执行时跟踪
-    # TODO: 在 execute_tools 节点中添加 rewrite 检测逻辑
-    # 暂时验证基本行为：两次搜索都成功执行
+    # 验证：两次搜索都成功执行
     assert result["budget_state"]["tool_calls"] == 2
+    
+    # 验证：rewrite_count 不增加（因为查询不同）
+    assert result["budget_state"]["rewrite_count"] == 0
 
 
 # ====================
@@ -526,3 +526,242 @@ def test_FR_AGENT_004_exhausted_budget_stops_graph():
     # 验证：模型只被调用了 2 次（1 次工具决策 + 1 次检查后停止）
     # 不应该执行第二次工具调用
     assert model.call_count <= 2
+
+
+def test_FR_AGENT_004_rewrite_budget_tracking():
+    """
+    测试 FR-AGENT-004：Rewrite 预算跟踪
+    
+    Given: 模型重复相同的搜索查询
+    When: 执行图
+    Then: 应该消耗 rewrite 预算
+    """
+    evidence = EvidenceHit(
+        chunk_id="chunk_1",
+        document_id="doc_1",
+        version_id="v1",
+        text="内容",
+        locator="loc",
+        external_llm_allowed=True,
+        index_generation="gen_1",
+        embedding_model_version="v1",
+        retrieval_config_version="v1",
+    )
+
+    retriever = ControlledRetriever({"same_query": (evidence,)})
+
+    # 模型两次调用相同的查询
+    model = ScriptedModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "call_1", "name": "search_knowledge", "args": {"query": "same_query"}}
+                ],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "call_2", "name": "search_knowledge", "args": {"query": "same_query"}}
+                ],
+            ),
+            AIMessage(content="结束"),
+        ]
+    )
+
+    context = create_trusted_context(
+        run_id="run_test",
+        conversation_id="conv_test",
+        principal_id="user_test",
+        scope_type="all",
+    )
+
+    workflow = create_agent_graph(
+        retriever=retriever,
+        budget_policy=_policy(),
+        context=context,
+        model=model,
+        is_external_model=False,
+    )
+    graph = workflow.compile()
+
+    initial_state = {
+        "messages": [{"type": "human", "content": "问题"}],
+        "run_id": "run_test",
+        "principal_id": "user_test",
+        "conversation_id": "conv_test",
+        "scope_type": "all",
+        "scope_document_id": None,
+        "budget_state": {"model_calls": 0, "tool_calls": 0, "rewrite_count": 0},
+        "evidence_registry_data": {},
+        "final_answer": None,
+    }
+
+    result = graph.invoke(initial_state)
+
+    # 验证：rewrite_count 增加（第二次相同查询计为 rewrite）
+    assert result["budget_state"]["rewrite_count"] == 1
+
+    # 验证：两次工具调用都成功
+    assert result["budget_state"]["tool_calls"] == 2
+
+
+def test_FR_AGENT_004_rewrite_budget_exhausted():
+    """
+    测试 FR-AGENT-004：Rewrite 预算耗尽
+    
+    Given: rewrite 预算为 0，模型尝试重复查询
+    When: 执行图
+    Then: 第二次相同查询应该被阻止
+    """
+    evidence = EvidenceHit(
+        chunk_id="chunk_1",
+        document_id="doc_1",
+        version_id="v1",
+        text="内容",
+        locator="loc",
+        external_llm_allowed=True,
+        index_generation="gen_1",
+        embedding_model_version="v1",
+        retrieval_config_version="v1",
+    )
+
+    retriever = ControlledRetriever({"same_query": (evidence,)})
+
+    model = ScriptedModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "call_1", "name": "search_knowledge", "args": {"query": "same_query"}}
+                ],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "call_2", "name": "search_knowledge", "args": {"query": "same_query"}}
+                ],
+            ),
+            AIMessage(content="结束"),
+        ]
+    )
+
+    context = create_trusted_context(
+        run_id="run_test",
+        conversation_id="conv_test",
+        principal_id="user_test",
+        scope_type="all",
+    )
+
+    # 限制 rewrite 预算为 0
+    workflow = create_agent_graph(
+        retriever=retriever,
+        budget_policy=_policy(max_rewrite_count=0),
+        context=context,
+        model=model,
+        is_external_model=False,
+    )
+    graph = workflow.compile()
+
+    initial_state = {
+        "messages": [{"type": "human", "content": "问题"}],
+        "run_id": "run_test",
+        "principal_id": "user_test",
+        "conversation_id": "conv_test",
+        "scope_type": "all",
+        "scope_document_id": None,
+        "budget_state": {"model_calls": 0, "tool_calls": 0, "rewrite_count": 0},
+        "evidence_registry_data": {},
+        "final_answer": None,
+    }
+
+    result = graph.invoke(initial_state)
+
+    # 验证：两次工具调用都被尝试（即使第二次被 rewrite 限制阻止）
+    # 注意：工具调用计数包括失败的尝试
+    assert result["budget_state"]["tool_calls"] == 2
+
+    # 验证：rewrite_count 仍为 0（因为被阻止前就检查了）
+    assert result["budget_state"]["rewrite_count"] == 0
+    
+    # 验证：第二次工具调用返回了错误
+    from langchain_core.messages import ToolMessage as LCToolMessage
+    
+    tool_messages = [msg for msg in result["messages"] if isinstance(msg, LCToolMessage)]
+    assert len(tool_messages) >= 2
+    
+    # 第二次工具调用应该返回 rewrite_budget_exhausted 错误
+    second_tool_content = json.loads(tool_messages[1].content)
+    assert second_tool_content.get("error") == "rewrite_budget_exhausted"
+
+
+def test_FR_AGENT_002_multiple_calls_rejected():
+    """
+    测试 FR-AGENT-002：多个工具调用全部拒绝
+    
+    Given: 模型返回多个工具调用
+    When: 执行图
+    Then: 所有工具调用都应该被拒绝，返回错误
+    """
+    retriever = ControlledRetriever({})
+
+    # 模型返回多个工具调用（违反规范）
+    model = ScriptedModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "call_1", "name": "search_knowledge", "args": {"query": "Q1"}},
+                    {"id": "call_2", "name": "read_evidence", "args": {"evidence_id": "ev_1"}},
+                ],
+            ),
+            AIMessage(content="结束"),
+        ]
+    )
+
+    context = create_trusted_context(
+        run_id="run_test",
+        conversation_id="conv_test",
+        principal_id="user_test",
+        scope_type="all",
+    )
+
+    workflow = create_agent_graph(
+        retriever=retriever,
+        budget_policy=_policy(),
+        context=context,
+        model=model,
+        is_external_model=False,
+    )
+    graph = workflow.compile()
+
+    initial_state = {
+        "messages": [{"type": "human", "content": "问题"}],
+        "run_id": "run_test",
+        "principal_id": "user_test",
+        "conversation_id": "conv_test",
+        "scope_type": "all",
+        "scope_document_id": None,
+        "budget_state": {"model_calls": 0, "tool_calls": 0, "rewrite_count": 0},
+        "evidence_registry_data": {},
+        "final_answer": None,
+    }
+
+    result = graph.invoke(initial_state)
+
+    # 验证：图应该正常结束（不崩溃）
+    assert result["final_answer"] is not None
+
+    # 验证：没有执行任何工具（因为多调用被全部拒绝）
+    assert result["budget_state"]["tool_calls"] == 0
+
+    # 验证：消息中包含错误响应
+    from langchain_core.messages import ToolMessage as LCToolMessage
+    
+    tool_messages = [msg for msg in result["messages"] if isinstance(msg, LCToolMessage)]
+    assert len(tool_messages) == 2  # 两个工具调用都返回错误
+    
+    # 验证错误内容
+    for msg in tool_messages:
+        content = json.loads(msg.content)
+        assert content.get("error") == "multiple_tool_calls_not_allowed"

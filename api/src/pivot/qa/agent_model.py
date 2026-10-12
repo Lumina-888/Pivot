@@ -110,8 +110,7 @@ def get_tool_schemas() -> list[dict[str, Any]]:
             "function": {
                 "name": "read_evidence",
                 "description": (
-                    "读取已找到的证据详细内容。"
-                    "必须先通过 search_knowledge 获得证据 ID。"
+                    "读取已找到的证据详细内容。必须先通过 search_knowledge 获得证据 ID。"
                 ),
                 "parameters": {
                     "type": "object",

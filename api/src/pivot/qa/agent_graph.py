@@ -222,8 +222,41 @@ class AgentNodes:
         if not tool_calls:
             raise ValueError("No tool calls found")
 
+        # FR-AGENT-002: 单工具调用限制
+        if len(tool_calls) > 1:
+            # 多个工具调用违反规范，全部拒绝
+            tool_messages = [
+                ToolMessage(
+                    tool_call_id=tc["id"],
+                    content=json.dumps({"error": "multiple_tool_calls_not_allowed"}),
+                )
+                for tc in tool_calls
+            ]
+            return {
+                **state,
+                "messages": tool_messages,
+                "budget_state": budget_guard.state_snapshot(),
+                "evidence_registry_data": evidence_registry.snapshot(),
+            }
+
         # 预算检查
         budget_guard.before_tool_calls(tool_calls)
+
+        # 检测 rewrite：提取历史中所有 search_knowledge 的查询（排除当前消息）
+        previous_queries = set()
+        for i, msg in enumerate(state["messages"]):
+            # 跳过最后一条消息（当前正在执行的）
+            if i == len(state["messages"]) - 1:
+                break
+            
+            if isinstance(msg, AIMessage) and msg.tool_calls:
+                for tc in msg.tool_calls:
+                    if tc["name"] == "search_knowledge":
+                        previous_queries.add(tc["args"].get("query", ""))
+            elif isinstance(msg, dict) and msg.get("type") == "ai":
+                for tc in msg.get("tool_calls", []):
+                    if tc["name"] == "search_knowledge":
+                        previous_queries.add(tc["args"].get("query", ""))
 
         # 执行工具
         tool_executor = ToolExecutor(self.retriever)
@@ -236,7 +269,26 @@ class AgentNodes:
                     tool_name=tool_call["name"],
                     tool_args=tool_call["args"],
                 )
-                
+
+                # FR-AGENT-004: Rewrite 预算检查
+                is_rewrite = False
+                if tool_call["name"] == "search_knowledge":
+                    query = tool_call["args"].get("query", "")
+                    if query in previous_queries:
+                        # 重复查询，消耗 rewrite 预算
+                        is_rewrite = True
+                        try:
+                            budget_guard.before_rewrite()
+                        except BudgetExhaustedError:
+                            # Rewrite 预算耗尽
+                            tool_messages.append(
+                                ToolMessage(
+                                    tool_call_id=tool_call["id"],
+                                    content=json.dumps({"error": "rewrite_budget_exhausted"}),
+                                )
+                            )
+                            continue
+
                 result = tool_executor.execute(
                     tool_call,
                     run_id=state["run_id"],
@@ -251,6 +303,11 @@ class AgentNodes:
                         content=json.dumps(result["content"], ensure_ascii=False),
                     )
                 )
+
+                # 如果是 rewrite，更新预算
+                if is_rewrite:
+                    budget_guard.after_rewrite()
+
             except AgentSecurityError:
                 # 安全违规：工具参数包含禁止字段
                 tool_messages.append(
@@ -493,7 +550,7 @@ def run_agent(
     """
     # 创建可信上下文
     from pivot.qa.agent_context import create_trusted_context
-    
+
     context = create_trusted_context(
         run_id=run_id,
         conversation_id=conversation_id,
@@ -501,7 +558,7 @@ def run_agent(
         scope_type=scope_type,
         scope_document_id=scope_document_id,
     )
-    
+
     # 创建图
     workflow = create_agent_graph(
         retriever,

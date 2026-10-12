@@ -201,8 +201,7 @@ def _open_postgres_engine(settings: RuntimeSettings) -> Engine:
 def _open_minio_store(settings: RuntimeSettings) -> MinioObjectStore:
     if not settings.minio_endpoint or not settings.minio_bucket:
         raise RuntimeError(
-            "PIVOT_MINIO_ENDPOINT and PIVOT_MINIO_BUCKET are required "
-            "when PIVOT_OBJECT_STORE=minio"
+            "PIVOT_MINIO_ENDPOINT and PIVOT_MINIO_BUCKET are required when PIVOT_OBJECT_STORE=minio"
         )
     client = settings.object_store_client
     if client is None:
@@ -323,9 +322,7 @@ def _celery_submitter(runner, settings: RuntimeSettings):
     try:
         from pivot_worker.celery_app import CeleryIngestSubmitter
     except ImportError as exc:
-        raise RuntimeError(
-            "pivot_worker[celery] is required when PIVOT_INGEST=celery"
-        ) from exc
+        raise RuntimeError("pivot_worker[celery] is required when PIVOT_INGEST=celery") from exc
     return CeleryIngestSubmitter(
         runner,
         parse_queue=settings.parse_queue or "",
@@ -483,9 +480,7 @@ class _RetrievalBridge:
                 document_id=item.document_id,
                 version_id=item.version_id,
                 text=item.text,
-                external_llm_allowed=_external_llm_allowed(
-                    self._versions, item.version_id
-                ),
+                external_llm_allowed=_external_llm_allowed(self._versions, item.version_id),
             )
             for item in outcome.evidence
         )
@@ -676,9 +671,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     )
     empty_corpus: tuple = ()
     if qdrant_store is not None and query_embedder is not None:
-        dense_retriever: object = VectorStoreRetriever(
-            qdrant_store, query_embedder, source="dense"
-        )
+        dense_retriever: object = VectorStoreRetriever(qdrant_store, query_embedder, source="dense")
     else:
         dense_retriever = KeywordRetriever(empty_corpus, "dense")
     tokenizer = SimpleLexTokenizer()

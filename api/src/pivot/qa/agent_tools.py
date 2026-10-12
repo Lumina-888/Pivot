@@ -394,7 +394,8 @@ class ReadEvidenceTool:
             )
             if (
                 hit is None
-                or (hit.document_id, hit.version_id) != (
+                or (hit.document_id, hit.version_id)
+                != (
                     evidence["document_id"],
                     evidence["version_id"],
                 )

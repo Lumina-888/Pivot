@@ -187,21 +187,16 @@ class RuntimeSettings:
         ):
             raise RuntimeError("injected TTL and retrieval k must be positive")
         if bool(self.bootstrap_username) != bool(self.bootstrap_password):
-            raise RuntimeError(
-                "bootstrap username and password must both be set or both omitted"
-            )
+            raise RuntimeError("bootstrap username and password must both be set or both omitted")
         if (self.bm25_k1 is None) != (self.bm25_b is None):
-            raise RuntimeError(
-                "PIVOT_BM25_K1 and PIVOT_BM25_B must both be set or both omitted"
-            )
+            raise RuntimeError("PIVOT_BM25_K1 and PIVOT_BM25_B must both be set or both omitted")
         if self.bm25_k1 is not None and self.bm25_k1 <= 0:
             raise RuntimeError("PIVOT_BM25_K1 must be a positive number")
         if self.bm25_b is not None and (self.bm25_b < 0 or self.bm25_b > 1):
             raise RuntimeError("PIVOT_BM25_B must be between 0 and 1")
         if self.embedding not in {"hash", "http"}:
             raise RuntimeError(
-                "unsupported PIVOT_EMBEDDING="
-                f"{self.embedding!r}; this slice wires hash or http"
+                f"unsupported PIVOT_EMBEDDING={self.embedding!r}; this slice wires hash or http"
             )
         if self.embedding == "http" and not (
             self.embedding_endpoint and self.embedding_model and self.embedding_api_key
@@ -216,9 +211,7 @@ class RuntimeSettings:
                 f"{self.rerank!r}; this slice wires none, overlap, bm25, or bge"
             )
         if self.rerank == "bm25" and self.bm25_k1 is None:
-            raise RuntimeError(
-                "PIVOT_BM25_K1 and PIVOT_BM25_B are required when PIVOT_RERANK=bm25"
-            )
+            raise RuntimeError("PIVOT_BM25_K1 and PIVOT_BM25_B are required when PIVOT_RERANK=bm25")
         if self.rerank == "bge" and not (
             self.rerank_endpoint and self.rerank_model and self.rerank_api_key
         ):
@@ -232,40 +225,29 @@ class RuntimeSettings:
                 "must both be set or both omitted"
             )
         if self.login_max_failures is not None and self.cache_store != "redis":
-            raise RuntimeError(
-                "PIVOT_LOGIN_MAX_FAILURES requires PIVOT_CACHE_STORE=redis"
-            )
+            raise RuntimeError("PIVOT_LOGIN_MAX_FAILURES requires PIVOT_CACHE_STORE=redis")
         if self.ingest_backend not in {"sync", "celery"}:
             raise RuntimeError(
-                "unsupported PIVOT_INGEST="
-                f"{self.ingest_backend!r}; this slice wires sync or celery"
+                f"unsupported PIVOT_INGEST={self.ingest_backend!r}; this slice wires sync or celery"
             )
         if self.ingest_backend == "celery":
             parse_queue = (self.parse_queue or "").strip()
             online_queue = (self.online_queue or "").strip()
             if not parse_queue or not online_queue:
                 raise RuntimeError(
-                    "PIVOT_PARSE_QUEUE and PIVOT_ONLINE_QUEUE are required "
-                    "when PIVOT_INGEST=celery"
+                    "PIVOT_PARSE_QUEUE and PIVOT_ONLINE_QUEUE are required when PIVOT_INGEST=celery"
                 )
             if parse_queue == online_queue:
                 raise RuntimeError("parse and online queues must be isolated")
             if self.worker_concurrency is None or self.worker_concurrency < 1:
-                raise RuntimeError(
-                    "PIVOT_WORKER_CONCURRENCY is required when PIVOT_INGEST=celery"
-                )
+                raise RuntimeError("PIVOT_WORKER_CONCURRENCY is required when PIVOT_INGEST=celery")
             if not (self.celery_broker or "").strip():
-                raise RuntimeError(
-                    "PIVOT_CELERY_BROKER is required when PIVOT_INGEST=celery"
-                )
+                raise RuntimeError("PIVOT_CELERY_BROKER is required when PIVOT_INGEST=celery")
         if self.llm not in {"local", "http"}:
             raise RuntimeError(
-                "unsupported PIVOT_LLM="
-                f"{self.llm!r}; this slice wires local or http"
+                f"unsupported PIVOT_LLM={self.llm!r}; this slice wires local or http"
             )
-        if self.llm == "http" and not (
-            self.llm_endpoint and self.llm_model and self.llm_api_key
-        ):
+        if self.llm == "http" and not (self.llm_endpoint and self.llm_model and self.llm_api_key):
             raise RuntimeError(
                 "PIVOT_LLM_ENDPOINT, PIVOT_LLM_MODEL, and "
                 "PIVOT_LLM_API_KEY are required when PIVOT_LLM=http"
@@ -281,20 +263,15 @@ class RuntimeSettings:
                 "PIVOT_LLM_FALLBACK_API_KEY must all be set or all omitted"
             )
         if all(fallback_fields) and self.llm != "http":
-            raise RuntimeError(
-                "PIVOT_LLM_FALLBACK_* requires PIVOT_LLM=http"
-            )
+            raise RuntimeError("PIVOT_LLM_FALLBACK_* requires PIVOT_LLM=http")
         if self.parser not in {"local", "mineru", "native"}:
             raise RuntimeError(
                 "unsupported PIVOT_PARSER="
                 f"{self.parser!r}; this slice wires local, mineru, or native"
             )
-        if self.parser == "mineru" and not (
-            self.parser_endpoint and self.parser_token
-        ):
+        if self.parser == "mineru" and not (self.parser_endpoint and self.parser_token):
             raise RuntimeError(
-                "PIVOT_PARSER_ENDPOINT and PIVOT_PARSER_TOKEN are required "
-                "when PIVOT_PARSER=mineru"
+                "PIVOT_PARSER_ENDPOINT and PIVOT_PARSER_TOKEN are required when PIVOT_PARSER=mineru"
             )
 
     @classmethod
@@ -331,9 +308,7 @@ class RuntimeSettings:
             qdrant_endpoint=(env.get("PIVOT_QDRANT_ENDPOINT") or "").strip() or None,
             qdrant_collection=(env.get("PIVOT_QDRANT_COLLECTION") or "").strip() or None,
             qdrant_api_key=(env.get("PIVOT_QDRANT_API_KEY") or "").strip() or None,
-            qdrant_ensure_collection=(
-                env.get("PIVOT_QDRANT_ENSURE_COLLECTION") or ""
-            ).strip()
+            qdrant_ensure_collection=(env.get("PIVOT_QDRANT_ENSURE_COLLECTION") or "").strip()
             == "1",
             qdrant_vector_size=_optional_int_or_none(env, "PIVOT_QDRANT_VECTOR_SIZE"),
             qdrant_distance=(env.get("PIVOT_QDRANT_DISTANCE") or "").strip() or None,
@@ -354,12 +329,9 @@ class RuntimeSettings:
             redis_endpoint=(env.get("PIVOT_REDIS_ENDPOINT") or "").strip() or None,
             redis_password=(env.get("PIVOT_REDIS_PASSWORD") or "").strip() or None,
             redis_db=_optional_non_negative_int(env, "PIVOT_REDIS_DB"),
-            redis_key_prefix=(env.get("PIVOT_REDIS_KEY_PREFIX") or "pivot:").strip()
-            or "pivot:",
+            redis_key_prefix=(env.get("PIVOT_REDIS_KEY_PREFIX") or "pivot:").strip() or "pivot:",
             login_max_failures=_optional_int_or_none(env, "PIVOT_LOGIN_MAX_FAILURES"),
-            login_window_seconds=_optional_int_or_none(
-                env, "PIVOT_LOGIN_WINDOW_SECONDS"
-            ),
+            login_window_seconds=_optional_int_or_none(env, "PIVOT_LOGIN_WINDOW_SECONDS"),
             ingest_backend=(env.get("PIVOT_INGEST") or "sync").strip() or "sync",
             parse_queue=(env.get("PIVOT_PARSE_QUEUE") or "").strip() or None,
             online_queue=(env.get("PIVOT_ONLINE_QUEUE") or "").strip() or None,
@@ -373,38 +345,19 @@ class RuntimeSettings:
             llm_timeout=_optional_positive_float(env, "PIVOT_LLM_TIMEOUT"),
             llm_auth_header=(env.get("PIVOT_LLM_AUTH_HEADER") or "").strip() or None,
             llm_auth_scheme=(env.get("PIVOT_LLM_AUTH_SCHEME") or "").strip() or None,
-            llm_fallback_endpoint=(
-                env.get("PIVOT_LLM_FALLBACK_ENDPOINT") or ""
-            ).strip()
+            llm_fallback_endpoint=(env.get("PIVOT_LLM_FALLBACK_ENDPOINT") or "").strip() or None,
+            llm_fallback_model=(env.get("PIVOT_LLM_FALLBACK_MODEL") or "").strip() or None,
+            llm_fallback_api_key=(env.get("PIVOT_LLM_FALLBACK_API_KEY") or "").strip() or None,
+            llm_fallback_timeout=_optional_positive_float(env, "PIVOT_LLM_FALLBACK_TIMEOUT"),
+            llm_fallback_auth_header=(env.get("PIVOT_LLM_FALLBACK_AUTH_HEADER") or "").strip()
             or None,
-            llm_fallback_model=(
-                env.get("PIVOT_LLM_FALLBACK_MODEL") or ""
-            ).strip()
-            or None,
-            llm_fallback_api_key=(
-                env.get("PIVOT_LLM_FALLBACK_API_KEY") or ""
-            ).strip()
-            or None,
-            llm_fallback_timeout=_optional_positive_float(
-                env, "PIVOT_LLM_FALLBACK_TIMEOUT"
-            ),
-            llm_fallback_auth_header=(
-                env.get("PIVOT_LLM_FALLBACK_AUTH_HEADER") or ""
-            ).strip()
-            or None,
-            llm_fallback_auth_scheme=(
-                env.get("PIVOT_LLM_FALLBACK_AUTH_SCHEME") or ""
-            ).strip()
+            llm_fallback_auth_scheme=(env.get("PIVOT_LLM_FALLBACK_AUTH_SCHEME") or "").strip()
             or None,
             parser=(env.get("PIVOT_PARSER") or "local").strip() or "local",
             parser_endpoint=(env.get("PIVOT_PARSER_ENDPOINT") or "").strip() or None,
             parser_token=(env.get("PIVOT_PARSER_TOKEN") or "").strip() or None,
             parser_timeout=_optional_positive_float(env, "PIVOT_PARSER_TIMEOUT"),
-            parser_poll_timeout=_optional_positive_float(
-                env, "PIVOT_PARSER_POLL_TIMEOUT"
-            ),
-            parser_poll_interval=_optional_positive_float(
-                env, "PIVOT_PARSER_POLL_INTERVAL"
-            ),
+            parser_poll_timeout=_optional_positive_float(env, "PIVOT_PARSER_POLL_TIMEOUT"),
+            parser_poll_interval=_optional_positive_float(env, "PIVOT_PARSER_POLL_INTERVAL"),
             parser_model=(env.get("PIVOT_PARSER_MODEL") or "").strip() or None,
         )
