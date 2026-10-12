@@ -248,7 +248,7 @@ class AgentNodes:
             # 跳过最后一条消息（当前正在执行的）
             if i == len(state["messages"]) - 1:
                 break
-            
+
             if isinstance(msg, AIMessage) and msg.tool_calls:
                 for tc in msg.tool_calls:
                     if tc["name"] == "search_knowledge":

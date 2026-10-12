@@ -72,11 +72,15 @@ def test_FR_AGENT_002_graph_search_then_read_returns_indexed_evidence(tmp_path):
             "id": "call-search", "name": "search_knowledge",
             "args": {"query": "迟到三次怎么处理？"},
         }])],
-        "run_id": "run-demo", "principal_id": "demo-user", "scope_type": "document",
+        "run_id": "run-demo",
+        "principal_id": "demo-user",
+        "scope_type": "document",
         "scope_document_id": "sample_attendance",
+        "conversation_id": "conv-demo",
         "budget_state": {"model_calls": 0, "tool_calls": 0, "rewrite_count": 0,
                          "elapsed_seconds": 0.0},
-        "evidence_registry_data": {}, "final_answer": None,
+        "evidence_registry_data": {},
+        "final_answer": None,
     })
     read = json.loads(result["messages"][-1].content)
     assert "累计迟到三次，视为旷工一天" in read["text"]
