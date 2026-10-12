@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import threading
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, NotRequired
 
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
@@ -47,6 +47,7 @@ class AgentState(TypedDict):
     budget_state: dict[str, Any]  # BudgetState 序列化
     evidence_registry_data: dict[str, Any]  # EvidenceRegistry 序列化
     final_answer: dict[str, Any] | None
+    clarification: NotRequired[dict[str, Any] | None]
 
 
 # ====================
@@ -416,6 +417,51 @@ class AgentNodes:
 # ====================
 
 
+def accept_clarification(state: AgentState) -> AgentState:
+    """接受第一轮澄清。第二轮和已发布终态都拒绝。"""
+    final_answer = state.get("final_answer") or {}
+    if final_answer.get("status") in {"answered", "refused", "cancelled", "failed"}:
+        return state
+    budget = dict(state["budget_state"])
+    if int(budget.get("clarification_count") or 0) >= 1:
+        return {
+            **state,
+            "final_answer": {
+                "answer": "",
+                "claims": [],
+                "status": "second_clarification_rejected",
+            },
+        }
+    budget["clarification_count"] = 1
+    return {
+        **state,
+        "budget_state": budget,
+        "clarification": {"status": "waiting_for_user", "owner_id": state["principal_id"]},
+        "final_answer": None,
+    }
+
+
+def resume_clarification(state: AgentState, reply: str, *, actor_id: str) -> AgentState:
+    """只有原 owner 能恢复同一 Run，且不重置已消耗预算。"""
+    pending = state.get("clarification") or {}
+    if pending.get("status") != "waiting_for_user" or actor_id != pending.get("owner_id"):
+        return {
+            **state,
+            "final_answer": {"answer": "", "claims": [], "status": "resume_forbidden"},
+        }
+    if not reply.strip():
+        return {
+            **state,
+            "final_answer": {"answer": "", "claims": [], "status": "resume_forbidden"},
+        }
+    return {
+        **state,
+        "messages": [{"type": "human", "content": reply}],
+        "clarification": {"status": "resuming", "owner_id": actor_id},
+        "final_answer": None,
+    }
+
+
 def should_continue(
     state: AgentState,
     budget_policy: BudgetPolicy | None = None,
@@ -428,8 +474,15 @@ def should_continue(
         "finalize": 生成最终答案
         "end": 结束（预算耗尽或其他终止条件）
     """
+    if (state.get("clarification") or {}).get("status") == "waiting_for_user":
+        return "end"
     final_answer = state.get("final_answer") or {}
-    if final_answer.get("status") in {"budget_exhausted", "cancelled"}:
+    if final_answer.get("status") in {
+        "budget_exhausted",
+        "cancelled",
+        "second_clarification_rejected",
+        "resume_forbidden",
+    }:
         return "end"
 
     if not state["messages"]:

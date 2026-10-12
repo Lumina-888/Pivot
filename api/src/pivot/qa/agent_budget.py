@@ -54,6 +54,7 @@ class BudgetState:
     model_calls: int = 0
     tool_calls: int = 0
     rewrite_count: int = 0
+    clarification_count: int = 0
     elapsed_seconds: float = 0.0
     cost_usd: float = 0.0
     total_tokens: int = 0
@@ -318,6 +319,7 @@ class BudgetGuard:
             "model_calls": self.state.model_calls,
             "tool_calls": self.state.tool_calls,
             "rewrite_count": self.state.rewrite_count,
+            "clarification_count": self.state.clarification_count,
             "elapsed_seconds": self.state.elapsed_seconds,
             "cost_usd": self.state.cost_usd,
             "total_tokens": self.state.total_tokens,
