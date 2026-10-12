@@ -26,3 +26,9 @@ class UnknownToolError(Exception):
     """工具不在白名单中"""
 
     pass
+
+
+class AgentSecurityError(Exception):
+    """Agent 安全违规（权限扩大、外发违规、跨 Run 访问等）"""
+
+    pass
