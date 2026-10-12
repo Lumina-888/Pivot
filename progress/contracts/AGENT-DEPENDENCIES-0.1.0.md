@@ -29,12 +29,23 @@
 
 **附加条件**: 7 天内完成遥测/许可证审核，生产部署前完成原生组件审核。
 
-## 候选版本矩阵
+## 版本
+
+2026-10-12 Owner 要求改用 PyPI 当前最新版。`langgraph==0.2.77` 在官方版本列表中不存在（0.2 线止于 0.2.76）。当前安装钉：
+
+| 包 | 现用版本 | 说明 |
+|---|---|---|
+| langgraph | 1.2.14 | 2026-10-06 发布，MIT，要求 langchain-core>=1.4.7,<2 |
+| langchain-core | 1.6.9 | 2026-10-08 发布，MIT |
+
+已验证候选仍是 langgraph **1.2.12**、langchain-core **1.6.6**（Windows/bookworm/Ubuntu CI）。1.2.14 / 1.6.9 **尚未**重跑锁、探针和回归，不替代那些证据。
+
+## 候选版本矩阵（已验证，历史）
 
 | 包 | 版本 | 用途 |
 |---|---|---|
-| langgraph | 1.2.12 | StateGraph、条件边、MessagesState |
-| langchain-core | 1.6.6 | AI/Tool/HumanMessage、消息序列化 |
+| langgraph | 1.2.12 | StateGraph、条件边、MessagesState；已被 1.2.14 取代为现用钉 |
+| langchain-core | 1.6.6 | AI/Tool/HumanMessage、消息序列化；已被 1.6.9 取代为现用钉 |
 | langgraph-checkpoint | 4.2.0 | InMemorySaver、JsonPlusSerializer |
 | langchain-openai | 1.6.7 | Chat Completions 可选适配（agent-openai） |
 | langgraph-checkpoint-postgres | 3.1.2 | PostgreSQL 持久化（agent-postgres，待验收） |
@@ -53,8 +64,8 @@ dependencies = [
   "SQLAlchemy>=2.0,<2.1",
   "alembic>=1.13,<2.0",
   "argon2-cffi>=23,<26",
-  "langgraph==1.2.12",
-  "langchain-core==1.6.6",
+  "langgraph==1.2.14",
+  "langchain-core==1.6.9",
 ]
 
 [project.optional-dependencies]

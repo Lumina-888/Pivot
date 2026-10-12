@@ -84,7 +84,7 @@
 ### ND-AGENT-02-C 框架依赖与锁定
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-009，AGENT_SPEC §8.1/§10；Accountable M03，Contributors M05/M11。
-- **状态 / 依赖**：released-conditional；[AGENT-DEPENDENCIES-0.1.0](../contracts/AGENT-DEPENDENCIES-0.1.0.md) 已发布，pyproject 已钉 langgraph 1.2.12 / langchain-core 1.6.6。正式角色锁、遥测/许可证（7 日内）与原生组件（生产前）仍 pending。
+- **状态 / 依赖**：released-conditional；[AGENT-DEPENDENCIES-0.1.0](../contracts/AGENT-DEPENDENCIES-0.1.0.md) 已发布，pyproject 现钉 langgraph 1.2.14 / langchain-core 1.6.9（2026-10-12 改用 PyPI 最新；已验证候选仍为 1.2.12 / 1.6.6，新组合未重跑探针）。正式角色锁、遥测/许可证（7 日内）与原生组件（生产前）仍 pending。
 - **场景 / 异常**：Given 启用 Agent 模式；Then StateGraph、消息/工具接口及 checkpointer 版本兼容；缺依赖/不支持 tools 失败，不静默切旧线性实现。
 - **范围 / 数据**：确认 LangGraph/langchain-core/模型适配/checkpointer 版本组合、锁文件策略、CI/Docker 安装范围及升级/回滚限制；版本须随 Run 追踪。
 - **路径 / 交付**：`progress/changes/` 依赖申请；批准后由 M03 串行维护 `api/pyproject.toml`/锁文件，M11 同步 CI/镜像。
