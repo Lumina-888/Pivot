@@ -18,10 +18,11 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
-from pivot.qa.agent_budget import BudgetGuard, BudgetPolicy, BudgetState
+from pivot.qa.agent_budget import BudgetExhaustedError, BudgetGuard, BudgetPolicy, BudgetState
+from pivot.qa.agent_finalizer import StructuredFinalizer
 from pivot.qa.agent_tools import EvidenceRegistry, ToolExecutor
 from pivot.qa.errors import AgentToolError, UnknownToolError
-from pivot.qa.ports import Retriever
+from pivot.qa.ports import DraftWriter, Retriever, Verifier
 
 # ====================
 # Agent State
@@ -58,10 +59,12 @@ class AgentNodes:
         retriever: Retriever,
         budget_policy: BudgetPolicy,
         model: Any | None = None,
+        finalizer: StructuredFinalizer | None = None,
     ) -> None:
         self.retriever = retriever
         self.budget_policy = budget_policy
         self.model = model
+        self.finalizer = finalizer
 
     def decide(self, state: AgentState) -> AgentState:
         """
@@ -74,21 +77,31 @@ class AgentNodes:
         budget_state = BudgetState(**state["budget_state"])
         budget_guard = BudgetGuard(self.budget_policy, budget_state)
 
-        # 预算检查
-        budget_guard.before_model_call()
+        # 预算耗尽时停止收费调用，不再进入工具循环。
+        try:
+            budget_guard.before_model_call()
+        except BudgetExhaustedError:
+            # 不回传已有 messages，避免 add_messages 把历史再追加一遍。
+            return {
+                "messages": [],
+                "run_id": state["run_id"],
+                "principal_id": state["principal_id"],
+                "scope_type": state["scope_type"],
+                "scope_document_id": state["scope_document_id"],
+                "budget_state": state["budget_state"],
+                "evidence_registry_data": state["evidence_registry_data"],
+                "final_answer": {
+                    "answer": "预算已耗尽，已停止继续调用。",
+                    "claims": [],
+                    "status": "budget_exhausted",
+                },
+            }
 
         # 调用真实模型（如果有）
         if self.model is not None:
             from pivot.qa.agent_model import get_tool_schemas
 
-            # 转换消息格式
-            formatted_messages = [
-                {
-                    "role": msg.get("role", msg.get("type", "user")),
-                    "content": msg.get("content", ""),
-                }
-                for msg in state["messages"]
-            ]
+            formatted_messages = [_message_dict(msg) for msg in state["messages"]]
 
             response = self.model.decide(
                 messages=formatted_messages,
@@ -96,7 +109,7 @@ class AgentNodes:
             )
 
             # 转换为 dict 格式
-            ai_message = {
+            ai_message: dict[str, Any] = {
                 "type": "ai",
                 "content": response.content or "",
             }
@@ -223,12 +236,23 @@ class AgentNodes:
         Returns:
             更新后的状态（包含 final_answer）
         """
-        # TODO: 调用 Finalizer 生成结构化答案
-        final_answer = {
-            "answer": "基于证据生成的答案",
-            "claims": [],
-            "status": "completed",
-        }
+        if state.get("final_answer"):
+            return state
+
+        evidences = EvidenceRegistry.restore(
+            state["evidence_registry_data"],
+            run_id=state["run_id"],
+            principal_id=state["principal_id"],
+        ).list_for_run(state["run_id"])
+        question = _latest_human_content(state["messages"])
+        if self.finalizer is None:
+            final_answer = {
+                "answer": "基于证据生成的答案",
+                "claims": [],
+                "status": "completed",
+            }
+        else:
+            final_answer = self.finalizer.finalize(question, evidences)
 
         return {
             **state,
@@ -241,7 +265,10 @@ class AgentNodes:
 # ====================
 
 
-def should_continue(state: AgentState) -> Literal["tools", "finalize", "end"]:
+def should_continue(
+    state: AgentState,
+    budget_policy: BudgetPolicy | None = None,
+) -> Literal["tools", "finalize", "end"]:
     """
     条件路由：决定下一步是调用工具、完成还是结束
 
@@ -250,36 +277,66 @@ def should_continue(state: AgentState) -> Literal["tools", "finalize", "end"]:
         "finalize": 生成最终答案
         "end": 结束（预算耗尽或其他终止条件）
     """
-    # 检查预算是否耗尽
-    budget_state = BudgetState(**state["budget_state"])
-    budget_policy = BudgetPolicy(
-        max_model_calls=10,
-        max_tool_calls=20,
-        max_rewrite_count=2,
-        timeout_seconds=60.0,
-    )
-    if budget_state.is_exhausted(budget_policy):
+    final_answer = state.get("final_answer") or {}
+    if final_answer.get("status") == "budget_exhausted":
         return "end"
 
-    # 检查最后一条消息
     if not state["messages"]:
         return "end"
 
-    last_message = state["messages"][-1]
+    # 模型次数在 decide 内拦截。这里只阻止超出工具额度的新工具派发。
+    message_type, tool_calls = _message_route(state["messages"][-1])
+    if budget_policy is not None and message_type == "ai" and tool_calls:
+        budget_state = BudgetState(**state["budget_state"])
+        if budget_state.tool_calls + len(tool_calls) > budget_policy.max_tool_calls:
+            return "end"
 
-    # 如果是 AI 消息且有工具调用，路由到工具执行
-    if last_message["type"] == "ai" and last_message.get("tool_calls"):
+    if message_type == "ai" and tool_calls:
         return "tools"
-
-    # 如果是 AI 消息且没有工具调用，路由到 finalize
-    if last_message["type"] == "ai" and not last_message.get("tool_calls"):
+    if message_type == "ai":
         return "finalize"
-
-    # 如果是 ToolMessage，继续循环（回到 decide）
-    if last_message["type"] == "tool":
-        return "tools"  # 这里会继续循环
-
     return "end"
+
+
+def _message_route(message: Any) -> tuple[str, list[Any]]:
+    if isinstance(message, AIMessage):
+        return "ai", list(message.tool_calls)
+    if isinstance(message, ToolMessage):
+        return "tool", []
+    if isinstance(message, dict):
+        message_type = message.get("type") or message.get("role") or ""
+        if message_type in {"ai", "assistant"}:
+            return "ai", list(message.get("tool_calls") or [])
+        if message_type in {"tool", "tool_call"}:
+            return "tool", []
+    return "", []
+
+
+def _message_dict(message: Any) -> dict[str, Any]:
+    if isinstance(message, AIMessage):
+        payload: dict[str, Any] = {"role": "assistant", "content": message.content or ""}
+        if message.tool_calls:
+            payload["tool_calls"] = list(message.tool_calls)
+        return payload
+    if isinstance(message, ToolMessage):
+        return {"role": "tool", "content": message.content, "tool_call_id": message.tool_call_id}
+    if isinstance(message, dict):
+        role = message.get("role") or message.get("type") or "user"
+        if role == "human":
+            role = "user"
+        if role == "ai":
+            role = "assistant"
+        return {**message, "role": role, "content": message.get("content", "")}
+    content = getattr(message, "content", "")
+    return {"role": "user", "content": content}
+
+
+def _latest_human_content(messages: list[Any]) -> str:
+    for message in reversed(messages):
+        payload = _message_dict(message)
+        if payload["role"] == "user" and payload.get("content"):
+            return str(payload["content"])
+    return ""
 
 
 # ====================
@@ -291,6 +348,10 @@ def create_agent_graph(
     retriever: Retriever,
     budget_policy: BudgetPolicy,
     model: Any | None = None,
+    *,
+    draft_writer: DraftWriter | None = None,
+    verifier: Verifier | None = None,
+    finalizer: StructuredFinalizer | None = None,
 ) -> StateGraph:
     """
     创建 Agent StateGraph
@@ -299,11 +360,16 @@ def create_agent_graph(
         retriever: 检索器
         budget_policy: 预算策略
         model: 可选的模型实例（AgentModel），用于真实决策
+        draft_writer: 可选答案草稿生成器
+        verifier: 可选答案校验器
+        finalizer: 可选结构化答案生成器；优先于 draft_writer
 
     Returns:
         配置好的 StateGraph
     """
-    nodes = AgentNodes(retriever, budget_policy, model)
+    if finalizer is None and draft_writer is not None:
+        finalizer = StructuredFinalizer(draft_writer, verifier)
+    nodes = AgentNodes(retriever, budget_policy, model, finalizer)
 
     # 创建图
     workflow = StateGraph(AgentState)
@@ -315,9 +381,13 @@ def create_agent_graph(
 
     # 添加边
     workflow.add_edge(START, "decide")
+
+    def route(state: AgentState) -> Literal["tools", "finalize", "end"]:
+        return should_continue(state, budget_policy)
+
     workflow.add_conditional_edges(
         "decide",
-        should_continue,
+        route,
         {
             "tools": "execute_tools",
             "finalize": "finalize",
@@ -338,6 +408,11 @@ def run_agent(
     principal_id: str,
     scope_type: str = "global",
     scope_document_id: str | None = None,
+    *,
+    model: Any | None = None,
+    draft_writer: DraftWriter | None = None,
+    verifier: Verifier | None = None,
+    finalizer: StructuredFinalizer | None = None,
 ) -> dict[str, Any]:
     """
     运行 Agent
@@ -355,7 +430,14 @@ def run_agent(
         最终结果
     """
     # 创建图
-    workflow = create_agent_graph(retriever, budget_policy)
+    workflow = create_agent_graph(
+        retriever,
+        budget_policy,
+        model,
+        draft_writer=draft_writer,
+        verifier=verifier,
+        finalizer=finalizer,
+    )
     graph = workflow.compile()
 
     # 初始化状态
