@@ -118,11 +118,7 @@ class AuthService:
         if session is None or session.revoked or session.expires_at <= self._clock.now():
             raise invalid_credentials(request_id)
         user = self._users.get_by_id(session.user_id)
-        if (
-            user is None
-            or user.status != "active"
-            or user.token_version != session.token_version
-        ):
+        if user is None or user.status != "active" or user.token_version != session.token_version:
             raise invalid_credentials(request_id)
         self._refresh_tokens.revoke(session.token_hash)
         result = self._issue_session(user)

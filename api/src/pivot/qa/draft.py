@@ -46,6 +46,5 @@ def render_verified_claims(claims: list[dict]) -> str:
     if not claims or any(claim.get("support") != "supported" for claim in claims):
         raise ValueError("only fully supported claims can be rendered")
     return "\n\n".join(
-        re.sub(r"([\\`*_[\]#!|~])", r"\\\1", escape(claim["text"], quote=False))
-        for claim in claims
+        re.sub(r"([\\`*_[\]#!|~])", r"\\\1", escape(claim["text"], quote=False)) for claim in claims
     )

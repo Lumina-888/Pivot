@@ -16,11 +16,7 @@ SSE_HEADERS = {
 
 
 def format_sse_frame(name: str, data: dict[str, object]) -> str:
-    return (
-        f"id: {data['seq']}\n"
-        f"event: {name}\n"
-        f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
-    )
+    return f"id: {data['seq']}\nevent: {name}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 def iter_sse_frames(

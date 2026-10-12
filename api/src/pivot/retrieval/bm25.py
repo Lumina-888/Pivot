@@ -33,9 +33,7 @@ class Bm25Retriever:
     def add(self, chunks: Sequence[ChunkRecord]) -> None:
         for chunk in chunks:
             self._chunks[chunk.chunk_id] = chunk
-            self._tokens[chunk.chunk_id] = self._tokenizer.tokenize(
-                f"{chunk.title} {chunk.text}"
-            )
+            self._tokens[chunk.chunk_id] = self._tokenizer.tokenize(f"{chunk.title} {chunk.text}")
         self._rebuild()
 
     def search(self, query: str, k: int) -> tuple[RankedHit, ...]:
@@ -93,8 +91,7 @@ class Bm25Reranker:
     ) -> tuple[RankedHit, ...]:
         query_tokens = self._tokenizer.tokenize(query)
         tokenized = {
-            chunk_id: self._tokenizer.tokenize(texts.get(chunk_id, ""))
-            for chunk_id in chunk_ids
+            chunk_id: self._tokenizer.tokenize(texts.get(chunk_id, "")) for chunk_id in chunk_ids
         }
         n_docs = len(tokenized) or 1
         df: dict[str, int] = {}

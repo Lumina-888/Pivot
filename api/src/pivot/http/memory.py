@@ -67,9 +67,7 @@ class InMemoryRefreshStore:
         self._items.pop(token_hash, None)
 
     def revoke_user(self, user_id: str) -> None:
-        self._items = {
-            key: value for key, value in self._items.items() if value.user_id != user_id
-        }
+        self._items = {key: value for key, value in self._items.items() if value.user_id != user_id}
 
 
 class InMemoryAuthAudit:

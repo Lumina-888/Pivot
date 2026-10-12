@@ -22,9 +22,7 @@ __all__ = [
 
 
 class JsonHttpError(Exception):
-    def __init__(
-        self, message: str, *, status: int | None = None, timeout: bool = False
-    ) -> None:
+    def __init__(self, message: str, *, status: int | None = None, timeout: bool = False) -> None:
         super().__init__(message)
         self.status = status
         self.timeout = timeout
@@ -141,17 +139,10 @@ class HttpQueryEmbedder:
         for item in ordered:
             raw = item.get("embedding")
             if not isinstance(raw, list) or not raw:
-                _provider_error(
-                    "PROVIDER_TEMPORARY_ERROR", "query embedding empty", self._api_key
-                )
+                _provider_error("PROVIDER_TEMPORARY_ERROR", "query embedding empty", self._api_key)
             vector = [float(value) for value in raw]
-            if (
-                self._expected_dimension is not None
-                and len(vector) != self._expected_dimension
-            ):
-                _provider_error(
-                    "RESOURCE_LIMIT", "embedding dimension mismatch", self._api_key
-                )
+            if self._expected_dimension is not None and len(vector) != self._expected_dimension:
+                _provider_error("RESOURCE_LIMIT", "embedding dimension mismatch", self._api_key)
             vectors.append(vector)
         if len(vectors) != expected:
             _provider_error("PROVIDER_TEMPORARY_ERROR", "query embedding empty", self._api_key)
@@ -215,9 +206,7 @@ class HttpBgeReranker:
                 score = float(raw_score or 0.0)
             except (TypeError, ValueError):
                 score = 0.0
-            scored.append(
-                RankedHit(chunk_id=chunk_ids[index], score=score, source="rerank")
-            )
+            scored.append(RankedHit(chunk_id=chunk_ids[index], score=score, source="rerank"))
         scored.sort(key=lambda hit: hit.score, reverse=True)
         unique: list[RankedHit] = []
         seen: set[str] = set()

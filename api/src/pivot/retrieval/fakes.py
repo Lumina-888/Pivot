@@ -70,9 +70,7 @@ class KeywordRetriever:
             score = sum(blob.count(term) for term in terms)
             if score > 0:
                 scored.append(
-                    RankedHit(
-                        chunk_id=chunk.chunk_id, score=float(score), source=self._source
-                    )
+                    RankedHit(chunk_id=chunk.chunk_id, score=float(score), source=self._source)
                 )
         scored.sort(key=lambda hit: hit.score, reverse=True)
         return tuple(scored[:k])

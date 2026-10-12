@@ -16,18 +16,14 @@ def require_native_extra() -> None:
         try:
             __import__(name)
         except ImportError as exc:
-            raise RuntimeError(
-                "pivot_worker[parse] is required when PIVOT_PARSER=native"
-            ) from exc
+            raise RuntimeError("pivot_worker[parse] is required when PIVOT_PARSER=native") from exc
 
 
 def _import_named(name: str):
     try:
         return __import__(name)
     except ImportError as exc:
-        raise RuntimeError(
-            "pivot_worker[parse] is required when PIVOT_PARSER=native"
-        ) from exc
+        raise RuntimeError("pivot_worker[parse] is required when PIVOT_PARSER=native") from exc
 
 
 def _reject_encrypted_ooxml(content: bytes) -> None:
@@ -173,9 +169,7 @@ class OpenpyxlParser:
                 rows: list[str] = []
                 for row in sheet.iter_rows():
                     values = [
-                        f"{cell.coordinate}:{cell.value}"
-                        for cell in row
-                        if cell.value is not None
+                        f"{cell.coordinate}:{cell.value}" for cell in row if cell.value is not None
                     ]
                     if values:
                         rows.append(" | ".join(values))

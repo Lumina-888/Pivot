@@ -19,6 +19,7 @@ from pivot.documents.service import DocumentService
 class IngestSubmitter(Protocol):
     def __call__(self, version_id: str, request_id: str, actor_id: str) -> object: ...
 
+
 _STATUS = {
     "UNSUPPORTED_EXTENSION": 400,
     "INVALID_FILE_SIGNATURE": 400,
@@ -168,11 +169,8 @@ def _file_response(payload: FileContent) -> Response:
 def _content_disposition(disposition: str, filename: str) -> str:
     ascii_name = filename.encode("ascii", "ignore").decode("ascii").strip() or "document"
     if "." in filename and "." not in ascii_name:
-        ascii_name = f"document{filename[filename.rfind('.'):]}"
-    return (
-        f'{disposition}; filename="{ascii_name}"; '
-        f"filename*=UTF-8''{quote(filename, safe='')}"
-    )
+        ascii_name = f"document{filename[filename.rfind('.') :]}"
+    return f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename, safe='')}"
 
 
 def _principal(request: Request, auth: AuthService):

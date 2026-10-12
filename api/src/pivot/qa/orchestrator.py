@@ -16,8 +16,11 @@ from pivot.runs.models import RunBundle
 from pivot.stream.buffer import EventLog
 
 TERMINAL_EVENT = {
-    "answered": "completed", "uncertain": "uncertain", "refused": "refused",
-    "failed": "failed", "cancelled": "cancelled",
+    "answered": "completed",
+    "uncertain": "uncertain",
+    "refused": "refused",
+    "failed": "failed",
+    "cancelled": "cancelled",
 }
 
 
@@ -45,7 +48,11 @@ class QaOrchestrator:
         self._writer = writer or EvidenceJoinWriter()
 
     def execute(
-        self, bundle: RunBundle, log: EventLog, request_id: str, *,
+        self,
+        bundle: RunBundle,
+        log: EventLog,
+        request_id: str,
+        *,
         persist_result: Callable[[RunBundle], None] | None = None,
     ) -> RunBundle:
         if is_terminal(bundle.run.state):
@@ -67,7 +74,12 @@ class QaOrchestrator:
         return self._retrieve_and_answer(bundle, log, request_id, from_planning=True)
 
     def resume(
-        self, bundle: RunBundle, log: EventLog, reply: str, request_id: str, *,
+        self,
+        bundle: RunBundle,
+        log: EventLog,
+        reply: str,
+        request_id: str,
+        *,
         persist_result: Callable[[RunBundle], None] | None = None,
     ) -> RunBundle:
         run = bundle.run
@@ -108,8 +120,10 @@ class QaOrchestrator:
             if exc.code == "VERIFICATION_UNAVAILABLE":
                 run.state = apply(run.state, "verify", request_id)
             event = (
-                "refuse" if exc.code == "EXTERNAL_LLM_NOT_ALLOWED"
-                else "uncertain" if exc.code == "VERIFICATION_UNAVAILABLE"
+                "refuse"
+                if exc.code == "EXTERNAL_LLM_NOT_ALLOWED"
+                else "uncertain"
+                if exc.code == "VERIFICATION_UNAVAILABLE"
                 else "fail"
             )
             run.state = apply(run.state, event, request_id)
@@ -124,7 +138,8 @@ class QaOrchestrator:
                 if (
                     type(decision) is not str
                     or decision not in {"answered", "uncertain", "refused"}
-                    or judge_claims != claims or judge_citations != citations
+                    or judge_claims != claims
+                    or judge_citations != citations
                 ):
                     raise ValueError("invalid verifier result")
         except Exception:
@@ -146,8 +161,10 @@ class QaOrchestrator:
 
     def _retrieve(self, run) -> RetrievalResult:
         return self._retriever.retrieve(
-            run.question, scope_type=run.scope_type,
-            scope_document_id=run.scope_document_id, principal_id=run.owner_id,
+            run.question,
+            scope_type=run.scope_type,
+            scope_document_id=run.scope_document_id,
+            principal_id=run.owner_id,
         )
 
     def _stage(self, log: EventLog, name: str) -> None:
@@ -155,7 +172,9 @@ class QaOrchestrator:
             log.emit("stage", name, {"stage": name})
 
     def _publish(
-        self, bundle: RunBundle, log: EventLog,
+        self,
+        bundle: RunBundle,
+        log: EventLog,
         persist_result: Callable[[RunBundle], None] | None,
     ) -> RunBundle:
         run = bundle.run

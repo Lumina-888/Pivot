@@ -58,10 +58,7 @@ def mineru_parser_registry(
         model=model,
     )
     return ParserRegistry(
-        {
-            kind: MinerUCloudParser(client, kind=kind, **kwargs)
-            for kind in _WHITELIST
-        }
+        {kind: MinerUCloudParser(client, kind=kind, **kwargs) for kind in _WHITELIST}
     )
 
 

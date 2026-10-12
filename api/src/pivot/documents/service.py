@@ -72,7 +72,7 @@ class DocumentService:
     def count_pending(self) -> int:
         """Return number of pending documents."""
         all_docs = self._documents.list_active()
-        return sum(1 for doc in all_docs if doc.status in ('uploaded', 'parsing', 'indexing'))
+        return sum(1 for doc in all_docs if doc.status in ("uploaded", "parsing", "indexing"))
 
     def count_failed(self) -> int:
         """Return number of failed documents."""
@@ -512,9 +512,7 @@ class DocumentService:
     def _now(self) -> datetime:
         return self._clock() if callable(self._clock) else self._clock
 
-    def _audit(
-        self, actor: str, action: str, target: str, result: str, request_id: str
-    ) -> None:
+    def _audit(self, actor: str, action: str, target: str, result: str, request_id: str) -> None:
         self._audits.emit(
             AuditDraft(
                 actor=actor,

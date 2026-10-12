@@ -12,12 +12,7 @@ _TJ = re.compile(rb"\((?:\\.|[^\\)])*\)\s*Tj")
 
 def _unescape(payload: bytes) -> str:
     text = payload.decode("latin-1", errors="replace")
-    return (
-        text.replace("\\(", "(")
-        .replace("\\)", ")")
-        .replace("\\n", "\n")
-        .replace("\\\\", "\\")
-    )
+    return text.replace("\\(", "(").replace("\\)", ")").replace("\\n", "\n").replace("\\\\", "\\")
 
 
 class PdfParser:

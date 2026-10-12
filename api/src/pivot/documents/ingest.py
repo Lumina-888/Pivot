@@ -17,9 +17,7 @@ class DocumentIngestSink:
         self._documents.parse_error(version_id, code, self._request_id)
 
     def on_chunks(self, version_id: str, texts: list[str], message_id: str) -> list[str]:
-        records = self._documents.apply_chunks(
-            version_id, texts, message_id, self._request_id
-        )
+        records = self._documents.apply_chunks(version_id, texts, message_id, self._request_id)
         return [record.id for record in records]
 
     def on_embedding_ok(self, version_id: str) -> None:

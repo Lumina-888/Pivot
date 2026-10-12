@@ -166,9 +166,7 @@ def build_auth_router(service: AuthService) -> APIRouter:
         initial_password: str | None = None
         if body.reset_password:
             initial_password = generate_initial_password()
-            reset = service.reset_password(
-                principal.user_id, id, initial_password, request_id
-            )
+            reset = service.reset_password(principal.user_id, id, initial_password, request_id)
             payload = service.admin_user(reset.id, request_id)
         if payload is None:
             payload = service.admin_user(id, request_id)

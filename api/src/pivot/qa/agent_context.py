@@ -21,7 +21,7 @@ from pivot.qa.errors import AgentSecurityError
 class RunContext:
     """
     可信 Run 上下文
-    
+
     服务端注入，不可由模型或客户端伪造的权限依据。
     包含执行所需的身份、权限、范围和策略。
     """
@@ -31,10 +31,10 @@ class RunContext:
     principal_id: str
     scope_type: str  # "all", "document", etc.
     scope_document_id: str | None
-    
+
     # 执行策略（未来扩展）
     allow_external_llm: bool = True  # 是否允许外部 LLM（内部部署时为 False）
-    
+
     def __post_init__(self):
         """验证上下文完整性"""
         if not self.run_id:
@@ -52,7 +52,7 @@ class RunContext:
 class OutboundGuard:
     """
     外发门禁
-    
+
     在每次模型调用前检查：
     - 是否有受限文档（external_llm_allowed=False）
     - 受限内容是否会被发送给外部模型
@@ -71,25 +71,25 @@ class OutboundGuard:
     ) -> None:
         """
         模型调用前的外发门禁检查
-        
+
         Args:
             messages: 将要发送的消息历史
             evidence_registry: 证据注册表
             is_external_model: 是否为外部模型（如 OpenAI）
-            
+
         Raises:
             AgentSecurityError: 检测到外发违规
         """
         # 如果不是外部模型，允许所有数据
         if not is_external_model:
             return
-        
+
         # 检查证据注册表中是否有受限文档
         restricted_evidence = self._find_restricted_evidence(evidence_registry)
-        
+
         if not restricted_evidence:
             return
-        
+
         # 检查消息中是否包含受限内容
         self._check_messages_for_restricted_content(
             messages,
@@ -103,7 +103,7 @@ class OutboundGuard:
     ) -> set[str]:
         """
         查找所有受限证据的 evidence_id
-        
+
         Returns:
             受限证据 ID 集合
         """
@@ -121,22 +121,22 @@ class OutboundGuard:
     ) -> None:
         """
         检查消息中是否包含受限内容
-        
+
         Args:
             messages: 消息列表
             restricted_evidence: 受限证据 ID 集合
             evidence_registry: 证据注册表
-            
+
         Raises:
             AgentSecurityError: 发现受限内容将被发送给外部模型
         """
         for message in messages:
             msg_type = message.get("type")
-            
+
             # 检查 ToolMessage 中的证据引用
             if msg_type == "tool":
                 self._check_tool_message(message, restricted_evidence, evidence_registry)
-            
+
             # 检查 AI/Human 消息中的文本内容
             elif msg_type in ("ai", "human"):
                 self._check_text_message(message, restricted_evidence, evidence_registry)
@@ -149,11 +149,12 @@ class OutboundGuard:
     ) -> None:
         """检查 ToolMessage 是否包含受限证据"""
         content = message.get("content", "")
-        
+
         # 如果 content 是字符串形式的 JSON，尝试解析
         if isinstance(content, str):
             try:
                 import json
+
                 content_data = json.loads(content)
             except (json.JSONDecodeError, ValueError):
                 # 无法解析，检查纯文本
@@ -165,7 +166,7 @@ class OutboundGuard:
                 return
         else:
             content_data = content
-        
+
         # 检查 evidence_ids 字段
         if isinstance(content_data, dict):
             evidence_ids = content_data.get("evidence_ids", [])
@@ -198,18 +199,18 @@ class OutboundGuard:
     ) -> None:
         """
         检查文本中是否泄露受限证据内容
-        
+
         策略：检查受限证据的关键片段是否出现在文本中
         """
         for evidence_id in restricted_evidence:
             entry = evidence_registry.get(evidence_id, run_id=self.context.run_id)
             if entry is None:
                 continue
-            
+
             evidence_text = entry.get("text", "")
             if not evidence_text:
                 continue
-            
+
             # 检查是否有显著的文本片段泄露
             # 使用简单策略：检查受限证据文本的前N个字符是否出现在消息中
             # 为了检测泄露，我们检查证据文本的多个片段
@@ -220,7 +221,7 @@ class OutboundGuard:
                     raise AgentSecurityError(
                         f"Message contains content from restricted evidence {evidence_id}"
                     )
-                
+
                 # 也检查中间部分（避免只改开头绕过检测）
                 if len(evidence_text) > 100:
                     mid_snippet = evidence_text[25:75]
@@ -233,7 +234,7 @@ class OutboundGuard:
 class ContextGuard:
     """
     上下文防护
-    
+
     防止模型或客户端伪造身份、扩大 scope 或访问未授权资源
     """
 
@@ -248,13 +249,13 @@ class ContextGuard:
     ) -> None:
         """
         工具执行前的上下文验证
-        
+
         确保工具调用不会扩大权限或访问越界资源
-        
+
         Args:
             tool_name: 工具名称
             tool_args: 工具参数
-            
+
         Raises:
             AgentSecurityError: 检测到权限扩大或越界访问
         """
@@ -266,12 +267,10 @@ class ContextGuard:
             "run_id",
             "conversation_id",
         }
-        
+
         for param in forbidden_params:
             if param in tool_args:
-                raise AgentSecurityError(
-                    f"Tool {tool_name} cannot specify {param} parameter"
-                )
+                raise AgentSecurityError(f"Tool {tool_name} cannot specify {param} parameter")
 
     def validate_evidence_access(
         self,
@@ -281,28 +280,26 @@ class ContextGuard:
     ) -> None:
         """
         证据访问前的验证
-        
+
         确保只能访问本 Run 已注册的合法证据
-        
+
         Args:
             evidence_id: 证据 ID
             evidence_registry: 证据注册表
-            
+
         Raises:
             AgentSecurityError: 跨 Run 访问或非法证据 ID
         """
         entry = evidence_registry.get(evidence_id, run_id=self.context.run_id)
-        
+
         if entry is None:
             raise AgentSecurityError(
                 f"Evidence {evidence_id} not found or not accessible in this run"
             )
-        
+
         # 验证 principal 匹配
         if entry.get("principal_id") != self.context.principal_id:
-            raise AgentSecurityError(
-                f"Evidence {evidence_id} belongs to different principal"
-            )
+            raise AgentSecurityError(f"Evidence {evidence_id} belongs to different principal")
 
 
 def create_trusted_context(
@@ -316,9 +313,9 @@ def create_trusted_context(
 ) -> RunContext:
     """
     创建可信上下文（服务端调用）
-    
+
     这是唯一创建 RunContext 的合法入口，确保所有上下文都经过验证。
-    
+
     Args:
         run_id: Run ID
         conversation_id: 会话 ID
@@ -326,7 +323,7 @@ def create_trusted_context(
         scope_type: 检索范围类型
         scope_document_id: 可选文档范围
         allow_external_llm: 是否允许外部 LLM
-        
+
     Returns:
         可信 RunContext
     """

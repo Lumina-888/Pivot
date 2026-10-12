@@ -90,8 +90,6 @@ class SqlAlchemyRefreshTokenStore:
     def revoke_user(self, user_id: str) -> None:
         with self._scope() as db:
             with UnitOfWork(db):
-                rows = db.scalars(
-                    select(RefreshToken).where(RefreshToken.user_id == user_id)
-                ).all()
+                rows = db.scalars(select(RefreshToken).where(RefreshToken.user_id == user_id)).all()
                 for row in rows:
                     row.revoked = True

@@ -12,9 +12,7 @@ from pivot.qa.ports import EvidenceHit
 from pivot.retrieval.providers import InvalidJsonResponseError, JsonHttpError
 from pivot.shared.ids import new_id
 
-_RETRYABLE = frozenset(
-    {"PROVIDER_TIMEOUT", "PROVIDER_RATE_LIMITED", "PROVIDER_TEMPORARY_ERROR"}
-)
+_RETRYABLE = frozenset({"PROVIDER_TIMEOUT", "PROVIDER_RATE_LIMITED", "PROVIDER_TEMPORARY_ERROR"})
 _DRAFT_INSTRUCTIONS = (
     "Answer only from the provided evidence. "
     'Return only JSON: {"claims":[{"text":"complete evidence statement","evidence_index":0}]}. '
@@ -103,14 +101,24 @@ def _draft_from_payload(parsed: object, hits: tuple[EvidenceHit, ...]):
             _invalid_answer()
         hit = hits[index]
         claim_id, citation_id = new_id("claim"), new_id("citation")
-        claims.append({
-            "id": claim_id, "text": text.strip(), "citation_ids": (citation_id,),
-            "support": "unsupported",
-        })
-        citations.append({
-            "id": citation_id, "claim_id": claim_id, "document_id": hit.document_id,
-            "version_id": hit.version_id, "chunk_id": hit.chunk_id, "locator": hit.locator,
-        })
+        claims.append(
+            {
+                "id": claim_id,
+                "text": text.strip(),
+                "citation_ids": (citation_id,),
+                "support": "unsupported",
+            }
+        )
+        citations.append(
+            {
+                "id": citation_id,
+                "claim_id": claim_id,
+                "document_id": hit.document_id,
+                "version_id": hit.version_id,
+                "chunk_id": hit.chunk_id,
+                "locator": hit.locator,
+            }
+        )
     # Compatibility preview only; the publisher renders validated Claims independently.
     return "。".join(claim["text"] for claim in claims), claims, citations
 

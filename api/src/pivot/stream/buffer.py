@@ -59,9 +59,7 @@ class EventLog:
 
     def replay(self, last_event_id: int | None = None) -> tuple[tuple[str, dict[str, Any]], ...]:
         start = 0 if last_event_id is None else last_event_id
-        return tuple(
-            (name, data) for name, data in self._events if data["seq"] > start
-        )
+        return tuple((name, data) for name, data in self._events if data["seq"] > start)
 
     def persistable(self) -> tuple[tuple[str, dict[str, Any]], ...]:
         return tuple(self._events)

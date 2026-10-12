@@ -45,9 +45,7 @@ class RetrievalService:
             return self._search_corpus(query, limit)
         return self._search_from_retrievers(query, limit)
 
-    def _search_corpus(
-        self, query: RetrievalQuery, limit: int | None
-    ) -> tuple[SearchHit, ...]:
+    def _search_corpus(self, query: RetrievalQuery, limit: int | None) -> tuple[SearchHit, ...]:
         allowed = filter_corpus(self._all, query)
         needle = query.text.lower()
         hits: list[SearchHit] = []
@@ -110,9 +108,7 @@ class RetrievalService:
         dense_hits = self._search_one(
             self._dense, "dense", query.text, self._policy.dense_k, warnings
         )
-        bm25_hits = self._search_one(
-            self._bm25, "bm25", query.text, self._policy.bm25_k, warnings
-        )
+        bm25_hits = self._search_one(self._bm25, "bm25", query.text, self._policy.bm25_k, warnings)
         if dense_hits is None and bm25_hits is None:
             return RetrievalOutcome(
                 status="failed",
@@ -147,9 +143,7 @@ class RetrievalService:
                 if reranked_ids:
                     ordered_ids = reranked_ids
                 self.provider_calls.append(
-                    ProviderCallNote(
-                        provider="rerank", operation="rerank", status="ok"
-                    )
+                    ProviderCallNote(provider="rerank", operation="rerank", status="ok")
                 )
             except RetrieverError as error:
                 warnings.append("rerank_failed")
@@ -188,9 +182,7 @@ class RetrievalService:
             conflicts=self._conflicts(tuple(evidence)),
         )
 
-    def _search_one(
-        self, retriever: Retriever, name: str, text: str, k: int, warnings: list[str]
-    ):
+    def _search_one(self, retriever: Retriever, name: str, text: str, k: int, warnings: list[str]):
         try:
             hits = retriever.search(text, k)
             self.provider_calls.append(

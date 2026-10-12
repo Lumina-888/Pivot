@@ -103,9 +103,7 @@ class ConversationService:
         return record
 
     def list_for_owner(self, owner_id: str) -> tuple[ConversationRecord, ...]:
-        return tuple(
-            record for record in self._store.list_for_owner(owner_id) if not record.hidden
-        )
+        return tuple(record for record in self._store.list_for_owner(owner_id) if not record.hidden)
 
     def hide(self, conversation_id: str, request_id: str) -> None:
         record = self.get(conversation_id, request_id)

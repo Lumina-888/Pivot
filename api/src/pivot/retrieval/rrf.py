@@ -18,6 +18,5 @@ def fuse(ranked_lists: tuple[tuple[RankedHit, ...], ...], rrf_k: int) -> tuple[R
             scores[hit.chunk_id] += 1.0 / (rrf_k + rank)
     ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
     return tuple(
-        RankedHit(chunk_id=chunk_id, score=score, source="rrf")
-        for chunk_id, score in ordered
+        RankedHit(chunk_id=chunk_id, score=score, source="rrf") for chunk_id, score in ordered
     )

@@ -82,9 +82,7 @@ class PptxParser:
                 body = "\n".join(texts)
                 if not body.strip():
                     continue
-                blocks.append(
-                    ParsedBlock(text=body, locator=f"slide={index}", title_path=title)
-                )
+                blocks.append(ParsedBlock(text=body, locator=f"slide={index}", title_path=title))
         if not blocks:
             raise parse_error("EMPTY_TEXT", "解析结果为空")
         return ParsedDocument(kind="pptx", blocks=tuple(blocks))

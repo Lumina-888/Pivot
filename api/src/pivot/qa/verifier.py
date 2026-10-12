@@ -30,8 +30,10 @@ def _valid_bindings(claims: list[dict], citations: list[dict], candidates: dict)
         hit = candidates.get(citation["chunk_id"])
         if hit is None or citation.get("claim_id") not in claim_ids:
             return False
-        if any(citation.get(field) != getattr(hit, field)
-               for field in ("document_id", "version_id", "locator")):
+        if any(
+            citation.get(field) != getattr(hit, field)
+            for field in ("document_id", "version_id", "locator")
+        ):
             return False
         by_id[citation["id"]] = citation
     used: set[str] = set()

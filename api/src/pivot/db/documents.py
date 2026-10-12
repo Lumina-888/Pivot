@@ -185,9 +185,7 @@ class SqlAlchemyVersionStore(_SessionBound):
     def find_by_sha(self, content_sha256: str) -> VersionRecord | None:
         with self._scope() as session:
             row = session.scalar(
-                select(DocumentVersion).where(
-                    DocumentVersion.content_sha256 == content_sha256
-                )
+                select(DocumentVersion).where(DocumentVersion.content_sha256 == content_sha256)
             )
             return _to_version(row) if row is not None else None
 

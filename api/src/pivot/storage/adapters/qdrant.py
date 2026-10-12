@@ -52,9 +52,7 @@ class QdrantClient(Protocol):
         self, collection_name: str, *, vector_size: int, distance: str
     ) -> None: ...
     def upsert(self, collection_name: str, points) -> None: ...
-    def search(
-        self, collection_name, query_vector, limit=10, query_filter=None
-    ) -> list: ...
+    def search(self, collection_name, query_vector, limit=10, query_filter=None) -> list: ...
     def delete(self, collection_name, points_selector=None) -> None: ...
 
 
@@ -163,9 +161,7 @@ class QdrantVectorStore:
         if ensure_collection and not client.collection_exists(collection):
             if vector_size is None or vector_size <= 0 or not (distance or "").strip():
                 raise ValueError("vector_size and distance are required to ensure collection")
-            client.create_collection(
-                collection, vector_size=vector_size, distance=distance.strip()
-            )
+            client.create_collection(collection, vector_size=vector_size, distance=distance.strip())
 
     @classmethod
     def connect(

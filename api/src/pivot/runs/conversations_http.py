@@ -37,9 +37,7 @@ def _principal(request: Request, auth: AuthService):
     return request_id, principal
 
 
-def build_conversations_router(
-    conversations: ConversationService, auth: AuthService
-) -> APIRouter:
+def build_conversations_router(conversations: ConversationService, auth: AuthService) -> APIRouter:
     router = APIRouter()
 
     @router.get("/conversations")
