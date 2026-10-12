@@ -12,11 +12,16 @@
 | AGENT-BUDGET | 0.1.0 | 2026-10-12 | released | DR-010 预算策略与累计用量 |
 | AGENT-DEPENDENCIES | 0.1.0 | 2026-10-12 | released | Python 3.12 框架依赖锁定 |
 
+### Agent 公开契约（已发布）
+
+| 契约 ID | 版本 | 发布日期 | 状态 | 适用范围 |
+|---|---|---|---|---|
+| AGENT-RESUME | 0.2.0 | 2026-10-12 | released | Agent 澄清恢复公开 API (contract-v0.2) |
+
 ### 待发布契约（review 状态）
 
 | 契约 ID | 版本 | 提案状态 | 工单 |
 |---|---|---|---|
-| AGENT-RESUME | 0.1.0-draft.1 | proposed | ND-AGENT-03-A |
 | AGENT-PERSISTENCE | 0.1.0-draft.1 | proposed | ND-AGENT-04-A |
 
 ## 发布纪律
