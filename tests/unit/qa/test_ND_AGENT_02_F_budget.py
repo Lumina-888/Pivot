@@ -527,12 +527,66 @@ def test_budget_unknown_usage_fails_closed_without_recording_zero():
         guard.before_model_call(estimated_cost_usd=0.1, estimated_tokens=10)
 
 
+_RETRYABLE = frozenset({"timeout", "rate_limited", "temporary"})
+
+
+class _ScriptedModel:
+    def __init__(self, outcome: str) -> None:
+        self.outcome = outcome
+        self.calls = 0
+
+    def decide(self):
+        self.calls += 1
+        if self.outcome != "ok":
+            raise RuntimeError(self.outcome)
+        return "answer"
+
+
+def test_budget_fallback_shares_ledger_for_retryable_failure():
+    """临时失败切到备用模型时，两次调用计入同一本账。"""
+    policy = BudgetPolicy(
+        max_model_calls=2,
+        max_tool_calls=1,
+        max_rewrite_count=0,
+        timeout_seconds=30.0,
+        max_cost_usd=1.0,
+        max_total_tokens=100,
+    )
+    guard = BudgetGuard(policy, BudgetState())
+    primary = _ScriptedModel("timeout")
+    fallback = _ScriptedModel("ok")
+
+    assert guard.call_with_fallback(primary, fallback, retryable=_RETRYABLE) == "answer"
+    assert (primary.calls, fallback.calls) == (1, 1)
+    assert guard.state.model_calls == 2
+    assert guard.state.cost_usd == 0.2
+
+
+def test_budget_protocol_error_does_not_call_fallback():
+    """权限或协议错误不可重试，不调用备用模型。"""
+    policy = BudgetPolicy(
+        max_model_calls=2,
+        max_tool_calls=1,
+        max_rewrite_count=0,
+        timeout_seconds=30.0,
+    )
+    guard = BudgetGuard(policy, BudgetState())
+    primary = _ScriptedModel("forbidden")
+    fallback = _ScriptedModel("ok")
+
+    with pytest.raises(RuntimeError, match="forbidden"):
+        guard.call_with_fallback(primary, fallback, retryable=_RETRYABLE)
+
+    assert fallback.calls == 0
+    assert guard.state.model_calls == 1
+
+
 def test_budget_missing_policy_fails_closed():
     """
     Given: 创建 BudgetPolicy
     When: 缺少必需策略参数
     Then: 应该 fail closed
-    
+
     验证 FR-AGENT-004: 无必需策略时 fail closed
     """
     # max_model_calls 必须至少为 1

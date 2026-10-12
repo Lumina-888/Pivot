@@ -145,12 +145,7 @@ class AgentNodes:
         return {
             **state,
             "messages": [ai_message],
-            "budget_state": {
-                "model_calls": budget_state.model_calls,
-                "tool_calls": budget_state.tool_calls,
-                "rewrite_count": budget_state.rewrite_count,
-                "elapsed_seconds": budget_state.elapsed_seconds,
-            },
+            "budget_state": budget_guard.state_snapshot(),
         }
 
     def execute_tools(self, state: AgentState) -> AgentState:
@@ -220,12 +215,7 @@ class AgentNodes:
         return {
             **state,
             "messages": tool_messages,
-            "budget_state": {
-                "model_calls": budget_state.model_calls,
-                "tool_calls": budget_state.tool_calls,
-                "rewrite_count": budget_state.rewrite_count,
-                "elapsed_seconds": budget_state.elapsed_seconds,
-            },
+            "budget_state": budget_guard.state_snapshot(),
             "evidence_registry_data": evidence_registry.snapshot(),
         }
 
@@ -447,12 +437,7 @@ def run_agent(
         "principal_id": principal_id,
         "scope_type": scope_type,
         "scope_document_id": scope_document_id,
-        "budget_state": {
-            "model_calls": 0,
-            "tool_calls": 0,
-            "rewrite_count": 0,
-            "elapsed_seconds": 0.0,
-        },
+        "budget_state": BudgetGuard(budget_policy, BudgetState()).state_snapshot(),
         "evidence_registry_data": {},
         "final_answer": None,
     }

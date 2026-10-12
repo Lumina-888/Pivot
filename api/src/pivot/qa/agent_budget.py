@@ -10,7 +10,7 @@ Agent 预算管理实现
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 
 @dataclass
@@ -148,6 +148,10 @@ class BudgetState:
         self.elapsed_seconds = seconds
 
 
+class BudgetModel(Protocol):
+    def decide(self) -> Any: ...
+
+
 class BudgetExhaustedError(Exception):
     """预算耗尽错误"""
 
@@ -219,6 +223,40 @@ class BudgetGuard:
         self.state.cost_usd += actual_cost_usd
         self.state.total_tokens += actual_tokens
 
+    def call_with_fallback(
+        self,
+        primary: BudgetModel,
+        fallback: BudgetModel,
+        *,
+        retryable: frozenset[str],
+        estimated_cost_usd: float = 0.1,
+        estimated_tokens: int = 10,
+    ) -> Any:
+        """主备调用共享同一账本；只有可重试失败才切换。"""
+        self.before_model_call(
+            estimated_cost_usd=estimated_cost_usd,
+            estimated_tokens=estimated_tokens,
+        )
+        try:
+            result = primary.decide()
+        except Exception as exc:
+            self.settle_model_call(
+                actual_cost_usd=estimated_cost_usd,
+                actual_tokens=estimated_tokens,
+            )
+            if str(exc) not in retryable:
+                raise
+            self.before_model_call(
+                estimated_cost_usd=estimated_cost_usd,
+                estimated_tokens=estimated_tokens,
+            )
+            result = fallback.decide()
+        self.settle_model_call(
+            actual_cost_usd=estimated_cost_usd,
+            actual_tokens=estimated_tokens,
+        )
+        return result
+
     def before_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """
         工具调用前检查
@@ -253,6 +291,20 @@ class BudgetGuard:
     def is_exhausted(self) -> bool:
         """检查预算是否耗尽"""
         return self.state.is_exhausted(self.policy)
+
+    def state_snapshot(self) -> dict[str, Any]:
+        """恢复所需的累计账本，不含策略或供应商信息。"""
+        return {
+            "model_calls": self.state.model_calls,
+            "tool_calls": self.state.tool_calls,
+            "rewrite_count": self.state.rewrite_count,
+            "elapsed_seconds": self.state.elapsed_seconds,
+            "cost_usd": self.state.cost_usd,
+            "total_tokens": self.state.total_tokens,
+            "reserved_cost_usd": self.state.reserved_cost_usd,
+            "reserved_tokens": self.state.reserved_tokens,
+            "unknown_usage": self.state.unknown_usage,
+        }
 
     def get_summary(self) -> dict[str, Any]:
         """获取预算使用摘要"""
