@@ -31,7 +31,7 @@
 | ND-AGENT-02-F | 调用、重写、重试及主备累计预算 | P0 / M | M05 | dev-landed | Fixture 开发已提交；生产数值 TBD-P0，不批准运行 |
 | ND-AGENT-02-G | 真实 StateGraph 原生工具条件循环 | P0 / M | M05 | dev-landed | 开发实现已提交；跨进程恢复仍待 04 |
 | ND-AGENT-02-H | Finalizer/Verifier 补证与全量答案门禁接图 | P0 / S | M05 | dev-landed | 开发实现已提交；事务/outbox 仍待 04-B |
-| ND-AGENT-03-A | 恢复 API、错误映射与消费者 Contract 提案 | P0 / S | M00 | review | proposed schema/形状检查/用例设计已提交；发布须消费者确认 |
+| ND-AGENT-03-A | 恢复 API、错误映射与消费者 Contract 提案 | P0 / S | M00 | approved | Owner 已批准全部 7 项签认；可发布为 contract-v0.2 |
 | ND-AGENT-03-B | 新图到 Run 状态/SSE 白名单投影 | P0 / S | M05 | dev-landed | `c0646ec`；9 passed；未接入每次图节点发布 |
 | ND-AGENT-03-C | 调用边界取消与晚到结果竞争 | P0 / S | M05 | dev-landed | `fe795df`；3 passed；不撤销已发生计费，跨进程租约待 04-D |
 | ND-AGENT-03-D | 一轮 interrupt 与授权幂等 resume | P0 / M | M05 | dev-landed-partial | `d7c8eca`；4 passed；仅图内，公开 resume 仍待 03-A |
@@ -53,7 +53,7 @@
 | ND-P0-01-A | 120 条企业脱敏集业务复核 | P0 / M | M11 | blocked | Owner 指定业务复核人/样本准入 |
 | ND-STG-04-A | staging ECS apply 与低敏冒烟 | P1 / M | M11 | blocked | Owner SSH/安全组/磁盘/访问拓扑 |
 
-共 29 张细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。当前 02-A/B released、02-C released-conditional；02-D/F implementation-ready（开发，不批准运行）；03-A、04-A 仍 review；其余 blocked。P0/P1 既有门禁票继续沿用，见 §4。
+共 29 张细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。当前 02-A/B released、02-C released-conditional；02-D/F implementation-ready（开发，不批准运行）；03-A approved（2026-10-12）、04-A 仍 review；其余 blocked。P0/P1 既有门禁票继续沿用，见 §4。
 
 ## 2. Agent Tickets
 
