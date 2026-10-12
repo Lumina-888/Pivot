@@ -8,9 +8,12 @@ from pivot.db.models.conversations import (
     Claim,
     Conversation,
     Message,
+    PublicEventOutbox,
+    ResultCommit,
     Run,
 )
 from pivot.db.models.documents import Chunk, Document, DocumentVersion, IndexGeneration
+from pivot.db.models.execution import CheckpointBinding, RunExecution
 from pivot.db.models.identity import RefreshToken, User
 from pivot.db.models.operations import CeleryTask, ExportTask, ParseError, ProviderCall
 
@@ -25,9 +28,13 @@ __all__ = [
     "Conversation",
     "Message",
     "Run",
+    "RunExecution",
+    "CheckpointBinding",
     "AgentEvent",
     "Claim",
     "Citation",
+    "ResultCommit",
+    "PublicEventOutbox",
     "ExportTask",
     "CeleryTask",
     "ParseError",

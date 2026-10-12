@@ -85,6 +85,9 @@ class Run(Base):
     message: Mapped["Message | None"] = relationship(
         foreign_keys="Message.run_id", back_populates="run"
     )
+    execution: Mapped["RunExecution | None"] = relationship(
+        back_populates="run", uselist=False, cascade="all, delete-orphan"
+    )
     events: Mapped[list["AgentEvent"]] = relationship(
         back_populates="run", cascade="all, delete-orphan"
     )
@@ -99,6 +102,7 @@ class Run(Base):
 
 class AgentEvent(Base):
     __tablename__ = "agent_events"
+    __table_args__ = (UniqueConstraint("run_id", "seq", name="uq_agent_events_run_seq"),)
 
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
@@ -150,6 +154,51 @@ class Citation(Base):
     claim: Mapped["Claim | None"] = relationship(back_populates="citations")
 
 
+class ResultCommit(Base):
+    """Immutable result commitment binding for a Run's terminal state."""
+
+    __tablename__ = "result_commits"
+
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("runs.id"), primary_key=True, nullable=False
+    )
+    result_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    message_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    terminal_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    verification_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_snapshot_id: Mapped[str | None] = mapped_column(String(128))
+    committed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    run: Mapped["Run"] = relationship(foreign_keys=[run_id])
+
+
+class PublicEventOutbox(Base):
+    """Outbox pattern for public SSE event publication with seq guarantees."""
+
+    __tablename__ = "public_event_outbox"
+    __table_args__ = (
+        UniqueConstraint("run_id", "seq", name="uq_outbox_run_seq"),
+        UniqueConstraint("run_id", "publication_key", name="uq_outbox_run_publication_key"),
+    )
+
+    event_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), nullable=False)
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    publication_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    envelope: Mapped[str] = mapped_column(Text, nullable=False)
+    projection_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    run: Mapped["Run"] = relationship(foreign_keys=[run_id])
+
+
 if TYPE_CHECKING:
+    from pivot.db.models.execution import RunExecution
     from pivot.db.models.identity import User
     from pivot.db.models.operations import ProviderCall
