@@ -1,0 +1,246 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "AGENT-RESUME-0.1-draft.1 (proposed, unpublished)",
+    "$comment": "ND-AGENT-03-A only. Not a callable API or part of contract-v0.1.",
+    "$ref": "#/$defs/ResumeRequest",
+    "x-status": "proposed",
+    "x-contract-version": "AGENT-RESUME-0.1-draft.1",
+    "x-tbd-p0": [
+        "answer_size",
+        "prompt_size",
+        "waiting_deadline",
+        "idempotency_retention"
+    ],
+    "$defs": {
+        "Id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "\\S"
+        },
+        "NonblankText": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+        },
+        "ResumeRequest": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "clarification_id",
+                "answer",
+                "idempotency_key"
+            ],
+            "properties": {
+                "clarification_id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "answer": {
+                    "$ref": "#/$defs/NonblankText"
+                },
+                "idempotency_key": {
+                    "$ref": "#/$defs/NonblankText"
+                }
+            }
+        },
+        "Clarification": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "clarification_id",
+                "prompt"
+            ],
+            "properties": {
+                "clarification_id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "prompt": {
+                    "$ref": "#/$defs/NonblankText"
+                }
+            }
+        },
+        "ResumeAccepted": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "run_id",
+                "message_id",
+                "clarification_id",
+                "state",
+                "request_id"
+            ],
+            "properties": {
+                "run_id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "message_id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "clarification_id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "state": {
+                    "const": "resuming"
+                },
+                "request_id": {
+                    "$ref": "#/$defs/NonblankText"
+                }
+            }
+        },
+        "ResumeError": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "code",
+                "message",
+                "request_id",
+                "details",
+                "retryable"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "$ref": "#/$defs/NonblankText"
+                },
+                "request_id": {
+                    "$ref": "#/$defs/NonblankText"
+                },
+                "details": {
+                    "type": "object",
+                    "maxProperties": 0
+                },
+                "retryable": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ResumeFailure": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "http_status",
+                "body"
+            ],
+            "properties": {
+                "http_status": {
+                    "type": "integer"
+                },
+                "body": {
+                    "$ref": "#/$defs/ResumeError"
+                }
+            },
+            "oneOf": [
+                {
+                    "properties": {
+                        "http_status": {
+                            "const": 401
+                        },
+                        "body": {
+                            "properties": {
+                                "code": {
+                                    "const": "AUTH_INVALID_CREDENTIALS"
+                                },
+                                "retryable": {
+                                    "const": false
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "properties": {
+                        "http_status": {
+                            "const": 403
+                        },
+                        "body": {
+                            "properties": {
+                                "code": {
+                                    "const": "AUTH_FORBIDDEN"
+                                },
+                                "retryable": {
+                                    "const": false
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "properties": {
+                        "http_status": {
+                            "const": 404
+                        },
+                        "body": {
+                            "properties": {
+                                "code": {
+                                    "const": "RESOURCE_NOT_FOUND"
+                                },
+                                "retryable": {
+                                    "const": false
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "properties": {
+                        "http_status": {
+                            "const": 409
+                        },
+                        "body": {
+                            "properties": {
+                                "code": {
+                                    "enum": [
+                                        "IDEMPOTENCY_CONFLICT",
+                                        "RESUME_NOT_ALLOWED",
+                                        "CLARIFICATION_MISMATCH",
+                                        "RUN_CANCELLED",
+                                        "RUN_TIMEOUT"
+                                    ]
+                                },
+                                "retryable": {
+                                    "const": false
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "properties": {
+                        "http_status": {
+                            "const": 422
+                        },
+                        "body": {
+                            "properties": {
+                                "code": {
+                                    "const": "INVALID_RESUME_REQUEST"
+                                },
+                                "retryable": {
+                                    "const": false
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "properties": {
+                        "http_status": {
+                            "const": 503
+                        },
+                        "body": {
+                            "properties": {
+                                "code": {
+                                    "const": "PROVIDER_TEMPORARY_ERROR"
+                                },
+                                "retryable": {
+                                    "const": true
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}

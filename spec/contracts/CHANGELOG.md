@@ -2,6 +2,42 @@
 
 格式：契约版本（manifest 版本）— 日期 — 变更摘要与兼容性说明。
 
+## 0.2.0 — 2026-10-12 — 新增 Agent 恢复接口（contract-v0.2）
+
+- **来源**：ND-AGENT-03-A（[AGENT-RESUME-0.1-draft.1](../../progress/changes/20261003-M00-agent-resume-contract.md)）；Owner 已批准全部 7 项签认。
+- **新增接口**：
+  - `POST /api/v1/runs/{id}/resume`：回复 Agent 澄清请求（FR-AGENT-007）
+  - 仅 owner 可回复 `waiting_for_user` 状态的 Run
+  - 同键同参返回历史 202 回执；同键异参返回 409 IDEMPOTENCY_CONFLICT
+  - 预算、rewrite/clarification 次数、原期限不重置
+  - 恢复后继续原 Run，不创建新 Run/Message
+- **新增字段**：
+  - `RunDetail.clarification`（可选）：仅 `waiting_for_user` 状态返回
+    - `clarification_id`：服务端生成的澄清 ID
+    - `prompt`：安全公开的澄清提示（不含 reasoning/工具参数/受保护证据）
+- **新增错误码**（SPEC 附录 B.1 更新）：
+  - `RESUME_NOT_ALLOWED` (409)：错误状态/已消费等待/第二轮/无法合法继续
+  - `CLARIFICATION_MISMATCH` (409)：澄清 ID 过期或属于他 Run
+  - `INVALID_RESUME_REQUEST` (422)：非法 JSON/字段/大小
+- **新增 schemas**：
+  - `ResumeRunRequest`：三字段必需（clarification_id, answer, idempotency_key）
+  - `ResumeRunAccepted`：202 回执（run_id, message_id, clarification_id, state=resuming, request_id）
+- **生产数值**（Owner 批准 2026-10-12）：
+  - 等待超时：24 小时
+  - 回复最大长度：10,000 字符
+  - 幂等回执保留期：7 天
+- **兼容性**：
+  - 向后兼容：新增可选字段、新增路由、新增错误码
+  - 旧客户端可继续使用既有 API，不启用 Agent 模式
+  - 新客户端需要支持 `RunDetail.clarification` 解析
+  - 升级窗口：1 个月
+  - `RunDetail` 从 `additionalProperties: false` 升级，消费者需要同步更新
+- **文档**：
+  - 签认记录：`progress/approvals/20261012-03-a-approved.md`
+  - Schema：`spec/contracts/v0.2/agent-resume.schema.json`
+- **测试**：contract 测试需要更新（从 proposal 升级为正式契约测试）
+- **下一步**：03-B/C/D 验证已有实现是否符合契约；03-E 实施 Web 恢复按钮
+
 ## 2026-10-02 — SPEC-1.1 目标迁移说明（不发布新契约版本）
 
 - SPEC-1.1/AGENT-SPEC/ADR-009 接受 LangGraph 受控 ReAct，旧固定主图不再是目标。
