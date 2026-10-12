@@ -382,6 +382,109 @@ def test_evidence_registry_isolates_runs():
     assert registry.get(ids2[0], run_id="run_2") is not None
 
 
+def test_evidence_registry_dedupes_same_version_and_keeps_sources():
+    """同一文档版本代次重复命中时复用 evidence_id，并保留每次来源。"""
+    registry = EvidenceRegistry()
+    hit = EvidenceHit(
+        chunk_id="chk_1",
+        document_id="doc_1",
+        version_id="ver_1",
+        text="迟到三次记旷工",
+        locator="page=1",
+        index_generation="idx_1",
+        embedding_model_version="emb_1",
+        retrieval_config_version="ret_1",
+    )
+
+    first = registry.register_search_result(
+        (hit,), run_id="run_1", tool_call_id="call_1", principal_id="user_1"
+    )
+    second = registry.register_search_result(
+        (hit,), run_id="run_1", tool_call_id="call_2", principal_id="user_1"
+    )
+
+    assert first == second
+    entry = registry.get(first[0], run_id="run_1")
+    assert entry is not None
+    assert entry["sources"] == [
+        {"tool_call_id": "call_1", "tool": "search_knowledge"},
+        {"tool_call_id": "call_2", "tool": "search_knowledge"},
+    ]
+    assert entry["index_generation"] == "idx_1"
+    assert len(registry.list_for_run("run_1")) == 1
+
+
+def test_evidence_registry_keeps_distinct_versions_and_records_conflict():
+    """同一文档的不同版本不合并，并记录版本冲突。"""
+    registry = EvidenceRegistry()
+    older = EvidenceHit(
+        chunk_id="chk_1", document_id="doc_1", version_id="ver_1", text="旧规定"
+    )
+    newer = EvidenceHit(
+        chunk_id="chk_1", document_id="doc_1", version_id="ver_2", text="新规定"
+    )
+
+    first = registry.register_search_result(
+        (older,), run_id="run_1", tool_call_id="call_1", principal_id="user_1"
+    )
+    second = registry.register_search_result(
+        (newer,), run_id="run_1", tool_call_id="call_2", principal_id="user_1"
+    )
+
+    assert first != second
+    conflicts = registry.version_conflicts("doc_1", run_id="run_1")
+    assert {item["version_id"] for item in conflicts} == {"ver_1", "ver_2"}
+
+
+def test_evidence_registry_snapshot_round_trip():
+    """快照恢复后保留去重身份、来源和配置追踪。"""
+    registry = EvidenceRegistry()
+    hit = EvidenceHit(
+        chunk_id="chk_1",
+        document_id="doc_1",
+        version_id="ver_1",
+        text="原文",
+        locator="page=1",
+        external_llm_allowed=True,
+        index_generation="idx_1",
+        embedding_model_version="emb_1",
+        retrieval_config_version="ret_1",
+    )
+    evidence_id = registry.register_search_result(
+        (hit,), run_id="run_1", tool_call_id="call_1", principal_id="user_1"
+    )[0]
+
+    restored = EvidenceRegistry.restore(
+        registry.snapshot(), run_id="run_1", principal_id="user_1"
+    )
+    entry = restored.get(evidence_id, run_id="run_1")
+
+    assert entry is not None
+    assert entry["sources"] == [{"tool_call_id": "call_1", "tool": "search_knowledge"}]
+    assert entry["index_generation"] == "idx_1"
+    assert entry["embedding_model_version"] == "emb_1"
+    assert entry["retrieval_config_version"] == "ret_1"
+
+
+def test_evidence_registry_rejects_inconsistent_duplicate_identity():
+    """相同身份的内容不一致时拒绝覆盖。"""
+    registry = EvidenceRegistry()
+    original = EvidenceHit(
+        chunk_id="chk_1", document_id="doc_1", version_id="ver_1", text="原文"
+    )
+    changed = EvidenceHit(
+        chunk_id="chk_1", document_id="doc_1", version_id="ver_1", text="被改写的原文"
+    )
+    registry.register_search_result(
+        (original,), run_id="run_1", tool_call_id="call_1", principal_id="user_1"
+    )
+
+    with pytest.raises(AgentToolError, match="inconsistent"):
+        registry.register_search_result(
+            (changed,), run_id="run_1", tool_call_id="call_2", principal_id="user_1"
+        )
+
+
 def test_evidence_registry_list_for_run():
     """
     Given: EvidenceRegistry 包含多个 Run 的证据

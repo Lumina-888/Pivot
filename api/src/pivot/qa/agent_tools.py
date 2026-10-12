@@ -63,6 +63,16 @@ class AgentTool(Protocol):
 # ====================
 
 
+def _valid_sources(sources: object) -> bool:
+    return isinstance(sources, list) and all(
+        isinstance(item, dict)
+        and set(item) == {"tool_call_id", "tool"}
+        and isinstance(item["tool_call_id"], str)
+        and isinstance(item["tool"], str)
+        for item in sources
+    )
+
+
 class EvidenceRegistry:
     """
     证据注册表
@@ -76,6 +86,10 @@ class EvidenceRegistry:
     def __init__(self) -> None:
         self._registry: dict[str, dict[str, Any]] = {}
         self._next_id = 1
+
+    @staticmethod
+    def _identity(hit: EvidenceHit) -> tuple[str, str, str, str]:
+        return (hit.document_id, hit.version_id, hit.chunk_id, hit.index_generation)
 
     def register_search_result(
         self,
@@ -99,13 +113,40 @@ class EvidenceRegistry:
         """
         evidence_ids = []
         for hit in hits:
+            identity = self._identity(hit)
+            existing_id = next(
+                (
+                    evidence_id
+                    for evidence_id, entry in self._registry.items()
+                    if entry["run_id"] == run_id
+                    and entry["principal_id"] == principal_id
+                    and (
+                        entry["document_id"],
+                        entry["version_id"],
+                        entry["chunk_id"],
+                        entry["index_generation"],
+                    )
+                    == identity
+                ),
+                None,
+            )
+            source = {"tool_call_id": tool_call_id, "tool": "search_knowledge"}
+            if existing_id is not None:
+                entry = self._registry[existing_id]
+                if (entry["text"], entry["locator"]) != (hit.text, hit.locator):
+                    raise AgentToolError("inconsistent evidence identity")
+                entry["sources"].append(source)
+                entry["tool_call_id"] = tool_call_id
+                evidence_ids.append(existing_id)
+                continue
+
             evidence_id = f"ev_{self._next_id}"
             self._next_id += 1
-
             self._registry[evidence_id] = {
                 "evidence_id": evidence_id,
                 "run_id": run_id,
                 "tool_call_id": tool_call_id,
+                "sources": [source],
                 "principal_id": principal_id,
                 "document_id": hit.document_id,
                 "version_id": hit.version_id,
@@ -113,6 +154,9 @@ class EvidenceRegistry:
                 "text": hit.text,
                 "locator": hit.locator,
                 "external_llm_allowed": hit.external_llm_allowed,
+                "index_generation": hit.index_generation,
+                "embedding_model_version": hit.embedding_model_version,
+                "retrieval_config_version": hit.retrieval_config_version,
             }
             evidence_ids.append(evidence_id)
 
@@ -138,6 +182,20 @@ class EvidenceRegistry:
         """列出指定 Run 的所有证据"""
         return [entry for entry in self._registry.values() if entry.get("run_id") == run_id]
 
+    def version_conflicts(self, document_id: str, *, run_id: str) -> list[dict[str, Any]]:
+        """返回本 Run 内同一文档的不同版本，单一版本不是冲突。"""
+        versions = {
+            entry["version_id"]
+            for entry in self._registry.values()
+            if entry.get("run_id") == run_id and entry.get("document_id") == document_id
+        }
+        if len(versions) < 2:
+            return []
+        return [
+            {"document_id": document_id, "version_id": version_id}
+            for version_id in sorted(versions)
+        ]
+
     def snapshot(self) -> dict[str, Any]:
         """Sensitive server-side graph state, never a public response."""
         return {key: dict(entry) for key, entry in self._registry.items()}
@@ -155,6 +213,7 @@ class EvidenceRegistry:
             "evidence_id",
             "run_id",
             "tool_call_id",
+            "sources",
             "principal_id",
             "document_id",
             "version_id",
@@ -162,6 +221,9 @@ class EvidenceRegistry:
             "text",
             "locator",
             "external_llm_allowed",
+            "index_generation",
+            "embedding_model_version",
+            "retrieval_config_version",
         }
         for evidence_id, entry in data.items():
             if (
@@ -171,7 +233,11 @@ class EvidenceRegistry:
                 or entry.get("principal_id") != principal_id
                 or entry.get("evidence_id") != evidence_id
                 or type(entry.get("external_llm_allowed")) is not bool
-                or any(not isinstance(entry[key], str) for key in fields - {"external_llm_allowed"})
+                or not _valid_sources(entry.get("sources"))
+                or any(
+                    not isinstance(entry[key], str)
+                    for key in fields - {"external_llm_allowed", "sources"}
+                )
             ):
                 raise AgentToolError("invalid evidence registry state")
             prefix, separator, number = evidence_id.partition("_")
