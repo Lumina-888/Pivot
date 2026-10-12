@@ -19,9 +19,10 @@ from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
 from pivot.qa.agent_budget import BudgetExhaustedError, BudgetGuard, BudgetPolicy, BudgetState
+from pivot.qa.agent_context import ContextGuard, OutboundGuard, RunContext
 from pivot.qa.agent_finalizer import StructuredFinalizer
 from pivot.qa.agent_tools import EvidenceRegistry, ToolExecutor
-from pivot.qa.errors import AgentToolError, UnknownToolError
+from pivot.qa.errors import AgentSecurityError, AgentToolError, UnknownToolError
 from pivot.qa.ports import DraftWriter, Retriever, Verifier
 
 # ====================
@@ -41,6 +42,7 @@ class AgentState(TypedDict):
     principal_id: str
     scope_type: str
     scope_document_id: str | None
+    conversation_id: str  # 用于重建 RunContext
     budget_state: dict[str, Any]  # BudgetState 序列化
     evidence_registry_data: dict[str, Any]  # EvidenceRegistry 序列化
     final_answer: dict[str, Any] | None
@@ -58,13 +60,19 @@ class AgentNodes:
         self,
         retriever: Retriever,
         budget_policy: BudgetPolicy,
+        context: RunContext,
         model: Any | None = None,
         finalizer: StructuredFinalizer | None = None,
+        is_external_model: bool = True,
     ) -> None:
         self.retriever = retriever
         self.budget_policy = budget_policy
+        self.context = context
         self.model = model
         self.finalizer = finalizer
+        self.is_external_model = is_external_model
+        self.context_guard = ContextGuard(context)
+        self.outbound_guard = OutboundGuard(context)
 
     def decide(self, state: AgentState) -> AgentState:
         """
@@ -73,9 +81,15 @@ class AgentNodes:
         Returns:
             更新后的状态（包含新的 AIMessage）
         """
-        # 恢复预算状态
+        # 恢复预算状态和证据注册表
         budget_state = BudgetState(**state["budget_state"])
         budget_guard = BudgetGuard(self.budget_policy, budget_state)
+
+        evidence_registry = EvidenceRegistry.restore(
+            state["evidence_registry_data"],
+            run_id=state["run_id"],
+            principal_id=state["principal_id"],
+        )
 
         # 预算耗尽时停止收费调用，不再进入工具循环。
         try:
@@ -88,6 +102,7 @@ class AgentNodes:
                 "principal_id": state["principal_id"],
                 "scope_type": state["scope_type"],
                 "scope_document_id": state["scope_document_id"],
+                "conversation_id": state["conversation_id"],
                 "budget_state": state["budget_state"],
                 "evidence_registry_data": state["evidence_registry_data"],
                 "final_answer": {
@@ -97,11 +112,35 @@ class AgentNodes:
                 },
             }
 
+        # 外发门禁检查：在调用模型前检查消息中是否包含受限内容
+        formatted_messages = [_message_dict(msg) for msg in state["messages"]]
+        try:
+            self.outbound_guard.check_before_model_call(
+                messages=formatted_messages,
+                evidence_registry=evidence_registry,
+                is_external_model=self.is_external_model,
+            )
+        except AgentSecurityError:
+            # 受限内容不能发送给外部模型，拒绝执行
+            return {
+                "messages": [],
+                "run_id": state["run_id"],
+                "principal_id": state["principal_id"],
+                "scope_type": state["scope_type"],
+                "scope_document_id": state["scope_document_id"],
+                "conversation_id": state["conversation_id"],
+                "budget_state": state["budget_state"],
+                "evidence_registry_data": state["evidence_registry_data"],
+                "final_answer": {
+                    "answer": "无法继续：消息包含受限内容，不能发送给外部模型。",
+                    "claims": [],
+                    "status": "security_violation",
+                },
+            }
+
         # 调用真实模型（如果有）
         if self.model is not None:
             from pivot.qa.agent_model import get_tool_schemas
-
-            formatted_messages = [_message_dict(msg) for msg in state["messages"]]
 
             response = self.model.decide(
                 messages=formatted_messages,
@@ -192,6 +231,12 @@ class AgentNodes:
 
         for tool_call in tool_calls:
             try:
+                # 上下文验证：检查工具参数是否包含禁止字段
+                self.context_guard.validate_tool_execution(
+                    tool_name=tool_call["name"],
+                    tool_args=tool_call["args"],
+                )
+                
                 result = tool_executor.execute(
                     tool_call,
                     run_id=state["run_id"],
@@ -204,6 +249,14 @@ class AgentNodes:
                     ToolMessage(
                         tool_call_id=result["tool_call_id"],
                         content=json.dumps(result["content"], ensure_ascii=False),
+                    )
+                )
+            except AgentSecurityError:
+                # 安全违规：工具参数包含禁止字段
+                tool_messages.append(
+                    ToolMessage(
+                        tool_call_id=tool_call["id"],
+                        content=json.dumps({"error": "security_violation"}),
                     )
                 )
             except (AgentToolError, UnknownToolError):
@@ -344,11 +397,13 @@ def _latest_human_content(messages: list[Any]) -> str:
 def create_agent_graph(
     retriever: Retriever,
     budget_policy: BudgetPolicy,
+    context: RunContext,
     model: Any | None = None,
     *,
     draft_writer: DraftWriter | None = None,
     verifier: Verifier | None = None,
     finalizer: StructuredFinalizer | None = None,
+    is_external_model: bool = True,
 ) -> StateGraph:
     """
     创建 Agent StateGraph
@@ -356,17 +411,19 @@ def create_agent_graph(
     Args:
         retriever: 检索器
         budget_policy: 预算策略
+        context: 可信 Run 上下文
         model: 可选的模型实例（AgentModel），用于真实决策
         draft_writer: 可选答案草稿生成器
         verifier: 可选答案校验器
         finalizer: 可选结构化答案生成器；优先于 draft_writer
+        is_external_model: 是否为外部模型（如 OpenAI）
 
     Returns:
         配置好的 StateGraph
     """
     if finalizer is None and draft_writer is not None:
         finalizer = StructuredFinalizer(draft_writer, verifier)
-    nodes = AgentNodes(retriever, budget_policy, model, finalizer)
+    nodes = AgentNodes(retriever, budget_policy, context, model, finalizer, is_external_model)
 
     # 创建图
     workflow = StateGraph(AgentState)
@@ -403,6 +460,7 @@ def run_agent(
     budget_policy: BudgetPolicy,
     run_id: str,
     principal_id: str,
+    conversation_id: str,
     scope_type: str = "global",
     scope_document_id: str | None = None,
     *,
@@ -410,6 +468,7 @@ def run_agent(
     draft_writer: DraftWriter | None = None,
     verifier: Verifier | None = None,
     finalizer: StructuredFinalizer | None = None,
+    is_external_model: bool = True,
 ) -> dict[str, Any]:
     """
     运行 Agent
@@ -420,20 +479,39 @@ def run_agent(
         budget_policy: 预算策略
         run_id: Run ID
         principal_id: 用户 ID
+        conversation_id: 会话 ID
         scope_type: 检索范围类型
         scope_document_id: 可选文档范围
+        model: 可选模型实例
+        draft_writer: 可选草稿生成器
+        verifier: 可选校验器
+        finalizer: 可选结构化答案生成器
+        is_external_model: 是否为外部模型
 
     Returns:
         最终结果
     """
+    # 创建可信上下文
+    from pivot.qa.agent_context import create_trusted_context
+    
+    context = create_trusted_context(
+        run_id=run_id,
+        conversation_id=conversation_id,
+        principal_id=principal_id,
+        scope_type=scope_type,
+        scope_document_id=scope_document_id,
+    )
+    
     # 创建图
     workflow = create_agent_graph(
         retriever,
         budget_policy,
+        context,
         model,
         draft_writer=draft_writer,
         verifier=verifier,
         finalizer=finalizer,
+        is_external_model=is_external_model,
     )
     graph = workflow.compile()
 
@@ -442,6 +520,7 @@ def run_agent(
         "messages": [{"type": "human", "content": question}],
         "run_id": run_id,
         "principal_id": principal_id,
+        "conversation_id": conversation_id,
         "scope_type": scope_type,
         "scope_document_id": scope_document_id,
         "budget_state": BudgetGuard(budget_policy, BudgetState()).state_snapshot(),

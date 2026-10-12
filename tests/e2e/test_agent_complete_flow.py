@@ -114,6 +114,7 @@ def test_complete_question_answering_flow():
         _policy(),
         run_id="run-e2e",
         principal_id="user-1",
+        conversation_id="conv-1",
         model=model,
         draft_writer=EchoWriter(),
     )
@@ -152,6 +153,7 @@ def test_multi_turn_tool_sequence_keeps_question_context():
         _policy(),
         run_id="run-empty",
         principal_id="user-1",
+        conversation_id="conv-1",
         model=model,
         draft_writer=EchoWriter(),
     )
@@ -186,6 +188,7 @@ def test_budget_exhaustion_stops_before_another_model_call():
         _policy(max_model_calls=1, max_tool_calls=1),
         run_id="run-budget",
         principal_id="user-1",
+        conversation_id="conv-1",
         model=model,
         draft_writer=EchoWriter(),
     )
