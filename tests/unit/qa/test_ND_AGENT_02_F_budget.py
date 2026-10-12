@@ -457,6 +457,76 @@ def test_budget_guard_is_exhausted():
     assert guard2.is_exhausted() is True
 
 
+def test_budget_reserves_cost_and_tokens_before_call():
+    """费用和 token 在调用前预扣，返回后按实际值结算。"""
+    policy = BudgetPolicy(
+        max_model_calls=5,
+        max_tool_calls=10,
+        max_rewrite_count=2,
+        timeout_seconds=60.0,
+        max_cost_usd=1.0,
+        max_total_tokens=100,
+    )
+    guard = BudgetGuard(policy, BudgetState())
+
+    guard.before_model_call(estimated_cost_usd=0.4, estimated_tokens=30)
+    assert guard.state.reserved_cost_usd == 0.4
+    assert guard.state.reserved_tokens == 30
+
+    guard.settle_model_call(actual_cost_usd=0.25, actual_tokens=20)
+    assert guard.state.cost_usd == 0.25
+    assert guard.state.total_tokens == 20
+    assert guard.state.reserved_cost_usd == 0.0
+    assert guard.state.reserved_tokens == 0
+    assert guard.state.model_calls == 1
+
+
+def test_budget_rejects_call_when_estimate_exceeds_remaining():
+    """预估超过剩余额度时拒绝，并且不增加已消耗。"""
+    policy = BudgetPolicy(
+        max_model_calls=5,
+        max_tool_calls=10,
+        max_rewrite_count=2,
+        timeout_seconds=60.0,
+        max_cost_usd=1.0,
+        max_total_tokens=100,
+    )
+    state = BudgetState(cost_usd=0.8, total_tokens=90)
+    guard = BudgetGuard(policy, state)
+
+    with pytest.raises(BudgetExhaustedError):
+        guard.before_model_call(estimated_cost_usd=0.3, estimated_tokens=5)
+    with pytest.raises(BudgetExhaustedError):
+        guard.before_model_call(estimated_cost_usd=0.1, estimated_tokens=20)
+
+    assert state.model_calls == 0
+    assert state.reserved_cost_usd == 0.0
+    assert state.reserved_tokens == 0
+
+
+def test_budget_unknown_usage_fails_closed_without_recording_zero():
+    """未知用量不能记零，也不能继续下一次调用。"""
+    policy = BudgetPolicy(
+        max_model_calls=5,
+        max_tool_calls=10,
+        max_rewrite_count=2,
+        timeout_seconds=60.0,
+        max_cost_usd=1.0,
+        max_total_tokens=100,
+    )
+    guard = BudgetGuard(policy, BudgetState())
+    guard.before_model_call(estimated_cost_usd=0.1, estimated_tokens=10)
+
+    with pytest.raises(BudgetExhaustedError, match="unknown usage"):
+        guard.settle_model_call(actual_cost_usd=None, actual_tokens=None)
+
+    assert guard.state.cost_usd == 0.0
+    assert guard.state.total_tokens == 0
+    assert guard.state.unknown_usage is True
+    with pytest.raises(BudgetExhaustedError):
+        guard.before_model_call(estimated_cost_usd=0.1, estimated_tokens=10)
+
+
 def test_budget_missing_policy_fails_closed():
     """
     Given: 创建 BudgetPolicy

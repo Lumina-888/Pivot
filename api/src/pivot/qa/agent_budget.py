@@ -25,6 +25,8 @@ class BudgetPolicy:
     max_tool_calls: int
     max_rewrite_count: int
     timeout_seconds: float
+    max_cost_usd: float | None = None
+    max_total_tokens: int | None = None
 
     def __post_init__(self) -> None:
         if self.max_model_calls < 1:
@@ -35,6 +37,10 @@ class BudgetPolicy:
             raise ValueError("max_rewrite_count must be non-negative")
         if self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        if self.max_cost_usd is not None and self.max_cost_usd < 0:
+            raise ValueError("max_cost_usd must be non-negative")
+        if self.max_total_tokens is not None and self.max_total_tokens < 0:
+            raise ValueError("max_total_tokens must be non-negative")
 
 
 @dataclass
@@ -49,6 +55,11 @@ class BudgetState:
     tool_calls: int = 0
     rewrite_count: int = 0
     elapsed_seconds: float = 0.0
+    cost_usd: float = 0.0
+    total_tokens: int = 0
+    reserved_cost_usd: float = 0.0
+    reserved_tokens: int = 0
+    unknown_usage: bool = False
 
     def remaining_model_calls(self, policy: BudgetPolicy) -> int:
         """剩余模型调用次数"""
@@ -69,6 +80,15 @@ class BudgetState:
             or self.tool_calls >= policy.max_tool_calls
             or self.rewrite_count >= policy.max_rewrite_count
             or self.elapsed_seconds >= policy.timeout_seconds
+            or self.unknown_usage
+            or (
+                policy.max_cost_usd is not None
+                and self.cost_usd + self.reserved_cost_usd >= policy.max_cost_usd
+            )
+            or (
+                policy.max_total_tokens is not None
+                and self.total_tokens + self.reserved_tokens >= policy.max_total_tokens
+            )
         )
 
     def check_can_call_model(self, policy: BudgetPolicy) -> None:
@@ -145,18 +165,59 @@ class BudgetGuard:
         self.policy = policy
         self.state = state
 
-    def before_model_call(self) -> None:
+    def before_model_call(
+        self,
+        *,
+        estimated_cost_usd: float = 0.0,
+        estimated_tokens: int = 0,
+    ) -> None:
         """
-        模型调用前检查
+        模型调用前检查并预扣费用与 token。
 
         Raises:
             BudgetExhaustedError: 预算不足
         """
+        if estimated_cost_usd < 0 or estimated_tokens < 0:
+            raise ValueError("estimate must be non-negative")
         self.state.check_can_call_model(self.policy)
+        if self.state.unknown_usage:
+            raise BudgetExhaustedError("unknown usage blocks further calls")
+        if (
+            self.policy.max_cost_usd is not None
+            and self.state.cost_usd + self.state.reserved_cost_usd + estimated_cost_usd
+            > self.policy.max_cost_usd
+        ):
+            raise BudgetExhaustedError("cost budget exhausted")
+        if (
+            self.policy.max_total_tokens is not None
+            and self.state.total_tokens + self.state.reserved_tokens + estimated_tokens
+            > self.policy.max_total_tokens
+        ):
+            raise BudgetExhaustedError("token budget exhausted")
+        self.state.reserved_cost_usd += estimated_cost_usd
+        self.state.reserved_tokens += estimated_tokens
 
     def after_model_call(self) -> None:
         """模型调用后更新"""
         self.state.consume_model_call()
+
+    def settle_model_call(
+        self,
+        *,
+        actual_cost_usd: float | None,
+        actual_tokens: int | None,
+    ) -> None:
+        """按实际用量结算；未知用量不记零并关闭后续调用。"""
+        self.state.reserved_cost_usd = 0.0
+        self.state.reserved_tokens = 0
+        self.state.consume_model_call()
+        if actual_cost_usd is None or actual_tokens is None:
+            self.state.unknown_usage = True
+            raise BudgetExhaustedError("unknown usage")
+        if actual_cost_usd < 0 or actual_tokens < 0:
+            raise ValueError("actual usage must be non-negative")
+        self.state.cost_usd += actual_cost_usd
+        self.state.total_tokens += actual_tokens
 
     def before_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """
