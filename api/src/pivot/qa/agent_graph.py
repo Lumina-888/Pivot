@@ -11,6 +11,7 @@ Agent StateGraph 实现
 from __future__ import annotations
 
 import json
+import threading
 from typing import Annotated, Any, Literal
 
 from langchain_core.messages import AIMessage, ToolMessage
@@ -73,6 +74,30 @@ class AgentNodes:
         self.is_external_model = is_external_model
         self.context_guard = ContextGuard(context)
         self.outbound_guard = OutboundGuard(context)
+        self._cancelled = threading.Event()
+
+    def cancel(self) -> None:
+        """请求在下一个调用边界停止，不覆盖已经发布的终态。"""
+        self._cancelled.set()
+
+    def _cancelled_state(self, state: AgentState) -> AgentState | None:
+        if not self._cancelled.is_set():
+            return None
+        return {
+            "messages": [],
+            "run_id": state["run_id"],
+            "principal_id": state["principal_id"],
+            "scope_type": state["scope_type"],
+            "scope_document_id": state["scope_document_id"],
+            "conversation_id": state["conversation_id"],
+            "budget_state": state["budget_state"],
+            "evidence_registry_data": state["evidence_registry_data"],
+            "final_answer": {
+                "answer": "",
+                "claims": [],
+                "status": "cancelled",
+            },
+        }
 
     def decide(self, state: AgentState) -> AgentState:
         """
@@ -81,6 +106,10 @@ class AgentNodes:
         Returns:
             更新后的状态（包含新的 AIMessage）
         """
+        stopped = self._cancelled_state(state)
+        if stopped is not None:
+            return stopped
+
         # 恢复预算状态和证据注册表
         budget_state = BudgetState(**state["budget_state"])
         budget_guard = BudgetGuard(self.budget_policy, budget_state)
@@ -187,6 +216,10 @@ class AgentNodes:
         else:
             budget_guard.after_model_call()
 
+        stopped = self._cancelled_state(state)
+        if stopped is not None:
+            return stopped
+
         # 更新状态
         return {
             **state,
@@ -201,6 +234,10 @@ class AgentNodes:
         Returns:
             更新后的状态（包含 ToolMessage）
         """
+        stopped = self._cancelled_state(state)
+        if stopped is not None:
+            return stopped
+
         # 恢复预算和证据注册表
         budget_state = BudgetState(**state["budget_state"])
         budget_guard = BudgetGuard(self.budget_policy, budget_state)
@@ -328,6 +365,10 @@ class AgentNodes:
         # 更新预算
         budget_guard.after_tool_calls(tool_calls)
 
+        stopped = self._cancelled_state(state)
+        if stopped is not None:
+            return stopped
+
         # 更新状态
         return {
             **state,
@@ -345,6 +386,9 @@ class AgentNodes:
         """
         if state.get("final_answer"):
             return state
+        stopped = self._cancelled_state(state)
+        if stopped is not None:
+            return stopped
 
         evidences = EvidenceRegistry.restore(
             state["evidence_registry_data"],
@@ -385,7 +429,7 @@ def should_continue(
         "end": 结束（预算耗尽或其他终止条件）
     """
     final_answer = state.get("final_answer") or {}
-    if final_answer.get("status") == "budget_exhausted":
+    if final_answer.get("status") in {"budget_exhausted", "cancelled"}:
         return "end"
 
     if not state["messages"]:
