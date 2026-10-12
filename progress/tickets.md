@@ -14,8 +14,8 @@
 | ID | 标题 | 阶段 | 规模 | Accountable | SPEC | 依赖 | 状态 |
 |---|---|---|---|---|---|---|---|
 | ND-AGENT-01 | 答案一致性与支持校验门禁 | Agent S1 | M | M05 | FR-QA-002/004, FR-AGENT-005 | 无新公开接口；ADR-009 | done（安全子集，完整持久化仍待 04） |
-| ND-AGENT-02 | 工具/模型/预算 Contract 与 LangGraph ReAct | Agent S2 | L | M05 | FR-AGENT-001~004/009 | 01、DR-010、锁依赖 Contract | blocked |
-| ND-AGENT-03 | Run/SSE/取消与澄清恢复/Web | Agent S3 | L | M05 | FR-AGENT-007/008, FR-STREAM | 02、M00 恢复/错误契约 | blocked |
+| ND-AGENT-02 | 工具/模型/预算 Contract 与 LangGraph ReAct | Agent S2 | L | M05 | FR-AGENT-001~004/009 | 01、DR-010、锁依赖 Contract | dev-landed（D～H 开发实现；不批准运行，父票未 done） |
+| ND-AGENT-03 | Run/SSE/取消与澄清恢复/Web | Agent S3 | L | M05 | FR-AGENT-007/008, FR-STREAM | 02、M00 恢复/错误契约 | in_progress（B/C/D 开发实现；A review；E blocked） |
 | ND-AGENT-04 | 结果事实/checkpoint/租约/一致性 | Agent S4 | L | M03 | FR-AGENT-006, FR-QA-002 | 03、DR-011、迁移 Contract | blocked |
 | ND-AGENT-05 | live 模型工具能力与 Agent Golden Set | Agent S5 | L | M11 | FR-AGENT-009/010 | 前序闭环、批准模型/低敏环境 | blocked |
 | ND-W3-01 | worker 装配 Qdrant IndexPublisher | A1 | S | M07 | FR-DOC-006, FR-RAG-001 | 无 | done |

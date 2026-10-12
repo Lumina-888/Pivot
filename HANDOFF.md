@@ -1,6 +1,6 @@
 # 问枢 Pivot 会话交接清单
 
-> **日期**：2026-10-06（当前入口同步；历史轮次记录保留）\
+> **日期**：2026-10-12（当前入口同步；历史轮次记录保留）\
 > **本轮修改前基线**：`60a6455`（`main`；02-C隐藏目录证据归档修正）；`4fb1693`（`main`；02-C Ubuntu 手动候选 CI 入口准备）；`b84670a`为02-C压缩wheel错误脱敏修正前基线；`fa291b2`为02-C离线候选一致性工具前基线；`497c15c`为02-C公开供应链诊断前基线；`75cf0aa`为M11私有配置回归修正前基线；`3460a2f`为Ubuntu独立候选锁/双重建前基线；`93c24fe`为清华源Ubuntu源码构建/候选解析前基线；`8009841`为02-C离线供应链材料前基线；`93f7e50`为Debian bookworm runtime候选锁前基线；`d613318`为04-A前基线；`20e8f15`为03-A前基线；`8782c7c`为本机Linux环境配置前基线；`bfe8971` 是此前技术审核基线；ND-AGENT-01 前基线 `7ed2748` 和旧 `M11-v0.25.0` 为历史记录。\
 > **性质**：当前规格迁移与历史实现交接。需求以 SPEC-1.1 / `spec/AGENT_SPEC.md` 为准，进度以 `PROGRESS.md` 为准，协作以 MODULE-SPEC-1.2 / `AGENTS.md` 为准。\
 > **本文件不是规范源。**
@@ -11,7 +11,7 @@
 
 1. 工作区：`/home/lumina888/Projects/Pivot`，分支：`main`。`E:/AI Project/Pivot` 是历史 Windows 路径；不要新建 worktree。02-C 的 Windows/Linux 原生候选已有独立验证；**Ubuntu Hosted 候选 CI 技术通过，签认未完成**，见 [2026-10-06 CI 证据](evidence/agent-m03/nd-agent-02-c/ubuntu-ci-20261006.md)。Run `37420501217` 在 `7958feb` 上 success，不重复安排该候选 CI；正式角色锁/构建/安全审核仍 pending。
 2. 读：`AGENTS.md` → `SPEC.md` → `spec/AGENT_SPEC.md` → `MODULE_SPEC.md` → `PROGRESS.md` → 本文件。
-3. ND-AGENT-01 已完成；02-A [内部提案](progress/changes/20261002-M05-agent-internal-contract.md)、02-B [预算提案](progress/changes/20261002-M05-agent-budget-contract.md)、02-C [依赖/锁定申请](progress/changes/20261002-M03-agent-dependencies-lock.md)均 review 待签认、未发布。02-C Windows 双隔离环境/候选哈希锁验证完成，原环境与业务未接入。下一步优先 [02-A/B/C 审批入口](evidence/agent-m03/nd-agent-02-abc-review.md)中的**消费者/Owner 签认、角色锁/安全范围与预算映射确认**，业务仍 blocked；03-A [恢复提案](progress/changes/20261003-M00-agent-resume-contract.md)与独立proposed schema/62项shape检查已提交、review待签认，未发布API；04-A [持久化提案](progress/changes/20261003-M03-agent-persistence-contract.md)与独立schema/173项shape检查也已提交、review待7项签认；前置提案已全部提交，0 ready/5 review/24 blocked，下一步签认/目标平台锁/批准PG环境。目标已改为 LangGraph 受控 ReAct，旧固定主图/暂缓申请/ND-W3-09 已由 ADR-009 取代。旧 ECS apply/live 检索票不再是默认路径。
+3. 当前基线 `d7c8eca`。02-A/B/C 内部契约已发布；02-D～H 与 03-B/C/D 是开发实现，不批准运行。03-B 投影 9 passed，03-C 取消 3 passed，03-D 图内澄清 4 passed。下一刀是 03-E，但公开 resume 仍待 03-A 发布；04 仍待 DR-011。不要新增 `POST /runs/{id}/resume`，不要把单元测试当跨进程恢复或 GATE。
 4. 不要冻结 `TBD-P0`，不要把 Fake HTTP / 存储客户端 / 合成 Golden Set / **企业 Golden Set 脱敏摘录** / Fake embedder / stdlib BM25 / 进程内 5 并发或备份 roundtrip / Dockerfile fixture / opt-in 100k Fake retrieve / HTTP Embedding·bge Fake transport / Compose web/worker 文件 / Fake ingest upsert / 进程内 HTTP ingest / 可注入限流计数 / sqlite 文档事实 / sqlite 导出任务 / sqlite refresh/会话 / sqlite Run/EventLog / eager Celery / Compose Celery fixture / Fake MinIO worker ingest / Compose api 共享存储注入 / Fake worker Qdrant upsert / Compose api celery 注入 / Compose Qdrant·Redis 注入 / Compose 登录限流注入 / **Wave 3 夹具收口** / PATCH 角色 HTTP / **ingest 共用 HTTP Embedding** / **Fake HTTP Writer** / **Fake MinerU 解析器** / **staging Compose overlay** / **sqlite refresh/Conversation** / **sqlite Run/EventLog** / **SSE 长连接夹具** / **真实解析库 extra** / **opt-in Playwright 十页** 标成 `GATE-P0 verified`。`wave-3-integrated` **不等于** P0 通过。
 
 ## 1. 产品现状
@@ -58,7 +58,7 @@ Python **608 passed / 19 skipped**（Python 3.12.10 / pytest 9.1.1 / ruff 0.16.6
 
 ## 4. 当前下一刀
 
-以 main `8a81946` 的版本化证据为准：Ubuntu Hosted 候选 CI 已 success，三份前置提案仍 review、未发布。先按 [审批入口 §0](evidence/agent-m03/nd-agent-02-abc-review.md)明确审核责任人，逐项记录 INTERNAL draft.1（含PR-01）/ BUDGET draft.3 / DEPENDENCIES draft.1 的结论和许可范围；02-A Owner设计已批准，02-B严格费用及实际调用硬门禁/图辅助熔断分工已确认，见 [单项记录](progress/approvals/20261006-02-b-call-graph-separation.md)。draft.3取代精确逐super-step原子账本前置，不降低收费派发预留/累计恢复账本；下一项仍是执行与澄清等待期限，消费者/整份提案/额度/运行许可未获批；角色锁/构建与安全待审事项不能被 CI 通过代替。消费者确认、Owner 明确许可并经 M00 发布后，再逐票核 02-D/F 的 DoR，按依赖推进 E/G/H。03-A/04-A、PG/live 与 DR-011 仍有独立门禁；目前 **0 ready / 5 review / 24 blocked**。
+以 main `d7c8eca` 为准。02-D～H 与 03-B/C/D 已有开发实现，但不是运行批准。下一刀不要提前做 03-E 的公开恢复按钮：03-A 仍 review，没有发布的 resume endpoint 不能私加。04 仍等待 DR-011 与真实 PG。历史 02 审批记录保留，不再表示当前未开始 02-D～H。
 
 下文是历史记录；其中“未推送/dispatch/Hosted CI 未验证”仅描述对应轮次，不是当前待办。本轮未重查远端状态或下载 artifact，未改源码/正式依赖或代签。
 

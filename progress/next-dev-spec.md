@@ -1,7 +1,7 @@
 # 问枢 Pivot 后续开发计划（ReAct 改造优先）
 
-> **文档 ID**：`NEXT-DEV-1.24`\
-> **日期**：2026-10-03\
+> **文档 ID**：`NEXT-DEV-1.25`\
+> **日期**：2026-10-12\
 > **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，**不等于** P0 通过）。  
 > **性质**：开发计划与工单拆分；剩余工作细化见 [SPEC-1.1 Tickets](tickets/spec-1.1-remaining.md)。\
 > **本文件不是需求源。** 需求、状态机、错误码、API/SSE/Worker、GATE、`TBD-P0` 仍以 [`SPEC.md`](../SPEC.md) 为准；模块边界以 [`MODULE_SPEC.md`](../MODULE_SPEC.md) 为准；进度以 [`PROGRESS.md`](../PROGRESS.md) 为准。工单目录见 [`tickets.md`](tickets.md)。
@@ -17,8 +17,8 @@ Owner 当前目标是 **LangGraph 受控 ReAct Agent**，见 [AGENT_SPEC](../spe
 | 工单 | 工作 | 状态/依赖 |
 |---|---|---|
 | ND-AGENT-01 | 最终 Markdown/Claims 一致性、引用与支持校验门禁 | done；迁移基线安全子集，完整持久化待 04 |
-| ND-AGENT-02 | 模型/工具/预算 Contract、真实 LangGraph 工具循环 | blocked；01 done，下一刀先 DR-010/模型/工具/锁依赖 Contract |
-| ND-AGENT-03 | Run/SSE/取消、澄清恢复、Web | blocked；02 + M00 恢复/错误契约 |
+| ND-AGENT-02 | 模型/工具/预算 Contract、真实 LangGraph 工具循环 | dev-landed；D～H 开发实现已提交，不批准运行 |
+| ND-AGENT-03 | Run/SSE/取消、澄清恢复、Web | in_progress；B/C/D 已提交；公开 resume 仍待 03-A |
 | ND-AGENT-04 | Claims/Citation、checkpoint、租约和事件一致性 | blocked；03 + DR-011 + 迁移 |
 | ND-AGENT-05 | 真实模型工具能力与 Agent Golden Set | blocked；前序闭环 + 批准测试环境 |
 
@@ -217,3 +217,4 @@ wave-3-integrated 已打（仍全部 GATE unverified）
 | 1.21 | 2026-10-02 | 02-C Windows 依赖验证/候选哈希锁提交 review；02-A/B/C 均待签认；2 ready/3 review/24 blocked，优先 Linux 锁与预算映射审核，不解锁业务实现 |
 | 1.22 | 2026-10-02 | 02-B draft.2 补独立累计执行前门禁；Windows 技术20 probes；Linux 环境 blocked/执行单未执行；消费者/Owner/安全签认 pending，D～H 保持 blocked |
 | 1.24 | 2026-10-03 | 04-A持久化Contract proposed/review；173项元数据shape通过，7项签认pending；0 ready/5 review/24 blocked；业务/迁移与DR-010/011/GATE仍未放行 |
+| 1.25 | 2026-10-12 | 02-D～H 与 03-B/C/D 开发实现已提交；03-A 公开 resume 与 04-A 仍 review；不批准运行，不关闭 GATE |

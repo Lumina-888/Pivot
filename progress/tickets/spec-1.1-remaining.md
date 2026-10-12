@@ -1,6 +1,6 @@
 # SPEC-1.1 剩余工作 Tickets
 
-> **版本 / 日期**：TICKETS-1.8 / 2026-10-12（02-A/B/C 内部契约发布；02-D/F 开发解锁，不批准运行）。
+> **版本 / 日期**：TICKETS-1.9 / 2026-10-12（02-D～H 与 03-B/C/D 开发实现已提交；03-A 公开 resume 与 04-A 仍 review，不批准运行）。
 > **需求源**：[SPEC-1.1](../../SPEC.md)、[AGENT-SPEC-1.0](../../spec/AGENT_SPEC.md)；责任边界：[MODULE-SPEC-1.2](../../MODULE_SPEC.md)。
 > **进度快照**：[PROGRESS.md](../../PROGRESS.md)、[验收矩阵](../../spec/acceptance/matrix.md)；已提交实现基线 `8cd4727`（main）。
 > **性质**：剩余工作拆分，不是新规格、契约发布或验收报告。既有父票和历史完成记录见 [tickets.md](../tickets.md)。
@@ -19,22 +19,22 @@
 
 2026-10-12：02-A/B/C 消费者签认已完成，内部契约发布为 [AGENT-INTERNAL / BUDGET / DEPENDENCIES 0.1.0](../contracts/README.md)。这不是 contract-v0.1 公开契约，也不关闭 DR-010/GATE。生产数值、期限、正式角色锁、遥测/许可证/原生组件审核与运行许可仍 pending。
 
-优先顺序：02-D 与 02-F（可并行设计，串行落地）→ 02-E → 02-G/H → 03 → 04 → 05。02-D/F 为 **implementation-ready**：允许按已发布内部契约写开发实现与测试，禁止生产部署、真实付费 API、关闭 GATE。02-E 仍 blocked（依赖 02-D）。02-G/H 仍 blocked。03-A [恢复提案](../changes/20261003-M00-agent-resume-contract.md)与04-A [持久化提案](../changes/20261003-M03-agent-persistence-contract.md)仍 proposed/review，待签认；不能提前发布恢复接口或运行持久化实现。每一段均在 main 串行执行。
+2026-10-12 开发实现：02-D～H 已提交；03-B 阶段投影、03-C 调用返回后取消、03-D 图内一轮澄清已提交。这些只是开发/测试实现，不关闭 DR-010/GATE，也不发布公开 resume。下一刀仍是 03-E，但必须等待 03-A 发布；04 仍等待 DR-011。
 
 | 子票 | 工作 | 优先级 / 规模 | Accountable | 状态 | 硬依赖 / 放行条件 |
 |---|---|---|---|---|---|
 | ND-AGENT-02-A | 模型、工具、State 与 EvidenceRegistry 内部 Contract | P0 / S | M05 | released | [AGENT-INTERNAL-0.1.0](../contracts/AGENT-INTERNAL-0.1.0.md)；非 contract-v0.1 |
 | ND-AGENT-02-B | DR-010 预算策略与累计用量 Contract | P0 / S | M05 | released | [AGENT-BUDGET-0.1.0](../contracts/AGENT-BUDGET-0.1.0.md)；生产数值 TBD-P0，DR-010 未关闭 |
 | ND-AGENT-02-C | Python 3.12 框架/消息/适配依赖验证与锁定方案 | P0 / S | M03 | released-conditional | [AGENT-DEPENDENCIES-0.1.0](../contracts/AGENT-DEPENDENCIES-0.1.0.md)；遥测/许可证 7 日内，原生组件生产前 |
-| ND-AGENT-02-D | 两个只读工具与本 Run 证据注册 | P0 / M | M05 | implementation-ready | 内部契约已发布；仅开发/测试，不批准运行 |
-| ND-AGENT-02-E | 可信上下文、历史与每次调用外发门禁 | P0 / M | M01 | blocked | 02-D 落地；内部契约已发布 |
-| ND-AGENT-02-F | 调用、重写、重试及主备累计预算 | P0 / M | M05 | implementation-ready | 内部契约已发布；Fixture 开发，生产数值 TBD-P0，不批准运行 |
-| ND-AGENT-02-G | 真实 StateGraph 原生工具条件循环 | P0 / M | M05 | blocked | 02-D/E/F |
-| ND-AGENT-02-H | Finalizer/Verifier 补证与全量答案门禁接图 | P0 / S | M05 | blocked | 02-G；01 安全回归 |
-| ND-AGENT-03-A | 恢复 API、错误映射与消费者 Contract 提案 | P0 / S | M00 | review | proposed schema/形状检查/用例设计已提交；发布须 02 闭环/消费者确认 |
-| ND-AGENT-03-B | 新图到 Run 状态/SSE 白名单投影 | P0 / S | M05 | blocked | 02-H；已批准事件/状态 Contract |
-| ND-AGENT-03-C | 调用边界取消与晚到结果竞争 | P0 / S | M05 | blocked | 03-B |
-| ND-AGENT-03-D | 一轮 interrupt 与授权幂等 resume | P0 / M | M05 | blocked | 03-A 发布；03-B/C |
+| ND-AGENT-02-D | 两个只读工具与本 Run 证据注册 | P0 / M | M05 | dev-landed | 开发实现已提交；不批准运行，不关闭 GATE |
+| ND-AGENT-02-E | 可信上下文、历史与每次调用外发门禁 | P0 / M | M01 | dev-landed | 开发实现已提交；不批准运行 |
+| ND-AGENT-02-F | 调用、重写、重试及主备累计预算 | P0 / M | M05 | dev-landed | Fixture 开发已提交；生产数值 TBD-P0，不批准运行 |
+| ND-AGENT-02-G | 真实 StateGraph 原生工具条件循环 | P0 / M | M05 | dev-landed | 开发实现已提交；跨进程恢复仍待 04 |
+| ND-AGENT-02-H | Finalizer/Verifier 补证与全量答案门禁接图 | P0 / S | M05 | dev-landed | 开发实现已提交；事务/outbox 仍待 04-B |
+| ND-AGENT-03-A | 恢复 API、错误映射与消费者 Contract 提案 | P0 / S | M00 | review | proposed schema/形状检查/用例设计已提交；发布须消费者确认 |
+| ND-AGENT-03-B | 新图到 Run 状态/SSE 白名单投影 | P0 / S | M05 | dev-landed | `c0646ec`；9 passed；未接入每次图节点发布 |
+| ND-AGENT-03-C | 调用边界取消与晚到结果竞争 | P0 / S | M05 | dev-landed | `fe795df`；3 passed；不撤销已发生计费，跨进程租约待 04-D |
+| ND-AGENT-03-D | 一轮 interrupt 与授权幂等 resume | P0 / M | M05 | dev-landed-partial | `d7c8eca`；4 passed；仅图内，公开 resume 仍待 03-A |
 | ND-AGENT-03-E | Web 恢复/等待/取消与 SSE 消费 | P1 / M | M08 | blocked | 03-D；03-A 发布 |
 | ND-AGENT-04-A | DR-011 checkpoint/租约/事实/outbox 迁移 Contract | P0 / M | M03 | review | proposed/schema/故障Red设计已提交；发布须03关闭/治理审核 |
 | ND-AGENT-04-B | Claims/Citation/Message/终态事务与 outbox | P0 / M | M03 | blocked | 04-A 发布；03 关闭 |
