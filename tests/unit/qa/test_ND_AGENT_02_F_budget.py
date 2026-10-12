@@ -581,6 +581,42 @@ def test_budget_protocol_error_does_not_call_fallback():
     assert guard.state.model_calls == 1
 
 
+def test_budget_settles_reported_usage_from_model_metadata():
+    """模型返回的 token 用量要进入累计账本。"""
+    policy = BudgetPolicy(
+        max_model_calls=2,
+        max_tool_calls=1,
+        max_rewrite_count=0,
+        timeout_seconds=30.0,
+        max_total_tokens=100,
+    )
+    guard = BudgetGuard(policy, BudgetState())
+
+    guard.settle_reported_usage({"input_tokens": 30, "output_tokens": 12})
+
+    assert guard.state.total_tokens == 42
+    assert guard.state.model_calls == 1
+    assert guard.state.unknown_usage is False
+
+
+def test_budget_missing_reported_usage_fails_closed():
+    """模型没有返回用量时不记零。"""
+    policy = BudgetPolicy(
+        max_model_calls=2,
+        max_tool_calls=1,
+        max_rewrite_count=0,
+        timeout_seconds=30.0,
+        max_total_tokens=100,
+    )
+    guard = BudgetGuard(policy, BudgetState())
+
+    with pytest.raises(BudgetExhaustedError, match="unknown usage"):
+        guard.settle_reported_usage({})
+
+    assert guard.state.total_tokens == 0
+    assert guard.state.unknown_usage is True
+
+
 def test_budget_missing_policy_fails_closed():
     """
     Given: 创建 BudgetPolicy

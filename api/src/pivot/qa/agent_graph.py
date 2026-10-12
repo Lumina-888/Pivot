@@ -138,8 +138,15 @@ class AgentNodes:
                 ],
             }
 
-        # 更新预算
-        budget_guard.after_model_call()
+        # 只有供应商返回 usage_metadata 时才结算 token。脚本模型不计未知用量。
+        usage = getattr(response, "usage_metadata", None) if self.model is not None else None
+        if isinstance(usage, dict):
+            try:
+                budget_guard.settle_reported_usage(usage)
+            except BudgetExhaustedError:
+                pass
+        else:
+            budget_guard.after_model_call()
 
         # 更新状态
         return {

@@ -205,6 +205,26 @@ class BudgetGuard:
         """模型调用后更新"""
         self.state.consume_model_call()
 
+    def settle_reported_usage(self, usage: dict[str, Any] | None) -> None:
+        """结算模型返回的 token 用量；缺失时不记零。"""
+        if not isinstance(usage, dict):
+            self.settle_model_call(actual_cost_usd=None, actual_tokens=None)
+            return
+        input_tokens = usage.get("input_tokens")
+        output_tokens = usage.get("output_tokens")
+        if (
+            type(input_tokens) is not int
+            or type(output_tokens) is not int
+            or input_tokens < 0
+            or output_tokens < 0
+        ):
+            self.settle_model_call(actual_cost_usd=None, actual_tokens=None)
+            return
+        self.settle_model_call(
+            actual_cost_usd=0.0,
+            actual_tokens=input_tokens + output_tokens,
+        )
+
     def settle_model_call(
         self,
         *,
