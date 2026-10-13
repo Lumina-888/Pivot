@@ -1,23 +1,37 @@
 # 问枢 Pivot 开发进度
 
-> **进度文档不是需求源**：需求以 [`SPEC.md`](SPEC.md) 为准，模块边界以 [`MODULE_SPEC.md`](MODULE_SPEC.md) 为准。  
-> **最后更新**：2026-10-12（**contract-v0.2 已发布** - Agent 恢复接口；03-A 全部签认已完成并发布；**04-A 持久化契约已批准并发布 v0.1.0**（DR-011 正式批准：PostgreSQL + Fenced Saver；租约10分钟/OpenBao密钥管理/30天保留期）；03-E Web 恢复/取消 UI 已实现（M08 API + M09 UI 完成）；OpenBao 密钥管理服务已配置就绪；ND-GAP-01 `/admin/metrics` `/admin/tasks` HTTP 路由已实现；ND-AGENT-02 D～H 开发实现已提交；03-B 公开阶段投影、03-C 取消边界、03-D 图内一轮澄清已提交；04-B~F checkpoint 实施待开始，GATE 仍 unverified）\
-> **目标状态**：SPEC-1.1/AGENT-SPEC-1.0/ADR-009 已接受 LangGraph 受控 ReAct；**Agent 端到端闭环已完成**（Phase 0-3: 基础设施→检索→模型→端到端测试），框架/工具循环已接入；**持久化设计已完成**：04-A 已批准（AGENT-PERSISTENCE 0.1.0）、DR-011 正式决策（PostgreSQL + Fenced Saver + OpenBao）、实施待开始。ND-AGENT-01 已修复答案一致性/引用/支持门禁与校验前草稿泄漏（保守完整原文策略）。**ND-AGENT-02-A/B/C 内部契约已发布**（AGENT-INTERNAL/BUDGET/DEPENDENCIES 0.1.0，2026-10-12）；**03-A 恢复契约已批准并发布**（AGENT-RESUME 0.2.0 / contract-v0.2，Owner 全部 7 项签认完成，2026-10-12）；**04-A 持久化契约已批准并发布**（AGENT-PERSISTENCE 0.1.0，Owner 全部 7 项签认完成，2026-10-12）；**03-E Web 恢复已实现**（M08 API + M09 UI，2026-10-12）。DR-010 未关闭，生产运行许可仍 TBD-P0。以下 02-C/04-B~F 为待实施：02-C Windows/Linux 原生候选与 Ubuntu Hosted CI 技术验证已通过，正式角色锁/构建及消费者/Owner/安全签认仍 pending；04-B~F checkpoint 实施计划 3 周（2026-10-12 ~ 2026-11-02）。架构 accepted/released 不等于 implemented/verified。
-> **当前实现状态**：主线开发（MODULE-SPEC-1.2）；Wave 3 夹具已收口；ingest/检索可共用注入 HTTP Embedding；可注入 HTTP Draft Writer 与 MinerU 云解析器；`PIVOT_PARSER=native` 可装配 PyMuPDF/docx/pptx/xlsx extra（缺省仍启发式/stdlib）；dev-staging Compose overlay 已入库（ECS apply 待 Owner SSH/安全组/磁盘）；hashed refresh、Conversation 与 Run/EventLog 可跨装配；SSE 长连接推送（opt-in uvicorn）；opt-in Playwright 十页；企业 Golden Set v0.3 脱敏摘录 120 条（非业务复核，非 GATE）。工作区仅为 `Pivot/` 的 `main`。波次基线 `wave-3-integrated`（**不等于** P0 通过）。
-> **当前基线**：`wave-3-integrated`：HTTP + composition root + Next `/api/v1` 反代 + opt-in Playwright 十页 + PG/MinIO/Qdrant/Redis 客户端 + Golden Set v0.2-synthetic（120 条）+ 企业 Golden Set v0.3 脱敏摘录 120 条（annotated_desensitized，Fake Keyword） + 导出对象 MinIO + 导出任务 SQLAlchemy（CI sqlite） + hashed refresh / Conversation / Run/EventLog SQLAlchemy（CI sqlite） + 检索 dense 消费 Qdrant + ingest→Qdrant + HTTP 上传进程内 ingest + 5 并发/进程内备份夹具 + stdlib BM25/可注入 rerank + Dockerfile/Compose api+web+worker profile `app` + 100k Chunk opt-in 夹具 + HTTP Embedding/bge-reranker 适配器 + ingest/检索共用注入 HTTP Embedding + Redis 登录限流计数 + PG 文档事实 + Celery ingest eager + Compose Celery worker + worker 共享 MinIO/PG ingest runner + Compose api 共享 PG/MinIO + worker 装配 Qdrant IndexPublisher + Compose api 注入 `PIVOT_INGEST=celery` + Compose api/worker 注入 Qdrant/Redis + Compose api 注入登录限流阈值/窗口 + Compose api/worker 注入 `PIVOT_EMBEDDING*` + 可注入 HTTP Draft Writer（Compose 仅 api 注入 `PIVOT_LLM*`） + 可注入 MinerU 云解析器（Compose api/worker 注入 `PIVOT_PARSER*`） + `worker[parse]` 真实解析库 extra（`PIVOT_PARSER=native`；CI 微型夹具；缺省仍启发式/stdlib） + dev-staging Compose overlay（nginx loopback :80，8GiB limits fixture） + SSE 长连接（POST 立即返回 received；逐帧推送；Next SSE Route Handler 去缓冲；opt-in uvicorn）。GATE-P0 全部 unverified。
+进度文档不是需求源。需求以 [SPEC.md](SPEC.md) 为准。模块边界以 [MODULE_SPEC.md](MODULE_SPEC.md) 为准。
+
+最后更新日期是 2026-10-12。仓库基线是 `17ac93a`。
+
+contract-v0.2、03-A 和 04-A v0.1.0 已经发布。03-E 的 Web 恢复已经实现。OpenBao 已经配置。ND-GAP-01 的后台路由已经实现。02-D 至 02-H，以及 03-B、03-C 和 03-D，已经提交。04-B 的结果提交和 04-C 的 checkpoint 框架已经提交，提交是 `bfe07da`。04-D 至 04-F 尚未开始。GATE 仍然 unverified。
+
+SPEC-1.1、AGENT-SPEC-1.0 和 ADR-009 已经接受 LangGraph 受控 ReAct。Agent 端到端闭环已有 Fake 测试，覆盖 Phase 0 至 Phase 3。工具循环已经接入。04-A 持久化契约已经发布，采用 PostgreSQL、Fenced Saver 和 OpenBao。04-B 和 04-C 的框架已经入库。真实 PostgreSQL 恢复尚未验收。
+
+ND-AGENT-01 已经修复答案一致性、引用绑定、支持门禁，以及校验前草稿泄漏。策略是保守的完整原文匹配。02-A、02-B 和 02-C 的内部契约已经发布，版本是 0.1.0。03-A 的恢复契约已经发布为 contract-v0.2。DR-010 尚未关闭，生产运行许可仍是 `TBD-P0`。
+
+02-C 已有 Windows 候选、Linux 候选和 Ubuntu Hosted CI 技术验证。正式角色锁、构建和安全签认仍然 pending。架构 accepted 或 released，不等于 verified。
+
+当前是 MODULE-SPEC-1.2 主线开发。Wave 3 夹具已经收口。ingest 和检索可以共用注入的 HTTP Embedding。HTTP Draft Writer 和 MinerU 云解析器可以注入。`PIVOT_PARSER=native` 可以装配 PyMuPDF、docx、pptx 和 xlsx。缺省仍是启发式解析和标准库。
+
+dev-staging 的 Compose overlay 已经入库。ECS apply 仍等待 Owner 提供 SSH、安全组和磁盘。hashed refresh、Conversation 和 Run 可以跨装配。SSE 长连接和 Playwright 十页都是 opt-in。企业 Golden Set v0.3 有 120 条脱敏摘录。它不是业务复核，也不是 GATE。
+
+工作区只使用 `Pivot/` 的 `main`。`wave-3-integrated` 只表示夹具收口，不等于 P0 通过。该标签覆盖 HTTP、composition root、Next 反代、存储客户端、Golden Set、Compose 和 opt-in 夹具。GATE-P0 全部 unverified。
 
 ## 1. 新会话恢复入口
 
-1. 确认 cwd 为当前 Linux 仓库 `/home/lumina888/Projects/Pivot`，分支为 `main`；`E:/AI Project/Pivot` 是历史 Windows 路径，不要进入 `../Pivot-Mxx-*`；
-2. 读取 `AGENTS.md`；
-3. 读取 `MODULE_SPEC.md`；
-4. 读取本文件和本切片涉及的 `progress/modules/Mxx.md`；
+1. 确认当前目录是 Linux 仓库 `/home/lumina888/Projects/Pivot`，分支是 `main`。`E:/AI Project/Pivot` 是历史 Windows 路径。不要进入 `../Pivot-Mxx-*`。
+2. 读取 `AGENTS.md`。
+3. 读取 `MODULE_SPEC.md`。
+4. 读取本文件，以及本切片涉及的 `progress/modules/Mxx.md`。
 5. 用 `git log --oneline --decorate -20` 确认实际基线。
-6. 后续开发计划与工单：[`progress/next-dev-spec.md`](progress/next-dev-spec.md)、[`progress/tickets.md`](progress/tickets.md)、[SPEC-1.1 剩余 Tickets](progress/tickets/spec-1.1-remaining.md)（不是需求源；02-A/B/C 内部契约已发布，02-D～H 与 03-B/C/D 为开发实现，不批准运行；03-A/04-A 仍 review）。Owner 历史 `dev-staging` 环境范围：[`progress/changes/20260910-M00-dev-staging-scope.md`](progress/changes/20260910-M00-dev-staging-scope.md)。
+6. 开发计划和工单见 [next-dev-spec.md](progress/next-dev-spec.md)、[tickets.md](progress/tickets.md) 和 [剩余 Tickets](progress/tickets/spec-1.1-remaining.md)。它们不是需求源。以各文件顶部索引为准。下文的 review 记录是历史。Owner 的历史环境范围见 [dev-staging 范围](progress/changes/20260910-M00-dev-staging-scope.md)。
 
-本机开发/测试入口见 [Linux runbook](ops/runbook-local-linux.md) 与 [2026-10-03 环境证据](evidence/local-linux-20261003.md)。Python 3.12.10、Node/npm、现有 extras、Playwright 与 loopback API/Web 可用；Python 661 passed/19 skipped、Web 18/13/8 passed、浏览器11 passed。Docker daemon/组权限已配置，但真实依赖镜像与代理授权未完成；memory 模式 readyz=503、检索为空，不宣称真实存储/RAG 就绪。未安装未批准 Agent 依赖、不关闭 02-C 或 GATE。
+本机入口见 [Linux runbook](ops/runbook-local-linux.md) 和 [2026-10-03 环境证据](evidence/local-linux-20261003.md)。Python 3.12.10、Node、npm、现有 extras、Playwright，以及 loopback 上的 API 和 Web，可以运行。Docker 的 daemon 和组权限已经配置。真实依赖镜像和代理授权尚未完成。memory 模式的 readyz 是 503，检索为空。这不表示真实存储或 RAG 就绪。GATE 保持未关闭。
 
-当前 [02-A/B/C 审批入口](evidence/agent-m03/nd-agent-02-abc-review.md)：Ubuntu 候选 CI Run `37420501217` 已在 `7958feb` 上 success，见 [2026-10-06 证据](evidence/agent-m03/nd-agent-02-c/ubuntu-ci-20261006.md)。HANDOFF、剩余 Tickets 与依赖申请已同步，过往“Ubuntu CI 未执行”只作为历史记录。02-A INTERNAL draft.1 及 PR-01 已获 [Owner 单项设计批准](progress/approvals/20261006-02-a-owner-design.md)，不含业务开工或运行启用。下一步明确消费者审核人，完成 02-A 消费者审核；02-B 已获 [Owner 严格费用方向确认](progress/approvals/20261006-02-b-strict-cost-direction.md)，并确认 [实际调用硬门禁/图辅助熔断分工](progress/approvals/20261006-02-b-call-graph-separation.md)，当前提案升draft.3；期限等剩余设计/消费者待签认；02-C 与 03-A/04-A 仍各自待签认，正式角色锁/安全审核仍 pending。没有代签、发布或解锁，仍 **0 ready / 5 review / 24 blocked**。以下为历史执行记录，不重复安排已完成候选 CI。
+当前下一刀是 04-C 的后续，以及 04-D 至 04-F。清单见 [下一步](evidence/agent-m03/nd-agent-04-next-steps.md)。02-A、02-B、02-C、03-A 和 04-A 已经发布。
+
+下面从 2026-10-06 的审批记录开始，都是历史执行记录。其中的“待签认”和“0 ready / 5 review / 24 blocked”不是当前状态。已完成的候选 CI 不重复安排。
 
 2026-10-06 Owner 授权的[真实供应商直连探针](evidence/wave3-m11/live-api-smoke-20261006.md)：仅合成样本，共 10 次有界业务 API 请求，无自动重试/故障转移；Qwen/GPT/Grok 原生工具调用结构通过，embedding 返回 1024 维有限向量，rerank 顺序通过；Qwen 强制工具请求需关闭思考模式，本轮对照默认行为为 400；MinerU 提交 401，无文件上传/解析任务。私有准备模板保留且 Git-ignored/mode600，未改业务接线或自动加载；既有私有配置安全回归 22 passed/1 skipped。Owner 要求本轮直接调用、不实施计费；未核算实扣或实现 10 元硬封顶，不能当生产预算批准。Owner 确认更新 MinerU Token 后增加 1 次提交复测（累计 11 次业务 API 请求），仍返回 401；Token 字段非空/唯一，无重复 Bearer、内部空白或混用其他供应商凭据，未证明有效性或是否确实换值。Owner 随后确认刚创建且已启用；增加 1 次随机不存在批次的只读 GET，同样 401 / `user authenticate failed`，累计 12 次认证 API 尝试（含该只读诊断）。当前值无明显掩码/占位符；官方前端确认 v4 Bearer 与创建弹窗完整复制方式，非可解码 JWT 不证明格式错误。无新提交/上传/解析任务，Owner 确认完整复制来源后增加 1 次独立 curl 只读对照（显式禁用代理/正常 TLS），同样认证 401，累计 13 次认证尝试（含 2 次只读诊断），无新提交/上传/重试；进程/模板无显式代理/自定义 CA。Owner 随后询问 Access Key ID/Secret Access Key，下一步确认字段所属服务页面与凭据类型，不将签名密钥替代 Bearer Token；根因未确定，不自动重试或切换无 Token 的轻量接口；这些直连探针不等于应用端到端/ReAct/GATE 验收，签认、DR、DoR 和 0 ready/5 review/24 blocked 均不变。
 

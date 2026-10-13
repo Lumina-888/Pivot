@@ -1,43 +1,45 @@
-# spec/contracts/ — 机器可读契约（contract-v0.1）
+# 机器可读契约
 
-**当前发布基线：contract-v0.1（manifest 0.1.0），兼容结构保持不变。**
-该契约最初从 SPEC-1.0 生成；当前目标规范为 [`SPEC-1.1`](../../SPEC.md) 和 [AGENT_SPEC](../AGENT_SPEC.md)。变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前发布基线是 contract-v0.2，OpenAPI 版本是 0.2.0。contract-v0.1 的信封保持兼容。
 
-> 新 ReAct 能力、状态循环和答案发布门禁不是 v0.1 已实现事实。恢复 endpoint/字段、协议非法/预算的错误映射及新增 payload 在后续 M00 Contract 冻结；本次不增加路由/schema 字段，不伪称机器契约已覆盖澄清恢复。旧主图阶段名称仅作兼容公开投影，不代表固定执行顺序。
+契约最初从 SPEC-1.0 生成。当前目标规范是 [SPEC-1.1](../../SPEC.md) 和 [AGENT_SPEC](../AGENT_SPEC.md)。变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
-## 待审核内部提案
+v0.2 增加了 `POST /runs/{id}/resume`、澄清字段和恢复错误码。协议非法和预算耗尽的其余错误映射，尚未全部冻结。恢复路由已经发布。这不代表跨进程恢复已经验收。旧主图阶段名称只作兼容公开投影，不代表固定执行顺序。
 
-[AGENT-INTERNAL-0.1-draft.1](../../progress/changes/20261002-M05-agent-internal-contract.md) 定义拟议模型/工具/State/EvidenceRegistry Interface 与 Fake/Red 设计。状态 proposed，ND-AGENT-02-A review 待消费者/Owner 签认；不属于本目录已发布机器契约、不加入 manifest、不生成生产客户端。[AGENT-BUDGET-0.1-draft.3](../../progress/changes/20261002-M05-agent-budget-contract.md) 定义实际调用累计硬预算/预扣结算、图辅助熔断、未知用量、期限/恢复、观察/上下文/并发规则、有限 Fixture 与 Red 设计；取代draft.2精确逐super-step原子账本前置，拟议policy移除graph_supersteps_max。状态 proposed，ND-AGENT-02-B review 待签认，同样不属于已发布契约。[AGENT-DEPENDENCIES-0.1-draft.1](../../progress/changes/20261002-M03-agent-dependencies-lock.md) 的 Windows Python 3.12 候选哈希锁/技术验证已提交，ND-AGENT-02-C review，非正式依赖发布；Linux 与预算映射/敏感序列化等六项审核 pending。02-A/B/C、DR-010 尚未批准，不能据内嵌 schema、Fixture 算术或技术探针解锁业务实现；下一步先签认/补齐验证，03-A恢复与04-A持久化Contract现均proposed/review，待签认，没有ready业务票。
+## 已发布范围
 
-2026-10-12 起，02-A/B/C 的**内部**契约已发布到 [`progress/contracts/`](../../progress/contracts/README.md)（AGENT-INTERNAL / BUDGET / DEPENDENCIES 0.1.0）。它们**不加入**本目录 contract-v0.1 manifest，不生成公开客户端。期限、正式角色锁、遥测/许可证/原生组件与运行许可仍 pending；02-D/F 仅开发解锁，02-E/G/H 继续 blocked，不关闭 DR-010 或任一 GATE。
+2026-10-12，02-A、02-B 和 02-C 的内部契约发布到 [progress/contracts/](../../progress/contracts/README.md)。版本是 AGENT-INTERNAL、BUDGET 和 DEPENDENCIES 的 0.1.0。
 
-## 待审核恢复提案
+这三份契约不加入本目录的公开 manifest，也不生成公开客户端。期限、正式角色锁、遥测、许可证、原生组件和运行许可仍然 pending。它们不关闭 DR-010，也不关闭任何 GATE。
 
-[AGENT-RESUME-0.1-draft.1](../../progress/changes/20261003-M00-agent-resume-contract.md)与 [proposals/](proposals/README.md) 的独立机器schema已提交；ND-AGENT-03-A review，7项消费者/Owner签认pending。62项拟议字段/类型/错误配对检查不证明运行时owner/幂等/取消/恢复。该目录不属于contract-v0.1，不新增公开路由/错误枚举，不生成生产客户端；02/03父票仍blocked。证据见 [nd-agent-03-a.md](../../evidence/agent-m00/nd-agent-03-a.md)。
+03-A 已发布为 contract-v0.2。机器文件是本目录的 `openapi.yaml`，说明见 [CHANGELOG.md](CHANGELOG.md)。`proposals/` 里的恢复草案只保留提案历史。形状检查不能证明运行时的 owner、幂等、取消和跨进程恢复。
 
-## 待审核持久化提案
+04-A 已发布为 [AGENT-PERSISTENCE 0.1.0](../../progress/contracts/AGENT-PERSISTENCE-0.1.0.md)。它不是 contract-v0.1 或 v0.2 的公开 HTTP 契约。04-B 和 04-C 的框架已经提交。04-D 至 04-F，以及真实 PostgreSQL 恢复，尚未完成。证据见 [nd-agent-04-a.md](../../evidence/agent-m03/nd-agent-04-a.md)。
 
-[AGENT-PERSISTENCE-0.1-draft.1](../../progress/changes/20261003-M03-agent-persistence-contract.md)与独立 [agent-persistence.schema.json](proposals/agent-persistence.schema.json)已提交；04-A review，7项签认pending。173项Lease/CheckpointBinding/结果回执/outbox/ProviderAttempt/治理策略元数据检查，不是PG fencing/事实事务/实际State脱敏/恢复验收。未加入contract-v0.1，不修改依赖/迁移/公开错误/路由；DR-011未关闭，04-B~F仍blocked。证据见 [nd-agent-04-a.md](../../evidence/agent-m03/nd-agent-04-a.md)。
+被取代的提案正文保留在 `progress/changes/`。那些正文不再表示 02-A、02-B、02-C、03-A 或 04-A 仍待签认。
 
-## 契约文件与来源映射
+## 文件与来源
 
-| 文件 | 来源章节 | 覆盖内容 |
+| 文件 | 来源 | 覆盖内容 |
 |---|---|---|
-| `openapi.yaml` | SPEC §5.1~5.5、§2.2、附录 B/C | 通用 HTTP 规则、统一错误包与错误码枚举、认证/文档/搜索/会话/Run/导出/后台全部路由、Scope 语义、不透明 ID 与 ISO 8601 UTC |
-| `sse.schema.json` | SPEC §3.3、§5.6、附录 B.2 | SSE data 负载信封（run_id/message_id/seq/timestamp/stage/payload）、事件类型与终态集合（x-* 扩展）、Last-Event-ID 补发语义 |
-| `worker.schema.json` | SPEC §5.7、附录 B.1 | 内部 Worker 输出契约：ok / insufficient / failed 三分支必填差异、trace、error_code 与 confidence 约束 |
+| `openapi.yaml` | SPEC 第 5.1 至 5.5 节、第 2.2 节、附录 B 和附录 C | HTTP 规则、错误包、路由、Scope、不透明 ID 和 UTC 时间 |
+| `sse.schema.json` | SPEC 第 3.3 节、第 5.6 节、附录 B.2 | SSE 信封、事件类型、终态和 Last-Event-ID 补发 |
+| `worker.schema.json` | SPEC 第 5.7 节、附录 B.1 | Worker 的 ok、insufficient 和 failed 三分支 |
 
 ## 消费入口
 
-- **HTTP API**：以 `openapi.yaml` 为唯一来源生成客户端与路由表；`/api/v1` 前缀 + `bearerAuth`（JWT access token，短时）；refresh token 仅经 HttpOnly/Secure/SameSite Cookie（FR-AUTH-001）。
-- **SSE**：`/runs/{id}/events` 返回 `text/event-stream`；每条 `data:` 的 JSON 必须通过 `sse.schema.json`；事件名走 SSE `event:` 行（不在 JSON 内）；断线重连用 `Last-Event-ID`（= 已收最大 `seq`）补发，见 SPEC §3.3。
-- **Worker**：解析/问答节点输出必须通过 `worker.schema.json`；失败必须给非空 `error_code`（SPEC 附录 B.1 枚举）。
-- **契约测试**：`tests/contract/`（M00 所有权，见 `progress/changes/20260906-M00-contract-test-path.md`）校验上述文件与 SPEC 的一致性。
+**HTTP API。** 以 `openapi.yaml` 生成客户端和路由表。前缀是 `/api/v1`。除登录和刷新外，请求使用 `bearerAuth`。refresh token 只经 HttpOnly、Secure 和 SameSite Cookie，依据是 FR-AUTH-001。
 
-## 版本与变更纪律
+**SSE。** `/runs/{id}/events` 返回 `text/event-stream`。每条 `data:` 的 JSON 必须通过 `sse.schema.json`。事件名写在 SSE 的 `event:` 行，不写进 JSON。断线重连使用 `Last-Event-ID`，它等于已收最大 `seq`。规则见 SPEC 第 3.3 节。
 
-- 语义化版本（SPEC §0.6、MODULE_SPEC §10）：兼容字段增加提升 minor；破坏性变更提升 major，并提供兼容窗口或 `/api/v1` 版本升级；
-- 改变状态机、权限、引用/删除语义、模型或检索配置时，必须先行 ADR（SPEC 附录 E）；
-- 需求 ID、状态枚举、公开 API 字段与事件名一经发布不得随意复用（SPEC §0.6）；
-- 跨模块字段/调用方向/错误语义变更：先提交 `progress/changes/YYYYMMDD-Mxx-*.md` 变更申请，获批前消费者继续使用旧契约；
-- `TBD-P0` 项（分页、initial_state、AdminMetrics、有效期、阈值等）仅以 `x-tbd-p0` 注解与说明出现，**禁止在契约中静默填默认值**；冻结后须更新本目录、`SPEC.md` 与测试夹具。
+**Worker。** 解析节点和问答节点的输出必须通过 `worker.schema.json`。失败必须给出非空 `error_code`。枚举见 SPEC 附录 B.1。
+
+**契约测试。** `tests/contract/` 由 M00 维护。变更说明见 `progress/changes/20260906-M00-contract-test-path.md`。测试校验上述文件和 SPEC 是否一致。
+
+## 版本与变更
+
+- 版本规则见 SPEC 第 0.6 节和 MODULE_SPEC 第 10 节。兼容字段增加时提升 minor。破坏性变更提升 major，并提供兼容窗口或 API 版本升级。
+- 状态机、权限、引用、删除语义、模型或检索配置发生变化时，先登记 ADR。依据是 SPEC 附录 E。
+- 已发布的需求 ID、状态枚举、公开 API 字段和事件名不得复用。依据是 SPEC 第 0.6 节。
+- 跨模块字段、调用方向或错误语义发生变化时，先提交 `progress/changes/YYYYMMDD-Mxx-*.md`。获批前，消费者继续使用旧契约。
+- `TBD-P0` 只以 `x-tbd-p0` 注解出现。契约中不得静默填写默认值。冻结后更新本目录、`SPEC.md` 和测试夹具。

@@ -195,9 +195,9 @@ Agent Golden Set 记录问题、允许工具/权限、关键观察、期望证�
 | 工单 | 内容 | 当前可开工性 |
 |---|---|---|
 | ND-AGENT-01 | 答案门禁回归与修复 | done（迁移基线安全子集；完整原文支持门禁；无新公开接口） |
-| ND-AGENT-02 | 工具/模型/预算内部 Contract + 真实 StateGraph 最小闭环 | blocked；01 已完成，仍须 DR-010 与锁依赖 Contract |
-| ND-AGENT-03 | Run/SSE/澄清恢复与 Web 集成 | blocked；ND-AGENT-02、公开恢复/错误映射 Contract |
-| ND-AGENT-04 | Claims/Citation、checkpoint、租约、事件一致性 | blocked；ND-AGENT-03、DR-011 与迁移 Contract |
+| ND-AGENT-02 | 工具/模型/预算内部 Contract + 真实 StateGraph 最小闭环 | 契约 0.1.0 已发布；D～H 已开发实现；DR-010 生产数值未关闭，不批准运行 |
+| ND-AGENT-03 | Run/SSE/澄清恢复与 Web 集成 | 03-A 已发布 contract-v0.2；B/C/D/E 已开发实现；不等于跨进程恢复 |
+| ND-AGENT-04 | Claims/Citation、checkpoint、租约、事件一致性 | 04-A 已发布；04-B/04-C 框架已提交；04-D～F 与真实 PG 恢复未完成 |
 | ND-AGENT-05 | 真实模型工具能力及 Agent Golden Set | blocked；前序闭环、批准环境/样本/密钥 |
 
 ### 11.3 完成标准
@@ -216,7 +216,8 @@ Agent Golden Set 记录问题、允许工具/权限、关键观察、期望证�
 | [ADR-009](../progress/changes/20261002-M00-langgraph-react-baseline.md) | 取代旧 LangGraph 暂缓与固定主图裁决 |
 | [20260906-M05-langgraph.md](../progress/changes/20260906-M05-langgraph.md) | superseded，历史申请，不再阻断当前路线 |
 | [next-dev-spec.md](../progress/next-dev-spec.md)、[tickets.md](../progress/tickets.md) | 新 Agent 关键路径优先；旧 Wave 3/STG/P0 记录保留 |
-| 技术方案 GPT / V2 / A3 | 历史工程/产品/交互参考，不再独立决定 Agent 架构 |
-| .pi/artifacts/Pivot-LangGraph-ReAct改造方案.md | 已被本规范取代的讨论稿，不是实施依据 |
+| 技术方案 GPT / A3 | 历史工程/产品/交互参考，不再独立决定 Agent 架构 |
+| 问枢Pivot-技术方案V2.md | 未入库历史稿，已从工作区删除；以本规范与 SPEC 为准 |
+| .pi/artifacts/Pivot-LangGraph-ReAct改造方案.md | 已被本规范取代的讨论稿，已从工作区删除 |
 
-不批量删除文件；历史提交、证据、tag、需求 ID 和旧实现事实保留。新增恢复接口和机器 schema 在后续 Contract 切片发布，不把未实现能力伪装为当前可用 API。
+不批量删除文件。历史提交、证据、tag、需求 ID 和旧实现事实都保留。恢复接口已随 contract-v0.2 发布。尚未完成的跨进程恢复，不能写成已经验收。

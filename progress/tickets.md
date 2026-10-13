@@ -1,9 +1,14 @@
 # 问枢 Pivot 后续工单
 
-> 配套 [`next-dev-spec.md`](next-dev-spec.md)。需求源为 SPEC-1.1 及其引用的 [AGENT_SPEC](../spec/AGENT_SPEC.md)。\
-> **目标基线**：ADR-009；**实现基线**：`main` / `wave-3-integrated`（旧夹具，≠ ReAct/≠ P0）。\
-> 状态：`ready / review / blocked / done / superseded`；历史票的部分完成/限定延期按原记录保留。架构 accepted 不等于每刀 DoR；ND-AGENT-01 done；02-A/B/C proposed 提案已提交、review 待签认；02-C Windows 与 Debian bookworm runtime 候选锁已验证，Ubuntu CI/供应链/签认未完成，业务实现仍 blocked。
-> **2026-10-02 拆票入口**：[SPEC-1.1 剩余工作 Tickets](tickets/spec-1.1-remaining.md)（29 张细化票、逐票场景/依赖/计划测试/DoD、SPEC 覆盖与 P0/P1 门禁映射）。本文件保留既有父票 ID 和历史证据；子票完成不自动关闭父票或门禁。
+本文件配套 [next-dev-spec.md](next-dev-spec.md)。需求源是 SPEC-1.1，以及它引用的 [AGENT_SPEC](../spec/AGENT_SPEC.md)。
+
+目标基线是 ADR-009。实现基线是 `main` 的 `17ac93a`。`wave-3-integrated` 只是旧夹具。它不等于 ReAct，也不等于 P0。
+
+状态包括 ready、review、blocked、done 和 superseded。历史票的部分完成和限定延期，按原记录保留。架构 accepted 不等于每刀 DoR 已满足。
+
+当前状态以本段为准。02-A、02-B、02-C、03-A 和 04-A 已经发布。02-D 至 02-H，03-B、03-C、03-D、03-E，以及 04-B 和 04-C 的框架，已经提交。04-D 至 04-F 和 05 尚未完成。总表如果与本段冲突，以本段为准。
+
+2026-10-02 的拆票入口是 [剩余 Tickets](tickets/spec-1.1-remaining.md)。当时拆成 29 张细化票。本文件保留父票 ID 和历史证据。子票完成不会自动关闭父票或门禁。
 
 图例：`S` 约 1 个主线切片；`M` 约 2–3 切片；`L` 多个串行切片或必须人工/受控环境，不表示并行会话。
 
@@ -14,9 +19,9 @@
 | ID | 标题 | 阶段 | 规模 | Accountable | SPEC | 依赖 | 状态 |
 |---|---|---|---|---|---|---|---|
 | ND-AGENT-01 | 答案一致性与支持校验门禁 | Agent S1 | M | M05 | FR-QA-002/004, FR-AGENT-005 | 无新公开接口；ADR-009 | done（安全子集，完整持久化仍待 04） |
-| ND-AGENT-02 | 工具/模型/预算 Contract 与 LangGraph ReAct | Agent S2 | L | M05 | FR-AGENT-001~004/009 | 01、DR-010、锁依赖 Contract | dev-landed（D～H 开发实现；不批准运行，父票未 done） |
-| ND-AGENT-03 | Run/SSE/取消与澄清恢复/Web | Agent S3 | L | M05 | FR-AGENT-007/008, FR-STREAM | 02、M00 恢复/错误契约 | in_progress（B/C/D 开发实现；A review；E blocked） |
-| ND-AGENT-04 | 结果事实/checkpoint/租约/一致性 | Agent S4 | L | M03 | FR-AGENT-006, FR-QA-002 | 03、DR-011、迁移 Contract | blocked |
+| ND-AGENT-02 | 工具/模型/预算 Contract 与 LangGraph ReAct | Agent S2 | L | M05 | FR-AGENT-001~004/009 | 01、DR-010、锁依赖 Contract | dev-landed（契约已发布；D～H 已实现；不批准运行，父票未 done） |
+| ND-AGENT-03 | Run/SSE/取消与澄清恢复/Web | Agent S3 | L | M05 | FR-AGENT-007/008, FR-STREAM | 02、M00 恢复/错误契约 | in_progress（03-A 已发布；B/C/D/E 已实现；非跨进程验收） |
+| ND-AGENT-04 | 结果事实/checkpoint/租约/一致性 | Agent S4 | L | M03 | FR-AGENT-006, FR-QA-002 | 03、04-A、真实 PG | in_progress（04-A 已发布；04-B/04-C 框架已提交；D～F 未完成） |
 | ND-AGENT-05 | live 模型工具能力与 Agent Golden Set | Agent S5 | L | M11 | FR-AGENT-009/010 | 前序闭环、批准模型/低敏环境 | blocked |
 | ND-W3-01 | worker 装配 Qdrant IndexPublisher | A1 | S | M07 | FR-DOC-006, FR-RAG-001 | 无 | done |
 | ND-W3-02 | Compose api 注入 `PIVOT_INGEST=celery` | A1 | S | M11 | FR-DOC-005, NFR-OBS | ND-W3-01 建议先 | done |

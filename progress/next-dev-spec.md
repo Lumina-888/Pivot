@@ -1,28 +1,28 @@
 # 问枢 Pivot 后续开发计划（ReAct 改造优先）
 
-> **文档 ID**：`NEXT-DEV-1.25`\
-> **日期**：2026-10-12\
-> **基线**：`main` / tag 目标 `wave-3-integrated`（夹具收口，**不等于** P0 通过）。  
-> **性质**：开发计划与工单拆分；剩余工作细化见 [SPEC-1.1 Tickets](tickets/spec-1.1-remaining.md)。\
-> **本文件不是需求源。** 需求、状态机、错误码、API/SSE/Worker、GATE、`TBD-P0` 仍以 [`SPEC.md`](../SPEC.md) 为准；模块边界以 [`MODULE_SPEC.md`](../MODULE_SPEC.md) 为准；进度以 [`PROGRESS.md`](../PROGRESS.md) 为准。工单目录见 [`tickets.md`](tickets.md)。
+文档 ID 是 `NEXT-DEV-1.26`。日期是 2026-10-12。基线是 `main`。`wave-3-integrated` 只表示夹具收口，不等于 P0 通过。
 
-与 SPEC 冲突时以 SPEC 为准。不得把本文件解释为已冻结 `TBD-P0`，不得把 Fake/夹具标成 `GATE-P0-*` verified。
+本文件是开发计划和工单拆分。剩余工作见 [SPEC-1.1 Tickets](tickets/spec-1.1-remaining.md)。本文件不是需求源。
 
-Owner 当前目标是 **LangGraph 受控 ReAct Agent**，见 [AGENT_SPEC](../spec/AGENT_SPEC.md) 和 [ADR-009](changes/20261002-M00-langgraph-react-baseline.md)。历史 dev-staging 范围仍作为低敏开发环境约束，不代表当前 Agent 已实现或改变 GATE。
+需求、状态机、错误码、API、SSE、Worker、GATE 和 `TBD-P0`，以 [SPEC.md](../SPEC.md) 为准。模块边界以 [MODULE_SPEC.md](../MODULE_SPEC.md) 为准。进度以 [PROGRESS.md](../PROGRESS.md) 为准。工单目录见 [tickets.md](tickets.md)。
+
+与 SPEC 冲突时，以 SPEC 为准。本文件不冻结 `TBD-P0`。Fake 和夹具不能标成 `GATE-P0-*` verified。
+
+Owner 的当前目标是 LangGraph 受控 ReAct Agent。依据见 [AGENT_SPEC](../spec/AGENT_SPEC.md) 和 [ADR-009](changes/20261002-M00-langgraph-react-baseline.md)。历史 dev-staging 范围只约束低敏开发环境。它不改变 GATE。
 
 ## 当前执行计划
 
-最新 [02-A/B/C 审批入口](../evidence/agent-m03/nd-agent-02-abc-review.md)：02-A含PR-01的Owner设计已批准；02-B当前 draft.3，Owner确认严格费用与实际调用硬门禁/图辅助熔断分工，取代精确逐super-step原子账本前置，未改生产数值或发布机器契约。下一项确认执行与澄清等待期限，消费者/整份提案/运行许可仍pending。Windows/bookworm/Ubuntu候选及Ubuntu Hosted CI技术验证已有证据，正式锁/供应链/安全签认待完成；历史20 probes不验收draft.3门禁，02-D～H继续blocked。
+当前基线是 `17ac93a`。02-A、02-B、02-C、03-A 和 04-A 已经发布。正式角色锁、供应链、安全签认和 DR-010 的生产数值仍然 pending。不要用 1.25 及更早修订里的 review 状态覆盖下表。
 
 | 工单 | 工作 | 状态/依赖 |
 |---|---|---|
 | ND-AGENT-01 | 最终 Markdown/Claims 一致性、引用与支持校验门禁 | done；迁移基线安全子集，完整持久化待 04 |
-| ND-AGENT-02 | 模型/工具/预算 Contract、真实 LangGraph 工具循环 | dev-landed；D～H 开发实现已提交，不批准运行 |
-| ND-AGENT-03 | Run/SSE/取消、澄清恢复、Web | in_progress；B/C/D 已提交；公开 resume 仍待 03-A |
-| ND-AGENT-04 | Claims/Citation、checkpoint、租约和事件一致性 | blocked；03 + DR-011 + 迁移 |
+| ND-AGENT-02 | 模型/工具/预算 Contract、真实 LangGraph 工具循环 | dev-landed；契约已发布，D～H 已提交，不批准运行 |
+| ND-AGENT-03 | Run/SSE/取消、澄清恢复、Web | in_progress；03-A 已发布 contract-v0.2；B/C/D/E 已提交 |
+| ND-AGENT-04 | Claims/Citation、checkpoint、租约和事件一致性 | in_progress；04-A 已发布；04-B/04-C 框架已提交；D～F 未完成 |
 | ND-AGENT-05 | 真实模型工具能力与 Agent Golden Set | blocked；前序闭环 + 批准测试环境 |
 
-2026-10-02 按已提交基线 `8cd4727` 细化为 **29 张票**：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。02-A [内部 Contract 提案](changes/20261002-M05-agent-internal-contract.md)与 02-B [DR-010 预算提案](changes/20261002-M05-agent-budget-contract.md)已提交；02-C [Python 3.12 依赖/锁定申请](changes/20261002-M03-agent-dependencies-lock.md)及 Windows 候选验证也已提交。02-A/B/C 均 review（proposed 待签认，未发布）；03-A [恢复Contract提案](changes/20261003-M00-agent-resume-contract.md)与独立proposed schema/62项形状检查已提交、review待签认，未发布API。04-A [持久化Contract提案](changes/20261003-M03-agent-persistence-contract.md)/独立schema与173项shape检查已提交、review待7项签认；[证据](../evidence/agent-m03/nd-agent-04-a.md)。当前0张ready、5张review/24张blocked，不表示实现DoR已满足。下一步优先 **02-A/B/C 签认、Linux 锁验证与预算映射确认**，03-A/04-A消费者与Owner签认及批准PG环境同样待补齐；原02~05父票仍blocked。逐票场景、测试、DoD、SPEC 覆盖与门禁条件见 [剩余 Tickets](tickets/spec-1.1-remaining.md)。
+以下段落是 2026-10-02 的拆票记录，不是当前票状态。按当时基线 `8cd4727` 细化为 **29 张票**：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。02-A [内部 Contract 提案](changes/20261002-M05-agent-internal-contract.md)与 02-B [DR-010 预算提案](changes/20261002-M05-agent-budget-contract.md)已提交；02-C [Python 3.12 依赖/锁定申请](changes/20261002-M03-agent-dependencies-lock.md)及 Windows 候选验证也已提交。02-A/B/C 均 review（proposed 待签认，未发布）；03-A [恢复Contract提案](changes/20261003-M00-agent-resume-contract.md)与独立proposed schema/62项形状检查已提交、review待签认，未发布API。04-A [持久化Contract提案](changes/20261003-M03-agent-persistence-contract.md)/独立schema与173项shape检查已提交、review待7项签认；[证据](../evidence/agent-m03/nd-agent-04-a.md)。当前0张ready、5张review/24张blocked，不表示实现DoR已满足。下一步优先 **02-A/B/C 签认、Linux 锁验证与预算映射确认**，03-A/04-A消费者与Owner签认及批准PG环境同样待补齐；原02~05父票仍blocked。逐票场景、测试、DoD、SPEC 覆盖与门禁条件见 [剩余 Tickets](tickets/spec-1.1-remaining.md)。
 
 新增缺口：ND-GAP-01 后台 metrics/tasks；02 持久审计统一接线；03 首次改密跨实例生命周期验收；04 签名导出实际下载消费者验收。后两项先确认现有机制/Contract，不能据未验收状态直接断言漏洞或私加字段/路由。
 
@@ -156,7 +156,7 @@ Phase A 只允许 **注入**，继续 fail-closed。
 ## 6. 工单怎么用
 
 1. 新会话读本文件 + [`tickets.md`](tickets.md)，从 **Ready** 且依赖已满足的票开工。
-2. ND-AGENT-01 done；02-A/B/C review 待签认；读 [细化工单](tickets/spec-1.1-remaining.md)，优先 **签认、Linux 锁验证与预算映射确认**；DR-010/锁依赖未满足时不写业务实现。03-A/04-A proposed设计已提交待签认，不提前发布恢复接口/迁移。旧 ECS apply/live 检索票保留，不能覆盖 Agent 关键路径。
+2. 读 [细化工单](tickets/spec-1.1-remaining.md) 的顶部索引。当前下一刀是 04-C 后续与 04-D～F。DR-010 生产数值未关闭，不批准生产运行。旧 ECS apply/live 检索票保留，不能覆盖 Agent 关键路径。
 3. 每张工程票：先 `progress/changes/` → Red 测试 → 实现 → 分组回归 → 更新 `PROGRESS.md` / `progress/modules/Mxx.md` → 提交 → 可选 tag。
 4. 组织票（标注、审批、ECS）不由编码会话冒充完成。
 5. 任何票的 DoD **不得**包含「把 GATE 标 verified」，除非证据满足 SPEC §12.2 原文，并登记 ADR/评测/演练产物。
@@ -218,3 +218,4 @@ wave-3-integrated 已打（仍全部 GATE unverified）
 | 1.22 | 2026-10-02 | 02-B draft.2 补独立累计执行前门禁；Windows 技术20 probes；Linux 环境 blocked/执行单未执行；消费者/Owner/安全签认 pending，D～H 保持 blocked |
 | 1.24 | 2026-10-03 | 04-A持久化Contract proposed/review；173项元数据shape通过，7项签认pending；0 ready/5 review/24 blocked；业务/迁移与DR-010/011/GATE仍未放行 |
 | 1.25 | 2026-10-12 | 02-D～H 与 03-B/C/D 开发实现已提交；03-A 公开 resume 与 04-A 仍 review；不批准运行，不关闭 GATE |
+| 1.26 | 2026-10-12 | 按 `17ac93a` 同步：03-A/04-A 已发布，03-E 与 04-B/04-C 框架已提交；下一刀 04-C 后续与 04-D～F |

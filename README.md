@@ -1,55 +1,57 @@
 # 问枢 Pivot
 
-面向企业知识库的 **LangGraph + 受控 ReAct AI Agent** Web 系统。模型通过只读工具选择搜索与证据读取，根据 Observation 再次决策；服务端强制控制权限、scope、外发、预算及答案发布。
+问枢是面向企业知识库的 Web 系统。它使用 LangGraph 和受控 ReAct。模型用只读工具搜索知识、读取证据，再根据观察结果决定下一步。服务端控制权限、范围、外发、预算和答案发布。
 
-技术路线：Next.js + FastAPI + LangGraph StateGraph + PostgreSQL/MinIO/Qdrant/Redis + Celery 文档处理。纯 Web，MVP 固定 10 个页面。
+技术路线包括 Next.js、FastAPI 和 LangGraph StateGraph，以及 PostgreSQL、MinIO、Qdrant、Redis 和 Celery。产品只有 Web。MVP 固定 10 个页面。
 
-> **目标已接受，Agent 尚未实现。** 当前代码仍为纯 Python 线性 RAG；框架/工具循环/checkpoint 待改造；ND-AGENT-01 已修复答案一致性/绑定/支持门禁（保守完整原文策略，完整事务/outbox 仍待实现）。Wave 3 夹具与历史测试不等于新 Agent 验收；GATE-P0 全部 unverified，不是已上线系统。
->
-> 工作区仅为 `E:/AI Project/Pivot` 的 `main`，不要新建 `../Pivot-Mxx-*` worktree。默认下一刀是 **ND-AGENT-02：内部模型/工具/预算 Contract 前置**，详见 [PROGRESS.md](PROGRESS.md)。
+当前基线是 `17ac93a`。目标已经接受。主循环已有开发实现，验收尚未完成。已入库内容包括 LangGraph 工具循环、恢复契约 contract-v0.2、03-E 的 Web 恢复，以及 04-B 和 04-C 的持久化框架。跨进程恢复、04-D 至 04-F 和真实模型冒烟尚未完成。
+
+Wave 3 夹具和单元测试不能代替 GATE。GATE-P0 全部 unverified。系统仍处于开发阶段。
+
+工作区只使用 `E:/AI Project/Pivot` 的 `main`。不要新建 `../Pivot-Mxx-*` worktree。默认下一刀是 04-C 的后续，以及 04-D 至 04-F。详情见 [PROGRESS.md](PROGRESS.md)。
 
 ## 当前规范
 
 | 文件 | 定位 |
 |---|---|
-| [SPEC.md](SPEC.md) | **全局规范源 SPEC-1.1**：需求、状态、HTTP/SSE、安全和验收 |
-| [spec/AGENT_SPEC.md](spec/AGENT_SPEC.md) | **Agent 专项 AGENT-SPEC-1.0**：受 SPEC 管理，FR-AGENT-001~010、工具/循环/预算/恢复/答案发布 |
-| [ADR-009](progress/changes/20261002-M00-langgraph-react-baseline.md) | 已接受的架构迁移、旧文档取代记录及未关闭决策 |
-| [MODULE_SPEC.md](MODULE_SPEC.md) | MODULE-SPEC-1.2：模块责任、所有权、主线 Git 与交接 |
-| [AGENTS.md](AGENTS.md) | 新会话启动与协作指令 |
-| [PROGRESS.md](PROGRESS.md) | 实现事实、历史证据、已知差距与下一步 |
-| [progress/next-dev-spec.md](progress/next-dev-spec.md)、[tickets.md](progress/tickets.md) | Agent 关键路径与旧 Wave 3/STG/P0 工单，不是需求源 |
-| [spec/contracts/README.md](spec/contracts/README.md) | 已发布兼容契约 contract-v0.1；新恢复接口尚未冻结/发布 |
+| [SPEC.md](SPEC.md) | 全局规范源 SPEC-1.1，覆盖需求、状态、HTTP、SSE、安全和验收 |
+| [spec/AGENT_SPEC.md](spec/AGENT_SPEC.md) | Agent 专项 AGENT-SPEC-1.0，受 SPEC 管理 |
+| [ADR-009](progress/changes/20261002-M00-langgraph-react-baseline.md) | 已接受的架构迁移，以及尚未关闭的决策 |
+| [MODULE_SPEC.md](MODULE_SPEC.md) | MODULE-SPEC-1.2，覆盖模块责任、所有权和主线 Git |
+| [AGENTS.md](AGENTS.md) | 新会话的启动与协作指令 |
+| [PROGRESS.md](PROGRESS.md) | 实现事实、历史证据、已知差距和下一步 |
+| [progress/next-dev-spec.md](progress/next-dev-spec.md)、[tickets.md](progress/tickets.md) | 开发计划和工单，不是需求源 |
+| [spec/contracts/README.md](spec/contracts/README.md) | 公开契约 contract-v0.2；v0.1 信封仍然兼容 |
 
-优先级以 SPEC §0.1 为准。专项规格不是第二份可独立覆盖 SPEC 的总规格；预算数值、框架版本、恢复字段和 checkpoint 治理仍需对应 Contract/ADR。
+优先级以 SPEC 第 0.1 节为准。专项规格不能单独覆盖 SPEC。预算数值、框架版本、恢复字段和 checkpoint 治理，以对应 Contract 和 ADR 为准。
 
 ## 历史文档
 
-技术方案 GPT、V2、A3 与 `风格样稿/` 仅保留历史工程、产品或交互参考，不再独立决定 Agent 架构。固定线性主图、自由多 Agent 和 LangGraph 暂缓表述已由 SPEC-1.1/ADR-009 取代。
+技术方案 GPT、A3 门户设计和 `风格样稿/` 只保留历史参考。它们不决定当前 Agent 架构。SPEC-1.1 和 ADR-009 已经取代固定线性主图、自由多 Agent，以及 LangGraph 暂缓表述。
 
-- [技术方案GPT.md](技术方案GPT.md)：GPT-1.0 历史工程来源，不是当前实施总纲。
-- `问枢Pivot-技术方案V2.md`：当前工作区存在的用户未跟踪历史文件，保留不删除；其路线不得覆盖当前 SPEC。
-- [问枢Pivot-A3门户设计.md](问枢Pivot-A3门户设计.md)：历史页面/交互参考。
-- `风格样稿/`：UI 回归基线，Mock 不等于生产能力。
-- `.pi/artifacts/Pivot-LangGraph-ReAct改造方案.md`：已被专项规格取代的讨论稿。
+- [技术方案GPT.md](技术方案GPT.md) 是 GPT-1.0 的历史工程来源，不是当前实施总纲。
+- `问枢Pivot-技术方案V2.md` 是未入库历史稿，已从工作区删除。路线以现行 SPEC 为准。
+- [问枢Pivot-A3门户设计.md](问枢Pivot-A3门户设计.md) 是历史页面和交互参考。
+- `风格样稿/` 是 UI 回归基线。Mock 不等于生产能力。
+- `.pi/artifacts/Pivot-LangGraph-ReAct改造方案.md` 已被专项规格取代，并已从工作区删除。以 `spec/AGENT_SPEC.md` 为准。
 
-不删除提交、tag、测试记录或验收证据，不将旧 implemented 记录改成新 FR-AGENT 已实现。
+已入库的提交、tag、测试记录和验收证据都保留。旧的 implemented 记录不能改写成新的 FR-AGENT 已实现。
 
 ## 开发顺序
 
-1. ND-AGENT-01（done）：迁移基线答案安全回归与修复，[证据](evidence/agent-m05/nd-agent-01.md)；不代表完整 Agent 验收。
-2. ND-AGENT-02：冻结模型/工具/预算内部 Contract，接入真实 StateGraph + Fake tool-calling model。
-3. ND-AGENT-03：Run/SSE、取消、澄清恢复与 Web；先冻结新增公开契约。
-4. ND-AGENT-04：Claims/Citation、Postgres checkpoint、执行租约、事件一致性与重启恢复。
-5. ND-AGENT-05：受控真实模型能力冒烟及 Agent Golden Set。
+1. ND-AGENT-01 已完成。它修复了迁移基线的答案安全问题。证据见 [nd-agent-01.md](evidence/agent-m05/nd-agent-01.md)。这不代表完整 Agent 已验收。
+2. ND-AGENT-02 的内部契约已发布，D 至 H 已有开发实现。它覆盖内部 Contract 和 StateGraph 工具循环。生产运行尚未批准。
+3. ND-AGENT-03 的 03-A 已发布 contract-v0.2，B、C、D、E 已有开发实现。它覆盖 Run、SSE、取消、澄清恢复和 Web。
+4. ND-AGENT-04 的 04-A 已发布，04-B 和 04-C 的框架已提交。Claims、Citation、PostgreSQL checkpoint、执行租约和重启恢复尚未完成。
+5. ND-AGENT-05 仍为 blocked。它覆盖受控真实模型冒烟和 Agent Golden Set。
 
-后续切片在预算、接口或持久化前置条件不足时 blocked，不因需求 accepted 跳过 DoR。
+DR-010 的生产数值尚未关闭。开发实现不等于运行批准。需求 accepted 之后，仍要满足 DoR 才能开工。
 
 ## 开发纪律
 
-- SDD：需求 accepted、契约/数据影响明确后再实现；无测试不得 implemented，无证据不得 verified。
-- TDD：Red → Contract → Green → Refactor → Integration → Regression；命名 `test_<requirement_id>_<behavior>()`。
-- 模型和基础设施使用 Fake/Stub 或受控 Fixture；真实供应商冒烟单独运行，不提交密钥或企业原文。
-- 服务端注入用户/scope；工具和恢复重新授权；校验前不发布正式事实，普通用户不看完整思考链。
-- 不私设 `TBD-P0`；状态、权限、引用/删除、模型或检索配置变化登记 ADR。
-- 收尾更新模块/根进度，运行受影响测试，按 MODULE_SPEC 提交；不把框架安装或旧测试绿灯当 ReAct 完成。
+- SDD：需求 accepted 之后，先明确契约和数据影响，再实现。没有测试，就不能标 implemented。没有证据，就不能标 verified。
+- TDD 顺序是 Red、Contract、Green、Refactor、Integration、Regression。测试命名为 `test_<requirement_id>_<behavior>()`。
+- 模型和基础设施使用 Fake、Stub 或受控 Fixture。真实供应商冒烟单独运行。不得提交密钥或企业原文。
+- 服务端注入用户和 scope。工具和恢复都要重新授权。校验前不发布正式事实。普通用户不看完整思考链。
+- 不私设 `TBD-P0`。状态、权限、引用、删除、模型或检索配置发生变化时，登记 ADR。
+- 收尾时更新模块进度和根进度，运行受影响测试，再按 MODULE_SPEC 提交。框架安装或旧测试绿灯，不能当作 ReAct 完成。

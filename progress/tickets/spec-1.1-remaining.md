@@ -1,9 +1,12 @@
 # SPEC-1.1 剩余工作 Tickets
 
-> **版本 / 日期**：TICKETS-1.9 / 2026-10-12（02-D～H 与 03-B/C/D 开发实现已提交；03-A 公开 resume 与 04-A 仍 review，不批准运行）。
-> **需求源**：[SPEC-1.1](../../SPEC.md)、[AGENT-SPEC-1.0](../../spec/AGENT_SPEC.md)；责任边界：[MODULE-SPEC-1.2](../../MODULE_SPEC.md)。
-> **进度快照**：[PROGRESS.md](../../PROGRESS.md)、[验收矩阵](../../spec/acceptance/matrix.md)；已提交实现基线 `8cd4727`（main）。
-> **性质**：剩余工作拆分，不是新规格、契约发布或验收报告。既有父票和历史完成记录见 [tickets.md](../tickets.md)。
+版本是 TICKETS-1.10。日期是 2026-10-12。基线是 `17ac93a`。
+
+03-A 和 04-A 已经发布。03-E，以及 04-B 和 04-C 的框架，已经提交。04-D 至 04-F 尚未完成。这些提交不构成运行批准。
+
+需求源是 [SPEC-1.1](../../SPEC.md) 和 [AGENT-SPEC-1.0](../../spec/AGENT_SPEC.md)。责任边界是 [MODULE-SPEC-1.2](../../MODULE_SPEC.md)。进度快照见 [PROGRESS.md](../../PROGRESS.md) 和 [验收矩阵](../../spec/acceptance/matrix.md)。
+
+本文件只拆剩余工作。它不是新规格，不是契约发布，也不是验收报告。父票和历史记录见 [tickets.md](../tickets.md)。
 
 ## 0. 拆分口径
 
@@ -19,7 +22,7 @@
 
 2026-10-12：02-A/B/C 消费者签认已完成，内部契约发布为 [AGENT-INTERNAL / BUDGET / DEPENDENCIES 0.1.0](../contracts/README.md)。这不是 contract-v0.1 公开契约，也不关闭 DR-010/GATE。生产数值、期限、正式角色锁、遥测/许可证/原生组件审核与运行许可仍 pending。
 
-2026-10-12 开发实现：02-D～H 已提交；03-B 阶段投影、03-C 调用返回后取消、03-D 图内一轮澄清已提交。这些只是开发/测试实现，不关闭 DR-010/GATE，也不发布公开 resume。下一刀仍是 03-E，但必须等待 03-A 发布；04 仍等待 DR-011。
+2026-10-12 之后：03-A 已发布 contract-v0.2，03-E 已实现。04-A 已发布，04-B/04-C 框架已提交。这些开发实现不关闭 DR-010/GATE，也不等于跨进程恢复。下一刀是 04-C 后续与 04-D～F。
 
 | 子票 | 工作 | 优先级 / 规模 | Accountable | 状态 | 硬依赖 / 放行条件 |
 |---|---|---|---|---|---|
@@ -34,11 +37,11 @@
 | ND-AGENT-03-A | 恢复 API、错误映射与消费者 Contract 提案 | P0 / S | M00 | approved | Owner 已批准全部 7 项签认；可发布为 contract-v0.2 |
 | ND-AGENT-03-B | 新图到 Run 状态/SSE 白名单投影 | P0 / S | M05 | dev-landed | `c0646ec`；9 passed；未接入每次图节点发布 |
 | ND-AGENT-03-C | 调用边界取消与晚到结果竞争 | P0 / S | M05 | dev-landed | `fe795df`；3 passed；不撤销已发生计费，跨进程租约待 04-D |
-| ND-AGENT-03-D | 一轮 interrupt 与授权幂等 resume | P0 / M | M05 | dev-landed-partial | `d7c8eca`；4 passed；仅图内，公开 resume 仍待 03-A |
-| ND-AGENT-03-E | Web 恢复/等待/取消与 SSE 消费 | P1 / M | M08 | blocked | 03-D；03-A 发布 |
-| ND-AGENT-04-A | DR-011 checkpoint/租约/事实/outbox 迁移 Contract | P0 / M | M03 | review | proposed/schema/故障Red设计已提交；发布须03关闭/治理审核 |
-| ND-AGENT-04-B | Claims/Citation/Message/终态事务与 outbox | P0 / M | M03 | blocked | 04-A 发布；03 关闭 |
-| ND-AGENT-04-C | PostgreSQL Checkpointer 与版本固定恢复 | P0 / M | M03 | blocked | 04-A/B；DR-011 |
+| ND-AGENT-03-D | 一轮 interrupt 与授权幂等 resume | P0 / M | M05 | dev-landed-partial | `d7c8eca`；4 passed；图内恢复，不等于跨进程验收 |
+| ND-AGENT-03-E | Web 恢复/等待/取消与 SSE 消费 | P1 / M | M08 | dev-landed | `5cf2361`/`9785fad`；不等于跨进程恢复 |
+| ND-AGENT-04-A | DR-011 checkpoint/租约/事实/outbox 迁移 Contract | P0 / M | M03 | released | AGENT-PERSISTENCE 0.1.0；不是真实 PG 恢复验收 |
+| ND-AGENT-04-B | Claims/Citation/Message/终态事务与 outbox | P0 / M | M03 | dev-landed-partial | `bfe07da`；Phase 5 测试未完成 |
+| ND-AGENT-04-C | PostgreSQL Checkpointer 与版本固定恢复 | P0 / M | M03 | dev-landed-partial | `bfe07da` 框架；Phase 3～5 未完成 |
 | ND-AGENT-04-D | 数据库租约/fencing 与独立在线执行入口 | P0 / M | M03 | blocked | 04-B/C；03-C |
 | ND-AGENT-04-E | ProviderCall 尝试/用量与恢复对账 | P0 / S | M06 | blocked | 04-A/B/D；02-F |
 | ND-AGENT-04-F | 真实 PG 宕机、争用与重放故障矩阵 | P0 / M | M11 | blocked | 04-B/C/D/E；受控 PG 环境 |
@@ -46,14 +49,14 @@
 | ND-AGENT-05-B | 主备 live 工具能力冒烟 | P0 / S | M11 | blocked | 05-A；批准样本/密钥/预算/环境 |
 | ND-AGENT-05-C | Agent Golden Set schema 与 Fake 图回归 | P0 / M | M11 | blocked | 03/04 闭环；业务场景确认 |
 | ND-AGENT-05-D | Agent live 质量、成本与安全评测 | P0 / M | M11 | blocked | 05-B/C；ND-P0-01-A；批准环境 |
-| ND-GAP-01 | 后台 metrics/tasks Contract 与真实接线 | P1 / M | M11 | blocked | M00 字段/分页/路径所有权确认 |
+| ND-GAP-01 | 后台 metrics/tasks Contract 与真实接线 | P1 / M | M11 | dev-landed-partial | `6bb7e9d` 路由已挂；指标非持久统计，任务列表为空 |
 | ND-GAP-02 | 持久审计统一接线与重启可复盘 | P0 / M | M06 | blocked | M03 Repository/迁移 Contract；M00 审核 |
 | ND-GAP-03 | 首次改密/重置后的跨实例生命周期验收 | P0 / S | M01 | blocked | M00/M03 机制确认；不得私加字段 |
 | ND-GAP-04 | 签名导出下载消费者与过期/授权端到端验收 | P1 / M | M06 | blocked | M00 下载消费者 Contract；04-B；TTL 策略 |
 | ND-P0-01-A | 120 条企业脱敏集业务复核 | P0 / M | M11 | blocked | Owner 指定业务复核人/样本准入 |
 | ND-STG-04-A | staging ECS apply 与低敏冒烟 | P1 / M | M11 | blocked | Owner SSH/安全组/磁盘/访问拓扑 |
 
-共 29 张细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。当前 02-A/B released、02-C released-conditional；02-D/F implementation-ready（开发，不批准运行）；03-A approved（2026-10-12）、04-A 仍 review；其余 blocked。P0/P1 既有门禁票继续沿用，见 §4。
+共 29 张细化票：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。当前以本节索引为准：03-A/04-A released，03-E 与 04-B/04-C 为部分开发实现，04-D～F 仍 blocked。下文逐票正文若仍写 review，是提案当时的记录。P0/P1 既有门禁票继续沿用，见 §4。
 
 ## 2. Agent Tickets
 
