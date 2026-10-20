@@ -97,5 +97,31 @@ class CheckpointBinding(Base):
     run: Mapped["Run"] = relationship()
 
 
+class RunLease(Base):
+    """
+    Execution lease for a Run (the ExecutionLease object of 04-A §3).
+
+    One row per Run, keyed by run_id, and never deleted: release and
+    takeover keep the row so fencing_token stays monotonic for the
+    life of the Run. executor_id and expires_at are null while no
+    live holder exists.
+    """
+
+    __tablename__ = "run_leases"
+
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("runs.id"), primary_key=True, nullable=False
+    )
+    executor_id: Mapped[str | None] = mapped_column(String(128))
+    fencing_token: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    run: Mapped["Run"] = relationship()
+
+
 if TYPE_CHECKING:
     from pivot.db.models.conversations import Run

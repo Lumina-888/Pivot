@@ -10,6 +10,7 @@ loose references, so this module opts in locally.
 """
 
 from collections.abc import Iterator
+from datetime import timedelta
 
 import pytest
 from sqlalchemy import create_engine, event
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from pivot.db.base import Base
 from pivot.db.models import (
+    RunLease,
     Chunk,
     Claim,
     Citation,
@@ -126,6 +128,7 @@ def test_commit_result_creates_all_records_atomically(db_session):
         candidate=candidate,
         owner_id="user-1",
         conversation_id=conversation.id,
+        fencing_token=1,
     )
     db_session.commit()
 
@@ -206,6 +209,7 @@ def test_commit_result_idempotent_same_result_id(db_session):
         candidate=candidate,
         owner_id="user-1",
         conversation_id=conversation.id,
+        fencing_token=1,
     )
     db_session.commit()
 
@@ -215,6 +219,7 @@ def test_commit_result_idempotent_same_result_id(db_session):
         candidate=candidate,
         owner_id="user-1",
         conversation_id=conversation.id,
+        fencing_token=1,
     )
 
     assert receipt2.is_idempotent_replay is True
@@ -256,6 +261,7 @@ def test_commit_result_rejects_different_result_id(db_session):
         candidate=candidate1,
         owner_id="user-1",
         conversation_id=conversation.id,
+        fencing_token=1,
     )
     db_session.commit()
 
@@ -284,6 +290,7 @@ def test_commit_result_rejects_different_result_id(db_session):
             candidate=candidate2,
             owner_id="user-1",
             conversation_id=conversation.id,
+            fencing_token=1,
         )
 
 
@@ -317,6 +324,7 @@ def test_commit_result_rejects_already_terminal_run(db_session):
             candidate=candidate,
             owner_id="user-1",
             conversation_id=conversation.id,
+            fencing_token=1,
         )
 
 
@@ -352,6 +360,7 @@ def test_commit_result_transaction_rollback_on_failure(db_session):
             candidate=candidate,
             owner_id="user-1",
             conversation_id=conversation.id,
+            fencing_token=1,
         )
         db_session.commit()
 
@@ -390,6 +399,15 @@ def create_test_run(db_session, initial_state="planning"):
         created_at=utc_now(),
     )
     db_session.add(run)
+    db_session.flush()
+    db_session.add(
+        RunLease(
+            run_id=run.id,
+            executor_id="executor-1",
+            fencing_token=1,
+            expires_at=utc_now() + timedelta(hours=1),
+        )
+    )
     db_session.commit()
 
     return conversation, run

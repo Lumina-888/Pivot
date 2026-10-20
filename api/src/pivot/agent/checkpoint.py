@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from pivot.db.lease import LeaseManager, LeaseNotHeldError
 from pivot.db.models import CheckpointBinding, RunExecution
 from pivot.shared.ids import new_id
 from pivot.shared.time import utc_now
@@ -41,6 +42,7 @@ class FencedCheckpointWriter:
 
     def __init__(self, session: Session) -> None:
         self.session = session
+        self._leases = LeaseManager(session)
 
     def write_checkpoint(
         self,
@@ -88,16 +90,11 @@ class FencedCheckpointWriter:
         if execution is None:
             raise ValueError(f"RunExecution not found for run {run_id}")
 
-        # Step 2: Verify fencing token
-        # TODO: Add lease table and verify token
-        # For now, we'll add this in 04-D when implementing leases
-        logger.debug(
-            "Fencing check",
-            extra={
-                "run_id": run_id,
-                "fencing_token": fencing_token,
-            },
-        )
+        # Step 2: Verify fencing token against the current lease (04-D)
+        try:
+            self._leases.require_current_token(run_id, fencing_token)
+        except LeaseNotHeldError as exc:
+            raise LeaseViolationError(str(exc)) from exc
 
         # Step 3: Verify state_version
         if execution.state_version != expected_state_version:

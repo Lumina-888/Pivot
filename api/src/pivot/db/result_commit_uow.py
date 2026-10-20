@@ -13,6 +13,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from pivot.db.lease import LeaseManager
 from pivot.db.models import Citation, Claim, Message, PublicEventOutbox, ResultCommit, Run
 from pivot.db.repositories.outbox import OutboxRepository
 from pivot.db.repositories.result_commits import ResultCommitRepository
@@ -131,6 +132,8 @@ class CommitmentUnitOfWork:
         candidate: ResultCandidate,
         owner_id: str,
         conversation_id: str,
+        *,
+        fencing_token: int,
     ) -> CommitReceipt:
         """
         Commit a verified result candidate atomically.
@@ -159,6 +162,7 @@ class CommitmentUnitOfWork:
         Raises:
             RunAlreadyTerminalError: Run is already terminal
             IdempotencyConflictError: Same result_id, different content
+            LeaseNotHeldError: Fencing token is not a live lease (new commits only)
             ResultCommitmentError: Other commitment failures
         """
         # Step 1: Check existing commit for idempotency
@@ -191,6 +195,11 @@ class CommitmentUnitOfWork:
             raise RunAlreadyTerminalError(
                 f"Run {run_id} already terminal: {run.state}"
             )
+
+        # Step 2b: Verify fencing token (04-D). Only new commits reach
+        # this point: the idempotent replay above returns the committed
+        # receipt without requiring a live lease (04-A section 4.1).
+        LeaseManager(self.session).require_current_token(run_id, fencing_token)
 
         # TODO: Re-verify authorization, scope, document eligibility, external policy
         # For now, trust that candidate was properly verified before calling

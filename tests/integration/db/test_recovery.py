@@ -19,6 +19,7 @@ from pivot.agent.recovery import (
     RecoveryVersionMismatchError,
     RunTerminalRecoveryError,
 )
+from pivot.db.lease import LeaseManager
 from pivot.db.models import Conversation, Run, RunExecution, User
 from pivot.shared.ids import new_id
 from pivot.shared.time import utc_now
@@ -38,9 +39,7 @@ def seed_recoverable_run(
     db_session,
     *,
     confirm=True,
-    run_state="planning",
     user_status="active",
-    deadline=None,
 ):
     """Seed a run with a written (and by default confirmed) checkpoint."""
     db_session.add(
@@ -65,7 +64,7 @@ def seed_recoverable_run(
         conversation_id=conversation.id,
         question="Test question",
         idempotency_key=new_id("run"),
-        state=run_state,
+        state="planning",
         created_at=utc_now(),
     )
     db_session.add(run)
@@ -77,13 +76,16 @@ def seed_recoverable_run(
         execution_epoch=0,
         current_checkpoint_id=None,
         budget_ledger_cursor="ledger-42",
-        original_deadline_at=deadline or (utc_now() + timedelta(days=1)),
+        original_deadline_at=utc_now() + timedelta(days=1),
         **LOCKED_VERSIONS,
     )
     db_session.add(execution)
     db_session.commit()
 
     if confirm is not None:
+        # 04-D: checkpoint writes require a live lease (first token is 1).
+        LeaseManager(db_session).acquire(run.id, "executor-1", ttl=timedelta(hours=1))
+        db_session.commit()
         writer = FencedCheckpointWriter(db_session)
         binding = writer.write_checkpoint(
             run_id=run.id,
@@ -164,7 +166,10 @@ def test_FR_AGENT_006_restore_rejects_inactive_user(db_session):
 
 
 def test_recovery_refuses_terminal_run(db_session):
-    _, run, _ = seed_recoverable_run(db_session, run_state="answered")
+    # The run went terminal after its checkpoint was confirmed.
+    _, run, _ = seed_recoverable_run(db_session)
+    run.state = "answered"
+    db_session.commit()
 
     with pytest.raises(RunTerminalRecoveryError):
         recover(db_session, run)
@@ -178,9 +183,10 @@ def test_recovery_requires_confirmed_checkpoint(db_session):
 
 
 def test_recovery_deadline_exceeded_fails_closed(db_session):
-    _, run, _ = seed_recoverable_run(
-        db_session, deadline=utc_now() - timedelta(hours=1)
-    )
+    # The original deadline passed after the checkpoint was confirmed.
+    _, run, execution = seed_recoverable_run(db_session)
+    execution.original_deadline_at = utc_now() - timedelta(hours=1)
+    db_session.commit()
 
     with pytest.raises(RecoveryDeadlineExceededError):
         recover(db_session, run)
