@@ -11,6 +11,7 @@ here uses two sequential sessions on one engine.
 """
 
 from collections.abc import Iterator
+from datetime import timedelta
 
 import pytest
 from sqlalchemy import create_engine, event
@@ -18,7 +19,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from pivot.db.base import Base
+from pivot.db.lease import LeaseNotHeldError
 from pivot.db.models import (
+    RunLease,
     Chunk,
     Claim,
     Citation,
@@ -106,6 +109,15 @@ def create_test_run(db_session, initial_state="planning"):
         created_at=utc_now(),
     )
     db_session.add(run)
+    db_session.flush()
+    db_session.add(
+        RunLease(
+            run_id=run.id,
+            executor_id="executor-1",
+            fencing_token=1,
+            expires_at=utc_now() + timedelta(hours=1),
+        )
+    )
     db_session.commit()
 
     return conversation, run
@@ -161,6 +173,7 @@ def test_commit_failure_mid_write_rolls_back_everything(db_session):
             candidate=candidate,
             owner_id="user-1",
             conversation_id=conversation.id,
+            fencing_token=1,
         )
     db_session.rollback()
 
@@ -181,6 +194,7 @@ def test_commit_fk_violation_rolls_back_everything(db_session):
             candidate=candidate,
             owner_id="user-1",
             conversation_id=conversation.id,
+            fencing_token=1,
         )
     db_session.rollback()
 
@@ -198,6 +212,7 @@ def test_reentry_after_commit_returns_replay_without_duplicates(db_session):
         candidate=candidate,
         owner_id="user-1",
         conversation_id=conversation.id,
+        fencing_token=1,
     )
     db_session.commit()
 
@@ -210,6 +225,7 @@ def test_reentry_after_commit_returns_replay_without_duplicates(db_session):
             candidate=candidate,
             owner_id="user-1",
             conversation_id=conversation.id,
+            fencing_token=1,
         )
         assert receipt2.is_idempotent_replay is True
         assert receipt2.result_id == receipt1.result_id
@@ -232,6 +248,7 @@ def test_competing_commit_with_different_result_is_rejected(db_session):
         candidate=winner,
         owner_id="user-1",
         conversation_id=conversation.id,
+        fencing_token=1,
     )
     db_session.commit()
 
@@ -244,6 +261,7 @@ def test_competing_commit_with_different_result_is_rejected(db_session):
                 candidate=loser,
                 owner_id="user-1",
                 conversation_id=conversation.id,
+                fencing_token=1,
             )
         other_session.rollback()
 
@@ -252,3 +270,22 @@ def test_competing_commit_with_different_result_is_rejected(db_session):
         assert claims[0].text == "Winner claim"
         commit = ResultCommitRepository(other_session).get_by_run_id(run.id)
         assert commit.result_id == winner.result_id
+
+
+def test_commit_with_stale_fencing_token_is_refused(db_session):
+    """04-D: a new commit with a non-live fencing token writes nothing."""
+    seed_fk_parents(db_session)
+    conversation, run = create_test_run(db_session)
+    candidate = make_candidate(new_id("run"))
+
+    with pytest.raises(LeaseNotHeldError):
+        CommitmentUnitOfWork(db_session).commit_result(
+            run_id=run.id,
+            candidate=candidate,
+            owner_id="user-1",
+            conversation_id=conversation.id,
+            fencing_token=999,
+        )
+    db_session.rollback()
+
+    assert_nothing_committed(db_session, run.id)

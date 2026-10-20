@@ -14,6 +14,7 @@ from pivot.agent.checkpoint import (
     FencedCheckpointWriter,
     StateVersionMismatchError,
 )
+from pivot.db.lease import LeaseManager
 from pivot.db.models import Conversation, Run, RunExecution, User
 from pivot.shared.ids import new_id
 from pivot.shared.time import utc_now
@@ -69,6 +70,9 @@ def seed_run_with_execution(db_session):
         **LOCKED_VERSIONS,
     )
     db_session.add(execution)
+    db_session.commit()
+    # 04-D: checkpoint writes require a live lease (first token is 1).
+    LeaseManager(db_session).acquire(run.id, "executor-1", ttl=timedelta(hours=1))
     db_session.commit()
     return conversation, run, execution
 
