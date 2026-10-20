@@ -191,11 +191,17 @@ def test_FR_AGENT_007_resume_error_details_cannot_leak_context(proposal_schema):
         )
 
 
-def test_FR_AGENT_007_resume_proposal_is_unpublished(proposal_schema, openapi_doc):
+def test_FR_AGENT_007_resume_proposal_is_published(proposal_schema, openapi_doc, repo_root):
+    # 03-A 已于 2026-10-12 签认并发布为 contract-v0.2。提案原件保留 proposed 状态。
+    # 发布件在 spec/contracts/v0.2/，内容须与提案原件一致。
     assert proposal_schema["x-status"] == "proposed"
-    assert openapi_doc["info"]["version"] == "0.1.0"
-    assert "/runs/{id}/resume" not in openapi_doc["paths"]
+    assert openapi_doc["info"]["version"] == "0.2.0"
+    assert "/runs/{id}/resume" in openapi_doc["paths"]
     codes = openapi_doc["components"]["schemas"]["Error"]["properties"]["code"]["enum"]
-    assert {"RESUME_NOT_ALLOWED", "CLARIFICATION_MISMATCH", "INVALID_RESUME_REQUEST"}.isdisjoint(
+    assert {"RESUME_NOT_ALLOWED", "CLARIFICATION_MISMATCH", "INVALID_RESUME_REQUEST"} <= set(
         codes
     )
+    published_schema = json.loads(
+        (repo_root / "spec/contracts/v0.2/agent-resume.schema.json").read_text(encoding="utf-8")
+    )
+    assert published_schema == proposal_schema

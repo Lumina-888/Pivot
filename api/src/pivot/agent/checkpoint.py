@@ -9,11 +9,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy.orm import Session
-
 from pivot.db.models import CheckpointBinding, RunExecution
 from pivot.shared.ids import new_id
 from pivot.shared.time import utc_now
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
