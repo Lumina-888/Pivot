@@ -13,6 +13,7 @@ dependencies = [
   "argon2-cffi>=23,<26",
   "langgraph==1.2.14",
   "langchain-core==1.6.9",
+  "langchain-openai==1.6.7",
 ]
 
 [project.optional-dependencies]

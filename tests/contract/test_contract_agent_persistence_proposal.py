@@ -318,6 +318,6 @@ def test_FR_AGENT_006_governance_rejects_invalid_limits(persistence_schema, fiel
 
 def test_FR_AGENT_006_persistence_proposal_is_unpublished(persistence_schema, openapi_doc):
     assert persistence_schema["x-status"] == "proposed"
-    assert openapi_doc["info"]["version"] == "0.1.0"
+    assert openapi_doc["info"]["version"] == "0.2.0"
     assert "LeaseToken" not in openapi_doc["components"]["schemas"]
     assert "CheckpointBinding" not in openapi_doc["components"]["schemas"]
