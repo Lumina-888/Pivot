@@ -24,6 +24,8 @@ Owner 的当前目标是 LangGraph 受控 ReAct Agent。依据见 [AGENT_SPEC](.
 
 以下段落是 2026-10-02 的拆票记录，不是当前票状态。按当时基线 `8cd4727` 细化为 **29 张票**：23 张 Agent 子票、4 张跨域缺口票、2 张人工/环境余量票。02-A [内部 Contract 提案](changes/20261002-M05-agent-internal-contract.md)与 02-B [DR-010 预算提案](changes/20261002-M05-agent-budget-contract.md)已提交；02-C [Python 3.12 依赖/锁定申请](changes/20261002-M03-agent-dependencies-lock.md)及 Windows 候选验证也已提交。02-A/B/C 均 review（proposed 待签认，未发布）；03-A [恢复Contract提案](changes/20261003-M00-agent-resume-contract.md)与独立proposed schema/62项形状检查已提交、review待签认，未发布API。04-A [持久化Contract提案](changes/20261003-M03-agent-persistence-contract.md)/独立schema与173项shape检查已提交、review待7项签认；[证据](../evidence/agent-m03/nd-agent-04-a.md)。当前0张ready、5张review/24张blocked，不表示实现DoR已满足。下一步优先 **02-A/B/C 签认、Linux 锁验证与预算映射确认**，03-A/04-A消费者与Owner签认及批准PG环境同样待补齐；原02~05父票仍blocked。逐票场景、测试、DoD、SPEC 覆盖与门禁条件见 [剩余 Tickets](tickets/spec-1.1-remaining.md)。
 
+注：本段中的状态数字是 2026-10-02 的时点记录，其中 02-A、02-B、02-C、03-A 和 04-A 已经发布。现行状态以本文件头部的执行计划表为准，进度以 [PROGRESS.md](../PROGRESS.md) 为准。
+
 新增缺口：ND-GAP-01 后台 metrics/tasks；02 持久审计统一接线；03 首次改密跨实例生命周期验收；04 签名导出实际下载消费者验收。后两项先确认现有机制/Contract，不能据未验收状态直接断言漏洞或私加字段/路由。
 
 以下 Wave 3/STG/P0 计划保留作为历史上下文和后续基础设施工作，不得覆盖上述关键路径。旧 LangGraph extra 票 ND-W3-09 已被 ND-AGENT-02 取代。

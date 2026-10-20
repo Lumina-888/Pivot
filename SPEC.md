@@ -8,7 +8,7 @@
 | 状态 | accepted：LangGraph 受控 ReAct 目标基线；实现迁移待完成，P0 参数待验证 |
 | 专项规格 | [`spec/AGENT_SPEC.md`](spec/AGENT_SPEC.md) AGENT-SPEC-1.0 |
 | 架构决策 | [`ADR-009`](progress/changes/20261002-M00-langgraph-react-baseline.md) |
-| 历史来源 | [`技术方案GPT.md`](./技术方案GPT.md) GPT-1.0，仅历史参考 |
+| 历史来源 | [`archive/technical-plan-gpt.md`](./archive/technical-plan-gpt.md)（原技术方案GPT.md）GPT-1.0，仅历史参考 |
 | 开发方法 | SDD（Specification-Driven Development）+ TDD（Test-Driven Development） |
 | 适用阶段 | P0 预研、P1 MVP 开发与验收 |
 
@@ -1425,9 +1425,9 @@ Fixture 原则：
 ### F.1 来源
 
 - 当前规范：本文件 SPEC-1.1、AGENT_SPEC-1.0 与 ADR-009；
-- 历史工程来源：`技术方案GPT.md`；
+- 历史工程来源：`archive/technical-plan-gpt.md`（原技术方案GPT.md）；
 - 历史产品与路线来源：`问枢Pivot-技术方案V2.md` 已从工作区删除，不再决定当前架构；以本文件为准；
-- 页面与交互：`问枢Pivot-A3门户设计.md`、`风格样稿/S3完整原型/README.md`；
+- 页面与交互：`archive/a3-portal-design.md`（原问枢Pivot-A3门户设计.md）、`风格样稿/S3完整原型/README.md`；
 - 选型和历史备选：`问枢Pivot-选型详解.md`。
 
 ### F.2 冲突处理
