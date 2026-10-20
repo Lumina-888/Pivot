@@ -29,9 +29,9 @@ Wave 3 夹具和单元测试不能代替 GATE。GATE-P0 全部 unverified。系�
 
 技术方案 GPT、A3 门户设计和 `风格样稿/` 只保留历史参考。它们不决定当前 Agent 架构。SPEC-1.1 和 ADR-009 已经取代固定线性主图、自由多 Agent，以及 LangGraph 暂缓表述。
 
-- [技术方案GPT.md](技术方案GPT.md) 是 GPT-1.0 的历史工程来源，不是当前实施总纲。
+- [technical-plan-gpt.md](archive/technical-plan-gpt.md)（原技术方案GPT.md）是 GPT-1.0 的历史工程来源，不是当前实施总纲。
 - `问枢Pivot-技术方案V2.md` 是未入库历史稿，已从工作区删除。路线以现行 SPEC 为准。
-- [问枢Pivot-A3门户设计.md](问枢Pivot-A3门户设计.md) 是历史页面和交互参考。
+- [a3-portal-design.md](archive/a3-portal-design.md)（原问枢Pivot-A3门户设计.md）是历史页面和交互参考。
 - `风格样稿/` 是 UI 回归基线。Mock 不等于生产能力。
 - `.pi/artifacts/Pivot-LangGraph-ReAct改造方案.md` 已被专项规格取代，并已从工作区删除。以 `spec/AGENT_SPEC.md` 为准。
 
