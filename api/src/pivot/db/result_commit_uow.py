@@ -199,7 +199,7 @@ class CommitmentUnitOfWork:
         claim_records: list[Claim] = []
         for claim_data in candidate.claims:
             claim = Claim(
-                id=new_id(),
+                id=new_id("claim"),
                 run_id=run_id,
                 text=claim_data.text,
                 support=claim_data.support,
@@ -215,7 +215,7 @@ class CommitmentUnitOfWork:
         for citation_data in candidate.citations:
             claim_record = claim_records[citation_data.claim_index]
             citation = Citation(
-                id=new_id(),
+                id=new_id("citation"),
                 run_id=run_id,
                 claim_id=claim_record.id,
                 document_id=citation_data.document_id,
@@ -230,7 +230,7 @@ class CommitmentUnitOfWork:
             self.session.add(citation)
 
         # Step 5: Write final assistant Message
-        message_id = new_id()
+        message_id = new_id("message")
         message = Message(
             id=message_id,
             conversation_id=conversation_id,
@@ -264,7 +264,7 @@ class CommitmentUnitOfWork:
         # TODO: Full event projection per 03-B contract
         next_seq = self.outbox_repo.get_next_seq(run_id)
         terminal_event = PublicEventOutbox(
-            event_id=new_id(),
+            event_id=new_id("event"),
             run_id=run_id,
             seq=next_seq,
             publication_key=f"completed-{run_id}",
