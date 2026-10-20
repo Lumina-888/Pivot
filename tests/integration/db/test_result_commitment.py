@@ -1,12 +1,33 @@
 """Integration tests for ResultCommitmentUnitOfWork.
 
 Tests the atomic commit_result transaction per 04-A contract.
+
+This module uses its own session fixture with SQLite foreign key
+enforcement enabled: PostgreSQL always enforces foreign keys, while
+SQLite only does so with PRAGMA foreign_keys=ON. The shared db
+conftest intentionally leaves enforcement off for suites that use
+loose references, so this module opts in locally.
 """
 
-import pytest
-from sqlalchemy.exc import IntegrityError
+from collections.abc import Iterator
 
-from pivot.db.models import Claim, Citation, Conversation, Message, Run
+import pytest
+from sqlalchemy import create_engine, event
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from pivot.db.base import Base
+from pivot.db.models import (
+    Chunk,
+    Claim,
+    Citation,
+    Conversation,
+    Document,
+    DocumentVersion,
+    Message,
+    Run,
+    User,
+)
 from pivot.db.result_commit_uow import (
     CitationData,
     ClaimData,
@@ -19,8 +40,55 @@ from pivot.shared.ids import new_id
 from pivot.shared.time import utc_now
 
 
+@pytest.fixture
+def db_session() -> Iterator[Session]:
+    """SQLite session with foreign key enforcement (PostgreSQL parity)."""
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        yield session
+    engine.dispose()
+
+
+def seed_fk_parents(db_session):
+    """Seed the User/Document/Version/Chunk rows citations reference."""
+    db_session.add(
+        User(
+            id="user-1",
+            username="user-1",
+            password_hash="hash",
+            role="user",
+            status="active",
+        )
+    )
+    db_session.add(Document(id="doc-1", title="Doc 1", created_by="user-1"))
+    db_session.add(
+        DocumentVersion(
+            id="ver-1",
+            document_id="doc-1",
+            content_sha256="0" * 64,
+            storage_key="doc-1/ver-1",
+        )
+    )
+    db_session.add(
+        Chunk(id="chunk-1", version_id="ver-1", text="evidence", text_hash="hash-1")
+    )
+    db_session.add(
+        Chunk(id="chunk-2", version_id="ver-1", text="evidence 2", text_hash="hash-2")
+    )
+    db_session.commit()
+
+
 def test_commit_result_creates_all_records_atomically(db_session):
     """Should create Claims/Citations/Message/ResultCommit/Outbox atomically."""
+    seed_fk_parents(db_session)
     conversation, run = create_test_run(db_session)
     uow = CommitmentUnitOfWork(db_session)
 
@@ -109,6 +177,7 @@ def test_commit_result_creates_all_records_atomically(db_session):
 
 def test_commit_result_idempotent_same_result_id(db_session):
     """Should return existing receipt for same result_id."""
+    seed_fk_parents(db_session)
     conversation, run = create_test_run(db_session)
     uow = CommitmentUnitOfWork(db_session)
 
@@ -159,6 +228,7 @@ def test_commit_result_idempotent_same_result_id(db_session):
 
 def test_commit_result_rejects_different_result_id(db_session):
     """Should raise IdempotencyConflictError for different result_id."""
+    seed_fk_parents(db_session)
     conversation, run = create_test_run(db_session)
     uow = CommitmentUnitOfWork(db_session)
 
@@ -219,6 +289,7 @@ def test_commit_result_rejects_different_result_id(db_session):
 
 def test_commit_result_rejects_already_terminal_run(db_session):
     """Should raise RunAlreadyTerminalError if run is terminal."""
+    seed_fk_parents(db_session)
     conversation, run = create_test_run(db_session, initial_state="answered")
     uow = CommitmentUnitOfWork(db_session)
 
@@ -251,6 +322,7 @@ def test_commit_result_rejects_already_terminal_run(db_session):
 
 def test_commit_result_transaction_rollback_on_failure(db_session):
     """Should rollback all changes if any step fails."""
+    seed_fk_parents(db_session)
     conversation, run = create_test_run(db_session)
     uow = CommitmentUnitOfWork(db_session)
 
@@ -301,7 +373,7 @@ def test_commit_result_transaction_rollback_on_failure(db_session):
 def create_test_run(db_session, initial_state="planning"):
     """Helper to create a test conversation and run."""
     conversation = Conversation(
-        id=new_id("run"),
+        id=new_id("conversation"),
         owner_id="user-1",
         title="Test",
         created_at=utc_now(),
