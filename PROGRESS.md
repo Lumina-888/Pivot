@@ -2,9 +2,9 @@
 
 进度文档不是需求源。需求以 [SPEC.md](SPEC.md) 为准。模块边界以 [MODULE_SPEC.md](MODULE_SPEC.md) 为准。
 
-最后更新日期是 2026-10-20。仓库基线是 `5965508`。
+最后更新日期是 2026-10-20。仓库基线是 `bbcb6d7`。
 
-contract-v0.2、03-A 和 04-A v0.1.0 已经发布。03-E 的 Web 恢复已经实现。OpenBao 已经配置。ND-GAP-01 的后台路由已经实现。02-D 至 02-H，以及 03-B、03-C 和 03-D，已经提交。04-B 的结果提交和 04-C 的 checkpoint 框架已经提交，提交是 `bfe07da`。04-B 测试收尾（ND-AGENT-04 S1）已经完成：修复结果提交 UoW 的 `new_id` 缺参缺陷，端到端提交测试已纳入 CI 分组，并补齐四个故障场景测试。04-C 恢复逻辑（ND-AGENT-04 S2）已经完成：实现版本锁校验与恢复管理器，版本不兼容、未授权、已终态与超期一律拒绝恢复，并补齐 checkpoint 写入与状态加密接缝的测试。04-D 租约与 fencing（ND-AGENT-04 S3）已经完成：新增 run_leases 表与 LeaseManager，checkpoint 写入与结果提交均已接入 fencing 校验，过期接管后旧 token 的写入被拒。04-E 与 04-F 尚未开始。GATE 仍然 unverified。
+contract-v0.2、03-A 和 04-A v0.1.0 已经发布。03-E 的 Web 恢复已经实现。OpenBao 已经配置。ND-GAP-01 的后台路由已经实现。02-D 至 02-H，以及 03-B、03-C 和 03-D，已经提交。04-B 的结果提交和 04-C 的 checkpoint 框架已经提交，提交是 `bfe07da`。04-B 测试收尾（ND-AGENT-04 S1）已经完成：修复结果提交 UoW 的 `new_id` 缺参缺陷，端到端提交测试已纳入 CI 分组，并补齐四个故障场景测试。04-C 恢复逻辑（ND-AGENT-04 S2）已经完成：实现版本锁校验与恢复管理器，版本不兼容、未授权、已终态与超期一律拒绝恢复，并补齐 checkpoint 写入与状态加密接缝的测试。04-D 租约与 fencing（ND-AGENT-04 S3）已经完成：新增 run_leases 表与 LeaseManager，checkpoint 写入与结果提交均已接入 fencing 校验，过期接管后旧 token 的写入被拒。04-E 供应商尝试与预算对账（ND-AGENT-04 S4）已经完成：新增 provider_attempts 表与 BudgetLedger，预扣幂等且受 fencing 与预算上限约束，派发后未结算保持未对账，结算幂等且账本游标随每次变更同步。04-F 尚未开始。GATE 仍然 unverified。
 
 SPEC-1.1、AGENT-SPEC-1.0 和 ADR-009 已经接受 LangGraph 受控 ReAct。Agent 端到端闭环已有 Fake 测试，覆盖 Phase 0 至 Phase 3。工具循环已经接入。04-A 持久化契约已经发布，采用 PostgreSQL、Fenced Saver 和 OpenBao。04-B 和 04-C 的框架已经入库。真实 PostgreSQL 恢复尚未验收。
 

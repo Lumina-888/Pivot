@@ -15,7 +15,13 @@ from pivot.db.models.conversations import (
 from pivot.db.models.documents import Chunk, Document, DocumentVersion, IndexGeneration
 from pivot.db.models.execution import CheckpointBinding, RunExecution, RunLease
 from pivot.db.models.identity import RefreshToken, User
-from pivot.db.models.operations import CeleryTask, ExportTask, ParseError, ProviderCall
+from pivot.db.models.operations import (
+    CeleryTask,
+    ExportTask,
+    ParseError,
+    ProviderAttempt,
+    ProviderCall,
+)
 
 __all__ = [
     "Base",
@@ -40,5 +46,6 @@ __all__ = [
     "CeleryTask",
     "ParseError",
     "ProviderCall",
+    "ProviderAttempt",
     "AuditEvent",
 ]
