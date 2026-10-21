@@ -155,6 +155,7 @@ def _runtime_settings(**overrides: object) -> RuntimeSettings:
         "json_http_client": _http_client(),
     }
     values.update(overrides)
+    values.setdefault("retrieval_backend", "native")
     return RuntimeSettings(**values)
 
 
@@ -187,6 +188,7 @@ def _worker_settings(
         "embedding_model": "injected-embed-model",
         "embedding_api_key": "secret-embed-key",
         "json_http_client": _http_client(),
+        "retrieval_backend": "native",
     }
     values.update(overrides)
     return IngestAssemblySettings(**values)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -91,6 +92,8 @@ class IngestAssemblySettings:
     qdrant_vector_size: int | None = None
     qdrant_distance: str | None = None
     vector_store_client: object | None = None
+    retrieval_backend: str = "llama"
+    llama_qdrant_client: object | None = None
     embedding: str = "hash"
     embedding_endpoint: str | None = None
     embedding_model: str | None = None
@@ -131,6 +134,11 @@ class IngestAssemblySettings:
             raise RuntimeError(
                 "unsupported PIVOT_VECTOR_STORE="
                 f"{self.vector_store!r}; this slice wires memory or qdrant"
+            )
+        if self.retrieval_backend not in {"native", "llama"}:
+            raise RuntimeError(
+                "unsupported PIVOT_RETRIEVAL_BACKEND="
+                f"{self.retrieval_backend!r}; this slice wires native or llama"
             )
         if self.vector_store == "qdrant":
             if not (self.qdrant_endpoint or "").strip() or not (
@@ -203,6 +211,8 @@ class IngestAssemblySettings:
             == "1",
             qdrant_vector_size=_optional_positive_int(env, "PIVOT_QDRANT_VECTOR_SIZE"),
             qdrant_distance=(env.get("PIVOT_QDRANT_DISTANCE") or "").strip() or None,
+            retrieval_backend=(env.get("PIVOT_RETRIEVAL_BACKEND") or "llama").strip()
+            or "llama",
             embedding=(env.get("PIVOT_EMBEDDING") or "hash").strip() or "hash",
             embedding_endpoint=(env.get("PIVOT_EMBEDDING_ENDPOINT") or "").strip()
             or None,
@@ -223,9 +233,100 @@ class IngestAssemblySettings:
         )
 
 
+class _LlamaSyncingRunner:
+    """Ingest runner wrapper that reconciles the llama collection.
+
+    The worker process owns ingest under celery, so the collection-level
+    reconcile the API performs for in-process ingest happens here. The
+    sync never raises; the API rechecks authorization against live facts
+    on every query regardless.
+    """
+
+    def __init__(self, runner, *, sync, version_rows) -> None:
+        self._runner = runner
+        self._sync = sync
+        self._version_rows = version_rows
+
+    def __call__(self, version_id, request_id, actor_id):
+        result = self._runner(version_id, request_id, actor_id)
+        version = self._version_rows.get(version_id)
+        if version is not None:
+            self._sync(version.document_id)
+        return result
+
+
+def _llama_document_sync(settings, *, store, document_rows, version_rows, embedding):
+    """Build the per-document reconcile callback for the worker process."""
+    from pivot.retrieval.llama_embeddings import PivotEmbedding
+    from pivot.retrieval.llama_index_builder import _payload_of, scroll_payloads
+    from pivot.retrieval.llama_qdrant_index import LlamaQdrantIndex
+
+    def external_llm_allowed(version_id: str) -> bool:
+        version = version_rows.get(version_id)
+        return bool(version is not None and version.external_llm_allowed)
+
+    client = settings.llama_qdrant_client
+    if client is None:
+        from pivot.storage.adapters.qdrant import _normalize_endpoint
+        from qdrant_client import QdrantClient as SdkQdrantClient
+
+        client_kwargs: dict[str, object] = {
+            "url": _normalize_endpoint(settings.qdrant_endpoint or "")
+        }
+        if settings.qdrant_api_key:
+            client_kwargs["api_key"] = settings.qdrant_api_key
+        client = SdkQdrantClient(**client_kwargs)
+    if not settings.qdrant_distance:
+        raise RuntimeError(
+            "PIVOT_QDRANT_DISTANCE is required when "
+            "PIVOT_RETRIEVAL_BACKEND=llama so the worker can sync the "
+            "LlamaIndex collection"
+        )
+    holder = LlamaQdrantIndex.open_for_sync(
+        client=client,
+        native_collection=settings.qdrant_collection or "",
+        embed_model=PivotEmbedding(
+            embedding,
+            model_name=settings.embedding_model or "hash-embedding",
+            dimension=settings.qdrant_vector_size,
+        ),
+        vector_size=settings.qdrant_vector_size,
+        distance=settings.qdrant_distance,
+        native_payloads=scroll_payloads(store),
+        external_llm_allowed=external_llm_allowed,
+    )
+    logger = logging.getLogger(__name__)
+
+    def sync(document_id: str) -> None:
+        try:
+            current_payloads: list = []
+            document = document_rows.get(document_id)
+            if document is not None and document.deleted_at is None:
+                current = None
+                for version in version_rows.list_for_document(document_id):
+                    if version.current:
+                        current = version
+                        break
+                if current is not None:
+                    current_payloads = [
+                        payload
+                        for payload in scroll_payloads(store)
+                        if _payload_of(payload).get("version_id") == current.id
+                    ]
+            holder.reconcile_document(
+                document_id,
+                current_payloads=current_payloads,
+                external_llm_allowed=external_llm_allowed,
+            )
+        except Exception:
+            logger.exception("llama index reconcile failed for document %s", document_id)
+
+    return sync
+
+
 @dataclass(frozen=True)
 class IngestAssembly:
-    runner: DocumentIngestRunner
+    runner: DocumentIngestRunner | _LlamaSyncingRunner
     documents: DocumentService
     objects: MinioObjectStore
     storage: str
@@ -359,9 +460,11 @@ def assemble_ingest_runtime(
     engine = _open_postgres_engine(resolved)
     sessions = session_factory(engine)
     objects = _open_minio_store(resolved)
+    document_rows = SqlAlchemyDocumentStore(sessions)
+    version_rows = SqlAlchemyVersionStore(sessions)
     documents = DocumentService(
-        documents=SqlAlchemyDocumentStore(sessions),
-        versions=SqlAlchemyVersionStore(sessions),
+        documents=document_rows,
+        versions=version_rows,
         chunks=SqlAlchemyChunkStore(sessions),
         tasks=SqlAlchemyTaskStore(sessions),
         objects=objects,
@@ -385,8 +488,20 @@ def assemble_ingest_runtime(
             runner_kwargs["embedding_model_version"] = resolved.embedding_model
     if parsers is not None:
         runner_kwargs["parsers"] = parsers
+    runner: DocumentIngestRunner | _LlamaSyncingRunner = DocumentIngestRunner(
+        documents, **runner_kwargs
+    )
+    if resolved.retrieval_backend == "llama" and vectors is not None and embedding is not None:
+        sync = _llama_document_sync(
+            resolved,
+            store=vectors,
+            document_rows=document_rows,
+            version_rows=version_rows,
+            embedding=embedding,
+        )
+        runner = _LlamaSyncingRunner(runner, sync=sync, version_rows=version_rows)
     return IngestAssembly(
-        runner=DocumentIngestRunner(documents, **runner_kwargs),
+        runner=runner,
         documents=documents,
         objects=objects,
         storage=resolved.storage,

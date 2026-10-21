@@ -65,6 +65,7 @@ def _settings(**overrides: object) -> RuntimeSettings:
         "argon2_parallelism": 1,
     }
     values.update(overrides)
+    values.setdefault("retrieval_backend", "native")
     return RuntimeSettings(**values)
 
 

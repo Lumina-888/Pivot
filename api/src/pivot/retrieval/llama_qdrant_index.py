@@ -102,6 +102,7 @@ class LlamaQdrantIndex:
         native_payloads: Iterable[Mapping],
         external_llm_allowed: ExternalLlmLookup,
         rebuild: bool = False,
+        hydrate: bool = True,
     ) -> "LlamaQdrantIndex":
         payloads = list(native_payloads)
         collection = llama_collection_name(native_collection)
@@ -118,11 +119,22 @@ class LlamaQdrantIndex:
             _validate_collection(
                 client, collection, vector_size=vector_size, native_payloads=payloads
             )
-            _hydrate(index, client, collection)
+            if hydrate:
+                _hydrate(index, client, collection)
             return holder
         _create_collection(client, collection, vector_size=vector_size, distance=distance)
         holder.load(payloads, external_llm_allowed=external_llm_allowed)
         return holder
+
+    @classmethod
+    def open_for_sync(cls, **kwargs) -> "LlamaQdrantIndex":
+        """Open for collection-level reconcile only (worker processes).
+
+        Validation and the initial load match open(); hydration is
+        skipped, so reconcile writes reach the collection while this
+        process never serves queries from the returned holder.
+        """
+        return cls.open(hydrate=False, **kwargs)
 
     def load(
         self,
