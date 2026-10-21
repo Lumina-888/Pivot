@@ -51,6 +51,11 @@ def tool_schemas() -> list[dict[str, Any]]:
 
 
 def step_payloads(model: str) -> list[dict[str, Any]]:
+    # Thinking mode rejects a forced tool_choice on the ADR-011 primary
+    # model (provider returns HTTP 400), the same constraint class as
+    # the 2026-10-06 Qwen probe. The smoke measures the tool protocol,
+    # not reasoning, so every step runs with thinking disabled.
+    thinking_off = {"thinking": {"type": "disabled"}}
     return [
         {
             "model": model,
@@ -59,6 +64,7 @@ def step_payloads(model: str) -> list[dict[str, Any]]:
             ],
             "max_tokens": 32,
             "temperature": 0,
+            **thinking_off,
         },
         {
             "model": model,
@@ -72,6 +78,7 @@ def step_payloads(model: str) -> list[dict[str, Any]]:
             },
             "max_tokens": 256,
             "temperature": 0,
+            **thinking_off,
         },
     ]
 
@@ -99,6 +106,7 @@ def round_trip_payload(model: str, forced_response: dict[str, Any]) -> dict[str,
         "tool_choice": "auto",
         "max_tokens": 512,
         "temperature": 0,
+        "thinking": {"type": "disabled"},
     }
 
 
@@ -171,7 +179,14 @@ def run_smoke(model: str, transport: Transport) -> dict[str, Any]:
     for index, payload in enumerate(payloads):
         name = ["chat", "forced_tool"][index]
         started = time.monotonic()
-        response = transport(payload)
+        try:
+            response = transport(payload)
+        except Exception as exc:  # record, never crash the smoke
+            report["steps"].append(
+                {"name": name, "failures": [f"transport_error: {exc}"], "info": {}}
+            )
+            report["passed"] = False
+            return report
         latency_ms = round((time.monotonic() - started) * 1000)
         failures, info = verifiers[index](response)
         usage = response.get("usage") or {}
@@ -192,7 +207,18 @@ def run_smoke(model: str, transport: Transport) -> dict[str, Any]:
             forced_response = response
     assert forced_response is not None
     started = time.monotonic()
-    response = transport(round_trip_payload(model, forced_response))
+    try:
+        response = transport(round_trip_payload(model, forced_response))
+    except Exception as exc:  # record, never crash the smoke
+        report["steps"].append(
+            {
+                "name": "tool_round_trip",
+                "failures": [f"transport_error: {exc}"],
+                "info": {},
+            }
+        )
+        report["passed"] = False
+        return report
     latency_ms = round((time.monotonic() - started) * 1000)
     failures, info = verify_round_trip(response)
     usage = response.get("usage") or {}
