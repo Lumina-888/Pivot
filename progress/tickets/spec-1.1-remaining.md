@@ -47,7 +47,7 @@
 | ND-AGENT-04-F | 真实 PG 宕机、争用与重放故障矩阵 | P0 / M | M11 | blocked | 04-B/C/D/E；受控 PG 环境 |
 | ND-AGENT-05-A | 主备原生工具模型 HTTP Adapter | P0 / M | M05 | dev-landed | 选型已由 ADR-011 落定；适配器接线与 Fake 传输测试完成（2026-10-21），live 验证在 05-B |
 | ND-AGENT-05-B | 主备 live 工具能力冒烟 | P0 / S | M11 | blocked | 主模型已验证；备用模型（小米）接入待 Owner 提供 |
-| ND-AGENT-05-C | Agent Golden Set schema 与 Fake 图回归 | P0 / M | M11 | blocked | 03/04 闭环；业务场景确认 |
+| ND-AGENT-05-C | Agent Golden Set schema 与 Fake 图回归 | P0 / M | M11 | dev-landed | 已落地：金标集 v0.1（9 场景）与 Fake 图回归；业务场景确认仍待业务复核 |
 | ND-AGENT-05-D | Agent live 质量、成本与安全评测 | P0 / M | M11 | blocked | 05-B/C；ND-P0-01-A；批准环境 |
 | ND-GAP-01 | 后台 metrics/tasks Contract 与真实接线 | P1 / M | M11 | dev-landed-partial | `6bb7e9d` 路由已挂；指标非持久统计，任务列表为空 |
 | ND-GAP-02 | 持久审计统一接线与重启可复盘 | P0 / M | M06 | blocked | M03 Repository/迁移 Contract；M00 审核 |
@@ -299,7 +299,7 @@
 ### ND-AGENT-05-C Agent Golden Set 与 Fake 回归
 
 - **父票 / 来源 / 责任**：ND-AGENT-05；FR-AGENT-010、SPEC §10.8、AGENT_SPEC §11；Accountable M11，Contributors M00/M04/M05/业务。
-- **状态 / 依赖**：blocked；03/04 闭环及场景确认；schema/标注提案可提前登记，不提前验收。
+- **状态 / 依赖**：dev-landed（2026-10-21）；03/04 已闭环。交付：`spec/fixtures/golden-set/agent/v0.1-public.json`（schema agent-golden-set/0.1，9 个场景、8 条语块）与说明 `spec/fixtures/golden-set/agent/README.md`；法规语块为《职工带薪年休假条例》原文（司法部法规库，文档记录含来源地址与 SHA-256），内部余额与申请流程语块为合成数据并已标注；问题与期望为人工口径标注，不是业务复核。Fake 图回归 `tests/unit/qa/test_FR_AGENT_010_golden_set.py`（含两条计划测试）与装配 `tests/unit/qa/agent_golden_harness.py` 已随分组套件运行：11 项全过。expect 的终态、关键观察与安全断言供 05-D live 评分复用，tool_sequence 精确一致仅约束 Fake 基线。未覆盖（已在夹具说明中登记理由）：取消、澄清、持久恢复、版本冲突与单文档范围。业务场景确认（业务复核）仍未完成，本票不据此验收 GATE。
 - **场景 / 异常**：覆盖观察改变行动、改写/读证据、空证据、协议非法、预算、注入、取消、跨用户/跨 Run、澄清及持久恢复；不能用唯一固定工具轨迹判断所有问题。
 - **范围 / 数据**：问题/允许权限工具/关键观察/证据/允许事实/终态 schema，分层版本化；复用企业脱敏集但不改名旧 v0.2，不新增未经授权原文。
 - **路径 / 交付**：经 M04 确认的 `spec/fixtures/golden-set/**`，M00 schema/矩阵，M11 评测器与报告。

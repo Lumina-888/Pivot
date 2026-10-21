@@ -2,6 +2,11 @@
 
 目标规模 100~150 条（SPEC §10.8）。当前评测默认 **合成** `retrieval/v0.2-synthetic.json`（十层各 12 条，共 120 条）。`v0.1-synthetic.json` 保留为历史 10 条夹具。
 
+Agent 集入口：
+
+- 智能体层金标集 `agent/v0.1-public.json`（9 个场景），格式说明见 [`agent/README.md`](agent/README.md)
+- Fake 图回归 `tests/unit/qa/test_FR_AGENT_010_golden_set.py`（ND-AGENT-05-C 基线，不是 live 质量结论）
+
 企业集入口：
 
 - 标注规范 [`ANNOTATION.md`](ANNOTATION.md)
