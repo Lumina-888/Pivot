@@ -67,23 +67,22 @@ def upgrade() -> None:
     op.create_index("idx_checkpoint_bindings_run", "checkpoint_bindings", ["run_id"])
 
     # Conditional index for PostgreSQL
-    with op.get_context().begin_transaction():
-        bind = op.get_bind()
-        if bind.dialect.name == "postgresql":
-            op.create_index(
-                "idx_checkpoint_bindings_confirmed",
-                "checkpoint_bindings",
-                ["run_id", "is_confirmed"],
-                postgresql_where=sa.text("is_confirmed = TRUE"),
-            )
+    # NOTE: no begin_transaction() block here; on PostgreSQL its exit
+    # would commit the outer migration transaction early and corrupt
+    # the rest of the upgrade chain (found by 04-F on real PG).
+    if op.get_bind().dialect.name == "postgresql":
+        op.create_index(
+            "idx_checkpoint_bindings_confirmed",
+            "checkpoint_bindings",
+            ["run_id", "is_confirmed"],
+            postgresql_where=sa.text("is_confirmed = TRUE"),
+        )
 
 
 def downgrade() -> None:
     # Drop conditional index for PostgreSQL
-    with op.get_context().begin_transaction():
-        bind = op.get_bind()
-        if bind.dialect.name == "postgresql":
-            op.drop_index("idx_checkpoint_bindings_confirmed", "checkpoint_bindings")
+    if op.get_bind().dialect.name == "postgresql":
+        op.drop_index("idx_checkpoint_bindings_confirmed", "checkpoint_bindings")
 
     op.drop_index("idx_checkpoint_bindings_run", "checkpoint_bindings")
     op.drop_table("checkpoint_bindings")
