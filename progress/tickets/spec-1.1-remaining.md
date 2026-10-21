@@ -45,7 +45,7 @@
 | ND-AGENT-04-D | 数据库租约/fencing 与独立在线执行入口 | P0 / M | M03 | blocked | 04-B/C；03-C |
 | ND-AGENT-04-E | ProviderCall 尝试/用量与恢复对账 | P0 / S | M06 | blocked | 04-A/B/D；02-F |
 | ND-AGENT-04-F | 真实 PG 宕机、争用与重放故障矩阵 | P0 / M | M11 | blocked | 04-B/C/D/E；受控 PG 环境 |
-| ND-AGENT-05-A | 主备原生工具模型 HTTP Adapter | P0 / M | M05 | blocked | 02 Contract、04-F；模型能力/政策确认 |
+| ND-AGENT-05-A | 主备原生工具模型 HTTP Adapter | P0 / M | M05 | dev-landed | 选型已由 ADR-011 落定；适配器接线与 Fake 传输测试完成（2026-10-21），live 验证在 05-B |
 | ND-AGENT-05-B | 主备 live 工具能力冒烟 | P0 / S | M11 | blocked | 05-A；批准样本/密钥/预算/环境 |
 | ND-AGENT-05-C | Agent Golden Set schema 与 Fake 图回归 | P0 / M | M11 | blocked | 03/04 闭环；业务场景确认 |
 | ND-AGENT-05-D | Agent live 质量、成本与安全评测 | P0 / M | M11 | blocked | 05-B/C；ND-P0-01-A；批准环境 |
