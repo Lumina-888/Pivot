@@ -96,3 +96,4 @@
 | [20261004-M11-ubuntu-candidate-rebuild.md](20261004-M11-ubuntu-candidate-rebuild.md) | ND-AGENT-02-C Ubuntu 候选锁与双离线重建 |
 | [20261011-M04-llama-index-retrieval.md](20261011-M04-llama-index-retrieval.md) | ADR-010：Phase 1 LlamaIndex 检索适配（本机开发） |
 | [20261012-M11-admin-metrics-tasks.md](20261012-M11-admin-metrics-tasks.md) | ND-GAP-01：后台指标与任务 HTTP 路由 |
+| [20261021-M05-agent-model-selection.md](20261021-M05-agent-model-selection.md) | ADR-011：Agent 模型选型（主、测试与备用） |
