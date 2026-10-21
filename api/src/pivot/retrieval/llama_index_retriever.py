@@ -28,6 +28,10 @@ class LlamaIndexRetriever:
     This adapter uses indexes whose nodes live in the LlamaIndex docstore
     (SimpleVectorStore or an index built with store_nodes_override=True).
     Do not use a cached index as the source of resource authorization.
+
+    A node's chunk id is its node id, unless the node carries a
+    ``chunk_id`` metadata entry (the Qdrant-backed index stores nodes
+    under UUID point ids and keeps the chunk id in metadata).
     """
 
     def __init__(
@@ -82,7 +86,7 @@ class LlamaIndexRetriever:
             return RetrievalResult("failed", (), "RESOURCE_FORBIDDEN")
         if not nodes:
             return RetrievalResult("empty", ())
-        dense = _LlamaDense(self._index, tuple(nodes), self._cutoff)
+        dense = _LlamaDense(self._index, nodes, self._cutoff)
         bm25 = Bm25Retriever(self._tokenizer, k1=self._bm25_k1, b=self._bm25_b)
         bm25.add(corpus)
         service = RetrievalService(
@@ -135,10 +139,8 @@ class LlamaIndexRetriever:
             or (scope_type == "global" and scope_document_id is not None)
         ):
             return None
-        if chunk_id not in self._index.index_struct.nodes_dict.values():
-            return None
-        node = self._index.docstore.get_node(chunk_id)
-        if not isinstance(node, TextNode):
+        node = self._find_node(chunk_id)
+        if node is None:
             return None
         record = _record(node)
         query = RetrievalQuery("", principal_id, scope_type, scope_document_id)
@@ -158,6 +160,23 @@ class LlamaIndexRetriever:
             retrieval_config_version=record.retrieval_config_version,
         )
 
+    def _find_node(self, chunk_id: str) -> TextNode | None:
+        node_ids = self._index.index_struct.nodes_dict.values()
+        if chunk_id in node_ids:
+            node = self._index.docstore.get_node(chunk_id)
+            if isinstance(node, TextNode):
+                record = _record(node)
+                if record is not None and record.chunk_id == chunk_id:
+                    return node
+        for node_id in node_ids:
+            node = self._index.docstore.get_node(node_id)
+            if not isinstance(node, TextNode):
+                continue
+            record = _record(node)
+            if record is not None and record.chunk_id == chunk_id:
+                return node
+        return None
+
     def _eligible_nodes(self, query: RetrievalQuery):
         nodes: dict[str, TextNode] = {}
         corpus: list[ChunkRecord] = []
@@ -171,15 +190,16 @@ class LlamaIndexRetriever:
             authorized = self._authorize(query.principal_id, record.document_id, record.version_id)
             if authorized is not True:
                 continue
-            nodes[node_id] = node
+            nodes[record.chunk_id] = node
             corpus.append(record)
         return nodes, tuple(corpus)
 
 
 class _LlamaDense:
-    def __init__(self, index: VectorStoreIndex, node_ids: tuple[str, ...], cutoff: float):
+    def __init__(self, index: VectorStoreIndex, nodes: dict[str, TextNode], cutoff: float):
         self._index = index
-        self._node_ids = node_ids
+        self._node_ids = tuple(node.node_id for node in nodes.values())
+        self._chunk_by_node = {node.node_id: chunk_id for chunk_id, node in nodes.items()}
         self._cutoff = cutoff
 
     def search(self, query: str, k: int) -> tuple[RankedHit, ...]:
@@ -190,9 +210,9 @@ class _LlamaDense:
             )
             hits = retriever.retrieve(query)
             return tuple(
-                RankedHit(hit.node.node_id, float(hit.score), "dense")
+                RankedHit(self._chunk_by_node[hit.node.node_id], float(hit.score), "dense")
                 for hit in hits
-                if hit.node.node_id in self._node_ids
+                if hit.node.node_id in self._chunk_by_node
                 and hit.score is not None
                 and math.isfinite(hit.score)
                 and hit.score > self._cutoff
@@ -208,10 +228,14 @@ def _record(node: TextNode) -> ChunkRecord | None:
         "version_id",
         "locator",
         "index_generation",
-        "embedding_model_version",
-        "retrieval_config_version",
     )
     if any(not isinstance(metadata.get(key), str) or not metadata[key].strip() for key in required):
+        return None
+    # Provenance versions are opaque strings and may be empty.
+    if any(
+        not isinstance(metadata.get(key), str)
+        for key in ("embedding_model_version", "retrieval_config_version")
+    ):
         return None
     if any(metadata.get(key) is not True for key in ("ready", "current", "allowed")):
         return None
@@ -235,8 +259,11 @@ def _record(node: TextNode) -> ChunkRecord | None:
     text = node.get_content(metadata_mode=MetadataMode.NONE)
     if not text.strip():
         return None
+    chunk_id = metadata.get("chunk_id")
+    if not isinstance(chunk_id, str) or not chunk_id.strip():
+        chunk_id = node.node_id
     return ChunkRecord(
-        chunk_id=node.node_id,
+        chunk_id=chunk_id,
         document_id=metadata["document_id"],
         version_id=metadata["version_id"],
         text=text,

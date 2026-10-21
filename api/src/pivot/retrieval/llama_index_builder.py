@@ -27,6 +27,11 @@ _STRING_FIELDS = (
     "text",
     "locator",
     "index_generation",
+)
+# Provenance versions are opaque strings in the native path and may be
+# empty when the publisher had none configured; they must still be
+# present and typed as strings.
+_VERSION_FIELDS = (
     "embedding_model_version",
     "retrieval_config_version",
 )
@@ -59,6 +64,11 @@ def build_llama_index(
         for field in _STRING_FIELDS:
             value = payload.get(field)
             if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"vector payload is missing required field {field!r}")
+            values[field] = value
+        for field in _VERSION_FIELDS:
+            value = payload.get(field)
+            if not isinstance(value, str):
                 raise ValueError(f"vector payload is missing required field {field!r}")
             values[field] = value
         metadata: dict[str, object] = {field: values[field] for field in _NODE_METADATA_FIELDS}

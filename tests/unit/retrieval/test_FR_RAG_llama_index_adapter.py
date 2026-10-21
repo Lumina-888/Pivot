@@ -71,7 +71,7 @@ def test_FR_RAG_006_llama_index_returns_real_evidence_identity_and_locator():
     {"expired": True}, {"deleted": True}, {"ready": "true"},
     {"external_llm_allowed": "false"}, {"version_id": ""},
     {"locator": ""}, {"index_generation": ""},
-    {"embedding_model_version": ""}, {"retrieval_config_version": ""},
+    {"embedding_model_version": None}, {"retrieval_config_version": 7},
     {"effective_to": "2000-01-01T00:00:00+00:00"},
     {"effective_from": "2999-01-01T00:00:00+00:00"},
     {"effective_to": "invalid"}, {"effective_to": "2000-01-01T00:00:00"},
