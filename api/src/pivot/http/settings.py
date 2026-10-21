@@ -135,6 +135,7 @@ class RuntimeSettings:
     rerank_model: str | None = None
     rerank_api_key: str | None = None
     rerank_timeout: float | None = None
+    retrieval_backend: str = "native"
     cache_store: str = "memory"
     queue_store: str = "memory"
     redis_endpoint: str | None = None
@@ -209,6 +210,11 @@ class RuntimeSettings:
             raise RuntimeError(
                 "unsupported PIVOT_RERANK="
                 f"{self.rerank!r}; this slice wires none, overlap, bm25, or bge"
+            )
+        if self.retrieval_backend not in {"native", "llama"}:
+            raise RuntimeError(
+                "unsupported PIVOT_RETRIEVAL_BACKEND="
+                f"{self.retrieval_backend!r}; this slice wires native or llama"
             )
         if self.rerank == "bm25" and self.bm25_k1 is None:
             raise RuntimeError("PIVOT_BM25_K1 and PIVOT_BM25_B are required when PIVOT_RERANK=bm25")
@@ -324,6 +330,8 @@ class RuntimeSettings:
             rerank_model=(env.get("PIVOT_RERANK_MODEL") or "").strip() or None,
             rerank_api_key=(env.get("PIVOT_RERANK_API_KEY") or "").strip() or None,
             rerank_timeout=_optional_positive_float(env, "PIVOT_RERANK_TIMEOUT"),
+            retrieval_backend=(env.get("PIVOT_RETRIEVAL_BACKEND") or "native").strip()
+            or "native",
             cache_store=(env.get("PIVOT_CACHE_STORE") or "memory").strip() or "memory",
             queue_store=(env.get("PIVOT_QUEUE_STORE") or "memory").strip() or "memory",
             redis_endpoint=(env.get("PIVOT_REDIS_ENDPOINT") or "").strip() or None,

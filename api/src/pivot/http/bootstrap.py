@@ -112,6 +112,8 @@ class RuntimeAssembly:
     runs: object | None = None
     draft_writer: object | None = None
     parsers: ParserRegistry | None = None
+    qa_retriever: object | None = None
+    version_rows: object | None = None
 
 
 class _ConversationBoundCatalog:
@@ -487,6 +489,86 @@ class _RetrievalBridge:
         return RetrievalResult(status="ok", evidence=evidence)
 
 
+# The native path applies no dense score cutoff and SPEC leaves retrieval
+# thresholds at TBD-P0, so the LlamaIndex backend expresses "no cutoff" as
+# the cosine similarity lower bound instead of inventing a tuned value.
+_NO_DENSE_CUTOFF = -1.0
+
+
+def _llama_retriever(
+    settings: RuntimeSettings,
+    *,
+    qdrant_store,
+    query_embedder,
+    policy: RetrievalPolicy,
+    tokenizer: SimpleLexTokenizer,
+    document_rows,
+    version_rows,
+):
+    if qdrant_store is None or query_embedder is None:
+        raise RuntimeError(
+            "PIVOT_RETRIEVAL_BACKEND=llama requires PIVOT_VECTOR_STORE=qdrant "
+            "with a query embedder"
+        )
+    if settings.bm25_k1 is None or settings.bm25_b is None:
+        raise RuntimeError(
+            "PIVOT_BM25_K1 and PIVOT_BM25_B are required when "
+            "PIVOT_RETRIEVAL_BACKEND=llama"
+        )
+    if settings.qdrant_vector_size is None:
+        raise RuntimeError(
+            "PIVOT_QDRANT_VECTOR_SIZE is required when PIVOT_RETRIEVAL_BACKEND=llama"
+        )
+    try:
+        from pivot.retrieval.llama_embeddings import PivotEmbedding
+        from pivot.retrieval.llama_index_builder import build_llama_index, scroll_payloads
+        from pivot.retrieval.llama_index_retriever import LlamaIndexRetriever
+    except ImportError as exc:
+        raise RuntimeError(
+            "llama-index extra is not installed; pip install -e ./api[llama-index]"
+        ) from exc
+
+    def external_llm_allowed(version_id: str) -> bool:
+        version = version_rows.get(version_id)
+        return bool(version is not None and version.external_llm_allowed)
+
+    index = build_llama_index(
+        scroll_payloads(qdrant_store),
+        embed_model=PivotEmbedding(
+            query_embedder,
+            model_name=settings.embedding_model or "hash-embedding",
+            dimension=settings.qdrant_vector_size,
+        ),
+        external_llm_allowed=external_llm_allowed,
+    )
+
+    def authorize(principal_id: str, document_id: str, version_id: str) -> bool:
+        # Live-fact recheck on every call; never trust flags baked into the
+        # index snapshot. Any lookup failure denies (fail closed).
+        try:
+            document = document_rows.get(document_id)
+            if document is None or document.deleted_at is not None:
+                return False
+            version = version_rows.get(version_id)
+            return bool(
+                version is not None
+                and version.document_id == document_id
+                and version.current
+            )
+        except Exception:
+            return False
+
+    return LlamaIndexRetriever(
+        index,
+        policy=policy,
+        tokenizer=tokenizer,
+        bm25_k1=settings.bm25_k1,
+        bm25_b=settings.bm25_b,
+        dense_score_cutoff=_NO_DENSE_CUTOFF,
+        authorize=authorize,
+    )
+
+
 def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly:
     resolved = settings or RuntimeSettings.from_env()
     if resolved.storage not in {"memory", "postgres"}:
@@ -716,6 +798,17 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         download_ttl_seconds=resolved.download_ttl,
     )
     draft_writer = _draft_writer(resolved)
+    qa_retriever: object = _RetrievalBridge(retrieval, version_rows)
+    if resolved.retrieval_backend == "llama":
+        qa_retriever = _llama_retriever(
+            resolved,
+            qdrant_store=qdrant_store,
+            query_embedder=query_embedder,
+            policy=policy,
+            tokenizer=tokenizer,
+            document_rows=document_rows,
+            version_rows=version_rows,
+        )
     app = create_app(
         probes=probes,
         auth=auth,
@@ -723,7 +816,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         retrieval=retrieval,
         runs=runs,
         qa=QaOrchestrator(
-            _RetrievalBridge(retrieval, version_rows),
+            qa_retriever,
             writer=draft_writer,
         ),
         conversations=conversations,
@@ -764,6 +857,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         runs=runs,
         draft_writer=draft_writer,
         parsers=parsers,
+        qa_retriever=qa_retriever,
+        version_rows=version_rows,
     )
 
 
