@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from fastapi import FastAPI
@@ -74,7 +75,11 @@ from pivot.security.passwords import Argon2idHasher
 from pivot.security.rbac import AccessControl
 from pivot.shared.ids import new_id
 from pivot.storage.adapters.minio import MinioObjectStore, connect_minio_client
-from pivot.storage.adapters.qdrant import QdrantVectorStore, connect_qdrant_client
+from pivot.storage.adapters.qdrant import (
+    QdrantVectorStore,
+    _normalize_endpoint,
+    connect_qdrant_client,
+)
 from pivot.storage.adapters.redis import RedisCacheStore, RedisQueueStore, connect_redis_client
 
 
@@ -495,16 +500,21 @@ class _RetrievalBridge:
 _NO_DENSE_CUTOFF = -1.0
 
 
-def _llama_retriever(
+def _llama_backend(
     settings: RuntimeSettings,
     *,
     qdrant_store,
     query_embedder,
-    policy: RetrievalPolicy,
-    tokenizer: SimpleLexTokenizer,
     document_rows,
     version_rows,
 ):
+    """Build the Qdrant-backed LlamaIndex, its reconcile sync and authorize.
+
+    Returns (index holder, sync, authorize). The sync reconciles one
+    document's nodes with live facts after ingest or deletion; it never
+    raises, because derived index state must not break document writes
+    (authorization is rechecked live at query time regardless).
+    """
     if qdrant_store is None or query_embedder is None:
         raise RuntimeError(
             "PIVOT_RETRIEVAL_BACKEND=llama requires PIVOT_VECTOR_STORE=qdrant "
@@ -519,10 +529,15 @@ def _llama_retriever(
         raise RuntimeError(
             "PIVOT_QDRANT_VECTOR_SIZE is required when PIVOT_RETRIEVAL_BACKEND=llama"
         )
+    if settings.ingest_backend == "celery":
+        raise RuntimeError(
+            "PIVOT_RETRIEVAL_BACKEND=llama requires PIVOT_INGEST=sync; "
+            "cross-process index sync is not wired for celery yet"
+        )
     try:
         from pivot.retrieval.llama_embeddings import PivotEmbedding
-        from pivot.retrieval.llama_index_builder import build_llama_index, scroll_payloads
-        from pivot.retrieval.llama_index_retriever import LlamaIndexRetriever
+        from pivot.retrieval.llama_index_builder import _payload_of, scroll_payloads
+        from pivot.retrieval.llama_qdrant_index import LlamaQdrantIndex
     except ImportError as exc:
         raise RuntimeError(
             "llama-index extra is not installed; pip install -e ./api[llama-index]"
@@ -532,15 +547,61 @@ def _llama_retriever(
         version = version_rows.get(version_id)
         return bool(version is not None and version.external_llm_allowed)
 
-    index = build_llama_index(
-        scroll_payloads(qdrant_store),
+    client = settings.llama_qdrant_client
+    if client is None:
+        try:
+            from qdrant_client import QdrantClient as SdkQdrantClient
+        except ImportError as exc:
+            raise RuntimeError(
+                "qdrant extra is not installed; pip install -e ./api[qdrant]"
+            ) from exc
+        client_kwargs: dict[str, object] = {
+            "url": _normalize_endpoint(settings.qdrant_endpoint or "")
+        }
+        if settings.qdrant_api_key:
+            client_kwargs["api_key"] = settings.qdrant_api_key
+        client = SdkQdrantClient(**client_kwargs)
+
+    holder = LlamaQdrantIndex.open(
+        client=client,
+        native_collection=settings.qdrant_collection or "",
         embed_model=PivotEmbedding(
             query_embedder,
             model_name=settings.embedding_model or "hash-embedding",
             dimension=settings.qdrant_vector_size,
         ),
+        vector_size=settings.qdrant_vector_size,
+        distance=settings.qdrant_distance or "Cosine",
+        native_payloads=scroll_payloads(qdrant_store),
         external_llm_allowed=external_llm_allowed,
+        rebuild=settings.llama_index_rebuild,
     )
+
+    def sync(document_id: str) -> None:
+        try:
+            current_payloads: list = []
+            document = document_rows.get(document_id)
+            if document is not None and document.deleted_at is None:
+                current = None
+                for version in version_rows.list_for_document(document_id):
+                    if version.current:
+                        current = version
+                        break
+                if current is not None:
+                    current_payloads = [
+                        payload
+                        for payload in scroll_payloads(qdrant_store)
+                        if _payload_of(payload).get("version_id") == current.id
+                    ]
+            holder.reconcile_document(
+                document_id,
+                current_payloads=current_payloads,
+                external_llm_allowed=external_llm_allowed,
+            )
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "llama index reconcile failed for document %s", document_id
+            )
 
     def authorize(principal_id: str, document_id: str, version_id: str) -> bool:
         # Live-fact recheck on every call; never trust flags baked into the
@@ -558,15 +619,7 @@ def _llama_retriever(
         except Exception:
             return False
 
-    return LlamaIndexRetriever(
-        index,
-        policy=policy,
-        tokenizer=tokenizer,
-        bm25_k1=settings.bm25_k1,
-        bm25_b=settings.bm25_b,
-        dense_score_cutoff=_NO_DENSE_CUTOFF,
-        authorize=authorize,
-    )
+    return holder, sync, authorize
 
 
 def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly:
@@ -661,6 +714,17 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         ingest_embedding = query_embedder
     else:
         vector_store = None
+    llama_holder = None
+    llama_sync = None
+    llama_authorize = None
+    if resolved.retrieval_backend == "llama":
+        llama_holder, llama_sync, llama_authorize = _llama_backend(
+            resolved,
+            qdrant_store=qdrant_store,
+            query_embedder=query_embedder,
+            document_rows=document_rows,
+            version_rows=version_rows,
+        )
     if resolved.cache_store == "redis" or resolved.queue_store == "redis":
         cache_port, queue_port, redis_probe = _open_redis_stores(resolved)
     probes = None
@@ -726,6 +790,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         tasks=task_rows,
         objects=document_objects,
         audits=MemoryDocumentAudits(),
+        delete_hook=llama_sync,
     )
     parsers = _ingest_parsers(resolved)
     ingest_runner = _ingest_runner(
@@ -741,6 +806,16 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     ingest_submitter = ingest_runner
     if resolved.ingest_backend == "celery":
         ingest_submitter = _celery_submitter(ingest_runner, resolved)
+    if llama_sync is not None:
+
+        def _syncing_submitter(version_id, request_id, actor_id, _runner=ingest_runner):
+            result = _runner(version_id, request_id, actor_id)
+            version = version_rows.get(version_id)
+            if version is not None:
+                llama_sync(version.document_id)
+            return result
+
+        ingest_submitter = _syncing_submitter
     if minio_store is not None:
         export_object_store: object = ExportObjectAdapter(minio_store)
     else:
@@ -800,14 +875,18 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     draft_writer = _draft_writer(resolved)
     qa_retriever: object = _RetrievalBridge(retrieval, version_rows)
     if resolved.retrieval_backend == "llama":
-        qa_retriever = _llama_retriever(
-            resolved,
-            qdrant_store=qdrant_store,
-            query_embedder=query_embedder,
+        if llama_holder is None or llama_authorize is None:
+            raise RuntimeError("llama backend was not built during assembly")
+        from pivot.retrieval.llama_index_retriever import LlamaIndexRetriever
+
+        qa_retriever = LlamaIndexRetriever(
+            llama_holder.index,
             policy=policy,
             tokenizer=tokenizer,
-            document_rows=document_rows,
-            version_rows=version_rows,
+            bm25_k1=resolved.bm25_k1,
+            bm25_b=resolved.bm25_b,
+            dense_score_cutoff=_NO_DENSE_CUTOFF,
+            authorize=llama_authorize,
         )
     app = create_app(
         probes=probes,

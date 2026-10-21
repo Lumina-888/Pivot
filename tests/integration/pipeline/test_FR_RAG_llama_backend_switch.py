@@ -20,6 +20,12 @@ CHUNK_TEXT = "一个月内累计迟到三次，视为旷工一天。"
 QUESTION = "迟到三次怎么处理？"
 
 
+def _memory_qdrant_client():
+    """A real in-memory Qdrant client for the LlamaIndex collection."""
+    qdrant_client = pytest.importorskip("qdrant_client")
+    return qdrant_client.QdrantClient(location=":memory:")
+
+
 class _Client:
     """In-memory Qdrant client double with scroll, shaped like the SDK wrapper."""
 
@@ -125,6 +131,7 @@ def _settings(db_url: str, client: _Client, **overrides: object) -> RuntimeSetti
         "qdrant_vector_size": 4,
         "qdrant_distance": "Cosine",
         "vector_store_client": client,
+        "llama_qdrant_client": _memory_qdrant_client(),
         "bm25_k1": 1.2,
         "bm25_b": 0.75,
     }

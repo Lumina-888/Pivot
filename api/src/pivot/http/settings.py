@@ -121,6 +121,8 @@ class RuntimeSettings:
     qdrant_vector_size: int | None = None
     qdrant_distance: str | None = None
     vector_store_client: object | None = None
+    llama_qdrant_client: object | None = None
+    llama_index_rebuild: bool = False
     query_embedder: object | None = None
     embedding: str = "hash"
     embedding_endpoint: str | None = None
@@ -332,6 +334,8 @@ class RuntimeSettings:
             rerank_timeout=_optional_positive_float(env, "PIVOT_RERANK_TIMEOUT"),
             retrieval_backend=(env.get("PIVOT_RETRIEVAL_BACKEND") or "native").strip()
             or "native",
+            llama_index_rebuild=(env.get("PIVOT_LLAMA_INDEX_REBUILD") or "").strip()
+            in {"1", "true"},
             cache_store=(env.get("PIVOT_CACHE_STORE") or "memory").strip() or "memory",
             queue_store=(env.get("PIVOT_QUEUE_STORE") or "memory").strip() or "memory",
             redis_endpoint=(env.get("PIVOT_REDIS_ENDPOINT") or "").strip() or None,

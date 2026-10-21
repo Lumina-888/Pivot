@@ -50,6 +50,7 @@ class DocumentService:
         audits: AuditSink,
         limits: ResourceLimits | None = None,
         clock=utc_now,
+        delete_hook=None,
     ) -> None:
         self._documents = documents
         self._versions = versions
@@ -59,6 +60,9 @@ class DocumentService:
         self._audits = audits
         self._limits = limits or ResourceLimits()
         self._clock = clock
+        # Optional callback fired with the document id after a delete is
+        # recorded, so derived indexes can reconcile. It must not raise.
+        self._delete_hook = delete_hook
 
     def count_total(self) -> int:
         """Return total number of documents."""
@@ -347,6 +351,8 @@ class DocumentService:
             for chunk in self._chunks.list_for_version(version.id):
                 chunk.published = False
         self._audit(actor_id, "doc.delete_requested", document_id, "ok", request_id)
+        if self._delete_hook is not None:
+            self._delete_hook(document_id)
         return document
 
     def cleanup_ok(self, version_id: str, request_id: str) -> VersionRecord:
