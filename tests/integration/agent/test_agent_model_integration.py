@@ -1,17 +1,23 @@
-"""Agent 模型集成测试
+"""Agent 模型集成测试（live，默认跳过）
 
-测试真实 LLM 的决策能力
+经注入设置构建真实模型做决策冒烟。仅在 PIVOT_AGENT_MODEL_API_KEY
+存在时运行（ND-AGENT-05-B 的人工冒烟入口），CI 不设置该变量。
+模型与 endpoint 由 PIVOT_AGENT_MODEL_* 注入（ADR-011），不写默认值。
 """
 
 import os
 
 import pytest
-from pivot.qa.agent_model import AgentModel, get_tool_schemas
+from pivot.qa.agent_model import AgentModelSettings, get_tool_schemas
+
+
+def _build_model():
+    return AgentModelSettings.from_env().build()
 
 
 @pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"),
-    reason="需要 OPENAI_API_KEY 环境变量",
+    not os.getenv("PIVOT_AGENT_MODEL_API_KEY"),
+    reason="需要 PIVOT_AGENT_MODEL_* 注入设置（live 冒烟）",
 )
 class TestAgentModelIntegration:
     """Agent 模型集成测试（需要真实 API key）"""
@@ -22,7 +28,7 @@ class TestAgentModelIntegration:
         When: 调用模型决策
         Then: 模型应该选择 search_knowledge 工具
         """
-        model = AgentModel(model_name="gpt-4o-mini", temperature=0.0)
+        model = _build_model()
 
         messages = [
             {"role": "user", "content": "请问公司的考勤制度是什么？迟到三次怎么处理？"}
@@ -47,7 +53,7 @@ class TestAgentModelIntegration:
         When: 调用模型决策
         Then: 模型应该直接回答，不调用工具
         """
-        model = AgentModel(model_name="gpt-4o-mini", temperature=0.0)
+        model = _build_model()
 
         messages = [{"role": "user", "content": "你好"}]
 
@@ -65,7 +71,7 @@ class TestAgentModelIntegration:
         When: 调用模型决策
         Then: 模型应该正确处理上下文
         """
-        model = AgentModel(model_name="gpt-4o-mini", temperature=0.0)
+        model = _build_model()
 
         messages = [
             {"role": "user", "content": "请查询考勤制度"},
