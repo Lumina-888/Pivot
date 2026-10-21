@@ -92,6 +92,16 @@ class _StoringQdrantClient:
     def delete(self, collection_name, points_selector=None) -> None:
         return None
 
+    def scroll(self, collection_name, limit=10, offset=None):
+        items = list(self.points.get(collection_name, {}).items())
+        start = int(offset) if offset is not None else 0
+        page = items[start : start + limit]
+        points = [
+            SimpleNamespace(id=pid, payload=payload) for pid, (_, payload) in page
+        ]
+        next_offset = str(start + limit) if start + limit < len(items) else None
+        return points, next_offset
+
 
 def _payload_matches(payload: dict, selector: dict | None) -> bool:
     if not selector:
@@ -130,6 +140,7 @@ def _worker_settings(
         "qdrant_vector_size": 4,
         "qdrant_distance": "Cosine",
         "vector_store_client": qdrant,
+        "retrieval_backend": "native",
     }
     values.update(overrides)
     return IngestAssemblySettings(**values)
@@ -157,6 +168,7 @@ def _http_settings(qdrant: _StoringQdrantClient) -> RuntimeSettings:
         qdrant_vector_size=4,
         qdrant_distance="Cosine",
         vector_store_client=qdrant,
+        retrieval_backend="native",
     )
 
 

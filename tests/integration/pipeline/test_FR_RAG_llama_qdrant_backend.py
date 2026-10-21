@@ -348,20 +348,23 @@ def test_FR_RAG_007_startup_rejects_stale_embedding_model(tmp_path):
         assemble_runtime(_settings(url, client, raw))
 
 
-def test_FR_RAG_007_llama_backend_refuses_celery_ingest(tmp_path):
+def test_FR_RAG_007_llama_backend_accepts_celery_ingest(tmp_path):
+    # L4 supersedes the L3 guardrail: celery ingest is wired through the
+    # worker-side collection sync, so the combination assembles. The
+    # worker sync itself is covered by the L4 default-backend tests.
     pytest.importorskip("llama_index.core")
     client = _Client()
     raw = _memory_qdrant_client()
-    with pytest.raises(RuntimeError, match="PIVOT_INGEST=sync"):
-        assemble_runtime(
-            _settings(
-                _db_url(tmp_path),
-                client,
-                raw,
-                ingest_backend="celery",
-                parse_queue="parse",
-                online_queue="online",
-                worker_concurrency=1,
-                celery_broker="memory://",
-            )
+    assembly = assemble_runtime(
+        _settings(
+            _db_url(tmp_path),
+            client,
+            raw,
+            ingest_backend="celery",
+            parse_queue="parse",
+            online_queue="online",
+            worker_concurrency=1,
+            celery_broker="memory://",
         )
+    )
+    assert assembly.app is not None

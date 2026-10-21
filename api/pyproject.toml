@@ -14,10 +14,14 @@ dependencies = [
   "langgraph==1.2.14",
   "langchain-core==1.6.9",
   "langchain-openai==1.6.7",
+  "llama-index-core==0.11.23",
+  "llama-index-vector-stores-qdrant==0.3.3",
 ]
 
 [project.optional-dependencies]
-llama-index = ["llama-index-core==0.11.23", "llama-index-vector-stores-qdrant==0.3.3"]
+# LlamaIndex is a main dependency since the L4 default switch; the group
+# stays (empty) so older install commands keep working.
+llama-index = []
 postgres = ["psycopg[binary]>=3.1,<4.0"]
 minio = ["minio>=7.2,<8"]
 qdrant = ["qdrant-client>=1.12,<1.13"]

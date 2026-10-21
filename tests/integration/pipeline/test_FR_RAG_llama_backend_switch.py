@@ -132,6 +132,7 @@ def _settings(db_url: str, client: _Client, **overrides: object) -> RuntimeSetti
         "qdrant_distance": "Cosine",
         "vector_store_client": client,
         "llama_qdrant_client": _memory_qdrant_client(),
+        "retrieval_backend": "native",
         "bm25_k1": 1.2,
         "bm25_b": 0.75,
     }
@@ -250,6 +251,7 @@ def test_FR_RAG_006_llama_backend_requires_qdrant_store(tmp_path):
                 _Client(),
                 vector_store="memory",
                 retrieval_backend="llama",
+                retrieval_backend_explicit=True,
             )
         )
 

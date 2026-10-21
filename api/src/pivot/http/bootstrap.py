@@ -529,18 +529,13 @@ def _llama_backend(
         raise RuntimeError(
             "PIVOT_QDRANT_VECTOR_SIZE is required when PIVOT_RETRIEVAL_BACKEND=llama"
         )
-    if settings.ingest_backend == "celery":
-        raise RuntimeError(
-            "PIVOT_RETRIEVAL_BACKEND=llama requires PIVOT_INGEST=sync; "
-            "cross-process index sync is not wired for celery yet"
-        )
     try:
         from pivot.retrieval.llama_embeddings import PivotEmbedding
         from pivot.retrieval.llama_index_builder import _payload_of, scroll_payloads
         from pivot.retrieval.llama_qdrant_index import LlamaQdrantIndex
     except ImportError as exc:
         raise RuntimeError(
-            "llama-index extra is not installed; pip install -e ./api[llama-index]"
+            "llama-index packages are not installed; reinstall the api package"
         ) from exc
 
     def external_llm_allowed(version_id: str) -> bool:
@@ -717,13 +712,17 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     llama_holder = None
     llama_sync = None
     llama_authorize = None
-    if resolved.retrieval_backend == "llama":
+    if resolved.retrieval_backend == "llama" and resolved.vector_store == "qdrant":
         llama_holder, llama_sync, llama_authorize = _llama_backend(
             resolved,
             qdrant_store=qdrant_store,
             query_embedder=query_embedder,
             document_rows=document_rows,
             version_rows=version_rows,
+        )
+    elif resolved.retrieval_backend == "llama" and resolved.retrieval_backend_explicit:
+        raise RuntimeError(
+            "PIVOT_RETRIEVAL_BACKEND=llama requires PIVOT_VECTOR_STORE=qdrant"
         )
     if resolved.cache_store == "redis" or resolved.queue_store == "redis":
         cache_port, queue_port, redis_probe = _open_redis_stores(resolved)
@@ -806,7 +805,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     ingest_submitter = ingest_runner
     if resolved.ingest_backend == "celery":
         ingest_submitter = _celery_submitter(ingest_runner, resolved)
-    if llama_sync is not None:
+    if llama_sync is not None and resolved.ingest_backend != "celery":
 
         def _syncing_submitter(version_id, request_id, actor_id, _runner=ingest_runner):
             result = _runner(version_id, request_id, actor_id)
@@ -874,8 +873,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     )
     draft_writer = _draft_writer(resolved)
     qa_retriever: object = _RetrievalBridge(retrieval, version_rows)
-    if resolved.retrieval_backend == "llama":
-        if llama_holder is None or llama_authorize is None:
+    if llama_holder is not None:
+        if llama_authorize is None:
             raise RuntimeError("llama backend was not built during assembly")
         from pivot.retrieval.llama_index_retriever import LlamaIndexRetriever
 

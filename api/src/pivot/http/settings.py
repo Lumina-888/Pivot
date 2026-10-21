@@ -137,7 +137,8 @@ class RuntimeSettings:
     rerank_model: str | None = None
     rerank_api_key: str | None = None
     rerank_timeout: float | None = None
-    retrieval_backend: str = "native"
+    retrieval_backend: str = "llama"
+    retrieval_backend_explicit: bool = False
     cache_store: str = "memory"
     queue_store: str = "memory"
     redis_endpoint: str | None = None
@@ -332,8 +333,11 @@ class RuntimeSettings:
             rerank_model=(env.get("PIVOT_RERANK_MODEL") or "").strip() or None,
             rerank_api_key=(env.get("PIVOT_RERANK_API_KEY") or "").strip() or None,
             rerank_timeout=_optional_positive_float(env, "PIVOT_RERANK_TIMEOUT"),
-            retrieval_backend=(env.get("PIVOT_RETRIEVAL_BACKEND") or "native").strip()
-            or "native",
+            retrieval_backend=(env.get("PIVOT_RETRIEVAL_BACKEND") or "llama").strip()
+            or "llama",
+            retrieval_backend_explicit=bool(
+                (env.get("PIVOT_RETRIEVAL_BACKEND") or "").strip()
+            ),
             llama_index_rebuild=(env.get("PIVOT_LLAMA_INDEX_REBUILD") or "").strip()
             in {"1", "true"},
             cache_store=(env.get("PIVOT_CACHE_STORE") or "memory").strip() or "memory",

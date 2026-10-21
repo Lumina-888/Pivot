@@ -93,6 +93,7 @@ def _settings(**overrides: object) -> RuntimeSettings:
         "vector_store_client": _StoringQdrantClient(),
     }
     values.update(overrides)
+    values.setdefault("retrieval_backend", "native")
     return RuntimeSettings(**values)
 
 

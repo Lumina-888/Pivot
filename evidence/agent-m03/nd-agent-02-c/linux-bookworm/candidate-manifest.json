@@ -1586,7 +1586,7 @@
   "text_hash_normalization": "UTF-8 text with LF line endings",
   "candidate_lock_sha256": "05c2c978de3aeb260127c3e75c332dc4b642fb4a7765c8eb66ec9c2f8fa1d8db",
   "project_input_sha256": {
-    "api/pyproject.toml": "a0005c08f692445703e0a137ff2a9d00f613f1d447037c56149fc2061c207684",
+    "api/pyproject.toml": "23fa59cd963699440b338f120746e3dc9b9661f38b97a8ab5fa8dd935a8a93fc",
     "worker/pyproject.toml": "b0a8e2a9c40b4038480419c172a12987e267cdc374dc92c9aa0704e4035b7840",
     "tests/contract/requirements.txt": "6444c7d0cc44f9b4841517a3676d9591b4cd56e51700ad0d00db7791f8fe9d22"
   },
