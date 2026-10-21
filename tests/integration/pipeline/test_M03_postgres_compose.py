@@ -15,7 +15,7 @@ _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "postgres-alembic.md"
 _LIMITS = _ROOT / "evidence" / "wave2-m11" / "limits.md"
 _FIXTURE_URL = "postgresql+psycopg://pivot:pivot_dev_only@127.0.0.1:5432/pivot"
-_HEAD = "8b19c9c86e1c"
+_HEAD = "14fcf89c4926"
 
 
 def _require_compose() -> bool:

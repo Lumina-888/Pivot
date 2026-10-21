@@ -59,16 +59,16 @@ def upgrade() -> None:
     )
     op.create_index("idx_outbox_run_seq", "public_event_outbox", ["run_id", "seq"])
     # Conditional index for PostgreSQL only - SQLite doesn't support WHERE clause in CREATE INDEX
-    # This will be handled in the dialect-specific way
-    with op.get_context().begin_transaction():
-        bind = op.get_bind()
-        if bind.dialect.name == "postgresql":
-            op.create_index(
-                "idx_outbox_undispatched",
-                "public_event_outbox",
-                ["dispatched_at"],
-                postgresql_where=sa.text("dispatched_at IS NULL"),
-            )
+    # NOTE: no begin_transaction() block here; on PostgreSQL its exit
+    # would commit the outer migration transaction early and corrupt
+    # the rest of the upgrade chain (found by 04-F on real PG).
+    if op.get_bind().dialect.name == "postgresql":
+        op.create_index(
+            "idx_outbox_undispatched",
+            "public_event_outbox",
+            ["dispatched_at"],
+            postgresql_where=sa.text("dispatched_at IS NULL"),
+        )
 
     # Add unique constraint to agent_events using batch mode for SQLite compatibility
     with op.batch_alter_table("agent_events", schema=None) as batch_op:
@@ -81,23 +81,19 @@ def upgrade() -> None:
     op.create_index("idx_citations_run", "citations", ["run_id"])
     op.create_index("idx_citations_chunk", "citations", ["chunk_id"])
     # Conditional index for PostgreSQL
-    with op.get_context().begin_transaction():
-        bind = op.get_bind()
-        if bind.dialect.name == "postgresql":
-            op.create_index(
-                "idx_citations_claim",
-                "citations",
-                ["claim_id"],
-                postgresql_where=sa.text("claim_id IS NOT NULL"),
-            )
+    if op.get_bind().dialect.name == "postgresql":
+        op.create_index(
+            "idx_citations_claim",
+            "citations",
+            ["claim_id"],
+            postgresql_where=sa.text("claim_id IS NOT NULL"),
+        )
 
 
 def downgrade() -> None:
     # Drop indexes
-    with op.get_context().begin_transaction():
-        bind = op.get_bind()
-        if bind.dialect.name == "postgresql":
-            op.drop_index("idx_citations_claim", "citations")
+    if op.get_bind().dialect.name == "postgresql":
+        op.drop_index("idx_citations_claim", "citations")
 
     op.drop_index("idx_citations_chunk", "citations")
     op.drop_index("idx_citations_run", "citations")
@@ -108,10 +104,8 @@ def downgrade() -> None:
         batch_op.drop_constraint("uq_agent_events_run_seq", type_="unique")
 
     # Drop outbox indexes and table
-    with op.get_context().begin_transaction():
-        bind = op.get_bind()
-        if bind.dialect.name == "postgresql":
-            op.drop_index("idx_outbox_undispatched", "public_event_outbox")
+    if op.get_bind().dialect.name == "postgresql":
+        op.drop_index("idx_outbox_undispatched", "public_event_outbox")
 
     op.drop_index("idx_outbox_run_seq", "public_event_outbox")
     op.drop_table("public_event_outbox")
