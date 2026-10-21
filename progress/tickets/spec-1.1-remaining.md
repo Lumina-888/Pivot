@@ -46,7 +46,7 @@
 | ND-AGENT-04-E | ProviderCall 尝试/用量与恢复对账 | P0 / S | M06 | blocked | 04-A/B/D；02-F |
 | ND-AGENT-04-F | 真实 PG 宕机、争用与重放故障矩阵 | P0 / M | M11 | blocked | 04-B/C/D/E；受控 PG 环境 |
 | ND-AGENT-05-A | 主备原生工具模型 HTTP Adapter | P0 / M | M05 | dev-landed | 选型已由 ADR-011 落定；适配器接线与 Fake 传输测试完成（2026-10-21），live 验证在 05-B |
-| ND-AGENT-05-B | 主备 live 工具能力冒烟 | P0 / S | M11 | blocked | 05-A；批准样本/密钥/预算/环境 |
+| ND-AGENT-05-B | 主备 live 工具能力冒烟 | P0 / S | M11 | blocked | 主模型已验证；备用模型（小米）接入待 Owner 提供 |
 | ND-AGENT-05-C | Agent Golden Set schema 与 Fake 图回归 | P0 / M | M11 | blocked | 03/04 闭环；业务场景确认 |
 | ND-AGENT-05-D | Agent live 质量、成本与安全评测 | P0 / M | M11 | blocked | 05-B/C；ND-P0-01-A；批准环境 |
 | ND-GAP-01 | 后台 metrics/tasks Contract 与真实接线 | P1 / M | M11 | dev-landed-partial | `6bb7e9d` 路由已挂；指标非持久统计，任务列表为空 |
@@ -288,7 +288,7 @@
 ### ND-AGENT-05-B 主备 live 能力冒烟
 
 - **父票 / 来源 / 责任**：ND-AGENT-05；FR-AGENT-009、DR-001/007；Accountable M11，Contributors M05/M03/安全。
-- **状态 / 依赖**：blocked；05-A、批准低敏/脱敏样本、密钥、预算与环境。
+- **状态 / 依赖**：blocked（部分完成）；主模型 DeepSeek 官方 deepseek-flash 已于 2026-10-21 完成三步 live 冒烟并通过，证据见 evidence/agent-m05/nd-agent-05-b-live-smoke.md；备用模型小米 mimo-v2.6 未验证，待 Owner 提供小米接入后补行，主备齐验后才关单。
 - **场景 / 异常**：对主/备分别验证工具选择、Observation 回传、结构化结束、用量、超时/取消；不支持工具的模型明确不可启用。
 - **范围 / 数据**：opt-in 脚本和脱敏报告，供应商政策/模型版本/框架版本关联；企业真实文档仍受 ND-P0-02/05 阻断。
 - **路径 / 交付**：`ops/**`、`tests/integration/**`、`evidence/` live capability 报告；CI 默认不调用。
