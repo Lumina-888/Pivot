@@ -48,7 +48,7 @@
 | ND-AGENT-05-A | 主备原生工具模型 HTTP Adapter | P0 / M | M05 | dev-landed | 选型已由 ADR-011 落定；适配器接线与 Fake 传输测试完成（2026-10-21），live 验证在 05-B |
 | ND-AGENT-05-B | 主备 live 工具能力冒烟 | P0 / S | M11 | blocked | 主模型已验证；备用模型（小米）接入待 Owner 提供 |
 | ND-AGENT-05-C | Agent Golden Set schema 与 Fake 图回归 | P0 / M | M11 | dev-landed | 已落地：金标集 v0.1（9 场景）与 Fake 图回归；业务场景确认仍待业务复核 |
-| ND-AGENT-05-D | Agent live 质量、成本与安全评测 | P0 / M | M11 | blocked | 05-B/C；ND-P0-01-A；批准环境 |
+| ND-AGENT-05-D | Agent live 质量、成本与安全评测 | P0 / M | M11 | dev-landed | 首轮 live 评测已执行（两组各 9 场景）；业务复核集重跑与阈值判定待 ND-P0-01-A 与 DR-010 |
 | ND-GAP-01 | 后台 metrics/tasks Contract 与真实接线 | P1 / M | M11 | dev-landed-partial | `6bb7e9d` 路由已挂；指标非持久统计，任务列表为空 |
 | ND-GAP-02 | 持久审计统一接线与重启可复盘 | P0 / M | M06 | blocked | M03 Repository/迁移 Contract；M00 审核 |
 | ND-GAP-03 | 首次改密/重置后的跨实例生命周期验收 | P0 / S | M01 | blocked | M00/M03 机制确认；不得私加字段 |
@@ -310,7 +310,7 @@
 ### ND-AGENT-05-D live Agent 评测
 
 - **父票 / 来源 / 责任**：ND-AGENT-05；FR-AGENT-010、NFR-QUAL、GATE-P0-004；Accountable M11，Contributors M05/M04/业务/M00。
-- **状态 / 依赖**：blocked；05-B/C、ND-P0-01-A 与批准环境。
+- **状态 / 依赖**：dev-landed（2026-10-21 首轮已执行）；05-B 主模型与 05-C 已落地。执行：`ops/run_agent_live_eval.py` 以 DeepSeek 官方 deepseek-flash 跑 Agent Golden Set v0.1 全 9 场景，thinking 开启与关闭两组各一轮，均 9 过 7；安全断言两组全清；主要缺陷为有干扰证据时不拒答（详见 `evidence/agent-m05/nd-agent-05-d-live-eval.md`）。两组总费用约 0.17 元（预算 10 元）。本轮口径：数据集为人工口径标注（非业务复核）、检索为受控 Fake、每场景单样本；业务复核集（ND-P0-01-A）重跑与按批准阈值的判定仍未完成，计划测试（证据完整性锁定）随阈值重跑一并补，本票不据此关闭 GATE。
 - **场景 / 异常**：真实模型运行已复核集；人工复核证据覆盖/事实支持/拒答/越权阻断；Judge 仅辅助，成本和耗时不能因重试/恢复漏算。
 - **范围 / 数据**：live 图/模型/Prompt/工具/数据集版本、调用/终态/质量/成本/延迟报告；将阈值建议送 ND-P0-04/10，不自行认定通过。
 - **路径 / 交付**：`ops/**`、`evidence/` 评测报告与业务复核结论；M00 回填矩阵。
