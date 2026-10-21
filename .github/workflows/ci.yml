@@ -13,13 +13,13 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
+          POSTGRES_USER: pivot
+          POSTGRES_PASSWORD: pivot_dev_only
+          POSTGRES_DB: pivot
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "pg_isready -U pivot"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
@@ -39,5 +39,5 @@ jobs:
           python -m pip install -r tests/contract/requirements.txt
       - name: Run grouped unit/contract/pipeline checks
         env:
-          PIVOT_TEST_PG_URL: postgresql+psycopg://postgres:postgres@localhost:5432/postgres
+          PIVOT_TEST_PG_URL: postgresql+psycopg://pivot:pivot_dev_only@localhost:5432/postgres
         run: python ops/run_grouped_tests.py
