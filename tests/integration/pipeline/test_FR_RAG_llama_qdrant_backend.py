@@ -188,6 +188,7 @@ def _login(assembly) -> str:
 
 
 def test_FR_RAG_007_point_id_mapping_matches_native_convention():
+    pytest.importorskip("llama_index.core")
     from pivot.retrieval.llama_qdrant_index import llama_collection_name, point_id_for
 
     assert point_id_for("chunk-l3") == str(
