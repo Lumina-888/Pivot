@@ -29,6 +29,9 @@ class VectorStore(Protocol):
     def search(
         self, vector: Iterable[float], *, limit: int, filters: Mapping | None = None
     ) -> list[Mapping]: ...
+    def scroll(
+        self, *, limit: int, offset: str | None = None
+    ) -> tuple[list[Mapping], str | None]: ...
     def delete(self, *, version_id: str | None = None, chunk_id: str | None = None) -> None: ...
 
 

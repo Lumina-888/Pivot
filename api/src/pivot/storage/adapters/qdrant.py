@@ -53,6 +53,7 @@ class QdrantClient(Protocol):
     ) -> None: ...
     def upsert(self, collection_name: str, points) -> None: ...
     def search(self, collection_name, query_vector, limit=10, query_filter=None) -> list: ...
+    def scroll(self, collection_name, *, limit, offset=None) -> tuple[list, str | None]: ...
     def delete(self, collection_name, points_selector=None) -> None: ...
 
 
@@ -115,6 +116,16 @@ class _SdkQdrantClient:
             limit=limit,
             query_filter=qfilter,
         )
+
+    def scroll(self, collection_name, *, limit, offset=None):
+        records, next_offset = self._client.scroll(
+            collection_name=collection_name,
+            limit=limit,
+            offset=offset,
+            with_payload=True,
+            with_vectors=False,
+        )
+        return list(records), (None if next_offset is None else str(next_offset))
 
     def delete(self, collection_name, points_selector=None) -> None:
         from qdrant_client.http.models import FilterSelector
@@ -228,6 +239,16 @@ class QdrantVectorStore:
         if selector is None:
             raise ValueError("version_id or chunk_id is required")
         self._client.delete(self._collection, points_selector=selector)
+
+    def scroll(
+        self, *, limit: int, offset: str | None = None
+    ) -> tuple[list[Mapping], str | None]:
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        points, next_offset = self._client.scroll(
+            self._collection, limit=limit, offset=offset
+        )
+        return [_hit_mapping(point) for point in points], next_offset
 
 
 def _point_payload(point: Mapping) -> dict:
