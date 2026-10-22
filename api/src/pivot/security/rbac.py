@@ -69,8 +69,10 @@ class AccessControl:
             raise not_found(request_id)
         if export.owner_id == principal.user_id:
             return
+        # ADR-012 (ND-GAP-04): admins may access and download exports for
+        # operations support; other non-owners still cannot see them.
         if principal.role == "admin":
-            raise resource_forbidden(request_id)
+            return
         raise not_found(request_id)
 
     def authorize_resource(

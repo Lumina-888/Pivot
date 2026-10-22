@@ -10,7 +10,12 @@ from pivot.exports.content import (
     build_document_payload,
     sanitize_filename,
 )
-from pivot.exports.errors import export_expired, not_found
+from pivot.exports.errors import (
+    download_link_expired,
+    export_expired,
+    not_found,
+    resource_forbidden,
+)
 from pivot.exports.machine import apply, is_downloadable
 from pivot.exports.models import (
     EXPORT_FORMATS,
@@ -102,6 +107,21 @@ class ExportService:
         if is_downloadable(record.state):
             download_url = self._public_url(record)
         return status_dto(record, download_url)
+
+    def verify_download_link(
+        self, export_id: str, expiry: int, signature: str, request_id: str
+    ) -> None:
+        """First gate of the signed download consumer (ND-GAP-04).
+
+        A valid signature proves the link was issued by this service and
+        is unexpired. It never replaces authentication: the caller must
+        still authenticate and pass download()'s own authorization,
+        state and retention checks.
+        """
+        if not self._signer.verify(export_id, expiry, signature):
+            raise resource_forbidden(request_id)
+        if int(self._clock.now().timestamp()) > expiry:
+            raise download_link_expired(request_id)
 
     def download(self, actor: Actor, export_id: str, request_id: str) -> tuple[bytes, str, str]:
         record = self._load_authorized(actor, export_id, request_id)

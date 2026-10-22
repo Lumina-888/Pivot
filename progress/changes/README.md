@@ -97,3 +97,8 @@
 | [20261011-M04-llama-index-retrieval.md](20261011-M04-llama-index-retrieval.md) | ADR-010：Phase 1 LlamaIndex 检索适配（本机开发） |
 | [20261012-M11-admin-metrics-tasks.md](20261012-M11-admin-metrics-tasks.md) | ND-GAP-01：后台指标与任务 HTTP 路由 |
 | [20261021-M05-agent-model-selection.md](20261021-M05-agent-model-selection.md) | ADR-011：Agent 模型选型（主、测试与备用） |
+| [20261022-M11-admin-metrics-tasks-wiring.md](20261022-M11-admin-metrics-tasks-wiring.md) | ND-GAP-01：问答计数与任务列表改读持久化存储 |
+| [20261022-M06-audit-persistence-tiered-failure.md](20261022-M06-audit-persistence-tiered-failure.md) | ND-GAP-02：审计统一落库与分级失败策略 |
+| [20261022-M01-password-change-persistence-enforcement.md](20261022-M01-password-change-persistence-enforcement.md) | ND-GAP-03：首次改密落库与服务端强制 |
+| [20261022-M06-export-signed-download-consumer.md](20261022-M06-export-signed-download-consumer.md) | ND-GAP-04：签名导出下载消费者端点 |
+| [20261022-M06-export-admin-download.md](20261022-M06-export-admin-download.md) | ADR-012：导出下载的管理员访问 |

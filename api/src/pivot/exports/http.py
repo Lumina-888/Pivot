@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from typing import Literal
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from pivot.audit.ports import Actor
@@ -21,6 +22,7 @@ _STATUS = {
     "RESOURCE_FORBIDDEN": 403,
     "AUTH_FORBIDDEN": 403,
     "EXPORT_EXPIRED": 400,
+    "EXPORT_LINK_EXPIRED": 400,
 }
 
 
@@ -79,5 +81,24 @@ def build_exports_router(exports: ExportService, auth: AuthService) -> APIRouter
     def get_export(request: Request, id: str) -> dict[str, str | None]:
         request_id, principal = _principal(request, auth)
         return exports.get(_actor(principal), id, request_id)
+
+    @router.get("/d/{export_id}")
+    def download_signed(request: Request, export_id: str, e: int = 0, s: str = "") -> Response:
+        # Signed download consumer (ND-GAP-04): signature and link expiry
+        # first, then the normal bearer authentication and the service's
+        # own authorization, state and retention checks in download().
+        request_id = resolve_request_id(request)
+        exports.verify_download_link(export_id, e, s, request_id)
+        _, principal = _principal(request, auth)
+        payload, filename, content_type = exports.download(
+            _actor(principal), export_id, request_id
+        )
+        return Response(
+            content=payload,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename, safe='')}"
+            },
+        )
 
     return router

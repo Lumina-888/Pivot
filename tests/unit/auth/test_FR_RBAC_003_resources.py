@@ -47,6 +47,13 @@ def test_FR_RBAC_003_export_owner_isolation(auth_service):
     auth_service.authorize_export(bob, "exp_bob")
 
 
+def test_FR_RBAC_003_export_admin_may_access_any_export(auth_service):
+    # ADR-012 (ND-GAP-04): admins may access and download any export.
+    admin = _principal(auth_service, "admin", "admin-password")
+    auth_service.authorize_export(admin, "exp_alice")
+    auth_service.authorize_export(admin, "exp_bob")
+
+
 def test_FR_RBAC_003_deleted_document_is_not_authorized(auth_service):
     principal = _principal(auth_service)
     with pytest.raises(AuthError) as error:

@@ -21,7 +21,7 @@ import {
   runEventsUrl,
   startQuestion,
 } from "../chat";
-import { requestReadyDownload } from "../export";
+import { downloadExportFile, requestReadyDownload } from "../export";
 import { conversationHref, parseChatSearchParams } from "../routes";
 import type { ChatViewState, ConversationSummary, ExportFormat, Message } from "../types";
 import { StatusBanner } from "./StatusBanner";
@@ -238,6 +238,23 @@ export function ChatWorkspace({
     }
   }
 
+  async function onDownloadExport() {
+    if (!exportHref) {
+      return;
+    }
+    try {
+      const { blob, filename } = await downloadExportFile(exportHref);
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (caught) {
+      setExportMessage(caught instanceof ApiError ? caught.envelope.message : "下载失败");
+    }
+  }
+
   const canExport = Boolean(state.conversationId ?? conversationId) &&
     (state.status === "answered" || state.status === "uncertain" || state.status === "refused" || messages.length > 0);
 
@@ -399,7 +416,15 @@ export function ChatWorkspace({
         {exportMessage ? <p className="muted">{exportMessage}</p> : null}
         {exportHref ? (
           <p>
-            <a href={exportHref}>下载导出文件</a>
+            <a
+              href={exportHref}
+              onClick={(event) => {
+                event.preventDefault();
+                void onDownloadExport();
+              }}
+            >
+              下载导出文件
+            </a>
           </p>
         ) : null}
       </Modal>
