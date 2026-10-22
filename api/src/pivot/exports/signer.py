@@ -28,17 +28,24 @@ class PublicDownloadSigner:
         self._secret = secret.encode("utf-8")
         self._reject_internal_base()
 
-    def sign(self, record: ExportRecord, *, now: datetime, expires_seconds: int) -> str:
-        expiry = int(now.timestamp()) + expires_seconds
-        digest = hmac.new(
+    def _digest(self, export_id: str, expiry: int) -> str:
+        return hmac.new(
             self._secret,
-            f"{record.id}:{expiry}".encode("utf-8"),
+            f"{export_id}:{expiry}".encode("utf-8"),
             hashlib.sha256,
         ).hexdigest()[:32]
+
+    def sign(self, record: ExportRecord, *, now: datetime, expires_seconds: int) -> str:
+        expiry = int(now.timestamp()) + expires_seconds
+        digest = self._digest(record.id, expiry)
         url = f"{self._base}/d/{record.id}?e={expiry}&s={digest}"
         if contains_internal_storage_host(url):
             raise ValueError("download signer produced an internal storage URL")
         return url
+
+    def verify(self, export_id: str, expiry: int, signature: str) -> bool:
+        """Constant-time check that a /d/ link was issued by this signer."""
+        return hmac.compare_digest(self._digest(export_id, expiry), signature)
 
     def _reject_internal_base(self) -> None:
         if contains_internal_storage_host(self._base):

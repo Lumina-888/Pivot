@@ -1,4 +1,5 @@
 import { ApiError, api } from "../../lib/api/client";
+import type { ErrorEnvelope } from "../../lib/api/types";
 import { getAccessToken } from "../../lib/auth/session";
 import type { ExportCreated, ExportFormat, ExportStatus } from "./types";
 
@@ -73,4 +74,60 @@ export async function requestReadyDownload(input: {
     ? await input.poll(created.export_id)
     : await getExportStatus(created.export_id, input.accessToken, input.fetcher);
   return { created, status, downloadUrl: downloadUrlForReady(status) };
+}
+
+function asErrorEnvelope(value: unknown): ErrorEnvelope | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.code !== "string" || typeof record.message !== "string") {
+    return null;
+  }
+  return {
+    code: record.code,
+    message: record.message,
+    request_id: typeof record.request_id === "string" ? record.request_id : "",
+    retryable: typeof record.retryable === "boolean" ? record.retryable : false,
+  };
+}
+
+function filenameFromDisposition(header: string | null): string | null {
+  if (!header) {
+    return null;
+  }
+  const match = /filename\*=UTF-8''([^;]+)/i.exec(header) ?? /filename="?([^";]+)"?/i.exec(header);
+  if (!match) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
+export async function downloadExportFile(
+  url: string,
+  accessToken?: string,
+  fetcher: typeof fetch = fetch,
+): Promise<{ blob: Blob; filename: string }> {
+  // Since ND-GAP-04 the signed download consumer also requires the
+  // session bearer token, which a plain navigation cannot attach.
+  // Fetch the bytes with the token and let the caller save the blob.
+  const bearer = token(accessToken);
+  const response = await fetcher(url, {
+    headers: bearer ? { Authorization: `Bearer ${bearer}` } : {},
+  });
+  if (!response.ok) {
+    const envelope = asErrorEnvelope(await response.json().catch(() => null));
+    if (envelope) {
+      throw new ApiError(response.status, envelope);
+    }
+    throw new Error(`download failed: ${response.status}`);
+  }
+  return {
+    blob: await response.blob(),
+    filename: filenameFromDisposition(response.headers.get("content-disposition")) ?? "export",
+  };
 }

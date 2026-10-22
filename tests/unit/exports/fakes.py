@@ -65,8 +65,9 @@ class FakeAccess:
             raise not_found(request_id)
         if record.owner_id == actor.user_id:
             return
+        # ADR-012 (ND-GAP-04): admins may access and download exports.
         if actor.role == "admin":
-            raise resource_forbidden(request_id)
+            return
         raise not_found(request_id)
 
 

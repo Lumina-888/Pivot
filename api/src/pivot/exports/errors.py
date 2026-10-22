@@ -39,3 +39,7 @@ def auth_forbidden(request_id: str) -> ExportError:
 
 def export_expired(request_id: str) -> ExportError:
     return ExportError("EXPORT_EXPIRED", "导出已过期", request_id)
+
+
+def download_link_expired(request_id: str) -> ExportError:
+    return ExportError("EXPORT_LINK_EXPIRED", "下载链接已过期，请重新获取", request_id)
