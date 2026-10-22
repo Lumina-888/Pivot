@@ -27,6 +27,8 @@ class RunStore(Protocol):
 
     def get_log(self, run_id: str, message_id: str) -> EventLog | None: ...
 
+    def status_counts(self) -> dict[str, int]: ...
+
 
 class InMemoryRunStore:
     def __init__(self) -> None:
@@ -62,6 +64,12 @@ class InMemoryRunStore:
     def get_log(self, run_id: str, message_id: str) -> EventLog | None:
         return self._logs.get(run_id)
 
+    def status_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for bundle in self._runs.values():
+            counts[bundle.run.state] = counts.get(bundle.run.state, 0) + 1
+        return counts
+
 
 class RunService:
     def __init__(self, store: RunStore | None = None) -> None:
@@ -73,26 +81,23 @@ class RunService:
         self._executing_lock = threading.Lock()
 
     def count_total(self) -> int:
-        """Return total number of runs."""
-        if hasattr(self._store, "_runs"):
-            return len(self._store._runs)
-        return len(self._runs)
+        """Return total number of runs, counted from the persisted store."""
+        return sum(self._store.status_counts().values())
 
     def count_completed(self) -> int:
-        """Return number of completed runs."""
-        runs = self._store._runs.values() if hasattr(self._store, "_runs") else self._runs.values()
-        return sum(1 for bundle in runs if bundle.run.status == "completed")
+        """Return number of completed runs, counted from the persisted store."""
+        return self._store.status_counts().get("completed", 0)
 
     def count_failed(self) -> int:
-        """Return number of failed runs."""
-        runs = self._store._runs.values() if hasattr(self._store, "_runs") else self._runs.values()
-        return sum(1 for bundle in runs if bundle.run.status in ("failed", "refused", "uncertain"))
+        """Return number of failed runs, counted from the persisted store."""
+        counts = self._store.status_counts()
+        return sum(counts.get(state, 0) for state in ("failed", "refused", "uncertain"))
 
     def count_in_progress(self) -> int:
-        """Return number of in-progress runs."""
-        runs = self._store._runs.values() if hasattr(self._store, "_runs") else self._runs.values()
+        """Return number of in-progress runs, counted from the persisted store."""
+        counts = self._store.status_counts()
         in_progress_statuses = ("received", "retrieving", "drafting", "verifying")
-        return sum(1 for bundle in runs if bundle.run.status in in_progress_statuses)
+        return sum(counts.get(state, 0) for state in in_progress_statuses)
 
     def create(
         self,

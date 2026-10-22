@@ -83,6 +83,10 @@ class DocumentService:
         all_docs = self._documents.list_active()
         return sum(1 for doc in all_docs if doc.status in TERMINAL_FAILURE)
 
+    def list_tasks(self) -> tuple[TaskRecord, ...]:
+        """Return all persisted ingest tasks, newest first."""
+        return self._tasks.list_all()
+
     def upload(
         self,
         *,

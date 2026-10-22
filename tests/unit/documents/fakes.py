@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from io import BytesIO
 from zipfile import ZipFile
 
@@ -90,7 +91,17 @@ class MemoryTasks:
         return self._items.get(task_id)
 
     def save(self, task: TaskRecord) -> None:
+        if task.created_at is None:
+            task.created_at = datetime.now(UTC)
         self._items[task.id] = task
+
+    def list_all(self) -> tuple[TaskRecord, ...]:
+        items = sorted(
+            self._items.values(),
+            key=lambda task: (task.created_at or datetime.min.replace(tzinfo=UTC), task.id),
+            reverse=True,
+        )
+        return tuple(items)
 
 
 class MemoryObjects:

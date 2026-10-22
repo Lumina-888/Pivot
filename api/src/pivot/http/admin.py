@@ -38,6 +38,24 @@ class RunStats(Protocol):
     def count_in_progress(self) -> int: ...
 
 
+class TaskRecordView(Protocol):
+    """Structural view of a persisted ingest task record."""
+
+    id: str
+    entity_type: str
+    entity_id: str
+    attempt: int
+    state: str
+    retryable: bool
+    created_at: datetime | None
+
+
+class TaskSource(Protocol):
+    """Protocol for listing persisted ingest tasks."""
+
+    def list_tasks(self) -> tuple[TaskRecordView, ...]: ...
+
+
 def _bearer_token(request: Request, request_id: str) -> str:
     from pivot.auth.errors import invalid_credentials
 
@@ -61,6 +79,7 @@ def build_admin_router(
     probes: DependencyProbes | None = None,
     document_stats: DocumentStats | None = None,
     run_stats: RunStats | None = None,
+    task_source: TaskSource | None = None,
 ) -> APIRouter:
     """Build admin routes for metrics and tasks.
 
@@ -115,10 +134,26 @@ def build_admin_router(
         request_id, principal = _principal(request, auth)
         auth.require_admin(principal, request.url.path, request_id)
 
-        # Initial implementation returns empty task list
-        # M07 worker will provide task query interface in future
+        # Tasks are read from the persisted ingest task store (celery_tasks).
+        # Pagination parameters are not frozen yet (TBD-P0); the key stays null.
+        items: list[dict[str, object]] = []
+        if task_source is not None:
+            for task in task_source.list_tasks():
+                items.append(
+                    {
+                        "task_id": task.id,
+                        "entity_type": task.entity_type,
+                        "entity_id": task.entity_id,
+                        "attempt": task.attempt,
+                        "state": task.state,
+                        "retryable": task.retryable,
+                        "created_at": task.created_at.isoformat()
+                        if task.created_at is not None
+                        else None,
+                    }
+                )
         return {
-            "tasks": [],
+            "items": items,
             "pagination": None,
         }
 

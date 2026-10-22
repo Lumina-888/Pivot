@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pivot.db.models import AgentEvent, Conversation, Message, Run, User
 from pivot.db.runs import SqlAlchemyRunStore
 from pivot.runs.models import RunBundle, RunRecord, run_fingerprint, synthetic_user_message_id
+from pivot.runs.service import RunService
 from pivot.stream.buffer import EventLog
 
 
@@ -135,3 +136,20 @@ def test_M03_sqlalchemy_run_store_persists_event_log(db_session):
     blob = " ".join(row.summary for row in events)
     assert "thinking" not in blob.lower()
     assert "SYSTEM_PROMPT" not in blob
+
+
+def test_NFR_OBS_005_run_status_counts_from_persisted_rows(db_session):
+    _seed_conversation(db_session)
+    store = SqlAlchemyRunStore(db_session)
+    store.save(_bundle(id="run_done", message_id="msg_done", idempotency_key="idem-done", state="completed"))
+    store.save(_bundle(id="run_bad", message_id="msg_bad", idempotency_key="idem-bad", state="failed"))
+    store.save(_bundle(id="run_live", message_id="msg_live", idempotency_key="idem-live", state="received"))
+
+    fresh_store = SqlAlchemyRunStore(db_session)
+    assert fresh_store.status_counts() == {"completed": 1, "failed": 1, "received": 1}
+
+    service = RunService(store=fresh_store)
+    assert service.count_total() == 3
+    assert service.count_completed() == 1
+    assert service.count_failed() == 1
+    assert service.count_in_progress() == 1

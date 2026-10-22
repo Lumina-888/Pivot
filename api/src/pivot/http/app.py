@@ -147,7 +147,9 @@ def create_app(
         from pivot.http.admin import build_admin_router
 
         app.include_router(
-            build_admin_router(auth, probes=probes, document_stats=documents, run_stats=runs),
+            build_admin_router(
+                auth, probes=probes, document_stats=documents, run_stats=runs, task_source=documents
+            ),
             prefix="/api/v1",
         )
 

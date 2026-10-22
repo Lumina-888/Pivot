@@ -88,6 +88,7 @@ def _to_task(row: CeleryTask) -> TaskRecord:
         state=row.state,
         retryable=row.retryable,
         error_code=row.error_code,
+        created_at=row.created_at,
     )
 
 
@@ -241,6 +242,13 @@ class SqlAlchemyTaskStore(_SessionBound):
         with self._scope() as session:
             row = session.get(CeleryTask, task_id)
             return _to_task(row) if row is not None else None
+
+    def list_all(self) -> tuple[TaskRecord, ...]:
+        with self._scope() as session:
+            rows = session.scalars(
+                select(CeleryTask).order_by(CeleryTask.created_at.desc(), CeleryTask.id.desc())
+            ).all()
+            return tuple(_to_task(row) for row in rows)
 
     def save(self, task: TaskRecord) -> None:
         if not task.id or not task.entity_id:
