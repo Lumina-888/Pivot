@@ -107,6 +107,8 @@
 - **DoD / 证据**：合法搜索/读证据与未知工具、额外字段、已删/过期/权限变更负向报告；所有 evidence 可追溯原 Chunk 与版本。
 - **不做**：不增加联网/Shell/SQL/写工具，不复制另一套检索算法。
 
+> 索引注（2026-10-22）：本票开发部分已落地——三套审计统一落 `audit_events`，失败策略经 Owner 拍板为分级处理（关键事件 fail-closed、一般事件 best-effort 加计数留痕），worker 文档审计空实现已消除；状态待 PR 合并后回改，数据库层权限收紧归 ND-STG-04-A。见 `progress/changes/20261022-M06-audit-persistence-tiered-failure.md` 与 `evidence/wave3-m06/audit-persistence-wiring.md`。
+
 ### ND-AGENT-02-E 可信上下文与外发
 
 - **父票 / 来源 / 责任**：ND-AGENT-02；FR-AGENT-003、FR-RBAC、SPEC §8.3；Accountable M01，Contributors M05/M04/M03。

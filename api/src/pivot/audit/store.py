@@ -3,9 +3,29 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Protocol
 
 from pivot.audit.errors import append_only
 from pivot.audit.models import AuditEventRecord
+
+
+class AuditStore(Protocol):
+    """Persistence port for audit events. Callers supply the implementation."""
+
+    def append(self, event: AuditEventRecord) -> None: ...
+
+    def get(self, event_id: str) -> AuditEventRecord | None: ...
+
+    def list(self) -> tuple[AuditEventRecord, ...]: ...
+
+    def query(
+        self,
+        *,
+        actor: str | None = None,
+        action: str | None = None,
+        request_id: str | None = None,
+        run_id: str | None = None,
+    ) -> tuple[AuditEventRecord, ...]: ...
 
 
 class AppendOnlyAuditStore:

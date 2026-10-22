@@ -7,16 +7,23 @@ from typing import Any
 from pivot.audit.catalog import canonicalize
 from pivot.audit.errors import auth_forbidden, not_found
 from pivot.audit.models import AuditEventRecord
+from pivot.audit.policy import AuditWriteFailures, is_critical_action
 from pivot.audit.ports import Actor, Clock
 from pivot.audit.redaction import redact_metadata
-from pivot.audit.store import AppendOnlyAuditStore
+from pivot.audit.store import AuditStore
 from pivot.shared.ids import new_id
 
 
 class AuditService:
-    def __init__(self, store: AppendOnlyAuditStore, clock: Clock) -> None:
+    def __init__(
+        self,
+        store: AuditStore,
+        clock: Clock,
+        failures: AuditWriteFailures | None = None,
+    ) -> None:
         self._store = store
         self._clock = clock
+        self._failures = failures if failures is not None else AuditWriteFailures()
 
     def record(
         self,
@@ -40,7 +47,16 @@ class AuditService:
             metadata=redact_metadata(metadata),
             created_at=self._clock.now(),
         )
-        self._store.append(event)
+        try:
+            self._store.append(event)
+        except Exception as exc:
+            # Tiered failure policy (ND-GAP-02): critical actions fail
+            # closed; general actions are counted and logged, never
+            # silently dropped. The returned event is not persisted in
+            # the best-effort case.
+            if is_critical_action(event.action):
+                raise
+            self._failures.note(event.action, exc)
         return event
 
     def record_qa(
