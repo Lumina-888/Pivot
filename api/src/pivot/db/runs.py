@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from pivot.db.models import AgentEvent, Conversation, Message, Run
@@ -203,6 +203,13 @@ class SqlAlchemyRunStore:
                 )
                 for row in rows
             )
+
+    def status_counts(self) -> dict[str, int]:
+        with self._scope() as session:
+            rows = session.execute(
+                select(Run.state, func.count()).group_by(Run.state)
+            ).all()
+            return {state: count for state, count in rows}
 
     def get_log(self, run_id: str, message_id: str) -> EventLog | None:
         with self._scope() as session:

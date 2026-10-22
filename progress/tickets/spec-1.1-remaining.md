@@ -49,7 +49,7 @@
 | ND-AGENT-05-B | 主备 live 工具能力冒烟 | P0 / S | M11 | blocked | 主模型已验证；备用模型（小米）接入待 Owner 提供 |
 | ND-AGENT-05-C | Agent Golden Set schema 与 Fake 图回归 | P0 / M | M11 | dev-landed | 已落地：金标集 v0.1（9 场景）与 Fake 图回归；业务场景确认仍待业务复核 |
 | ND-AGENT-05-D | Agent live 质量、成本与安全评测 | P0 / M | M11 | dev-landed | 首轮 live 评测已执行（两组各 9 场景）；业务复核集重跑与阈值判定待 ND-P0-01-A 与 DR-010 |
-| ND-GAP-01 | 后台 metrics/tasks Contract 与真实接线 | P1 / M | M11 | dev-landed-partial | `6bb7e9d` 路由已挂；指标非持久统计，任务列表为空 |
+| ND-GAP-01 | 后台 metrics/tasks Contract 与真实接线 | P1 / M | M11 | dev-landed-partial | `6bb7e9d` 路由已挂；2026-10-22 完成真实接线（指标读持久 Run 存储并修复 status 误读崩溃、任务读 celery_tasks、契约对齐前端 items）；分页参数仍 TBD-P0 |
 | ND-GAP-02 | 持久审计统一接线与重启可复盘 | P0 / M | M06 | blocked | M03 Repository/迁移 Contract；M00 审核 |
 | ND-GAP-03 | 首次改密/重置后的跨实例生命周期验收 | P0 / S | M01 | blocked | M00/M03 机制确认；不得私加字段 |
 | ND-GAP-04 | 签名导出下载消费者与过期/授权端到端验收 | P1 / M | M06 | blocked | M00 下载消费者 Contract；04-B；TTL 策略 |

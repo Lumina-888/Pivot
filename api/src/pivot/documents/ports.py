@@ -50,6 +50,7 @@ class TaskRecord:
     state: str = "queued"
     retryable: bool = False
     error_code: str | None = None
+    created_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -119,6 +120,8 @@ class TaskStore(Protocol):
     def get(self, task_id: str) -> TaskRecord | None: ...
 
     def save(self, task: TaskRecord) -> None: ...
+
+    def list_all(self) -> tuple[TaskRecord, ...]: ...
 
 
 class ObjectStore(Protocol):

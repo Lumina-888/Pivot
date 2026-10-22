@@ -182,3 +182,36 @@ def test_M03_sqlalchemy_chunk_and_task_roundtrip(db_session):
     tasks.save(loaded)
     assert tasks.get("task_1") is not None
     assert tasks.get("task_1").state == "started"
+
+
+def test_NFR_OBS_005_task_store_list_all_returns_persisted_tasks(db_session):
+    _seed_user(db_session)
+    tasks = SqlAlchemyTaskStore(db_session)
+    tasks.save(
+        TaskRecord(
+            id="task_a",
+            entity_id="ver_1",
+            entity_type="document_version",
+            attempt=1,
+            state="queued",
+        )
+    )
+    tasks.save(
+        TaskRecord(
+            id="task_b",
+            entity_id="ver_1",
+            entity_type="document_version",
+            attempt=2,
+            state="failed",
+            retryable=True,
+            error_code="PARSE_FAILED",
+        )
+    )
+
+    listed = tasks.list_all()
+    assert {task.id for task in listed} == {"task_a", "task_b"}
+    by_id = {task.id: task for task in listed}
+    assert by_id["task_b"].attempt == 2
+    assert by_id["task_b"].retryable is True
+    assert by_id["task_b"].error_code == "PARSE_FAILED"
+    assert all(task.created_at is not None for task in listed)

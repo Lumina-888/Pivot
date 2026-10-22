@@ -165,10 +165,11 @@ def test_NFR_OBS_006_admin_tasks_returns_structure():
     body = response.json()
 
     # Verify structure
-    assert "tasks" in body
-    assert isinstance(body["tasks"], list)
+    assert "items" in body
+    assert isinstance(body["items"], list)
     assert "pagination" in body
-    # Initial implementation has empty tasks and null pagination
+    # Pagination parameters are not frozen yet (TBD-P0); the key stays null
+    assert body["pagination"] is None
 
 
 def test_admin_metrics_requires_authentication():
@@ -205,3 +206,89 @@ def test_admin_tasks_requires_authentication():
     assert response.status_code == 401
     body = response.json()
     assert body["code"] == "AUTH_INVALID_CREDENTIALS"
+
+
+def test_NFR_OBS_005_admin_metrics_counts_existing_runs():
+    """存在 Run 时管理员指标返回持久计数，不再因状态字段缺失崩溃。"""
+    pipeline = Pipeline()
+    pipeline.runs.create(
+        conversation_id="conv_metrics",
+        owner_id="usr_alice",
+        question="年假有几天",
+        idempotency_key="idem-metrics-1",
+        request_id="req_metrics_1",
+    )
+    client = TestClient(
+        create_app(
+            auth=pipeline.auth,
+            probes=FakeProbes(),
+            documents=pipeline.documents,
+            runs=pipeline.runs,
+        ),
+        base_url="https://testserver",
+    )
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "admin-password"}
+    )
+    token = login.json()["access_token"]
+
+    response = client.get(
+        "/api/v1/admin/metrics",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    qa = response.json()["qa"]
+    assert qa["total_runs"] == 1
+    assert qa["in_progress"] == 1
+    assert qa["completed"] == 0
+    assert qa["failed"] == 0
+
+
+def test_NFR_OBS_005_admin_tasks_read_persisted_facts():
+    """管理员任务列表返回已持久化的入库任务事实，而非写死的空数组。"""
+    from harness import policy_pdf
+
+    pipeline = Pipeline()
+    version = pipeline.documents.upload(
+        filename="handbook.pdf",
+        declared_mime="application/pdf",
+        content=policy_pdf(),
+        title="Attendance Policy",
+        actor_id="usr_admin",
+        request_id="req_gap01_upload",
+    )
+    task = pipeline.documents.enqueue(version.id, "req_gap01_enqueue", actor_id="usr_admin")
+
+    client = TestClient(
+        create_app(
+            auth=pipeline.auth,
+            probes=FakeProbes(),
+            documents=pipeline.documents,
+            runs=pipeline.runs,
+        ),
+        base_url="https://testserver",
+    )
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "admin-password"}
+    )
+    token = login.json()["access_token"]
+
+    response = client.get(
+        "/api/v1/admin/tasks",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pagination"] is None
+    items = body["items"]
+    assert len(items) == 1
+    item = items[0]
+    assert item["task_id"] == task.id
+    assert item["entity_type"] == "document_version"
+    assert item["entity_id"] == version.id
+    assert item["attempt"] == 1
+    assert item["state"] == "queued"
+    assert item["retryable"] is False
+    assert isinstance(item["created_at"], str) and item["created_at"]
