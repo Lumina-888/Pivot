@@ -34,6 +34,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="user")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

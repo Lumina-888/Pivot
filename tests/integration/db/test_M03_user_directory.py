@@ -42,13 +42,13 @@ def test_M03_sqlalchemy_user_directory_persists_spec_user_fields(db_session):
     assert loaded.role == "user"
     assert loaded.status == "active"
     assert loaded.token_version == 1
-    assert loaded.must_change_password is False
+    assert loaded.must_change_password is True
 
     row = db_session.get(User, "usr_alice")
     assert row is not None
     assert row.username == "alice"
     assert row.password_hash == loaded.password_hash
-    assert "must_change_password" not in {column.key for column in User.__table__.columns}
+    assert "must_change_password" in {column.key for column in User.__table__.columns}
 
 
 def test_M03_sqlalchemy_user_directory_get_by_username(db_session):

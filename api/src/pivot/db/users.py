@@ -1,7 +1,7 @@
 """SQLAlchemy UserDirectory backed by the PostgreSQL fact model.
 
-This adapter maps SPEC §2.2 User columns. `must_change_password` is an M01
-domain flag and is not a persisted User column.
+This adapter maps SPEC §2.2 User columns. `must_change_password` is
+persisted since ND-GAP-03 and enforced server-side by M01.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ def _to_account(row: User) -> UserAccount:
         role=row.role,
         status=row.status,
         token_version=row.token_version,
-        must_change_password=False,
+        must_change_password=row.must_change_password,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -38,6 +38,7 @@ def _apply(row: User, user: UserAccount) -> None:
     row.role = user.role
     row.status = user.status
     row.token_version = user.token_version
+    row.must_change_password = user.must_change_password
     if user.updated_at is not None:
         row.updated_at = user.updated_at
 
@@ -90,6 +91,7 @@ class SqlAlchemyUserDirectory:
                             role=user.role,
                             status=user.status,
                             token_version=user.token_version,
+                            must_change_password=user.must_change_password,
                             created_at=user.created_at or utc_now(),
                             updated_at=user.updated_at or utc_now(),
                         )

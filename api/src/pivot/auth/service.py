@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from pivot.auth.cookies import Cookie, clear_refresh_cookie, refresh_cookie
-from pivot.auth.errors import forbidden, invalid_credentials, not_found
+from pivot.auth.errors import (
+    forbidden,
+    invalid_credentials,
+    not_found,
+    password_change_required,
+)
 from pivot.auth.ports import (
     AuditEventDraft,
     AuditSink,
@@ -33,6 +38,7 @@ class LoginResult:
     refresh_token_cookie: bool
     cookie: Cookie
     refresh_token: str
+    must_change_password: bool = False
 
     def to_login_success(self) -> dict[str, str | int | bool]:
         return {
@@ -40,6 +46,7 @@ class LoginResult:
             "token_type": self.token_type,
             "expires_in": self.expires_in,
             "refresh_token_cookie": self.refresh_token_cookie,
+            "must_change_password": self.must_change_password,
         }
 
 
@@ -96,7 +103,13 @@ class AuthService:
         self._audit(user.id, "auth.login", user.id, "ok", request_id)
         return result
 
-    def authenticate(self, access_token: str, request_id: str = "req_auth") -> Principal:
+    def authenticate(
+        self,
+        access_token: str,
+        request_id: str = "req_auth",
+        *,
+        allow_password_change: bool = False,
+    ) -> Principal:
         principal = self._tokens.parse(access_token, request_id)
         user = self._users.get_by_id(principal.user_id)
         if user is None:
@@ -105,6 +118,8 @@ class AuthService:
             raise forbidden(request_id)
         if user.token_version != principal.token_version:
             raise invalid_credentials(request_id)
+        if user.must_change_password and not allow_password_change:
+            raise password_change_required(request_id)
         return Principal(
             user_id=user.id,
             username=user.username,
@@ -140,7 +155,9 @@ class AuthService:
         new_password: str,
         request_id: str,
     ) -> None:
-        principal = self.authenticate(access_token, request_id)
+        principal = self.authenticate(
+            access_token, request_id, allow_password_change=True
+        )
         user = self._require_user(principal.user_id, request_id)
         if not self._hasher.verify(current_password, user.password_hash):
             raise invalid_credentials(request_id)
@@ -356,6 +373,7 @@ class AuthService:
             token_type="Bearer",
             expires_in=self._access_ttl,
             refresh_token_cookie=True,
+            must_change_password=user.must_change_password,
             cookie=refresh_cookie(raw_refresh, max_age=self._refresh_ttl),
             refresh_token=raw_refresh,
         )
