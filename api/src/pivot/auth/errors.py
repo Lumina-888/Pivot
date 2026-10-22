@@ -37,6 +37,14 @@ def forbidden(request_id: str) -> AuthError:
     return AuthError("AUTH_FORBIDDEN", FORBIDDEN_MESSAGE, request_id)
 
 
+def password_change_required(request_id: str) -> AuthError:
+    return AuthError(
+        "AUTH_PASSWORD_CHANGE_REQUIRED",
+        "首次登录或密码重置后必须先修改密码",
+        request_id,
+    )
+
+
 def not_found(request_id: str) -> AuthError:
     return AuthError("RESOURCE_NOT_FOUND", NOT_FOUND_MESSAGE, request_id)
 

@@ -355,6 +355,8 @@
 - **DoD / 证据**：明确机制/状态保存来源、跨实例正负向测试、无 URL/日志口令泄漏；若已有证据充分则只补矩阵而不重复实现。
 - **不做**：不未经批准新增 `must_change_password` 列，不私定 Token TTL。
 
+> 索引注（2026-10-22）：本票已按 Owner 同日拍板口径落地——标志落库（迁移 `45f1c8bda305`）、服务端强制（`AUTH_PASSWORD_CHANGE_REQUIRED`）、初始密码维持管理员设定与线下告知；票面两项计划用例均已实现并通过。状态待 PR 合并后回改。见 `progress/changes/20261022-M01-password-change-persistence-enforcement.md` 与 `evidence/wave3-m01/password-change-enforcement.md`。
+
 ### ND-GAP-04 导出下载端到端验收
 
 - **来源 / 责任 / 优先级**：FR-EXPORT-001~003、FR-RBAC-003、SPEC §10.5 第11步；P1；Accountable M06，Contributors M00/M01/M03/M09/M11。

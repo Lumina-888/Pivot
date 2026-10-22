@@ -25,7 +25,13 @@ def test_FR_AUTH_001_login_returns_access_token_and_httponly_refresh(auth_servic
 def test_FR_AUTH_001_login_does_not_store_refresh_in_response_body(auth_service):
     result = auth_service.login("alice", "correct-password", request_id="req_login")
     payload = result.to_login_success()
-    assert set(payload) == {"access_token", "token_type", "expires_in", "refresh_token_cookie"}
+    assert set(payload) == {
+        "access_token",
+        "token_type",
+        "expires_in",
+        "refresh_token_cookie",
+        "must_change_password",
+    }
     assert "refresh_token" not in payload
     assert result.refresh_token not in (payload["access_token"],)
 

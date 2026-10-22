@@ -16,6 +16,7 @@ from pivot.auth.service import AuthService
 _STATUS = {
     "AUTH_INVALID_CREDENTIALS": 401,
     "AUTH_FORBIDDEN": 403,
+    "AUTH_PASSWORD_CHANGE_REQUIRED": 403,
     "RESOURCE_NOT_FOUND": 404,
     "RESOURCE_FORBIDDEN": 403,
 }
