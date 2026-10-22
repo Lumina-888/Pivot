@@ -87,7 +87,7 @@ Owner 在本会话对“02-A 原提案及 PR-01 补充”明确回复“同意�
 | M03 数据基础 | in_progress | `main`（旧 tag 目标 `M03-v0.8.0`） | `contract-v0.1`；依赖 draft proposed | 02-C Windows/Linux 原生候选与 Ubuntu Hosted CI 技术通过；04-A proposed/schema173 passed；旧 SQL 基线保留 | 角色锁/构建、供应链与依赖签认；04-A签认/DR-011/批准PG环境 |
 | M04 检索 RAG | integrated | `main`（tag 目标 `M04-v0.5.0`） | `contract-v0.1` | 31 单元 + 搜索 HTTP + Qdrant dense + stdlib BM25 + ingest/检索共用注入 HTTP Embedding/bge + 合成 Golden Set 120 条 + 企业脱敏摘录 120 条 | STG-04 ECS apply 或 live 供应商冒烟 |
 | M05 ReAct/QA/Run/SSE | in_progress | `main`（最新 d7c8eca） | 目标 AGENT-SPEC-1.0；发布 contract-v0.1 | 02-D～H 开发实现；03-B 阶段投影 9 passed；03-C 取消 3 passed；03-D 图内澄清 4 passed | 03-E 仍等待 03-A 公开 resume；04 checkpoint/DR-011 待签认 |
-| M06 导出/审计 | integrated | `main`（tag 目标 `M06-v0.3.0`） | `contract-v0.1` | 26 单元 + 导出/审计 HTTP + PG 任务跨装配；ND-GAP-02 审计统一落库与分级失败已合并；ND-GAP-04 签名下载消费者与 ADR-012 管理员口径（本地全绿，待合并） | 公开入口 `/d/` 反代属部署事项（ND-STG-04-A） |
+| M06 导出/审计 | integrated | `main`（tag 目标 `M06-v0.3.0`） | `contract-v0.1` | 26 单元 + 导出/审计 HTTP + PG 任务跨装配；ND-GAP-02 审计统一落库与分级失败已合并；ND-GAP-04 签名下载消费者与 ADR-012 管理员口径已合并（PR #23） | 公开入口 `/d/` 反代属部署事项（ND-STG-04-A） |
 | M07 Worker/解析/索引 | integrated | `main`（tag `M07-v0.10.0`） | `contract-v0.1` | 79 单元 + ingest→Qdrant + HTTP 进程内 runner + parse 队列消费 + Celery eager ingest + Compose Celery worker + 共享 MinIO/PG runner + worker Qdrant IndexPublisher + ingest HTTP Embedding + MinerU 云解析器 + `worker[parse]` native extra | 缺省仍启发式；OCR 属 P2 |
 | M08 Web 基础 | integrated | `main`（tag `M08-v0.3.0`） | `contract-v0.1` | M08 18 tests + SSE 去缓冲 Route Handler + typecheck/lint 通过 | Compose web 由 M11 装配 |
 | M09 员工前台 | integrated | `main`（tag 目标 `M09-v0.2.0`） | `wave-1-integrated` | 13 Fake + followRunEvents + opt-in Playwright 十页 | Chrome/Edge 版本仍 TBD-P0 |

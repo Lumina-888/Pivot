@@ -52,7 +52,7 @@
 | ND-GAP-01 | 后台 metrics/tasks Contract 与真实接线 | P1 / M | M11 | dev-landed-partial | `6bb7e9d` 路由已挂；2026-10-22 完成真实接线（指标读持久 Run 存储并修复 status 误读崩溃、任务读 celery_tasks、契约对齐前端 items）；分页参数仍 TBD-P0 |
 | ND-GAP-02 | 持久审计统一接线与重启可复盘 | P0 / M | M06 | blocked | M03 Repository/迁移 Contract；M00 审核 |
 | ND-GAP-03 | 首次改密/重置后的跨实例生命周期验收 | P0 / S | M01 | dev-landed | 已合并（PR #22）；标志落库与服务端强制，跨实例为持久化天然成立 |
-| ND-GAP-04 | 签名导出下载消费者与过期/授权端到端验收 | P1 / M | M06 | dev-landed（待合并） | M00 下载消费者 Contract；04-B；TTL 策略 |
+| ND-GAP-04 | 签名导出下载消费者与过期/授权端到端验收 | P1 / M | M06 | dev-landed | 已合并（PR #23）；公开入口 `/d/` 反代归 ND-STG-04-A |
 | ND-P0-01-A | 120 条企业脱敏集业务复核 | P0 / M | M11 | blocked | Owner 指定业务复核人/样本准入 |
 | ND-STG-04-A | staging ECS apply 与低敏冒烟 | P1 / M | M11 | blocked | Owner SSH/安全组/磁盘/访问拓扑 |
 
@@ -107,7 +107,7 @@
 - **DoD / 证据**：合法搜索/读证据与未知工具、额外字段、已删/过期/权限变更负向报告；所有 evidence 可追溯原 Chunk 与版本。
 - **不做**：不增加联网/Shell/SQL/写工具，不复制另一套检索算法。
 
-> 索引注（2026-10-22）：本票开发部分已落地——三套审计统一落 `audit_events`，失败策略经 Owner 拍板为分级处理（关键事件 fail-closed、一般事件 best-effort 加计数留痕），worker 文档审计空实现已消除；状态待 PR 合并后回改，数据库层权限收紧归 ND-STG-04-A。见 `progress/changes/20261022-M06-audit-persistence-tiered-failure.md` 与 `evidence/wave3-m06/audit-persistence-wiring.md`。
+> 索引注（2026-10-22）：本票开发部分已落地——三套审计统一落 `audit_events`，失败策略经 Owner 拍板为分级处理（关键事件 fail-closed、一般事件 best-effort 加计数留痕），worker 文档审计空实现已消除；已于 2026-10-22 经 PR #21 合并入 main，数据库层权限收紧归 ND-STG-04-A。见 `progress/changes/20261022-M06-audit-persistence-tiered-failure.md` 与 `evidence/wave3-m06/audit-persistence-wiring.md`。
 
 ### ND-AGENT-02-E 可信上下文与外发
 
@@ -360,14 +360,14 @@
 ### ND-GAP-04 导出下载端到端验收
 
 - **来源 / 责任 / 优先级**：FR-EXPORT-001~003、FR-RBAC-003、SPEC §10.5 第11步；P1；Accountable M06，Contributors M00/M01/M03/M09/M11。
-- **状态 / 依赖**：dev-landed（待合并）；M00 确认签名 URL 消费者/鉴权/到期机制；04-B 持久答案；TTL 策略。
+- **状态 / 依赖**：dev-landed（已合并）；M00 确认签名 URL 消费者/鉴权/到期机制；04-B 持久答案；TTL 策略。
 - **当前证据**：导出任务与对象写入已有；[signer.py](../../api/src/pivot/exports/signer.py) 生成公开签名 URL。消费者端点与双验已落地（见本节索引注），端到端证据见 `evidence/wave3-m06/export-signed-download-consumer.md`。
 - **场景 / 范围**：用户创建导出后实际下载 Markdown/Word；无权限、篡改签名、过期、停用、源资源删除按批准策略拒绝；不包含未校验正文/Prompt/思考链。
 - **路径 / 数据**：先公共消费者 Contract；M06 导出服务/签名消费者，M01 重授权，M09 入口，M11 真实对象/浏览器测试；只读 04-B 已持久化事实。
 - **计划测试**：`test_FR_EXPORT_001_signed_url_downloads_expected_bytes`、`test_FR_EXPORT_003_expired_or_tampered_download_rejected`、`test_FR_RBAC_003_export_download_reauthorizes`。
 - **DoD / 证据**：实际文件/格式、授权、下载/失败/过期审计报告，任务与答案重启后仍可读；缺消费者才按批准兼容方案实现。
 
-> 索引注（2026-10-22）：本票已按 Owner 同日拍板口径落地——消费者端点 `GET /d/{export_id}`（验签与链接过期、登录态双验、服务层授权与状态把关），下载授权经 ADR-012 定为本人或管理员；票面用例以 `test_FR_EXPORT_003_signed_download_expiry_and_authorization` 与签名校验单元用例实现并通过。状态待 PR 合并后回改。见 `progress/changes/20261022-M06-export-signed-download-consumer.md`、`progress/changes/20261022-M06-export-admin-download.md` 与 `evidence/wave3-m06/export-signed-download-consumer.md`。
+> 索引注（2026-10-22）：本票已按 Owner 同日拍板口径落地——消费者端点 `GET /d/{export_id}`（验签与链接过期、登录态双验、服务层授权与状态把关），下载授权经 ADR-012 定为本人或管理员；票面用例以 `test_FR_EXPORT_003_signed_download_expiry_and_authorization` 与签名校验单元用例实现并通过。已于 2026-10-22 经 PR #23 合并入 main（合并提交 `4a7ffa8`）。见 `progress/changes/20261022-M06-export-signed-download-consumer.md`、`progress/changes/20261022-M06-export-admin-download.md` 与 `evidence/wave3-m06/export-signed-download-consumer.md`。
 - **不做**：不新增破坏性公开对象字节路由，不暴露 MinIO 内部地址，不重跑问答。
 
 ### ND-P0-01-A 企业集业务复核
