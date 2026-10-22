@@ -7,6 +7,8 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from pivot.audit.policy import AuditWriteFailures, TieredAuditSink
+from pivot.db.audit import SqlAlchemyAuditStore, SqlAlchemyDocumentAuditSink
 from pivot.db.documents import (
     SqlAlchemyChunkStore,
     SqlAlchemyDocumentStore,
@@ -64,11 +66,6 @@ def _optional_positive_float(environ: Mapping[str, str], key: str) -> float | No
     if value <= 0:
         raise RuntimeError(f"{key} must be a positive number")
     return value
-
-
-class _NullAudits:
-    def emit(self, event: object) -> None:
-        return None
 
 
 @dataclass(frozen=True)
@@ -468,7 +465,10 @@ def assemble_ingest_runtime(
         chunks=SqlAlchemyChunkStore(sessions),
         tasks=SqlAlchemyTaskStore(sessions),
         objects=objects,
-        audits=_NullAudits(),
+        audits=TieredAuditSink(
+            SqlAlchemyDocumentAuditSink(SqlAlchemyAuditStore(sessions)),
+            AuditWriteFailures(),
+        ),
     )
     vectors = None
     index = None

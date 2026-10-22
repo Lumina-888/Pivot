@@ -9,12 +9,18 @@ from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from pivot.audit.policy import AuditWriteFailures, TieredAuditSink
 from pivot.audit.service import AuditService
 from pivot.audit.store import AppendOnlyAuditStore
 from pivot.auth.attempts import CacheLoginAttempts
 from pivot.auth.ports import UserAccount, UserDirectory
 from pivot.auth.service import AuthService
 from pivot.auth.tokens import TokenService
+from pivot.db.audit import (
+    SqlAlchemyAuditStore,
+    SqlAlchemyAuthAuditSink,
+    SqlAlchemyDocumentAuditSink,
+)
 from pivot.db.conversations import SqlAlchemyConversationStore
 from pivot.db.documents import (
     SqlAlchemyChunkStore,
@@ -671,6 +677,10 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     refresh_tokens: object
     conversation_rows: object
     run_rows: object
+    audit_store: object
+    auth_audits: object
+    document_audits: object
+    audit_failures = AuditWriteFailures()
     if resolved.storage == "postgres":
         postgres_engine = _open_postgres_engine(resolved)
         sessions = session_factory(postgres_engine)
@@ -683,6 +693,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         refresh_tokens = SqlAlchemyRefreshTokenStore(sessions)
         conversation_rows = SqlAlchemyConversationStore(sessions)
         run_rows = SqlAlchemyRunStore(sessions)
+        audit_store = SqlAlchemyAuditStore(sessions)
+        auth_audits = SqlAlchemyAuthAuditSink(audit_store)
+        document_audits = SqlAlchemyDocumentAuditSink(audit_store)
     else:
         users = InMemoryUserDirectory()
         document_rows = MemoryDocuments()
@@ -693,6 +706,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         refresh_tokens = InMemoryRefreshStore()
         conversation_rows = InMemoryConversationStore()
         run_rows = InMemoryRunStore()
+        audit_store = AppendOnlyAuditStore()
+        auth_audits = InMemoryAuthAudit()
+        document_audits = MemoryDocumentAudits()
     if resolved.object_store == "minio":
         minio_store = _open_minio_store(resolved)
         document_objects = minio_store
@@ -775,7 +791,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             clock=clock,
         ),
         refresh_tokens=refresh_tokens,
-        audits=InMemoryAuthAudit(),
+        audits=auth_audits,
         attempts=attempts,
         access=AccessControl(catalog),
         clock=clock,
@@ -788,7 +804,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         chunks=chunk_rows,
         tasks=task_rows,
         objects=document_objects,
-        audits=MemoryDocumentAudits(),
+        audits=TieredAuditSink(document_audits, audit_failures),
         delete_hook=llama_sync,
     )
     parsers = _ingest_parsers(resolved)
@@ -858,7 +874,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         reranker=reranker,
     )
     export_clock = UtcClock()
-    audits = AuditService(AppendOnlyAuditStore(), export_clock)
+    audits = AuditService(audit_store, export_clock, failures=audit_failures)
     answers = MemoryAnswerStore()
     exports = ExportService(
         access=MemoryExportAccess(export_rows, catalog),
