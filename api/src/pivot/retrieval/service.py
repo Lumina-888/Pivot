@@ -116,6 +116,7 @@ class RetrievalService:
                 warnings=tuple(warnings),
                 error_code="PROVIDER_TEMPORARY_ERROR",
             )
+        dense_scores = {hit.chunk_id: hit.score for hit in dense_hits or ()}
         lists = tuple(hits for hits in (dense_hits, bm25_hits) if hits is not None)
         fused = fuse(lists, self._policy.rrf_k)
         filtered_ids = []
@@ -129,6 +130,7 @@ class RetrievalService:
         if not filtered_ids:
             return RetrievalOutcome(status="empty", evidence=(), warnings=tuple(warnings))
         ordered_ids = tuple(filtered_ids)
+        rerank_scores: dict[str, float] = {}
         if self._reranker is not None:
             texts = {
                 chunk_id: self._resolve(chunk_id).text
@@ -137,11 +139,15 @@ class RetrievalService:
             }
             try:
                 reranked = self._reranker.rerank(
-                    query.text, ordered_ids, texts, self._policy.evidence_limit
+                    query.text,
+                    ordered_ids,
+                    texts,
+                    self._policy.rerank_pool or self._policy.evidence_limit,
                 )
                 reranked_ids = tuple(hit.chunk_id for hit in reranked)
                 if reranked_ids:
                     ordered_ids = reranked_ids
+                    rerank_scores = {hit.chunk_id: hit.score for hit in reranked}
                 self.provider_calls.append(
                     ProviderCallNote(provider="rerank", operation="rerank", status="ok")
                 )
@@ -155,12 +161,22 @@ class RetrievalService:
                         error_code=error.code,
                     )
                 )
+        ordered_ids = self._apply_relevance_gate(ordered_ids, rerank_scores, dense_scores)
+        if not ordered_ids:
+            return RetrievalOutcome(status="empty", evidence=(), warnings=tuple(warnings))
         evidence = []
         fused_scores = {hit.chunk_id: hit.score for hit in fused}
-        for chunk_id in ordered_ids[: self._policy.evidence_limit]:
+        per_doc_counts: dict[str, int] = defaultdict(int)
+        for chunk_id in ordered_ids:
+            if len(evidence) >= self._policy.evidence_limit:
+                break
             chunk = self._resolve(chunk_id)
             if chunk is None:
                 continue
+            cap = self._policy.per_doc_cap
+            if cap is not None and per_doc_counts[chunk.document_id] >= cap:
+                continue
+            per_doc_counts[chunk.document_id] += 1
             evidence.append(
                 Evidence(
                     chunk_id=chunk.chunk_id,
@@ -181,6 +197,42 @@ class RetrievalService:
             warnings=tuple(warnings),
             conflicts=self._conflicts(tuple(evidence)),
         )
+
+    def _apply_relevance_gate(
+        self,
+        ordered_ids: tuple[str, ...],
+        rerank_scores: dict[str, float],
+        dense_scores: dict[str, float],
+    ) -> tuple[str, ...]:
+        """Keep only candidates with a strong relevance signal (ADR-014).
+
+        A candidate passes when a configured floor's signal is available
+        for it and meets the floor: rerank score at or above rerank_floor,
+        or dense score at or above dense_floor. A candidate for which no
+        configured floor has an available signal (reranker absent or
+        failed, chunk never scored) passes unchanged, so a degraded
+        provider path degrades to the pre-gate behavior instead of
+        fabricating an empty result. With no floor configured the gate
+        is off entirely.
+        """
+        rerank_floor = self._policy.rerank_floor
+        dense_floor = self._policy.dense_floor
+        if rerank_floor is None and dense_floor is None:
+            return ordered_ids
+
+        def passes(chunk_id: str) -> bool:
+            measured = False
+            if rerank_floor is not None and chunk_id in rerank_scores:
+                measured = True
+                if rerank_scores[chunk_id] >= rerank_floor:
+                    return True
+            if dense_floor is not None and chunk_id in dense_scores:
+                measured = True
+                if dense_scores[chunk_id] >= dense_floor:
+                    return True
+            return not measured
+
+        return tuple(chunk_id for chunk_id in ordered_ids if passes(chunk_id))
 
     def _search_one(self, retriever: Retriever, name: str, text: str, k: int, warnings: list[str]):
         try:
