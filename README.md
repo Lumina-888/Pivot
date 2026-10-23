@@ -1,14 +1,35 @@
 # 问枢 Pivot
 
-问枢是面向企业知识库的 Web 系统。它使用 LangGraph 和受控 ReAct。模型用只读工具搜索知识、读取证据，再根据观察结果决定下一步。服务端控制权限、范围、外发、预算和答案发布。
+问枢是面向企业知识库的智能问答系统。问答由 LangGraph 受控 ReAct 智能体执行：模型用只读工具搜索知识、读取证据，再根据观察决定下一步。权限、范围、外发、预算和答案发布全部由服务端控制。产品只有 Web 端。
 
-技术路线包括 Next.js、FastAPI 和 LangGraph StateGraph，以及 PostgreSQL、MinIO、Qdrant、Redis 和 Celery。产品只有 Web。MVP 固定 10 个页面。
+## 架构概览
 
-当前基线是 `17ac93a`。目标已经接受。主循环已有开发实现，验收尚未完成。已入库内容包括 LangGraph 工具循环、恢复契约 contract-v0.2、03-E 的 Web 恢复，以及 04-B 和 04-C 的持久化框架。跨进程恢复、04-D 至 04-F 和真实模型冒烟尚未完成。
+- **前端**：Next.js。
+- **接口层**：FastAPI。运行状态经 SSE 推送，内部节点先投影为公开阶段再发布。
+- **智能体**：LangGraph StateGraph，三个节点（decide、execute_tools、finalize）。工具白名单只有两个：`search_knowledge`（登记证据，只返回编号与计数）和 `read_evidence`（按编号读全文，每次重新授权）。最终答案只由收尾器根据已登记证据生成。
+- **检索**：默认路径为 LlamaIndex 加 Qdrant。BM25 与稠密向量双路召回，RRF 融合，`BAAI/bge-reranker-v2-m3` 重排。嵌入使用硅基流动 `BAAI/bge-m3`。授权按文档与版本的实时事实复核。
+- **数据与任务**：PostgreSQL、Redis、Celery、MinIO。
+- **模型**：选型见 ADR-011。主模型是 DeepSeek 官方 `deepseek-flash`，备用是小米 `mimo-v2.6`，文档解析用 MinerU 官方云。
+- **问答引擎**：`PIVOT_QA_ENGINE` 可切换。`pipeline` 是默认的确定性流水线，`agent` 走智能体。默认引擎待真实联调后决定。
 
-Wave 3 夹具和单元测试不能代替 GATE。GATE-P0 全部 unverified。系统仍处于开发阶段。
+## 当前状态
 
-工作区只使用 `E:/AI Project/Pivot` 的 `main`。不要新建 `../Pivot-Mxx-*` worktree。默认下一刀是 04-C 的后续，以及 04-D 至 04-F。详情见 [PROGRESS.md](PROGRESS.md)。
+截至 2026-10-23，开发实现已全部合入 `main`（PR #2 至 #35）：
+
+- **ND-AGENT-04**：持久化、加密检查点、版本锁、租约与 fencing、真实 PostgreSQL 故障矩阵。
+- **LlamaIndex 集成 L1 至 L4**：默认检索路径已切换到 LlamaIndex，自研路径保留一个发布周期作回滚。
+- **ND-AGENT-05**：模型全注入与主备切换、Agent Golden Set、真实模型 live 评测。
+- **ND-GAP-01 至 04**：后台指标与任务列表真实接线、三套审计统一落库、改密强制标记、签名下载端点。
+- **ND-P0-03**：真实嵌入与重排的检索全链 live 评测。
+- **端到端各线**：网页上传入库（U1、U2）、Agent 生产接线（W1、W2）、检索相关性门禁与标定（线三，含稠密检索腿缺陷修复）、上下文瘦身（M 线）、答案层相关性判定。
+
+GATE-P0 仍为 unverified。还剩三件不写代码的事项：
+
+- **ND-P0-01-A**：企业集业务复核，进行中。复核完成后，评测用复核集重跑。
+- **DR-010**：生产数值冻结。检索阈值、单 Run 调用上限等仍是 TBD-P0，候选值已由标定产出。
+- **ND-STG-04-A**：staging 部署与低敏冒烟，待部署环境与信息。
+
+实现事实、证据与已知差距的完整记录见 [PROGRESS.md](PROGRESS.md)。
 
 ## 当前规范
 
@@ -37,15 +58,11 @@ Wave 3 夹具和单元测试不能代替 GATE。GATE-P0 全部 unverified。系�
 
 已入库的提交、tag、测试记录和验收证据都保留。旧的 implemented 记录不能改写成新的 FR-AGENT 已实现。
 
-## 开发顺序
+## 运行与测试
 
-1. ND-AGENT-01 已完成。它修复了迁移基线的答案安全问题。证据见 [nd-agent-01.md](evidence/agent-m05/nd-agent-01.md)。这不代表完整 Agent 已验收。
-2. ND-AGENT-02 的内部契约已发布，D 至 H 已有开发实现。它覆盖内部 Contract 和 StateGraph 工具循环。生产运行尚未批准。
-3. ND-AGENT-03 的 03-A 已发布 contract-v0.2，B、C、D、E 已有开发实现。它覆盖 Run、SSE、取消、澄清恢复和 Web。
-4. ND-AGENT-04 的 04-A 已发布，04-B 和 04-C 的框架已提交。Claims、Citation、PostgreSQL checkpoint、执行租约和重启恢复尚未完成。
-5. ND-AGENT-05 仍为 blocked。它覆盖受控真实模型冒烟和 Agent Golden Set。
-
-DR-010 的生产数值尚未关闭。开发实现不等于运行批准。需求 accepted 之后，仍要满足 DoR 才能开工。
+- 分组检查：`python ops/run_grouped_tests.py`。本地可用 `--skip-web` 跳过 web 组，CI 含 web 组与真实 PostgreSQL 组。
+- 本地环境搭建见 [ops/runbook-local-linux.md](ops/runbook-local-linux.md)。
+- 仓库内测试只用 Fake、Stub 或受控 Fixture。真实供应商验证走单独的 live 运行器（如 `ops/run_agent_live_eval.py`），密钥只从环境注入。
 
 ## 开发纪律
 
