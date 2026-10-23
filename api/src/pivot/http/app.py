@@ -15,6 +15,7 @@ from pivot.documents.errors import DocumentError
 from pivot.documents.service import DocumentService
 from pivot.exports.errors import ExportError
 from pivot.exports.service import ExportService
+from pivot.qa.agent_executor import AgentQaExecutor
 from pivot.qa.orchestrator import QaOrchestrator
 from pivot.retrieval.service import RetrievalService
 from pivot.runs.conversations import ConversationService
@@ -37,7 +38,7 @@ def create_app(
     documents: DocumentService | None = None,
     retrieval: RetrievalService | None = None,
     runs: RunService | None = None,
-    qa: QaOrchestrator | None = None,
+    qa: QaOrchestrator | AgentQaExecutor | None = None,
     conversations: ConversationService | None = None,
     exports: ExportService | None = None,
     audits: AuditService | None = None,

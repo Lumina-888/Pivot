@@ -27,5 +27,6 @@
 
 ## 未决事项
 
-- W2：结局对接（answered、refused、clarification、failed 四种结局映射 Run 状态机与 SSE）、attempts 落入 provider_attempts 账本、澄清恢复接 04 契约。
+- W2 结局对接已完成（2026-10-23，见 [20261023-M05-agent-execution-binding.md](20261023-M05-agent-execution-binding.md)）：四种结局已映射 Run 状态机与 SSE，`agent` 引擎下 HTTP 问答由智能体执行器执行；同片修复了收尾器在生产 writer 链接形状下声明到证据映射落空的缺陷。
+- W2 延后两项：attempts 落入 provider_attempts 账本（需 04 持久化会话与租约上下文，HTTP 执行路径未装配）；澄清恢复的执行接线（公开 resume 契约未冻结，SPEC 规定未冻结前不得私自实现，本片只映射澄清等待结局）。
 - W3：真实模型联调后由 Owner 决定是否把 `agent` 设为默认引擎。

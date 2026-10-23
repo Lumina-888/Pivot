@@ -89,16 +89,30 @@ class StructuredFinalizer:
                     "status": "verification_failed",
                 }
 
-        # 构建结构化响应
-        # 将 citations 映射到 evidence_ids
+        # 构建结构化响应：将 citations 映射到 evidence_ids。
+        # 生产 writer 的链接形状是 claim.citation_ids -> citation.id ->
+        # citation.chunk_id，再按 chunk_id 找注册表条目；评测装配的
+        # writer 用 claim_index/evidence_index 位置链接，作为回退保留。
+        citations_by_id = {c.get("id"): c for c in citations}
+        evidence_by_chunk = {ev.get("chunk_id"): ev.get("evidence_id") for ev in evidences}
         structured_claims = []
         for claim in claims:
-            claim_citations = [c for c in citations if c.get("claim_index") == claim.get("index")]
-            evidence_ids = [
-                evidences[c["evidence_index"]]["evidence_id"]
-                for c in claim_citations
-                if c.get("evidence_index") is not None and c["evidence_index"] < len(evidences)
-            ]
+            evidence_ids: list[str] = []
+            for citation_id in claim.get("citation_ids") or []:
+                citation = citations_by_id.get(citation_id) or {}
+                evidence_id = evidence_by_chunk.get(citation.get("chunk_id"))
+                if evidence_id is not None and evidence_id not in evidence_ids:
+                    evidence_ids.append(evidence_id)
+            if not evidence_ids:
+                claim_citations = [
+                    c for c in citations if c.get("claim_index") == claim.get("index")
+                ]
+                evidence_ids = [
+                    evidences[c["evidence_index"]]["evidence_id"]
+                    for c in claim_citations
+                    if c.get("evidence_index") is not None
+                    and c["evidence_index"] < len(evidences)
+                ]
 
             structured_claims.append(
                 {

@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pivot.auth.errors import invalid_credentials
 from pivot.auth.http import resolve_request_id
 from pivot.auth.service import AuthService
+from pivot.qa.agent_executor import AgentQaExecutor
 from pivot.qa.orchestrator import QaOrchestrator
 from pivot.runs.errors import RunError
 from pivot.runs.machine import is_terminal
@@ -60,7 +61,12 @@ def _principal(request: Request, auth: AuthService):
     return request_id, principal
 
 
-def _execute_and_commit(runs: RunService, qa: QaOrchestrator, run_id: str, request_id: str) -> None:
+def _execute_and_commit(
+    runs: RunService,
+    qa: QaOrchestrator | AgentQaExecutor,
+    run_id: str,
+    request_id: str,
+) -> None:
     bundle = runs.get(run_id, request_id)
     log = runs.log(run_id)
     try:
@@ -78,7 +84,7 @@ def _execute_and_commit(runs: RunService, qa: QaOrchestrator, run_id: str, reque
 
 def _ensure_execution(
     runs: RunService,
-    qa: QaOrchestrator,
+    qa: QaOrchestrator | AgentQaExecutor,
     run_id: str,
     request_id: str,
     background: BackgroundTasks | None,
@@ -95,7 +101,9 @@ def _ensure_execution(
     ).start()
 
 
-def build_runs_router(runs: RunService, qa: QaOrchestrator, auth: AuthService) -> APIRouter:
+def build_runs_router(
+    runs: RunService, qa: QaOrchestrator | AgentQaExecutor, auth: AuthService
+) -> APIRouter:
     router = APIRouter()
 
     @router.post("/runs")
