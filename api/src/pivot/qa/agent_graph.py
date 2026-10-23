@@ -66,6 +66,7 @@ class AgentNodes:
         model: Any | None = None,
         finalizer: StructuredFinalizer | None = None,
         is_external_model: bool = True,
+        relevance_judge: Any | None = None,
     ) -> None:
         self.retriever = retriever
         self.budget_policy = budget_policy
@@ -73,6 +74,7 @@ class AgentNodes:
         self.model = model
         self.finalizer = finalizer
         self.is_external_model = is_external_model
+        self.relevance_judge = relevance_judge
         self.context_guard = ContextGuard(context)
         self.outbound_guard = OutboundGuard(context)
         self._cancelled = threading.Event()
@@ -418,6 +420,22 @@ class AgentNodes:
             principal_id=state["principal_id"],
         ).list_for_run(state["run_id"])
         question = _latest_human_content(state["messages"])
+        budget_state = BudgetState(**state["budget_state"])
+        if self.relevance_judge is not None and evidences:
+            # FR-AGENT-012（ADR-015）：成答前先判问题与证据是否相关；
+            # 不相关时复用 insufficient_evidence 结局，不再调用收尾器。
+            if self._judge_relevance(question, evidences, budget_state):
+                return {
+                    **state,
+                    "budget_state": BudgetGuard(
+                        self.budget_policy, budget_state
+                    ).state_snapshot(),
+                    "final_answer": {
+                        "answer": "抱歉，未找到相关证据来回答您的问题。",
+                        "claims": [],
+                        "status": "insufficient_evidence",
+                    },
+                }
         if self.finalizer is None:
             final_answer = {
                 "answer": "基于证据生成的答案",
@@ -429,8 +447,43 @@ class AgentNodes:
 
         return {
             **state,
+            "budget_state": BudgetGuard(
+                self.budget_policy, budget_state
+            ).state_snapshot(),
             "final_answer": final_answer,
         }
+
+    def _judge_relevance(
+        self,
+        question: str,
+        evidences: list[dict[str, Any]],
+        budget_state: BudgetState,
+    ) -> bool:
+        """收尾前相关性判定，返回 True 表示判定不相关（FR-AGENT-012）。
+
+        fail-open：预算耗尽跳过判定；判定抛错按相关处理但仍计数。
+        相关性是质量门不是授权门，判定器故障不得误拒可答问题。
+        判定调用与 decide 同口径计入单 Run 的模型调用与 token 账本。
+        """
+        budget_guard = BudgetGuard(self.budget_policy, budget_state)
+        try:
+            budget_guard.before_model_call()
+        except BudgetExhaustedError:
+            return False
+        try:
+            verdict = self.relevance_judge.judge(question, evidences)
+        except Exception:
+            budget_guard.after_model_call()
+            return False
+        usage = getattr(verdict, "usage", None)
+        if isinstance(usage, dict):
+            try:
+                budget_guard.settle_reported_usage(usage)
+            except BudgetExhaustedError:
+                pass
+        else:
+            budget_guard.after_model_call()
+        return not bool(getattr(verdict, "relevant", True))
 
 
 # ====================
@@ -659,6 +712,7 @@ def create_agent_graph(
     verifier: Verifier | None = None,
     finalizer: StructuredFinalizer | None = None,
     is_external_model: bool = True,
+    relevance_judge: Any | None = None,
 ) -> StateGraph:
     """
     创建 Agent StateGraph
@@ -678,7 +732,15 @@ def create_agent_graph(
     """
     if finalizer is None and draft_writer is not None:
         finalizer = StructuredFinalizer(draft_writer, verifier)
-    nodes = AgentNodes(retriever, budget_policy, context, model, finalizer, is_external_model)
+    nodes = AgentNodes(
+        retriever,
+        budget_policy,
+        context,
+        model,
+        finalizer,
+        is_external_model,
+        relevance_judge=relevance_judge,
+    )
 
     # 创建图
     workflow = StateGraph(AgentState)
@@ -724,6 +786,7 @@ def run_agent(
     verifier: Verifier | None = None,
     finalizer: StructuredFinalizer | None = None,
     is_external_model: bool = True,
+    relevance_judge: Any | None = None,
 ) -> dict[str, Any]:
     """
     运行 Agent
@@ -767,6 +830,7 @@ def run_agent(
         verifier=verifier,
         finalizer=finalizer,
         is_external_model=is_external_model,
+        relevance_judge=relevance_judge,
     )
     graph = workflow.compile()
 
