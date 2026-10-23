@@ -142,8 +142,19 @@ class AgentNodes:
                 },
             }
 
-        # 外发门禁检查：在调用模型前检查消息中是否包含受限内容
+        # FR-AGENT-011（M-1/M-3）：外发副本观测掩盖。只改本次发送的消息副本，
+        # 落库状态与检查点保持原文；软预算达到时加重掩盖（M-3，默认关）。
         formatted_messages = [_message_dict(msg) for msg in state["messages"]]
+        soft_budget = self.budget_policy.history_token_soft_budget
+        heavy_masking = (
+            soft_budget is not None and budget_state.total_tokens >= soft_budget
+        )
+        formatted_messages = _mask_read_history(
+            formatted_messages, heavy=heavy_masking
+        )
+
+        # 外发门禁检查：在调用模型前检查消息中是否包含受限内容
+        # （门禁检查的正是掩盖后的外发副本，即模型实际收到的内容）
         try:
             self.outbound_guard.check_before_model_call(
                 messages=formatted_messages,
@@ -327,6 +338,15 @@ class AgentNodes:
                             )
                             continue
 
+                # FR-AGENT-011（M-2）：重复读短路的判据是目标证据的全文
+                # 仍在外发历史中（它是最近一次全文读取，掩盖规则保留它）。
+                # 全文已被掩盖的证据再读直接给全文，两机制不打架。
+                repeat_of_visible = False
+                if tool_call["name"] == "read_evidence":
+                    repeat_of_visible = _latest_full_read_id(
+                        state["messages"]
+                    ) == tool_call["args"].get("evidence_id")
+
                 result = tool_executor.execute(
                     tool_call,
                     run_id=state["run_id"],
@@ -334,6 +354,7 @@ class AgentNodes:
                     scope_type=state["scope_type"],
                     scope_document_id=state["scope_document_id"],
                     evidence_registry=evidence_registry,
+                    repeat_of_visible=repeat_of_visible,
                 )
                 tool_messages.append(
                     ToolMessage(
@@ -533,6 +554,86 @@ def _message_dict(message: Any) -> dict[str, Any]:
         return {**message, "role": role, "content": message.get("content", "")}
     content = getattr(message, "content", "")
     return {"role": "user", "content": content}
+
+
+def _tool_payload(message: Any) -> dict[str, Any] | None:
+    """解析一条工具消息的 JSON 内容；非工具消息或不可解析时返回 None。"""
+    content: Any = None
+    if isinstance(message, ToolMessage):
+        content = message.content
+    elif isinstance(message, dict) and (
+        message.get("type") == "tool" or message.get("role") == "tool"
+    ):
+        content = message.get("content")
+    if not isinstance(content, str):
+        return None
+    try:
+        payload = json.loads(content)
+    except ValueError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _is_full_read(payload: dict[str, Any]) -> bool:
+    """全文读取结果的形状：带 evidence_id 与 text（短提示带 already_read、无 text）。"""
+    return "evidence_id" in payload and "text" in payload
+
+
+def _latest_full_read_id(messages: list[Any]) -> str | None:
+    """最近一次全文读取的证据编号；没有全文读取时返回 None。
+
+    掩盖规则只保留最近一次全文读取，其余全文在外发副本中均为存根，
+    因此该编号就是「全文仍在外发历史中」的那一条证据。
+    """
+    latest: str | None = None
+    for message in messages:
+        payload = _tool_payload(message)
+        if payload is not None and _is_full_read(payload):
+            latest = str(payload["evidence_id"])
+    return latest
+
+
+_MASK_EXCERPT_CHARS = 60
+
+
+def _mask_read_history(
+    messages: list[dict[str, Any]], *, heavy: bool
+) -> list[dict[str, Any]]:
+    """FR-AGENT-011（M-1/M-3）：掩盖外发副本中较早的 read_evidence 全文。
+
+    最近一次读取的全文永远保留（决策循环必须能看到刚读到的内容）。
+    常规模式的存根带开头片段；heavy 模式（软预算触发）连片段也不留，
+    只剩证据编号与再读提示。搜索结果与其余消息不处理。
+    输入不被修改，返回新列表。
+    """
+    payloads: dict[int, dict[str, Any]] = {}
+    for index, message in enumerate(messages):
+        if message.get("role") != "tool":
+            continue
+        payload = _tool_payload(message)
+        if payload is not None and _is_full_read(payload):
+            payloads[index] = payload
+    if not payloads:
+        return messages
+    keep = {max(payloads)}
+    masked = list(messages)
+    for index, payload in payloads.items():
+        if index in keep:
+            continue
+        stub = dict(payload)
+        text = str(payload["text"])
+        excerpt = "" if heavy else f"{text[:_MASK_EXCERPT_CHARS]}……"
+        stub["text"] = (
+            f"{excerpt}[已掩盖] 该证据全文已在本运行"
+            f"更早轮次发送，证据编号 {payload['evidence_id']}；"
+            "如需重读全文，再次调用 read_evidence 即可。"
+        )
+        stub["masked"] = True
+        masked[index] = {
+            **messages[index],
+            "content": json.dumps(stub, ensure_ascii=False),
+        }
+    return masked
 
 
 def _latest_human_content(messages: list[Any]) -> str:

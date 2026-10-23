@@ -106,3 +106,4 @@
 | [20261023-M05-agent-execution-binding.md](20261023-M05-agent-execution-binding.md) | W2：Agent 结局对接 Run 状态机与 SSE |
 | [20261023-M04-relevance-gate.md](20261023-M04-relevance-gate.md) | ADR-014：相关性门禁与单文档配额（线三 A 至 C） |
 | [20261023-M04-dense-leg-fix.md](20261023-M04-dense-leg-fix.md) | 变更申请：M04 稠密检索腿修复与稠密候选下界（FR-RAG-009） |
+| [20261023-M05-context-slimming.md](20261023-M05-context-slimming.md) | 变更申请：M05 Agent 上下文瘦身（FR-AGENT-011，M 线） |
