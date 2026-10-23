@@ -25,6 +25,12 @@ export type DocumentActionResponse = {
   accepted: boolean;
 };
 
+export type DocumentUploadResponse = {
+  document_id: string;
+  version_id: string;
+  state: string;
+};
+
 export type AdminUser = {
   user_id: string;
   username: string;

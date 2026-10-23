@@ -109,6 +109,41 @@ async function test_FR_DOC_007_retry_and_delete_return_accepted() {
   assert.match(docsView, /确认删除/);
 }
 
+async function test_FR_DOC_001_admin_upload_posts_multipart() {
+  const { uploadDocument } = await loadTs("features/admin/documents.ts");
+  const file = new File(["%PDF-1.4 fake"], "年假制度.pdf", { type: "application/pdf" });
+  const created = await uploadDocument(
+    file,
+    { title: "年假制度", space: "hr", externalLlmAllowed: true },
+    "tok_admin",
+    async (url, init) => {
+      assert.equal(String(url), "/api/v1/documents");
+      assert.equal(init.method, "POST");
+      assert.equal(init.headers.get("authorization"), "Bearer tok_admin");
+      assert.equal(init.body instanceof FormData, true);
+      assert.equal(init.body.get("title"), "年假制度");
+      assert.equal(init.body.get("space"), "hr");
+      assert.equal(init.body.get("external_llm_allowed"), "true");
+      const sent = init.body.get("file");
+      assert.equal(sent.name, "年假制度.pdf");
+      return jsonResponse(201, { document_id: "doc_new", version_id: "ver_new", state: "queued" });
+    },
+  );
+  assert.equal(created.document_id, "doc_new");
+  assert.equal(created.version_id, "ver_new");
+  assert.equal(created.state, "queued");
+  const fallback = await uploadDocument(file, {}, "tok_admin", async (url, init) => {
+    assert.equal(init.body.get("title"), "年假制度");
+    assert.equal(init.body.get("space"), "shared");
+    assert.equal(init.body.get("external_llm_allowed"), "false");
+    return jsonResponse(201, { document_id: "doc_new2", version_id: "ver_new2", state: "queued" });
+  });
+  assert.equal(fallback.document_id, "doc_new2");
+  const docsView = read("features/admin/components/DocsView.tsx");
+  assert.match(docsView, /上传文档/);
+  assert.match(docsView, /type="file"/);
+}
+
 async function test_FR_AUTH_003_disable_user_patches_disabled() {
   const { disableUser } = await loadTs("features/admin/users.ts");
   const user = await disableUser("user_2", "tok_admin", async (url, init) => {
@@ -197,6 +232,7 @@ const tests = [
   ["test_FR_RBAC_001_regular_user_admin_api_is_forbidden", test_FR_RBAC_001_regular_user_admin_api_is_forbidden],
   ["test_FR_DOC_006_admin_lists_document_states", test_FR_DOC_006_admin_lists_document_states],
   ["test_FR_DOC_007_retry_and_delete_return_accepted", test_FR_DOC_007_retry_and_delete_return_accepted],
+  ["test_FR_DOC_001_admin_upload_posts_multipart", test_FR_DOC_001_admin_upload_posts_multipart],
   ["test_FR_AUTH_003_disable_user_patches_disabled", test_FR_AUTH_003_disable_user_patches_disabled],
   ["test_FR_AUDIT_002_audit_is_readonly_and_redacted", test_FR_AUDIT_002_audit_is_readonly_and_redacted],
   ["test_NFR_OBS_admin_metrics_are_untyped", test_NFR_OBS_admin_metrics_are_untyped],
