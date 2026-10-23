@@ -104,3 +104,4 @@
 | [20261022-M06-export-admin-download.md](20261022-M06-export-admin-download.md) | ADR-012：导出下载的管理员访问 |
 | [20261023-M05-qa-engine-switch.md](20261023-M05-qa-engine-switch.md) | ADR-013：问答引擎开关与 Agent 生产装配（W1） |
 | [20261023-M05-agent-execution-binding.md](20261023-M05-agent-execution-binding.md) | W2：Agent 结局对接 Run 状态机与 SSE |
+| [20261023-M04-relevance-gate.md](20261023-M04-relevance-gate.md) | ADR-014：相关性门禁与单文档配额（线三 A 至 C） |
