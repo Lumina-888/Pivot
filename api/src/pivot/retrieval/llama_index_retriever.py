@@ -14,7 +14,7 @@ from pivot.retrieval.bm25 import Bm25Retriever
 from pivot.retrieval.filters import passes_filters
 from pivot.retrieval.models import ChunkRecord, RankedHit, RetrievalQuery
 from pivot.retrieval.policy import RetrievalPolicy
-from pivot.retrieval.ports import RetrieverError
+from pivot.retrieval.ports import Reranker, RetrieverError
 from pivot.retrieval.service import RetrievalService
 from pivot.retrieval.tokenize import Tokenizer
 
@@ -44,6 +44,7 @@ class LlamaIndexRetriever:
         bm25_b: float,
         dense_score_cutoff: float,
         authorize: ResourceAuthorizer,
+        reranker: Reranker | None = None,
     ) -> None:
         if not math.isfinite(dense_score_cutoff):
             raise ValueError("dense_score_cutoff must be finite")
@@ -56,6 +57,7 @@ class LlamaIndexRetriever:
         self._bm25_b = bm25_b
         self._cutoff = dense_score_cutoff
         self._authorize = authorize
+        self._reranker = reranker
 
     def retrieve(
         self,
@@ -94,6 +96,7 @@ class LlamaIndexRetriever:
             dense=dense,
             bm25=bm25,
             policy=self._policy,
+            reranker=self._reranker,
         )
         result = service.retrieve(query)
         hits = []

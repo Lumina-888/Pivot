@@ -8,7 +8,9 @@ from llama_index.core import VectorStoreIndex  # noqa: E402
 from llama_index.core.embeddings import MockEmbedding  # noqa: E402
 from llama_index.core.schema import TextNode  # noqa: E402
 from pivot.retrieval.llama_index_retriever import LlamaIndexRetriever  # noqa: E402
+from pivot.retrieval.models import RankedHit  # noqa: E402
 from pivot.retrieval.policy import RetrievalPolicy  # noqa: E402
+from pivot.retrieval.ports import RetrieverError  # noqa: E402
 from pivot.retrieval.tokenize import SimpleLexTokenizer  # noqa: E402
 
 
@@ -49,6 +51,79 @@ def retrieve(retriever, **kwargs):
     args = {"scope_type": "global", "scope_document_id": None, "principal_id": "user-1"}
     args.update(kwargs)
     return retriever.retrieve("迟到三次怎么处理？", **args)
+
+
+class _ReversingReranker:
+    def rerank(self, query, chunk_ids, texts, limit):
+        return tuple(
+            RankedHit(chunk_id=chunk_id, score=float(len(chunk_ids) - index), source="rerank")
+            for index, chunk_id in enumerate(reversed(chunk_ids[:limit]))
+        )
+
+
+class _FailingReranker:
+    def rerank(self, query, chunk_ids, texts, limit):
+        raise RetrieverError("PROVIDER_TEMPORARY_ERROR", "rerank failed")
+
+
+def _two_node_retriever(**kwargs):
+    nodes = [
+        make_node("chunk-first", version_id="version-first"),
+        make_node(
+            "chunk-second",
+            document_id="doc-second",
+            version_id="version-second",
+        ),
+    ]
+    return make_retriever(
+        nodes,
+        authorize=lambda principal, document, version: principal == "user-1",
+        **kwargs,
+    )
+
+
+def test_FR_RAG_001_llama_reranker_reorders_fused_evidence():
+    result = retrieve(_two_node_retriever(reranker=_ReversingReranker()))
+    assert result.status == "found"
+    assert [hit.chunk_id for hit in result.evidence] == ["chunk-second", "chunk-first"]
+
+
+def test_FR_RAG_004_llama_reranker_failure_falls_back_to_fused():
+    result = retrieve(_two_node_retriever(reranker=_FailingReranker()))
+    assert result.status == "found"
+    assert {hit.chunk_id for hit in result.evidence} == {"chunk-first", "chunk-second"}
+
+
+def test_FR_RAG_004_provider_failure_degrades_safely():
+    from pivot.retrieval.llama_embeddings import PivotEmbedding
+
+    class FlakyEmbedder:
+        def __init__(self):
+            self.fail = False
+
+        def embed(self, texts):
+            if self.fail:
+                raise RuntimeError("provider down")
+            return [[1.0, 0.0] if "迟到" in text else [0.0, 1.0] for text in texts]
+
+    flaky = FlakyEmbedder()
+    index = VectorStoreIndex(
+        [make_node()],
+        embed_model=PivotEmbedding(flaky, model_name="flaky-2", dimension=2),
+    )
+    retriever = LlamaIndexRetriever(
+        index,
+        policy=RetrievalPolicy(dense_k=5, bm25_k=5, rrf_k=60, evidence_limit=5),
+        tokenizer=SimpleLexTokenizer(),
+        bm25_k1=1.2,
+        bm25_b=0.75,
+        dense_score_cutoff=0.5,
+        authorize=lambda principal, document, version: principal == "user-1",
+    )
+    flaky.fail = True
+    result = retrieve(retriever)
+    assert result.status == "found"
+    assert [hit.chunk_id for hit in result.evidence] == ["chunk-attendance"]
 
 
 def test_FR_RAG_006_llama_index_returns_real_evidence_identity_and_locator():

@@ -16,7 +16,8 @@ import pytest
 from fastapi.testclient import TestClient
 from pivot.documents.ports import DocumentRecord, VersionRecord
 from pivot.http import RuntimeSettings, assemble_runtime
-from pivot.retrieval.fakes import HashingQueryEmbedder
+from pivot.retrieval.fakes import HashingQueryEmbedder, ScriptedJsonHttpClient
+from pivot.retrieval.providers import HttpBgeReranker
 from pivot.storage.adapters.qdrant import QdrantVectorStore
 
 CHUNK_TEXT = "一个月内累计迟到三次，视为旷工一天。"
@@ -195,6 +196,29 @@ def test_FR_RAG_007_point_id_mapping_matches_native_convention():
         uuid5(NAMESPACE_URL, "pivot:chunk:chunk-l3")
     )
     assert llama_collection_name("pivot-chunks") == "pivot-chunks__llama"
+
+
+def test_FR_RAG_001_llama_runtime_bge_rerank_wires(tmp_path):
+    pytest.importorskip("llama_index.core")
+    client = _Client()
+    raw = _memory_qdrant_client()
+    _seed_payloads(client)
+    assembly = assemble_runtime(
+        _settings(
+            _db_url(tmp_path),
+            client,
+            raw,
+            rerank="bge",
+            rerank_endpoint="https://rerank.test/v1/rerank",
+            rerank_model="injected-rerank-model",
+            rerank_api_key='runtime-rerank-key',
+            json_http_client=ScriptedJsonHttpClient(
+                [{"results": [{"index": 0, "relevance_score": 0.9}]}]
+            ),
+        )
+    )
+    assert isinstance(assembly.retrieval._reranker, HttpBgeReranker)
+    assert isinstance(assembly.qa_retriever._reranker, HttpBgeReranker)
 
 
 def test_FR_RAG_007_index_survives_restart_via_hydration(tmp_path):
