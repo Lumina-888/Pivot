@@ -125,6 +125,8 @@ class RuntimeAssembly:
     parsers: ParserRegistry | None = None
     qa_retriever: object | None = None
     version_rows: object | None = None
+    qa_engine: str = "pipeline"
+    agent_runner: object | None = None
 
 
 class _ConversationBoundCatalog:
@@ -889,6 +891,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     )
     draft_writer = _draft_writer(resolved)
     qa_retriever: object = _RetrievalBridge(retrieval, version_rows)
+    agent_runner = None
     if llama_holder is not None:
         if llama_authorize is None:
             raise RuntimeError("llama backend was not built during assembly")
@@ -913,6 +916,10 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             authorize=llama_authorize,
             reranker=reranker,
             refresher=refresher,
+        )
+    if resolved.qa_engine == "agent":
+        agent_runner = _build_agent_runner(
+            resolved, qa_retriever=qa_retriever, draft_writer=draft_writer
         )
     app = create_app(
         probes=probes,
@@ -964,6 +971,80 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         parsers=parsers,
         qa_retriever=qa_retriever,
         version_rows=version_rows,
+        qa_engine=resolved.qa_engine,
+        agent_runner=agent_runner,
+    )
+
+
+class _AgentQaRunner:
+    """Production assembly of the LangGraph QA agent (W1, ADR-013).
+
+    The runner owns the assembled model, budget policy and finalizer over
+    the runtime's QA retriever. Binding its outcomes to the Run state
+    machine and SSE is W2; attempt records collected here are the seam
+    that binding will persist.
+    """
+
+    def __init__(
+        self, *, model, retriever, budget_policy, finalizer, attempts: list
+    ) -> None:
+        self._model = model
+        self._retriever = retriever
+        self._budget_policy = budget_policy
+        self._finalizer = finalizer
+        self.attempts = attempts
+
+    def run(
+        self,
+        question: str,
+        *,
+        run_id: str,
+        principal_id: str,
+        conversation_id: str,
+        scope_type: str = "global",
+        scope_document_id: str | None = None,
+    ) -> dict:
+        from pivot.qa.agent_graph import run_agent
+
+        return run_agent(
+            question,
+            self._retriever,
+            self._budget_policy,
+            run_id=run_id,
+            principal_id=principal_id,
+            conversation_id=conversation_id,
+            scope_type=scope_type,
+            scope_document_id=scope_document_id,
+            model=self._model,
+            finalizer=self._finalizer,
+            is_external_model=True,
+        )
+
+
+def _build_agent_runner(settings: RuntimeSettings, *, qa_retriever, draft_writer):
+    from pivot.qa.agent_budget import BudgetPolicy
+    from pivot.qa.agent_finalizer import StructuredFinalizer
+
+    attempts: list = []
+    model = settings.agent_model
+    if model is None:
+        from pivot.qa.agent_model import AgentModelSettings
+
+        # Missing or partial PIVOT_AGENT_MODEL_* configuration fails the
+        # assembly here, at startup, instead of failing the first question.
+        model = AgentModelSettings.from_env().build(attempt_sink=attempts.append)
+    policy = settings.agent_budget or BudgetPolicy(
+        max_model_calls=10,
+        max_tool_calls=20,
+        max_rewrite_count=3,
+        timeout_seconds=60.0,
+    )
+    return _AgentQaRunner(
+        model=model,
+        retriever=qa_retriever,
+        budget_policy=policy,
+        finalizer=StructuredFinalizer(draft_writer, None),
+        attempts=attempts,
     )
 
 

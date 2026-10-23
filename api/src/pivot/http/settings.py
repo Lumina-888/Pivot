@@ -140,6 +140,9 @@ class RuntimeSettings:
     llama_qdrant_client: object | None = None
     llama_index_rebuild: bool = False
     llama_refresh_seconds: float = 5.0
+    qa_engine: str = "pipeline"
+    agent_model: object | None = None
+    agent_budget: object | None = None
     query_embedder: object | None = None
     embedding: str = "hash"
     embedding_endpoint: str | None = None
@@ -233,6 +236,10 @@ class RuntimeSettings:
             )
         if not math.isfinite(self.llama_refresh_seconds) or self.llama_refresh_seconds < 0:
             raise RuntimeError("PIVOT_LLAMA_REFRESH_SECONDS must be a finite number >= 0")
+        if self.qa_engine not in {"pipeline", "agent"}:
+            raise RuntimeError(
+                f"unsupported PIVOT_QA_ENGINE={self.qa_engine!r}; use pipeline or agent"
+            )
         if self.retrieval_backend not in {"native", "llama"}:
             raise RuntimeError(
                 "unsupported PIVOT_RETRIEVAL_BACKEND="
@@ -362,6 +369,7 @@ class RuntimeSettings:
             llama_refresh_seconds=_optional_non_negative_float(
                 env, "PIVOT_LLAMA_REFRESH_SECONDS", 5.0
             ),
+            qa_engine=(env.get("PIVOT_QA_ENGINE") or "pipeline").strip() or "pipeline",
             cache_store=(env.get("PIVOT_CACHE_STORE") or "memory").strip() or "memory",
             queue_store=(env.get("PIVOT_QUEUE_STORE") or "memory").strip() or "memory",
             redis_endpoint=(env.get("PIVOT_REDIS_ENDPOINT") or "").strip() or None,

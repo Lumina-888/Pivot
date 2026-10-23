@@ -102,3 +102,4 @@
 | [20261022-M01-password-change-persistence-enforcement.md](20261022-M01-password-change-persistence-enforcement.md) | ND-GAP-03：首次改密落库与服务端强制 |
 | [20261022-M06-export-signed-download-consumer.md](20261022-M06-export-signed-download-consumer.md) | ND-GAP-04：签名导出下载消费者端点 |
 | [20261022-M06-export-admin-download.md](20261022-M06-export-admin-download.md) | ADR-012：导出下载的管理员访问 |
+| [20261023-M05-qa-engine-switch.md](20261023-M05-qa-engine-switch.md) | ADR-013：问答引擎开关与 Agent 生产装配（W1） |
