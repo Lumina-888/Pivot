@@ -77,7 +77,13 @@ def _observations(
     return results
 
 
-def run_eval(model_factory: ModelFactory) -> dict[str, Any]:
+def run_eval(
+    model_factory: ModelFactory,
+    *,
+    relevance_judge_factory: Callable[[Any], Any] | None = None,
+) -> dict[str, Any]:
+    """relevance_judge_factory（FR-AGENT-012）：给定场景模型返回判定器；
+    缺省为 None 时不启用答案层相关性判定（05-D 原装配）。"""
     fixture = load_fixture()
     scenario_reports: list[dict[str, Any]] = []
     total_input = 0
@@ -112,6 +118,11 @@ def run_eval(model_factory: ModelFactory) -> dict[str, Any]:
                 model=model,
                 finalizer=finalizer,
                 is_external_model=True,
+                relevance_judge=(
+                    relevance_judge_factory(model)
+                    if relevance_judge_factory is not None
+                    else None
+                ),
             )
         except Exception as exc:  # noqa: BLE001  # 评测记录异常，不中断其余场景
             error = f"{type(exc).__name__}: {exc}"
