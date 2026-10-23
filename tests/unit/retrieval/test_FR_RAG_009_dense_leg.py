@@ -120,3 +120,40 @@ def test_FR_RAG_009_zero_similarity_is_not_a_dense_candidate():
         principal_id="user-1",
     )
     assert [hit.chunk_id for hit in result.evidence] == ["chunk-target"]
+
+
+def test_FR_RAG_009_dense_ties_break_by_chunk_id(monkeypatch):
+    # ANN traversal returns tied scores in arbitrary order; the dense
+    # leg must emit a deterministic (score desc, chunk_id asc) order so
+    # downstream fusion ranks do not depend on the traversal.
+    import pivot.retrieval.llama_index_retriever as module
+
+    class _Hit:
+        def __init__(self, node_id: str, score: float) -> None:
+            self.node = TextNode(id_=node_id, text="x")
+            self.score = score
+
+    class _FakeRetriever:
+        def retrieve(self, query: str):
+            return [_Hit("n-b", 0.5), _Hit("n-a", 0.5), _Hit("n-c", 0.9)]
+
+    monkeypatch.setattr(
+        module,
+        "VectorIndexRetriever",
+        lambda **kwargs: _FakeRetriever(),
+    )
+    dense = _LlamaDense(
+        object(),
+        {
+            "chunk-a": TextNode(id_="n-a", text="x"),
+            "chunk-b": TextNode(id_="n-b", text="x"),
+            "chunk-c": TextNode(id_="n-c", text="x"),
+        },
+        0.0,
+    )
+    hits = dense.search("anything", 3)
+    assert [(hit.chunk_id, hit.score) for hit in hits] == [
+        ("chunk-c", 0.9),
+        ("chunk-a", 0.5),
+        ("chunk-b", 0.5),
+    ]

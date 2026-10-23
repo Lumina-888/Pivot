@@ -223,14 +223,19 @@ class _LlamaDense:
                 node_ids=list(self._node_ids),
             )
             hits = retriever.retrieve(query)
-            return tuple(
+            ranked = [
                 RankedHit(self._chunk_by_node[hit.node.node_id], float(hit.score), "dense")
                 for hit in hits
                 if hit.node.node_id in self._chunk_by_node
                 and hit.score is not None
                 and math.isfinite(hit.score)
                 and hit.score > self._cutoff
-            )
+            ]
+            # ANN traversal order varies between runs; make tie order a
+            # pure function of (score, chunk_id) so fusion ranks are
+            # stable across runs and environments.
+            ranked.sort(key=lambda hit: (-hit.score, hit.chunk_id))
+            return tuple(ranked)
         except Exception as exc:
             raise RetrieverError("PROVIDER_TEMPORARY_ERROR", "dense retrieval failed") from exc
 
