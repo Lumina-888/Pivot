@@ -1,0 +1,21 @@
+# 变更申请：M04 LlamaIndex 运行索引增量再水化（U2）
+
+- **日期**：2026-10-23
+- **申请人**：U2 实施会话（端到端方案线二）
+- **背景**：celery 入库模式下，worker 进程把新文档同步进 LlamaIndex 集合，但 API 进程的运行索引只在启动时再水化。新入库文档要等 API 重启后才可被问答检索（切换说明 docs/retrieval-backend-switch.md 现行口径）。端到端方案线二 U2 要求消除这一限制，使网页上传的文档入库后免重启可问答。
+- **原契约/现状**：
+  - `LlamaQdrantIndex.open()` 在启动时校验集合并再水化运行索引；运行期无刷新通道。
+  - worker 侧文档级对账（`open_for_sync` 加 `reconcile_document`）已把集合保持为最新事实。
+  - API 进程内的入库与删除已有同步钩子（sync 模式）；缺口只在 celery 模式的新增与版本变更。
+- **拟变更内容**（本切片）：
+  - `LlamaQdrantIndex` 保留客户端与集合名，新增 `refresh_from_collection()`：滚动比对集合点 ID 与本地文档存储 ID，消失点删除、新点按其存储载荷再水化。只改进程内快照，不写集合。
+  - 新增 `CollectionRefresher`：间隔门控加锁，刷新失败吞掉异常并沿用上一份快照，且不推进成功时间戳，下一次检索自动重试。
+  - `LlamaIndexRetriever` 增加可选 `refresher` 参数，注入时在每次检索前调用 `maybe_refresh()`；未注入时行为与现状完全一致。
+  - 启动装配仅在 `PIVOT_INGEST=celery` 时注入刷新器；新设置 `PIVOT_LLAMA_REFRESH_SECONDS`（默认 5 秒，0 表示每次检索都刷新）控制间隔。sync 模式维持同步钩子语义，不启用刷新。
+  - 授权口径不变：刷新只决定候选集合，释放前仍逐条按实时事实复核授权。
+  - **不** 新增依赖；**不** 冻结任何 TBD-P0；**不** 把 GATE-P0 标 verified。
+- **影响模块**：M04（llama_qdrant_index、llama_index_retriever、pipeline 测试）；M11（settings、bootstrap 接线）。
+- **兼容方案**：sync 模式与 native 后端行为不变；celery 模式下删除仍由 API 进程即时同步，刷新只作收敛兜底。
+- **测试 ID**：`test_FR_RAG_007_refresh_picks_up_worker_synced_documents`、`test_FR_RAG_007_refresher_respects_interval_and_retries_after_failure`、`test_FR_RAG_007_celery_assembly_wires_collection_refresher`。
+- **是否触发 ADR**：否（补齐 L4 同步形态的运行期收敛，不改变状态机、权限、引用/删除语义，不冻结 TBD-P0）。
+- **审核结果**：随 U2 切片提交，待 Owner 随 PR 审核。

@@ -893,7 +893,16 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         if llama_authorize is None:
             raise RuntimeError("llama backend was not built during assembly")
         from pivot.retrieval.llama_index_retriever import LlamaIndexRetriever
+        from pivot.retrieval.llama_qdrant_index import CollectionRefresher
 
+        # Under celery the worker owns ingest and reconciles the
+        # collection from its own process; the API snapshot converges
+        # through the interval-gated refresher instead of a restart.
+        refresher = None
+        if resolved.ingest_backend == "celery":
+            refresher = CollectionRefresher(
+                llama_holder, interval_seconds=resolved.llama_refresh_seconds
+            )
         qa_retriever = LlamaIndexRetriever(
             llama_holder.index,
             policy=policy,
@@ -903,6 +912,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             dense_score_cutoff=_NO_DENSE_CUTOFF,
             authorize=llama_authorize,
             reranker=reranker,
+            refresher=refresher,
         )
     app = create_app(
         probes=probes,

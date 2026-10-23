@@ -12,6 +12,7 @@ from llama_index.core.schema import MetadataMode, TextNode
 from pivot.qa.ports import EvidenceHit, RetrievalResult
 from pivot.retrieval.bm25 import Bm25Retriever
 from pivot.retrieval.filters import passes_filters
+from pivot.retrieval.llama_qdrant_index import CollectionRefresher
 from pivot.retrieval.models import ChunkRecord, RankedHit, RetrievalQuery
 from pivot.retrieval.policy import RetrievalPolicy
 from pivot.retrieval.ports import Reranker, RetrieverError
@@ -45,6 +46,7 @@ class LlamaIndexRetriever:
         dense_score_cutoff: float,
         authorize: ResourceAuthorizer,
         reranker: Reranker | None = None,
+        refresher: CollectionRefresher | None = None,
     ) -> None:
         if not math.isfinite(dense_score_cutoff):
             raise ValueError("dense_score_cutoff must be finite")
@@ -58,6 +60,7 @@ class LlamaIndexRetriever:
         self._cutoff = dense_score_cutoff
         self._authorize = authorize
         self._reranker = reranker
+        self._refresher = refresher
 
     def retrieve(
         self,
@@ -81,6 +84,8 @@ class LlamaIndexRetriever:
         ):
             return RetrievalResult("failed", (), "RESOURCE_FORBIDDEN")
         query = RetrievalQuery(question, principal_id, scope_type, scope_document_id)
+        if self._refresher is not None:
+            self._refresher.maybe_refresh()
         try:
             nodes, corpus = self._eligible_nodes(query)
         except Exception:

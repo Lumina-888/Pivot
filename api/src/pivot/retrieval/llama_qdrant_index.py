@@ -16,6 +16,9 @@ authorization.
 
 from __future__ import annotations
 
+import math
+import threading
+import time
 from collections.abc import Callable, Iterable, Mapping
 from uuid import NAMESPACE_URL, uuid5
 
@@ -82,9 +85,18 @@ def _built_nodes(index: VectorStoreIndex) -> list[TextNode]:
 class LlamaQdrantIndex:
     """A VectorStoreIndex whose vectors and nodes live in Qdrant."""
 
-    def __init__(self, index: VectorStoreIndex, embed_model: BaseEmbedding) -> None:
+    def __init__(
+        self,
+        index: VectorStoreIndex,
+        embed_model: BaseEmbedding,
+        *,
+        client=None,
+        collection: str | None = None,
+    ) -> None:
         self._index = index
         self._embed_model = embed_model
+        self._client = client
+        self._collection = collection
 
     @property
     def index(self) -> VectorStoreIndex:
@@ -114,7 +126,7 @@ class LlamaQdrantIndex:
         index = VectorStoreIndex.from_vector_store(
             store, embed_model=embed_model, store_nodes_override=True
         )
-        holder = cls(index, embed_model)
+        holder = cls(index, embed_model, client=client, collection=collection)
         if exists:
             _validate_collection(
                 client, collection, vector_size=vector_size, native_payloads=payloads
@@ -176,6 +188,99 @@ class LlamaQdrantIndex:
         nodes = _built_nodes(built)
         if nodes:
             self._index.insert_nodes(nodes)
+
+    def refresh_from_collection(self) -> tuple[int, int]:
+        """Pull collection-side changes into the serving snapshot.
+
+        Ingest under celery runs in the worker process, which reconciles
+        the collection directly; this process only learns about those
+        writes by diffing point ids. Vanished points are dropped from the
+        docstore, new points are hydrated from their stored payloads.
+        The collection itself is never written here. Returns the
+        (added, removed) node counts.
+        """
+        if self._client is None or self._collection is None:
+            raise RuntimeError(
+                "collection refresh requires the qdrant client and collection name"
+            )
+        current: set[str] = set()
+        offset = None
+        while True:
+            points, offset = self._client.scroll(
+                collection_name=self._collection,
+                limit=_SCROLL_PAGE,
+                offset=offset,
+                with_payload=False,
+                with_vectors=False,
+            )
+            for point in points:
+                current.add(str(point.id))
+            if offset is None:
+                break
+        nodes_dict = self._index.index_struct.nodes_dict
+        local = {str(key) for key in nodes_dict}
+        for point_id in sorted(local - current):
+            if point_id in nodes_dict:
+                self._index.index_struct.delete(point_id)
+            self._index.docstore.delete_document(point_id, raise_error=False)
+        added = sorted(current - local)
+        if added:
+            records = self._client.retrieve(
+                collection_name=self._collection,
+                ids=added,
+                with_payload=True,
+                with_vectors=False,
+            )
+            for record in records:
+                node = metadata_dict_to_node(dict(record.payload or {}))
+                if not isinstance(node, TextNode):
+                    continue
+                stored = node.model_copy(update={"embedding": None})
+                self._index.index_struct.add_node(stored, text_id=stored.node_id)
+                self._index.docstore.add_documents([stored], allow_update=True)
+        return len(added), len(local - current)
+
+
+class CollectionRefresher:
+    """Interval-gated, failure-tolerant trigger for snapshot refresh.
+
+    A failed refresh is swallowed so retrieval keeps serving the last
+    good snapshot, and the success timestamp is left untouched so the
+    next retrieve retries instead of waiting out a whole interval.
+    """
+
+    def __init__(
+        self,
+        holder: LlamaQdrantIndex,
+        *,
+        interval_seconds: float,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if not math.isfinite(interval_seconds) or interval_seconds < 0:
+            raise ValueError("interval_seconds must be a finite number >= 0")
+        self._holder = holder
+        self._interval = interval_seconds
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._last_success: float | None = None
+
+    def maybe_refresh(self) -> None:
+        if (
+            self._last_success is not None
+            and self._clock() - self._last_success < self._interval
+        ):
+            return
+        with self._lock:
+            if (
+                self._last_success is not None
+                and self._clock() - self._last_success < self._interval
+            ):
+                return
+            try:
+                self._holder.refresh_from_collection()
+            except Exception:
+                return
+            self._last_success = self._clock()
 
 
 def _create_collection(client, collection: str, *, vector_size: int, distance: str) -> None:
