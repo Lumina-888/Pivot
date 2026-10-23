@@ -37,6 +37,7 @@ class AgentTool(Protocol):
         scope_type: str,
         scope_document_id: str | None,
         evidence_registry: EvidenceRegistry,
+        repeat_of_visible: bool = False,
     ) -> dict[str, Any]:
         """
         执行工具调用
@@ -48,6 +49,8 @@ class AgentTool(Protocol):
             scope_type: 检索范围类型
             scope_document_id: 可选文档范围
             evidence_registry: 证据注册表
+            repeat_of_visible: 本次读取的目标证据全文仍在外发历史中
+              （它是最近一次全文读取），重复读属纯浪费（仅 read_evidence 使用）
 
         Returns:
             工具执行结果
@@ -278,6 +281,7 @@ class SearchKnowledgeTool:
         scope_type: str,
         scope_document_id: str | None,
         evidence_registry: EvidenceRegistry,
+        repeat_of_visible: bool = False,
     ) -> dict[str, Any]:
         """
         执行搜索
@@ -287,6 +291,7 @@ class SearchKnowledgeTool:
         - 拒绝额外参数
         - 返回 evidence_id 列表
         """
+        del repeat_of_visible  # 搜索不使用重复读判据
         # 严格参数验证
         if "query" not in args:
             raise AgentToolError("search_knowledge requires 'query' parameter")
@@ -350,6 +355,7 @@ class ReadEvidenceTool:
         scope_type: str,
         scope_document_id: str | None,
         evidence_registry: EvidenceRegistry,
+        repeat_of_visible: bool = False,
     ) -> dict[str, Any]:
         """
         读取证据
@@ -359,6 +365,10 @@ class ReadEvidenceTool:
         - 拒绝额外参数
         - 验证 evidence_id 属于当前 Run
         - 重新检查权限（版本/删除/外发）
+        - FR-AGENT-011（M-2）：重复读取在完整校验后短路的前提是目标证据
+          全文仍在外发历史中（repeat_of_visible，由图层按掩盖规则判定）；
+          此时返回短提示（摘要加定位，不带全文）。全文已被掩盖的证据
+          再读直接给全文，短提示的「全文见前次结果」永远为真。
         """
         # 严格参数验证
         if "evidence_id" not in args:
@@ -411,6 +421,23 @@ class ReadEvidenceTool:
         elif evidence["external_llm_allowed"] is not True:
             raise AgentToolError("evidence not accessible")
 
+        # FR-AGENT-011（M-2）：授权复核全部通过后才允许短路，
+        # 且仅当全文仍在外发历史中（重复读纯浪费）时才短路。
+        if repeat_of_visible:
+            return {
+                "evidence_id": evidence_id,
+                "document_id": evidence["document_id"],
+                "version_id": evidence["version_id"],
+                "chunk_id": evidence["chunk_id"],
+                "locator": evidence["locator"],
+                "already_read": True,
+                "excerpt": evidence["text"][:120],
+                "note": (
+                    "该证据已在本运行中读取过，全文见前次读取结果；"
+                    "如确需再次查看全文，请再调用一次 read_evidence。"
+                ),
+            }
+
         return {
             "evidence_id": evidence_id,
             "document_id": evidence["document_id"],
@@ -450,6 +477,7 @@ class ToolExecutor:
         scope_type: str,
         scope_document_id: str | None,
         evidence_registry: EvidenceRegistry,
+        repeat_of_visible: bool = False,
     ) -> dict[str, Any]:
         """
         执行工具调用
@@ -490,6 +518,7 @@ class ToolExecutor:
                 scope_type=scope_type,
                 scope_document_id=scope_document_id,
                 evidence_registry=evidence_registry,
+                repeat_of_visible=repeat_of_visible,
             )
 
             if tool_name == "search_knowledge":

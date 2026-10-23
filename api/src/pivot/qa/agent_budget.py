@@ -27,6 +27,10 @@ class BudgetPolicy:
     timeout_seconds: float
     max_cost_usd: float | None = None
     max_total_tokens: int | None = None
+    # FR-AGENT-011（M-3）：历史 token 软预算。None 表示关闭（默认）；
+    # 累计已报告 token 达到该值后，decide 外发副本加重掩盖。
+    # 该数值不冻结，属 DR-010 输入。
+    history_token_soft_budget: int | None = None
 
     def __post_init__(self) -> None:
         if self.max_model_calls < 1:
@@ -41,6 +45,11 @@ class BudgetPolicy:
             raise ValueError("max_cost_usd must be non-negative")
         if self.max_total_tokens is not None and self.max_total_tokens < 0:
             raise ValueError("max_total_tokens must be non-negative")
+        if (
+            self.history_token_soft_budget is not None
+            and self.history_token_soft_budget < 0
+        ):
+            raise ValueError("history_token_soft_budget must be non-negative")
 
 
 @dataclass

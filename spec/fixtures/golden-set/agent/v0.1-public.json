@@ -463,6 +463,59 @@
           }
         ]
       }
+    },
+    {
+      "id": "ag-010",
+      "stratum": "repeat_read",
+      "question": "我累计工作满 6 年了，年休假有几天？",
+      "principal_id": "employee_wang",
+      "script": [
+        {
+          "tool": "search_knowledge",
+          "args": {
+            "query": "年休假天数 累计工作"
+          }
+        },
+        {
+          "tool": "read_evidence",
+          "args": {
+            "evidence_id": "$search_1.first"
+          }
+        },
+        {
+          "tool": "read_evidence",
+          "args": {
+            "evidence_id": "$search_1.first"
+          }
+        },
+        {
+          "tool": "read_evidence",
+          "args": {
+            "evidence_id": "$search_1.first"
+          }
+        },
+        {
+          "final": true
+        }
+      ],
+      "expect": {
+        "final_status": "completed",
+        "tool_sequence": [
+          "search_knowledge",
+          "read_evidence",
+          "read_evidence",
+          "read_evidence"
+        ],
+        "answer_contains": [
+          "5天"
+        ],
+        "min_claims": 1,
+        "observations": [
+          {
+            "type": "read_after_search"
+          }
+        ]
+      }
     }
   ]
 }
