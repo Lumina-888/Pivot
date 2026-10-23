@@ -14,7 +14,7 @@ v0.2 增加了 `POST /runs/{id}/resume`、澄清字段和恢复错误码。协�
 
 03-A 已发布为 contract-v0.2。机器文件是本目录的 `openapi.yaml`，说明见 [CHANGELOG.md](CHANGELOG.md)。`proposals/` 里的恢复草案只保留提案历史。形状检查不能证明运行时的 owner、幂等、取消和跨进程恢复。
 
-04-A 已发布为 [AGENT-PERSISTENCE 0.1.0](../../progress/contracts/AGENT-PERSISTENCE-0.1.0.md)。它不是 contract-v0.1 或 v0.2 的公开 HTTP 契约。04-B 和 04-C 的框架已经提交。04-D 至 04-F，以及真实 PostgreSQL 恢复，尚未完成。证据见 [nd-agent-04-a.md](../../evidence/agent-m03/nd-agent-04-a.md)。
+04-A 已发布为 [AGENT-PERSISTENCE 0.1.0](../../progress/contracts/AGENT-PERSISTENCE-0.1.0.md)。它不是 contract-v0.1 或 v0.2 的公开 HTTP 契约。04-B 至 04-F 已完成（PR #5 至 #9），真实 PostgreSQL 恢复已经故障矩阵覆盖。GATE-P0 仍为 unverified。证据见 [nd-agent-04-a.md](../../evidence/agent-m03/nd-agent-04-a.md)。
 
 被取代的提案正文保留在 `progress/changes/`。那些正文不再表示 02-A、02-B、02-C、03-A 或 04-A 仍待签认。
 

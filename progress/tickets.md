@@ -2,11 +2,11 @@
 
 本文件配套 [next-dev-spec.md](next-dev-spec.md)。需求源是 SPEC-1.1，以及它引用的 [AGENT_SPEC](../spec/AGENT_SPEC.md)。
 
-目标基线是 ADR-009。实现基线是 `main` 的 `17ac93a`。`wave-3-integrated` 只是旧夹具。它不等于 ReAct，也不等于 P0。
+目标基线是 ADR-009。实现状态以 `main` 现行版本为准。`wave-3-integrated` 只是旧夹具。它不等于 ReAct，也不等于 P0。
 
 状态包括 ready、review、blocked、done 和 superseded。历史票的部分完成和限定延期，按原记录保留。架构 accepted 不等于每刀 DoR 已满足。
 
-当前状态以本段为准。02-A、02-B、02-C、03-A 和 04-A 已经发布。02-D 至 02-H，03-B、03-C、03-D、03-E，以及 04-B 和 04-C 的框架，已经提交。04-D 至 04-F 和 05 尚未完成。总表如果与本段冲突，以本段为准。
+当前状态以本段为准。02-A、02-B、02-C、03-A 和 04-A 已经发布。开发实现已全部完成并合入 main（PR #2 至 #35）：04-B 至 04-F、ND-AGENT-05、ND-GAP-01 至 04、ND-P0-03 与端到端各线均已落地。总表保留各票的历史状态；与现状冲突时，以本段和 PROGRESS.md 为准。未关闭事项为 ND-P0-01-A、DR-010 与 ND-STG-04-A，GATE-P0 仍为 unverified。
 
 2026-10-02 的拆票入口是 [剩余 Tickets](tickets/spec-1.1-remaining.md)。当时拆成 29 张细化票。本文件保留父票 ID 和历史证据。子票完成不会自动关闭父票或门禁。
 
