@@ -1,0 +1,23 @@
+# 变更申请：M05 Agent 结局对接 Run 状态机与 SSE（W2）
+
+- **日期**：2026-10-23
+- **申请人**：W2 实施会话（端到端方案线一）
+- **背景**：W1（ADR-013）已把智能体运行器装进 API 生产装配并加了 `PIVOT_QA_ENGINE` 开关，但 HTTP 问答仍由确定性编排流水线执行。W2 把执行入口切换到智能体执行器，使 `agent` 引擎下经 HTTP 发起的 Run 真正由 LangGraph 图执行，且结局、事件与持久化语义与现行流水线完全一致。
+- **原契约/现状**：
+  - `runs/http.py` 的执行入口只认 `QaOrchestrator.execute(bundle, log, request_id, persist_result=...)` 这一形态。
+  - 图的结局由收尾器状态表达：`completed`、`insufficient_evidence`、`verification_failed`，另有图内澄清等待（`clarification.status == "waiting_for_user"`）与预算耗尽等失败状态。
+  - Run 状态机（`runs/machine.py`）的合法迁移不支持从 `retrieving` 直接澄清；编排器在 `planning` 阶段分流澄清。
+- **拟变更内容**（本切片）：
+  - 新增 `pivot/qa/agent_executor.py` 的 `AgentQaExecutor`，执行入口与 `QaOrchestrator.execute` 同形。图运行期间 Run 保持 `planning`，结局确定后按合法迁移链一次性推进：`completed` 走 retrieve、draft、verify、answer 到 `answered`；`insufficient_evidence` 到 `refused`；`verification_failed` 到 `uncertain`（错误码 `VERIFICATION_UNAVAILABLE`）；澄清等待在 `planning` 经 clarify 到 `waiting_for_user`（非终态，不发终态事件）；供应商异常与其余图状态到 `failed`（错误码 `PROVIDER_TEMPORARY_ERROR`），失败关闭。
+  - 阶段事件只发公开阶段名（FR-AGENT-008 投影口径：planning、retrieving、drafting、verifying、waiting_for_user），不透传内部节点名。发布语义与编排器一致：先经 `persist_result` 提交，再发 token、citation 与终态事件；answered 的引用由收尾器声明的证据 ID 结合证据注册表快照补齐语块、文档、版本与定位信息。
+  - `bootstrap` 在 `qa_engine == "agent"` 时把 `AgentQaExecutor` 注入 `create_app`；`http/app.py` 与 `runs/http.py` 的执行器类型注解放宽为两者的联合。默认 `pipeline` 装配与行为不变。
+  - 顺带修复 `StructuredFinalizer` 的声明到证据映射：此前只认评测装配的位置链接形状（`claim_index`、`evidence_index`），生产 writer 的链接形状（`citation_ids` 到引用 ID 再到语块 ID）下落为空，导致真实装配下声明的证据绑定恒为空。现优先按生产形状解析，位置链接保留为回退。
+  - **明确不在本片**：
+    - 澄清恢复的执行接线：公开 resume 的端点、字段、幂等与错误映射契约尚未冻结（SPEC 规定未冻结前不得私自实现）。本片只把图内澄清结局映射为 `waiting_for_user`；等待中 Run 再次进入执行的行为与现行流水线一致，待契约冻结后另行接线。
+    - 尝试记录落入 `provider_attempts` 账本：该账本需要 ND-AGENT-04 的持久化会话与租约上下文，HTTP 执行路径当前未装配。尝试记录仍经 W1 的 attempt_sink 汇入运行器列表，落账另切片处理。
+  - **不** 新增依赖；**不** 冻结任何 TBD-P0；**不** 把 GATE-P0 标 verified；**不** 改变默认引擎（是否把 `agent` 设为默认仍属 W3 后 Owner 决定）。
+- **影响模块**：M05（agent_executor、agent_finalizer、pipeline 测试）；M11（bootstrap 执行器选择）；runs/http 与 http/app 类型注解。
+- **兼容方案**：`pipeline` 默认不变。`agent` 引擎的 Run 状态、SSE 事件名与信封、持久化边界与流水线一致，前端不需改动。
+- **测试 ID**：`test_FR_AGENT_008_agent_run_answers_and_streams`、`test_FR_AGENT_008_agent_run_refuses_without_evidence`、`test_FR_AGENT_008_agent_run_fails_closed_on_provider_error`；收尾器生产形状映射由 W1 装配测试与既有 02-H 单测共同覆盖。
+- **是否触发 ADR**：否（ADR-013 已立项引擎开关与对接方向，本片只落实其 W2 未决事项中的结局对接；延后项及其原因已记入上文与 ADR-013 未决事项的后续更新）。
+- **审核结果**：随 W2 切片提交，待 Owner 随 PR 审核。

@@ -917,20 +917,21 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             reranker=reranker,
             refresher=refresher,
         )
+    qa_executor: object = QaOrchestrator(qa_retriever, writer=draft_writer)
     if resolved.qa_engine == "agent":
         agent_runner = _build_agent_runner(
             resolved, qa_retriever=qa_retriever, draft_writer=draft_writer
         )
+        from pivot.qa.agent_executor import AgentQaExecutor
+
+        qa_executor = AgentQaExecutor(agent_runner)
     app = create_app(
         probes=probes,
         auth=auth,
         documents=documents,
         retrieval=retrieval,
         runs=runs,
-        qa=QaOrchestrator(
-            qa_retriever,
-            writer=draft_writer,
-        ),
+        qa=qa_executor,
         conversations=conversations,
         exports=exports,
         audits=audits,
