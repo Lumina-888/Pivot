@@ -6,15 +6,15 @@
 
 当前目标是 LangGraph StateGraph，以及原生工具调用型受控 ReAct Agent。旧线性 RAG、LangGraph 暂缓申请和历史技术方案，都不是当前架构依据。
 
-基线是 `17ac93a`。下列契约已经发布：
+下列契约已经发布：
 
 - 02-A、02-B 和 02-C 的内部契约
 - 03-A 的恢复契约 contract-v0.2
 - 04-A 的持久化契约
 
-02-D 至 02-H，以及 03-B、03-C、03-D 和 03-E，已有开发实现。04-B 的结果提交和 04-C 的 checkpoint 框架已经提交。跨进程恢复尚未完成。
+02-D 至 02-H，以及 03-B、03-C、03-D 和 03-E，已有开发实现。04-B 至 04-F 已完成：结果提交、检查点、跨进程恢复、租约与 fencing、供应商对账、真实 PostgreSQL 故障矩阵均已合入 main。ND-AGENT-05、ND-GAP-01 至 04、ND-P0-03 与端到端各线（U、W、线三、M 线、答案层）均已完成。开发实现已全部合入 main（PR #2 至 #35）。
 
-默认下一刀是 04-C 的后续，以及 04-D 至 04-F。DR-010 的生产数值尚未关闭。开发实现不等于运行批准，也不等于 GATE 通过。
+当前没有待开发切片。剩余事项是 ND-P0-01-A 业务复核（进行中）、DR-010 生产数值冻结和 ND-STG-04-A staging 部署。DR-010 的生产数值尚未关闭。开发实现不等于运行批准，也不等于 GATE 通过。GATE-P0 仍为 unverified。
 
 ## 开始工作前
 
@@ -27,7 +27,7 @@
 
 - 遵循 SPEC 第 0.4 节。顺序是 Red、Contract、Green、Refactor、Integration 和 Regression。测试命名为 `test_<requirement_id>_<behavior>()`。
 - 需求、状态机、错误码，以及 API、SSE 和 Worker 字段，以 `SPEC.md` 为准。不得私自改变 `TBD-P0`。
-- Agent 改造遵循 ADR-009。先修答案门禁，再接入真实 LangGraph 工具循环。02、03-A 和 04-A 的契约已经发布。DR-010 的生产数值和 04 的跨进程恢复完成之前，开发实现不能标成运行批准。
+- Agent 改造遵循 ADR-009。先修答案门禁，再接入真实 LangGraph 工具循环。02、03-A 和 04-A 的契约已经发布。DR-010 的生产数值冻结和 GATE 验收完成之前，开发实现不能标成运行批准。
 - `.pi/` 讨论稿、旧测试绿灯和依赖安装，都不能当作新 Agent 验收。不得静默回退到线性 RAG。
 - 每个文件仍有 Accountable Owner，见 MODULE_SPEC。主线切片可以一次修改多个模块路径，但必须在进度里写明。
 - 公共契约、迁移和共享错误码的变更，走 `progress/changes/`。
@@ -69,6 +69,6 @@ npm --prefix web run lint
 
 02-C 已有 Windows 候选、Linux 候选，以及 Ubuntu Hosted CI 的技术验证。正式角色锁、供应链和安全签认尚未完成。Arch 宿主和候选锁不能当作发布依赖。
 
-新会话可以说明“继续主线”，或点名下一刀，例如 04-C 后续。先读 [HANDOFF.md](HANDOFF.md) 的当前入口。该文件第 4 节之后是历史轮次，不是待办。2026-09 的 Wave 3 证据仍然保留。
+新会话可以说明“继续主线”，或点名剩余事项，例如 DR-010 冻结。先读 [HANDOFF.md](HANDOFF.md) 的当前入口。该文件第 4 节之后是历史轮次，不是待办。2026-09 的 Wave 3 证据仍然保留。
 
 聊天记录不是项目事实。版本化进度文件、commit、tag 和测试证据，才是交接依据。

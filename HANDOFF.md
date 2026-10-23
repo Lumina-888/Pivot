@@ -1,6 +1,6 @@
 # 问枢 Pivot 会话交接清单
 
-日期是 2026-10-12。当前入口按 `17ac93a` 同步。第 4 节之后是历史轮次，不是待办。
+日期是 2026-10-23。当前入口按 main 现状同步：开发实现已全部合入（PR #2 至 #35）。第 4 节之后是历史轮次，不是待办。
 
 本文件不是规范源。需求以 SPEC-1.1 和 `spec/AGENT_SPEC.md` 为准。进度以 `PROGRESS.md` 为准。协作以 MODULE-SPEC-1.2 和 `AGENTS.md` 为准。
 
@@ -12,25 +12,25 @@ Docker daemon 和组权限可用。代理授权和四容器镜像仍为 blocked�
 
 1. 工作区是 `/home/lumina888/Projects/Pivot`，分支是 `main`。`E:/AI Project/Pivot` 是历史 Windows 路径。不要新建 worktree。
 2. 阅读顺序是 `AGENTS.md`、`SPEC.md`、`spec/AGENT_SPEC.md`、`MODULE_SPEC.md`、`PROGRESS.md`，然后是本文件的当前入口。
-3. 当前基线是 `17ac93a`。02-A、02-B、02-C、03-A 的 contract-v0.2，以及 04-A，已经发布。02-D 至 02-H、03-B、03-C、03-D、03-E，以及 04-B 和 04-C 的框架，已经提交。它们不构成运行批准，也不等于跨进程恢复。
-4. 下一刀是 04-C 的后续，以及 04-D 至 04-F。`POST /runs/{id}/resume` 已在 contract-v0.2 发布。单元测试不能标成跨进程恢复或 GATE。
+3. 当前状态：开发实现已全部合入 main。02、03-A、04-A 契约已发布。04-B 至 04-F、ND-AGENT-05、ND-GAP-01 至 04、ND-P0-03 与端到端各线均已完成。它们不构成运行批准，GATE-P0 仍为 unverified。
+4. 下一刀不是开发切片：ND-P0-01-A 业务复核（进行中）、DR-010 冻结、ND-STG-04-A staging。`POST /runs/{id}/resume` 已在 contract-v0.2 发布；公开恢复执行契约未冻结前，不得私自接线恢复执行。
 5. 不要冻结 `TBD-P0`。Fake HTTP、存储客户端、合成 Golden Set、企业脱敏摘录、进程内夹具、Compose 文件和 opt-in 测试，都不能标成 `GATE-P0 verified`。`wave-3-integrated` 不等于 P0 通过。
 
 02-C 的 Windows 候选、Linux 候选和 Ubuntu Hosted CI 已有技术验证。证据见 [2026-10-06 CI](evidence/agent-m03/nd-agent-02-c/ubuntu-ci-20261006.md)。Run `37420501217` 已在 `7958feb` 上 success。不要重复安排这次候选 CI。正式角色锁、构建和安全审核仍然 pending。
 
 ## 产品现状
 
-SPEC-1.1、AGENT-SPEC-1.0 和 ADR-009 已经接受。ND-AGENT-01 实现了 FR-AGENT-005 的安全子集。完整 FR-AGENT 尚未验收。
+SPEC-1.1、AGENT-SPEC-1.0 和 ADR-009 已经接受。FR-AGENT 主体已实现并合入 main，尚未通过 GATE 验收。
 
-LangGraph 工具循环已有开发实现。自由 Markdown 背书、引用绑定、支持门禁和校验前草稿泄漏已经修复。DR-010 的生产数值尚未关闭。04-D 至 04-F 和真实 PostgreSQL 恢复尚未完成。
+LangGraph 工具循环、引用绑定、答案门禁与外发控制均已落地。跨进程恢复与真实 PostgreSQL 故障矩阵已完成。DR-010 的生产数值尚未关闭。
 
 ND-AGENT-01 的历史证据是 Python 661 passed、19 skipped，M05 为 79 passed，Web 为 18、13、8 passed。证据见 `evidence/agent-m05/nd-agent-01.md`。完整事务、outbox、语义 Judge 和跨进程恢复仍待后续票。
 
 ### 已知缺口
 
-1. HTTP 默认仍在请求内 ingest。对象字节下载 HTTP 按契约不新增。04-B 的提交框架已入库，跨进程恢复未完成。`/admin/metrics` 和 `/admin/tasks` 已挂接。指标仍不是持久统计，任务列表仍为空。
-2. 企业 Golden Set 仍是脱敏摘录加 Fake Keyword。它不是业务复核，也不是 live 检索。Qdrant 的 100k 索引峰值、新 ECS 备份恢复、live 冒烟和 staging ECS apply 尚未完成。
-3. `must_change_password` 不入库。`version.idempotency_key` 尚未入库。初始密码传递机制仍是 `TBD-P0`。OCR 属于 P2。
+1. HTTP 默认仍在请求内 ingest，celery 装配下走异步。对象字节下载 HTTP 按契约不新增。`/admin/metrics` 与 `/admin/tasks` 已改读持久化数据（ND-GAP-01）。
+2. 企业 Golden Set 仍是脱敏摘录加助理标注，不是业务复核集；复核进行中（ND-P0-01-A）。staging 部署与低敏冒烟尚未完成（ND-STG-04-A）。Qdrant 的 100k 索引峰值、新 ECS 备份恢复未做。
+3. `must_change_password` 已入库（ND-GAP-03）。`version.idempotency_key` 尚未入库。初始密码传递机制仍是 `TBD-P0`。OCR 属于 P2。
 
 ### 历史 Wave 3
 
@@ -44,7 +44,7 @@ Compose 的 api、web 和 worker 共享 PostgreSQL、MinIO、Qdrant 和 Redis。
 
 ## 当前下一刀
 
-以 `17ac93a` 为准。继续 04-C 的恢复逻辑，以及 04-D 至 04-F 的租约、用量对账和故障测试。DR-010 的生产数值尚未关闭。Fake 闭环和单元测试不能标成 GATE。
+以 main 现状为准。开发切片已清零。剩余为 ND-P0-01-A 业务复核、DR-010 冻结与 ND-STG-04-A。DR-010 的生产数值尚未关闭。Fake 闭环和单元测试不能标成 GATE。
 
 第 4 节之后的历史记录保留原表述。其中的“待签认”和“0 ready / 5 review / 24 blocked”只描述对应轮次，不是当前待办。
 

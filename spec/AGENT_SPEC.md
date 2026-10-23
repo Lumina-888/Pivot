@@ -197,8 +197,8 @@ Agent Golden Set 记录问题、允许工具/权限、关键观察、期望证�
 | ND-AGENT-01 | 答案门禁回归与修复 | done（迁移基线安全子集；完整原文支持门禁；无新公开接口） |
 | ND-AGENT-02 | 工具/模型/预算内部 Contract + 真实 StateGraph 最小闭环 | 契约 0.1.0 已发布；D～H 已开发实现；DR-010 生产数值未关闭，不批准运行 |
 | ND-AGENT-03 | Run/SSE/澄清恢复与 Web 集成 | 03-A 已发布 contract-v0.2；B/C/D/E 已开发实现；不等于跨进程恢复 |
-| ND-AGENT-04 | Claims/Citation、checkpoint、租约、事件一致性 | 04-A 已发布；04-B/04-C 框架已提交；04-D～F 与真实 PG 恢复未完成 |
-| ND-AGENT-05 | 真实模型工具能力及 Agent Golden Set | blocked；前序闭环、批准环境/样本/密钥 |
+| ND-AGENT-04 | Claims/Citation、checkpoint、租约、事件一致性 | 04-A 已发布；04-B 至 04-F 已完成（PR #5 至 #9），真实 PG 故障矩阵已入 CI；GATE 未验收 |
+| ND-AGENT-05 | 真实模型工具能力及 Agent Golden Set | 已完成（PR #16 至 #19、#24）；live 评测首轮完成；业务复核集重跑待 ND-P0-01-A |
 
 ### 11.3 完成标准
 

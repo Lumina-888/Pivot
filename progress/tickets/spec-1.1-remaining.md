@@ -4,6 +4,8 @@
 
 03-A 和 04-A 已经发布。03-E，以及 04-B 和 04-C 的框架，已经提交。04-D 至 04-F 尚未完成。这些提交不构成运行批准。
 
+> **文档状态（2026-10-23）**：本拆票已基本执行完毕。04-D 至 04-F、ND-AGENT-05 与后续的 ND-GAP、ND-P0-03、端到端各线均已合入 main。逐票现状以 [PROGRESS.md](../../PROGRESS.md) 与 `progress/modules/` 为准。仍未关闭的是 ND-P0-01-A 业务复核、DR-010 冻结、ND-STG-04-A 与 GATE-P0 验收。
+
 需求源是 [SPEC-1.1](../../SPEC.md) 和 [AGENT-SPEC-1.0](../../spec/AGENT_SPEC.md)。责任边界是 [MODULE-SPEC-1.2](../../MODULE_SPEC.md)。进度快照见 [PROGRESS.md](../../PROGRESS.md) 和 [验收矩阵](../../spec/acceptance/matrix.md)。
 
 本文件只拆剩余工作。它不是新规格，不是契约发布，也不是验收报告。父票和历史记录见 [tickets.md](../tickets.md)。

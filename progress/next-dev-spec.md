@@ -10,6 +10,8 @@
 
 Owner 的当前目标是 LangGraph 受控 ReAct Agent。依据见 [AGENT_SPEC](../spec/AGENT_SPEC.md) 和 [ADR-009](changes/20261002-M00-langgraph-react-baseline.md)。历史 dev-staging 范围只约束低敏开发环境。它不改变 GATE。
 
+> **文档状态（2026-10-23）**：本计划的开发工作已全部执行完毕并合入 main（PR #2 至 #35）。下文保留计划原文与修订记录，不再代表当前待办。当前状态以 [PROGRESS.md](../PROGRESS.md) 为准。未关闭事项只有三件：ND-P0-01-A 业务复核（进行中）、DR-010 生产数值冻结、ND-STG-04-A staging 部署。
+
 ## 当前执行计划
 
 当前基线是 `17ac93a`。02-A、02-B、02-C、03-A 和 04-A 已经发布。正式角色锁、供应链、安全签认和 DR-010 的生产数值仍然 pending。不要用 1.25 及更早修订里的 review 状态覆盖下表。
