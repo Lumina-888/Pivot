@@ -392,3 +392,126 @@ def test_FR_RAG_007_llama_backend_accepts_celery_ingest(tmp_path):
         )
     )
     assert assembly.app is not None
+
+
+def test_FR_RAG_007_refresh_picks_up_worker_synced_documents():
+    pytest.importorskip("llama_index.core")
+    from pivot.retrieval.llama_embeddings import PivotEmbedding
+    from pivot.retrieval.llama_index_retriever import LlamaIndexRetriever
+    from pivot.retrieval.llama_qdrant_index import CollectionRefresher, LlamaQdrantIndex
+    from pivot.retrieval.policy import RetrievalPolicy
+    from pivot.retrieval.tokenize import SimpleLexTokenizer
+
+    raw = _memory_qdrant_client()
+    embedder = HashingQueryEmbedder(4)
+    embed = PivotEmbedding(embedder, model_name="hash-embedding", dimension=4)
+    api_holder = LlamaQdrantIndex.open(
+        client=raw,
+        native_collection="pivot-chunks",
+        embed_model=embed,
+        vector_size=4,
+        distance="Cosine",
+        native_payloads=[_payload("chunk-v1", "ver-v1", CHUNK_TEXT)],
+        external_llm_allowed=lambda version_id: True,
+    )
+    retriever = LlamaIndexRetriever(
+        api_holder.index,
+        policy=RetrievalPolicy(dense_k=4, bm25_k=4, rrf_k=60, evidence_limit=4),
+        tokenizer=SimpleLexTokenizer(),
+        bm25_k1=1.2,
+        bm25_b=0.75,
+        dense_score_cutoff=-1.0,
+        authorize=lambda principal_id, document_id, version_id: True,
+        refresher=CollectionRefresher(api_holder, interval_seconds=0),
+    )
+    args = {"scope_type": "global", "scope_document_id": None, "principal_id": "usr_admin"}
+    assert [h.chunk_id for h in retriever.retrieve(QUESTION, **args).evidence] == ["chunk-v1"]
+    # A separate worker process syncs a new document straight into the
+    # collection; the API process never restarts and never reconciles it.
+    new_text = "员工出差需要提前三天提交出差申请单。"
+    worker_holder = LlamaQdrantIndex.open_for_sync(
+        client=raw,
+        native_collection="pivot-chunks",
+        embed_model=embed,
+        vector_size=4,
+        distance="Cosine",
+        native_payloads=[
+            _payload("chunk-v1", "ver-v1", CHUNK_TEXT),
+            _payload("chunk-u2", "ver-u2", new_text, document_id="doc-u2"),
+        ],
+        external_llm_allowed=lambda version_id: True,
+    )
+    worker_holder.reconcile_document(
+        "doc-u2",
+        current_payloads=[_payload("chunk-u2", "ver-u2", new_text, document_id="doc-u2")],
+        external_llm_allowed=lambda version_id: True,
+    )
+    result = retriever.retrieve("出差申请单", **args)
+    assert [h.chunk_id for h in result.evidence] == ["chunk-u2"]
+    # The worker then deletes the first document at collection level; the
+    # API snapshot must drop it on the next refresh as well.
+    worker_holder.reconcile_document(
+        "doc-l3", current_payloads=[], external_llm_allowed=lambda version_id: True
+    )
+    remaining = retriever.retrieve(QUESTION, **args).evidence
+    assert "chunk-v1" not in [h.chunk_id for h in remaining]
+    assert retriever.resolve_evidence("chunk-v1", **args) is None
+
+
+def test_FR_RAG_007_refresher_respects_interval_and_retries_after_failure():
+    from pivot.retrieval.llama_qdrant_index import CollectionRefresher
+
+    class _Holder:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.fail = False
+
+        def refresh_from_collection(self):
+            self.calls += 1
+            if self.fail:
+                raise RuntimeError("qdrant unavailable")
+            return (0, 0)
+
+    now = [100.0]
+    holder = _Holder()
+    refresher = CollectionRefresher(holder, interval_seconds=5.0, clock=lambda: now[0])
+    refresher.maybe_refresh()
+    assert holder.calls == 1
+    refresher.maybe_refresh()
+    assert holder.calls == 1
+    now[0] += 5.0
+    refresher.maybe_refresh()
+    assert holder.calls == 2
+    holder.fail = True
+    now[0] += 5.0
+    refresher.maybe_refresh()
+    assert holder.calls == 3
+    # A failed refresh is swallowed and does not advance the timestamp,
+    # so the next retrieve retries instead of serving stale data silently
+    # for a whole interval.
+    refresher.maybe_refresh()
+    assert holder.calls == 4
+    holder.fail = False
+    refresher.maybe_refresh()
+    assert holder.calls == 5
+
+
+def test_FR_RAG_007_celery_assembly_wires_collection_refresher(tmp_path):
+    pytest.importorskip("llama_index.core")
+    client = _Client()
+    raw = _memory_qdrant_client()
+    assembly = assemble_runtime(
+        _settings(
+            _db_url(tmp_path),
+            client,
+            raw,
+            ingest_backend="celery",
+            parse_queue="parse",
+            online_queue="online",
+            worker_concurrency=1,
+            celery_broker="memory://",
+        )
+    )
+    assert assembly.qa_retriever._refresher is not None
+    sync_assembly = assemble_runtime(_settings(_db_url(tmp_path, "sync.db"), client, raw))
+    assert sync_assembly.qa_retriever._refresher is None

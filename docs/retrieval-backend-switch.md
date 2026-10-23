@@ -37,7 +37,7 @@ LlamaIndex 路径在同一 Qdrant 集群内使用独立集合，集合名是原�
 同步的执行进程随入库后端而定：
 
 - `PIVOT_INGEST=sync`：API 进程在入库完成后同步，问答立即检索到新文档。
-- `PIVOT_INGEST=celery`：worker 进程在入库完成后同步集合；API 进程的运行索引在重启时再水化收敛。因此 celery 下新入库文档要等 API 重启后才可被问答检索，删除则即时生效：删除由 API 进程同步，且授权复核按实时事实拦截。
+- `PIVOT_INGEST=celery`：worker 进程在入库完成后同步集合；API 进程的运行索引在每次检索前按间隔增量再水化（`PIVOT_LLAMA_REFRESH_SECONDS`，默认 5 秒）。因此 celery 下新入库文档在数秒内即可被问答检索，无须重启 API。删除仍即时生效：删除由 API 进程同步，且授权复核按实时事实拦截；刷新同时把集合侧的删除收敛进运行索引。
 
 ## 4 两条路径的差异
 

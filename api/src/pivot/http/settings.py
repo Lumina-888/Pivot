@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -75,6 +76,21 @@ def _optional_positive_float(environ: Mapping[str, str], key: str) -> float | No
     return value
 
 
+def _optional_non_negative_float(
+    environ: Mapping[str, str], key: str, default: float
+) -> float:
+    raw = (environ.get(key) or "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{key} must be a number >= 0") from exc
+    if not math.isfinite(value) or value < 0:
+        raise RuntimeError(f"{key} must be a number >= 0")
+    return value
+
+
 def _optional_unit_float(environ: Mapping[str, str], key: str) -> float | None:
     raw = (environ.get(key) or "").strip()
     if not raw:
@@ -123,6 +139,7 @@ class RuntimeSettings:
     vector_store_client: object | None = None
     llama_qdrant_client: object | None = None
     llama_index_rebuild: bool = False
+    llama_refresh_seconds: float = 5.0
     query_embedder: object | None = None
     embedding: str = "hash"
     embedding_endpoint: str | None = None
@@ -214,6 +231,8 @@ class RuntimeSettings:
                 "unsupported PIVOT_RERANK="
                 f"{self.rerank!r}; this slice wires none, overlap, bm25, or bge"
             )
+        if not math.isfinite(self.llama_refresh_seconds) or self.llama_refresh_seconds < 0:
+            raise RuntimeError("PIVOT_LLAMA_REFRESH_SECONDS must be a finite number >= 0")
         if self.retrieval_backend not in {"native", "llama"}:
             raise RuntimeError(
                 "unsupported PIVOT_RETRIEVAL_BACKEND="
@@ -340,6 +359,9 @@ class RuntimeSettings:
             ),
             llama_index_rebuild=(env.get("PIVOT_LLAMA_INDEX_REBUILD") or "").strip()
             in {"1", "true"},
+            llama_refresh_seconds=_optional_non_negative_float(
+                env, "PIVOT_LLAMA_REFRESH_SECONDS", 5.0
+            ),
             cache_store=(env.get("PIVOT_CACHE_STORE") or "memory").strip() or "memory",
             queue_store=(env.get("PIVOT_QUEUE_STORE") or "memory").strip() or "memory",
             redis_endpoint=(env.get("PIVOT_REDIS_ENDPOINT") or "").strip() or None,
