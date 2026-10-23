@@ -447,7 +447,10 @@ def test_FR_RAG_007_refresh_picks_up_worker_synced_documents():
         external_llm_allowed=lambda version_id: True,
     )
     result = retriever.retrieve("出差申请单", **args)
-    assert [h.chunk_id for h in result.evidence] == ["chunk-u2"]
+    # The requirement is visibility without restart, not an exact
+    # evidence list: with the dense leg live (FR-RAG-009) the older
+    # chunk may also be returned by hybrid fusion.
+    assert "chunk-u2" in [h.chunk_id for h in result.evidence]
     # The worker then deletes the first document at collection level; the
     # API snapshot must drop it on the next refresh as well.
     worker_holder.reconcile_document(

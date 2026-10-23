@@ -7,6 +7,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from llama_index.core import VectorStoreIndex
+from llama_index.core.indices.vector_store.retrievers import VectorIndexRetriever
 from llama_index.core.schema import MetadataMode, TextNode
 
 from pivot.qa.ports import EvidenceHit, RetrievalResult
@@ -212,7 +213,12 @@ class _LlamaDense:
 
     def search(self, query: str, k: int) -> tuple[RankedHit, ...]:
         try:
-            retriever = self._index.as_retriever(
+            # Construct the retriever directly: index.as_retriever()
+            # forwards node_ids itself on llama-index-core 0.11.23, so
+            # passing node_ids through it raises TypeError and every
+            # dense search silently degraded to no hits (FR-RAG-009).
+            retriever = VectorIndexRetriever(
+                index=self._index,
                 similarity_top_k=k,
                 node_ids=list(self._node_ids),
             )

@@ -1,6 +1,10 @@
 # LlamaIndex 双路径行为对比报告
 
-本报告是 LlamaIndex 集成 L2 的对比证据。基线提交是 `907a629`（L1 合并后的 main）。日期是 2026-10-21。GATE-P0-002 仍为 unverified：本报告用合成语料与受控嵌入，不构成生产验收。
+本报告是 LlamaIndex 集成 L2 的对比证据。原始基线提交是 `907a629`（L1 合并后的 main），原报告日期是 2026-10-21。2026-10-23 因稠密通道缺陷修复（FR-RAG-009）重新生成，下文数字为复测口径。GATE-P0-002 仍为 unverified：本报告用合成语料与受控嵌入，不构成生产验收。
+
+## 2026-10-23 更正说明
+
+原报告的全部数字是在 LlamaIndex 路径稠密通道失效的状态下测得的：`_LlamaDense` 经 `index.as_retriever()` 传 `node_ids`，在 llama-index-core 0.11.23 下抛 TypeError 并被降级语义吞掉，该路径实际只有 BM25 一条腿。原结论「两路期望判定全部通过、差异仅 55 例、行为等价」因此失效，Owner 于 2026-10-21 对差异清单与等价结论的确认以当时（有缺陷的）测量为前提，一并失效。稠密通道修复后按同口径复测，结果如下文。生产嵌入（bge-m3）下的路径行为以 live 评测为准，不以本报告的词袋口径为准。
 
 ## 1 对比方法
 
@@ -10,79 +14,126 @@
 
 两路共用同一 RetrievalPolicy：dense_k 为 8，bm25_k 为 8，rrf_k 为 60，evidence_limit 为 5。以上是测试注入值，不是 TBD-P0 生产数值。
 
-LlamaIndex 路径的脚手架参数：BowEmbedder 维度 256（词袋哈希，L2 归一化），BM25 的 k1 为 1.2、b 为 0.75，dense 阈值为 -1.0（与生产装配一致，即不过滤）。嵌入只用于对比脚手架，不代表生产嵌入模型。
+LlamaIndex 路径的脚手架参数：BowEmbedder 维度 256（词袋哈希，L2 归一化），BM25 的 k1 为 1.2、b 为 0.75，dense 阈值为 0.0（仅正相似度进入融合，2026-10-23 前为 −1.0，且通道实际失效）。嵌入只用于对比脚手架，不代表生产嵌入模型。
 
 期望判定与现行评测一致：期望 chunk 必须全部命中，禁止 chunk 不得出现，expect_refuse 用例必须返回空。版本冲突不在对比范围：两个 QA 层结果都不携带冲突信息，冲突仍是检索服务层的信号。
 
 ## 2 结果总览
 
-120 个用例的期望判定，两路全部通过：自研失败 0 例，LlamaIndex 失败 0 例。
+120 个用例的期望判定：自研失败 0 例，LlamaIndex 失败 26 例。失败全部出在拒答相关层：no_answer 12 例、unauthorized 12 例、document_scope 2 例（04、06）。
 
-标注命中率（Recall@5 口径）：自研 1.0，LlamaIndex 1.0。分母是全部用例的期望 chunk 总数 108。
+标注命中率（Recall@5 口径）：自研 1.0，LlamaIndex 1.0。分母是全部用例的期望 chunk 总数 108。内容类用例的期望块在两路都全部命中。
 
-命中完全一致（集合与顺序都同）65 例。仅排序不同 11 例。集合不同 44 例。集合不同的分布：distractor 12 例、fact 12 例、multi_span 12 例、parse_failure 8 例。排序不同的分布：parameter 11 例。
+命中完全一致（集合与顺序都同）22 例。仅排序不同 0 例。集合不同 98 例。集合不同的分布：fact、parameter、multi_span、distractor、version_conflict、parse_failure、no_answer、unauthorized 各 12 例，document_scope 2 例。
+
+禁止块泄漏：自研 0；LlamaIndex 1 例（gs_no_answer_12，其两个禁止块被稠密通道召回）。
+
+原报告（2026-10-21，稠密失效口径）的对应数字是：两路失败各 0 例，命中完全一致 65 例、仅排序不同 11 例、集合不同 44 例、泄漏 0。
 
 ## 3 差异清单
 
-差异共 55 例，逐项登记如下。结论分两类：集合差异源于 LlamaIndex 把证据补足到上限，多返回的是合格但未标注的 chunk；排序差异源于两路 RRF 的输入分数分布不同。两类差异都不改变期望判定，不默认以任一方为准绳：自研口径的命中数少，是关键词整串匹配的结果，不代表其排序更优。
+差异共 98 例，逐项登记如下。结论分三类：内容层的集合差异源于稠密通道恢复后融合输入变化，不改变期望判定；拒答层与两例范围层的差异改变了期望判定，根因是检索层没有相关性下限，与企业集及生产路径的已知限制同源，处置见 ADR-014。
 
 | 用例 | 分层 | 类别 | 自研命中数 | LlamaIndex 命中数 | 结论 |
 | --- | --- | --- | --- | --- | --- |
-| gs_distractor_01 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_distractor_02 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_distractor_03 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_distractor_04 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_distractor_05 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_distractor_06 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_distractor_07 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_distractor_08 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_distractor_09 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_distractor_10 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_distractor_11 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_distractor_12 | distractor | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_01 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_02 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_03 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_04 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_05 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_06 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_07 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_08 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_09 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_10 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_11 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_fact_12 | fact | 集合 | 2 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_01 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_02 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_03 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_04 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_05 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_06 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_07 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_08 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_09 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_10 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_11 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_multi_span_12 | multi_span | 集合 | 5 | 5 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_parameter_01 | parameter | 排序 | 5 | 5 | 排序差异可接受：两路 RRF 输入分布不同，期望命中集合一致。 |
-| gs_parameter_02 | parameter | 排序 | 5 | 5 | 排序差异可接受：两路 RRF 输入分布不同，期望命中集合一致。 |
-| gs_parameter_04 | parameter | 排序 | 5 | 5 | 排序差异可接受：两路 RRF 输入分布不同，期望命中集合一致。 |
-| gs_parameter_05 | parameter | 排序 | 5 | 5 | 排序差异可接受：两路 RRF 输入分布不同，期望命中集合一致。 |
-| gs_parameter_06 | parameter | 排序 | 5 | 5 | 排序差异可接受：两路 RRF 输入分布不同，期望命中集合一致。 |
-| gs_parameter_07 | parameter | 排序 | 5 | 5 | 排序差异可接受：两路 RRF 输入分布不同，期望命中集合一致。 |
-| gs_parameter_08 | parameter | 排序 | 5 | 5 | 排序差异可接受：两路 RRF 输入分布不同，期望命中集合一致。 |
-| gs_parameter_09 | parameter | 排序 | 5 | 5 | 排序差异可接受：两路 RRF 输入分布不同，期望命中集合一致。 |
-| gs_parameter_10 | parameter | 排序 | 5 | 5 | 排序差异可接受：两路 RRF 输入分布不同，期望命中集合一致。 |
-| gs_parameter_11 | parameter | 排序 | 5 | 5 | 排序差异可接受：两路 RRF 输入分布不同，期望命中集合一致。 |
-| gs_parameter_12 | parameter | 排序 | 5 | 5 | 排序差异可接受：两路 RRF 输入分布不同，期望命中集合一致。 |
-| gs_parse_failure_05 | parse_failure | 集合 | 1 | 2 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_parse_failure_06 | parse_failure | 集合 | 1 | 2 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_parse_failure_07 | parse_failure | 集合 | 1 | 2 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_parse_failure_08 | parse_failure | 集合 | 1 | 2 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_parse_failure_09 | parse_failure | 集合 | 1 | 2 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_parse_failure_10 | parse_failure | 集合 | 1 | 2 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_parse_failure_11 | parse_failure | 集合 | 1 | 2 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
-| gs_parse_failure_12 | parse_failure | 集合 | 1 | 2 | 集合差异可接受：LlamaIndex 多返回合格但未标注的证据，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_01 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_02 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_03 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_04 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_05 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_06 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_07 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_08 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_09 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_10 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_11 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_distractor_12 | distractor | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_document_scope_04 | document_scope | 集合 | 0 | 1 | 范围层集合差异：稠密恢复后融合结果变化，期望判定失败，同属无相关性下限问题。 |
+| gs_document_scope_06 | document_scope | 集合 | 0 | 1 | 范围层集合差异：稠密恢复后融合结果变化，期望判定失败，同属无相关性下限问题。 |
+| gs_fact_01 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_fact_02 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_fact_03 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_fact_04 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_fact_05 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_fact_06 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_fact_07 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_fact_08 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_fact_09 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_fact_10 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_fact_11 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_fact_12 | fact | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_01 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_02 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_03 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_04 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_05 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_06 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_07 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_08 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_09 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_10 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_11 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_multi_span_12 | multi_span | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_no_answer_01 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_no_answer_02 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_no_answer_03 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_no_answer_04 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_no_answer_05 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_no_answer_06 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_no_answer_07 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_no_answer_08 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_no_answer_09 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_no_answer_10 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_no_answer_11 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_no_answer_12 | no_answer | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。该例禁止块被稠密通道召回，记泄漏。 |
+| gs_parameter_01 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parameter_02 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parameter_03 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parameter_04 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parameter_05 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parameter_06 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parameter_07 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parameter_08 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parameter_09 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parameter_10 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parameter_11 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parameter_12 | parameter | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_01 | parse_failure | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_02 | parse_failure | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_03 | parse_failure | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_04 | parse_failure | 集合 | 2 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_05 | parse_failure | 集合 | 1 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_06 | parse_failure | 集合 | 1 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_07 | parse_failure | 集合 | 1 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_08 | parse_failure | 集合 | 1 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_09 | parse_failure | 集合 | 1 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_10 | parse_failure | 集合 | 1 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_11 | parse_failure | 集合 | 1 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_parse_failure_12 | parse_failure | 集合 | 1 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_unauthorized_01 | unauthorized | 集合 | 0 | 2 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_unauthorized_02 | unauthorized | 集合 | 0 | 4 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_unauthorized_03 | unauthorized | 集合 | 0 | 4 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_unauthorized_04 | unauthorized | 集合 | 0 | 3 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_unauthorized_05 | unauthorized | 集合 | 0 | 3 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_unauthorized_06 | unauthorized | 集合 | 0 | 2 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_unauthorized_07 | unauthorized | 集合 | 0 | 2 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_unauthorized_08 | unauthorized | 集合 | 0 | 3 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_unauthorized_09 | unauthorized | 集合 | 0 | 5 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_unauthorized_10 | unauthorized | 集合 | 0 | 4 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_unauthorized_11 | unauthorized | 集合 | 0 | 4 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_unauthorized_12 | unauthorized | 集合 | 0 | 2 | 拒答层集合差异：稠密通道恢复后返回最近邻语块，期望判定失败；根因为检索无相关性下限，属 ADR-014 门禁的待修复对象。 |
+| gs_version_conflict_01 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_version_conflict_02 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_version_conflict_03 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_version_conflict_04 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_version_conflict_05 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_version_conflict_06 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_version_conflict_07 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_version_conflict_08 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_version_conflict_09 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_version_conflict_10 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_version_conflict_11 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
+| gs_version_conflict_12 | version_conflict | 集合 | 5 | 5 | 集合差异：稠密恢复后融合输入变化，期望命中与禁止泄漏不受影响。 |
 
 ## 4 其他已核对的接口差异
 
@@ -90,26 +141,24 @@ LlamaIndex 路径的脚手架参数：BowEmbedder 维度 256（词袋哈希，L2
 
 证据条数行为不同：自研评测口径只返回整串命中的 chunk，常少于上限；LlamaIndex 按 RRF 融合补足到 evidence_limit。生产装配下自研路径是 Qdrant dense 加空语料 BM25，同样会返回足量证据，因此该差异主要是评测口径与真实检索实现之差，不是生产行为回退。
 
-拒答行为在本数据集上一致：12 例 no_answer 用例两路都返回空。但这只是数据集层面的证据：两条生产路径都没有相关性下限，生产拒答由问答层的答案校验负责，不由检索为空保证。
+拒答行为在本数据集上不再一致（2026-10-23 更正）：自研评测口径的双路都是词面匹配，拒答问题无词面命中而返回空；LlamaIndex 路径的稠密通道恢复后会返回最近邻。两条生产路径都没有相关性下限，生产拒答不由检索为空保证，相关性下限见 ADR-014。
 
 ## 5 质量结论
 
-在合成金标集与受控嵌入下，LlamaIndex 路径与自研评测口径的标注命中率相同（同为 1.0），期望判定无一例只在一路失败，禁止 chunk 在两路都零泄漏，范围过滤与授权过滤结果一致。可以认为 LlamaIndex 路径在检索行为上与自研口径等价，差异限于证据补足与排序分布。
+在合成金标集与受控嵌入下，LlamaIndex 路径与自研评测口径的内容召回一致（标注命中率同为 1.0），范围过滤与授权过滤结果一致。行为差异集中在拒答：稠密通道使 LlamaIndex 路径在拒答层返回最近邻，与企业集实测及生产路径的已知限制一致，不再有「合成集上不暴露」的假象。原「行为等价」结论失效，替代结论是：两路内容行为等价，拒答行为的差异由共同的根因（无相关性下限）解释，待 ADR-014 门禁标定后复测。
 
-限制：语料是合成 Fixture，不是企业原文；嵌入是脚手架词袋模型，不是生产嵌入；本结论不外推到生产语料与生产嵌入下的排序质量，那部分要在 L4 切换前用真实评测复核。
+限制：语料是合成 Fixture，不是企业原文；嵌入是脚手架词袋模型，不是生产嵌入；本结论不外推到生产语料与生产嵌入下的排序质量。
 
 ## 6 依赖转正评估
 
-现状：`llama-index-core==0.11.23` 在 pyproject 可选组 llama-index 中。本地实测其传递依赖约 25 个包（含 nltk、networkx、aiohttp 等），体积与攻击面都不小。
+现状（2026-10-21 记录）：`llama-index-core==0.11.23` 在 pyproject 可选组 llama-index 中。本地实测其传递依赖约 25 个包（含 nltk、networkx、aiohttp 等），体积与攻击面都不小。
 
 消费方只有三处：`llama_index_retriever.py`、`llama_embeddings.py`、`llama_index_builder.py`，且 bootstrap 只在开关选中时延迟导入。默认路径不依赖它。
 
-结论建议：L2 不转正，L4 默认切换时转正。理由：当前后端是显式可选的实验路径，可选组与之匹配；L4 把它变成默认路径后，默认装配依赖可选组在部署上不成立，届时连同默认切换一并转正，一次变更同时落位。
-
-Owner 确认（2026-10-21）：差异清单的两类结论接受，L2 行为等价结论成立；依赖按建议处理，L2 不转正，`llama-index-core` 在 L4 默认切换时转入主依赖。
+结论建议：L2 不转正，L4 默认切换时转正。该建议已在 L4 执行完毕，依赖已转入主依赖（2026-10-21）。
 
 ## 7 复现
 
-命令：`python ops/run_backend_compare.py`。退出码 0 表示两路期望判定全部通过。输出 JSON 含每例两路的命中列表、状态与差异类别，与本报告同源。连跑两次输出逐字节一致（已实测）。
+命令：`python ops/run_backend_compare.py`。退出码 0 表示两路期望判定全部通过；当前复测口径下 LlamaIndex 路径有 26 例未通过，退出码为 1。输出 JSON 含每例两路的命中列表、状态与差异类别，与本报告同源。
 
 环境要求：Python 3.12，已装 llama-index 可选组。未装时脚本退出码为 2 并给出安装提示。

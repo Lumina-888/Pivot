@@ -34,7 +34,7 @@ from pivot.retrieval.tokenize import SimpleLexTokenizer
 
 BM25_K1 = 1.2
 BM25_B = 0.75
-DENSE_SCORE_CUTOFF = -1.0
+DENSE_SCORE_CUTOFF = 0.0
 NATIVE_COLLECTION = "pivot-chunks"
 
 
