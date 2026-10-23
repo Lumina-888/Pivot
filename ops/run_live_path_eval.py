@@ -141,6 +141,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--enterprise", action="store_true")
     parser.add_argument("--rerank", action="store_true")
+    parser.add_argument("--rerank-floor", type=float, default=None)
+    parser.add_argument("--dense-floor", type=float, default=None)
+    parser.add_argument("--rerank-pool", type=int, default=None)
+    parser.add_argument("--per-doc-cap", type=int, default=None)
     parser.add_argument("--limit-cases", type=int, default=None)
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE)
     parser.add_argument("--out", type=Path, default=None)
@@ -174,7 +178,16 @@ def main() -> int:
             api_key="surrogate-managed",
             timeout_seconds=120,
         )
-    policy = RetrievalPolicy(dense_k=8, bm25_k=8, rrf_k=60, evidence_limit=5)
+    policy = RetrievalPolicy(
+        dense_k=8,
+        bm25_k=8,
+        rrf_k=60,
+        evidence_limit=5,
+        rerank_floor=args.rerank_floor,
+        dense_floor=args.dense_floor,
+        rerank_pool=args.rerank_pool,
+        per_doc_cap=args.per_doc_cap,
+    )
     report = evaluate_default_path(
         dataset,
         policy=policy,
@@ -185,6 +198,12 @@ def main() -> int:
     summary = {
         "dataset_version": report["dataset_version"],
         "rerank": bool(args.rerank),
+        "gate": {
+            "rerank_floor": args.rerank_floor,
+            "dense_floor": args.dense_floor,
+            "rerank_pool": args.rerank_pool,
+            "per_doc_cap": args.per_doc_cap,
+        },
         "case_count": report["case_count"],
         "passed_count": report["passed_count"],
         "labeled_hit_rate": report["labeled_hit_rate"],
