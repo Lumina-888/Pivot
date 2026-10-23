@@ -902,6 +902,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             bm25_b=resolved.bm25_b,
             dense_score_cutoff=_NO_DENSE_CUTOFF,
             authorize=llama_authorize,
+            reranker=reranker,
         )
     app = create_app(
         probes=probes,

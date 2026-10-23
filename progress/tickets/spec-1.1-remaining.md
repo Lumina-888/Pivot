@@ -398,7 +398,7 @@
 |---|---|---|---|
 | ND-W3-11 / M03（M02贡献） | 先确认上传幂等是否必须以新列或独立持久事实表达；M00/M03 Contract 未批前不加 version.idempotency_key | `test_FR_DOC_005_upload_idempotency_survives_restart`；同键异参、重复消费/提交前后崩溃、迁移报告 | blocked |
 | ND-P0-02 / 安全（法务/IT贡献） | 企业文档外发前批准区域/留存/训练/删除政策；staging 例外仅限既批低敏范围，不影响 Agent 每调用外发检查 | `test_FR_AGENT_003_policy_rejects_unapproved_data`；审批记录 + 准入配置来源 | blocked（正式门禁）；staging 范围保留 |
-| ND-P0-03 / M04 | 先 live Embedding/rerank opt-in 冒烟；再在复核集上验证真实 dense+BM25+RRF+bge 全链路，不能只测 HTTP 有返回 | `test_FR_RAG_001_live_hybrid_uses_both_routes`、`test_FR_RAG_004_provider_failure_degrades_safely`；Recall/过滤/scope/冲突/代次报告，含 DR-002 对比 | blocked（live 环境/批准配置未确认） |
+| ND-P0-03 / M04 | 先 live Embedding/rerank opt-in 冒烟；再在复核集上验证真实 dense+BM25+RRF+bge 全链路，不能只测 HTTP 有返回 | `test_FR_RAG_001_live_hybrid_uses_both_routes`、`test_FR_RAG_004_provider_failure_degrades_safely`；Recall/过滤/scope/冲突/代次报告，含 DR-002 对比 | 现有集已完成（2026-10-22 live 全链评测，见 evidence/golden-set-eval/live-path-eval.md）；复核集补跑待 ND-P0-01-A |
 | ND-P0-04 / M05（算法/业务贡献） | ND-P0-01-A + 02-H + 05 评测；盲评支持校验/数字/否定/条件/版本差异，形成 DR-004 决策 | `test_FR_QA_004_judge_invalid_result_never_answers`；人工优先的模型/阈值/容差报告，冻结后重跑 GATE-P0-004 | blocked |
 | ND-P0-05 / M01（业务贡献） | 业务确认仅低敏、全员可见且允许外发的共享库；不满足时走独立 ACL 需求/ADR，不能放宽现有授权 | `test_FR_RBAC_004_unapproved_document_cannot_be_ready`；DR-005 业务准入与管理员会话查看边界签认 | blocked（业务确认） |
 | ND-P0-06 / M02（M03/M07/M11贡献） | 可用真实 PG/MinIO/Qdrant/Redis/Celery；W3-11 Contract；非 eager 重复投递、版本切换、删除与孤儿修复 | `test_FR_DOC_006_new_version_publishes_atomically`、`test_FR_DOC_007_delete_hides_before_cleanup`、`test_FR_DOC_008_orphan_scan_is_idempotent`；故障/重启/计数/原子性报告，GATE-P0-003 | blocked |

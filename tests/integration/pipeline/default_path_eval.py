@@ -38,7 +38,9 @@ DENSE_SCORE_CUTOFF = -1.0
 NATIVE_COLLECTION = "pivot-chunks"
 
 
-def build_default_retriever(records, policy) -> LlamaIndexRetriever:
+def build_default_retriever(
+    records, policy, *, embed_model=None, vector_size=None, reranker=None
+) -> LlamaIndexRetriever:
     """Assemble the default-path retriever over a persistent index."""
     from qdrant_client import QdrantClient
 
@@ -52,14 +54,18 @@ def build_default_retriever(records, policy) -> LlamaIndexRetriever:
         external_allowed[record.version_id] = (
             external_allowed.get(record.version_id, False) or record.allowed
         )
-    embed_model = PivotEmbedding(
-        BowEmbedder(), model_name="bow-harness", dimension=BOW_DIMENSION
-    )
+    if embed_model is None:
+        embed_model = PivotEmbedding(
+            BowEmbedder(), model_name="bow-harness", dimension=BOW_DIMENSION
+        )
+        vector_size = BOW_DIMENSION
+    elif vector_size is None:
+        raise ValueError("vector_size is required with an injected embed_model")
     holder = LlamaQdrantIndex.open(
         client=QdrantClient(location=":memory:"),
         native_collection=NATIVE_COLLECTION,
         embed_model=embed_model,
-        vector_size=BOW_DIMENSION,
+        vector_size=vector_size,
         distance="Cosine",
         native_payloads=corpus_payloads(records),
         external_llm_allowed=lambda version_id: external_allowed[version_id],
@@ -72,15 +78,23 @@ def build_default_retriever(records, policy) -> LlamaIndexRetriever:
         bm25_b=BM25_B,
         dense_score_cutoff=DENSE_SCORE_CUTOFF,
         authorize=lambda principal, document, version: (document, version) in authorized,
+        reranker=reranker,
     )
 
 
 def evaluate_default_path(
-    dataset: dict[str, Any], *, policy: RetrievalPolicy
+    dataset: dict[str, Any],
+    *,
+    policy: RetrievalPolicy,
+    embed_model=None,
+    vector_size=None,
+    reranker=None,
 ) -> dict[str, Any]:
     """Score every case of a labeled dataset against the default path."""
     records = corpus_records(dataset)
-    retriever = build_default_retriever(records, policy)
+    retriever = build_default_retriever(
+        records, policy, embed_model=embed_model, vector_size=vector_size, reranker=reranker
+    )
     results: list[dict[str, Any]] = []
     strata: dict[str, dict[str, int]] = {}
     labeled_hits = 0
