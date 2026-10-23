@@ -7,6 +7,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from llama_index.core import VectorStoreIndex
+from llama_index.core.indices.vector_store.retrievers import VectorIndexRetriever
 from llama_index.core.schema import MetadataMode, TextNode
 
 from pivot.qa.ports import EvidenceHit, RetrievalResult
@@ -212,19 +213,29 @@ class _LlamaDense:
 
     def search(self, query: str, k: int) -> tuple[RankedHit, ...]:
         try:
-            retriever = self._index.as_retriever(
+            # Construct the retriever directly: index.as_retriever()
+            # forwards node_ids itself on llama-index-core 0.11.23, so
+            # passing node_ids through it raises TypeError and every
+            # dense search silently degraded to no hits (FR-RAG-009).
+            retriever = VectorIndexRetriever(
+                index=self._index,
                 similarity_top_k=k,
                 node_ids=list(self._node_ids),
             )
             hits = retriever.retrieve(query)
-            return tuple(
+            ranked = [
                 RankedHit(self._chunk_by_node[hit.node.node_id], float(hit.score), "dense")
                 for hit in hits
                 if hit.node.node_id in self._chunk_by_node
                 and hit.score is not None
                 and math.isfinite(hit.score)
                 and hit.score > self._cutoff
-            )
+            ]
+            # ANN traversal order varies between runs; make tie order a
+            # pure function of (score, chunk_id) so fusion ranks are
+            # stable across runs and environments.
+            ranked.sort(key=lambda hit: (-hit.score, hit.chunk_id))
+            return tuple(ranked)
         except Exception as exc:
             raise RetrieverError("PROVIDER_TEMPORARY_ERROR", "dense retrieval failed") from exc
 

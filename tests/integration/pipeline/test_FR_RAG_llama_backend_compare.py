@@ -1,9 +1,16 @@
-"""L2 dual-path comparison locks: expectations, no leaks, report in sync.
+"""L2 dual-path comparison locks: expectations, leaks, report in sync.
 
 The comparison runs the synthetic Golden Set v0.2 through the native Golden
 Set wiring and the LlamaIndex path. The evidence report must register every
 case whose hit set or ordering differs; if behavior drifts, this file fails
 until the report is regenerated and re-concluded. Not GATE-P0 verified.
+
+Re-measured 2026-10-23 after the FR-RAG-009 dense-leg fix: the original
+locks were taken with the LlamaIndex dense leg silently down, so the
+llama path behaved as BM25-only and passed every expectation. With the
+dense leg live, the llama path fails the refusal strata exactly like
+the production path does (no relevance floor, ADR-014), while content
+recall stays at 1.0 on both paths.
 """
 
 from __future__ import annotations
@@ -35,7 +42,38 @@ def report() -> dict:
 def test_FR_RAG_007_expectations_hold_on_both_paths(report):
     assert report["case_count"] == 120
     assert report["native_failed"] == []
-    assert report["llama_failed"] == []
+    # Measured after the dense-leg fix: all 24 refusal-stratum cases
+    # plus two document_scope cases fail on the llama path because the
+    # dense leg returns nearest neighbours and no relevance floor
+    # exists yet (ADR-014). Locked as the current measured state.
+    assert report["llama_failed"] == [
+        "gs_no_answer_01",
+        "gs_unauthorized_01",
+        "gs_no_answer_02",
+        "gs_unauthorized_02",
+        "gs_no_answer_03",
+        "gs_unauthorized_03",
+        "gs_no_answer_04",
+        "gs_document_scope_04",
+        "gs_unauthorized_04",
+        "gs_no_answer_05",
+        "gs_unauthorized_05",
+        "gs_no_answer_06",
+        "gs_document_scope_06",
+        "gs_unauthorized_06",
+        "gs_no_answer_07",
+        "gs_unauthorized_07",
+        "gs_no_answer_08",
+        "gs_unauthorized_08",
+        "gs_no_answer_09",
+        "gs_unauthorized_09",
+        "gs_no_answer_10",
+        "gs_unauthorized_10",
+        "gs_no_answer_11",
+        "gs_unauthorized_11",
+        "gs_no_answer_12",
+        "gs_unauthorized_12",
+    ]
     assert report["labeled_hit_rate"] == {"native": 1.0, "llama": 1.0}
 
 
@@ -44,9 +82,16 @@ def test_FR_RAG_007_no_forbidden_chunk_leaks_on_either_path(report):
     forbidden = {
         case["id"]: set(case["forbidden_chunk_ids"]) for case in dataset["cases"]
     }
+    llama_leaks = {}
     for row in report["results"]:
         assert not forbidden[row["id"]] & set(row["native_hits"]), row["id"]
-        assert not forbidden[row["id"]] & set(row["llama_hits"]), row["id"]
+        leaked = forbidden[row["id"]] & set(row["llama_hits"])
+        if leaked:
+            llama_leaks[row["id"]] = leaked
+    # One measured leak after the dense-leg fix: the no_answer_12
+    # distractor chunks are recalled by the dense leg. Locked so any
+    # change, better or worse, forces a report update.
+    assert llama_leaks == {"gs_no_answer_12": {"chk_fact_12", "chk_param_12"}}
 
 
 def test_FR_RAG_007_report_registers_every_difference(report):
@@ -60,7 +105,7 @@ def test_FR_RAG_007_report_registers_every_difference(report):
         if line.startswith("| gs_")
     }
     assert registered == differing
-    assert report["diff_counts"] == {"none": 65, "order": 11, "set": 44}
+    assert report["diff_counts"] == {"none": 22, "order": 0, "set": 98}
 
 
 def test_FR_RAG_007_report_records_benchmark_and_limits():

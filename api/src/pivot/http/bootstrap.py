@@ -502,10 +502,10 @@ class _RetrievalBridge:
         return RetrievalResult(status="ok", evidence=evidence)
 
 
-# The native path applies no dense score cutoff and SPEC leaves retrieval
-# thresholds at TBD-P0, so the LlamaIndex backend expresses "no cutoff" as
-# the cosine similarity lower bound instead of inventing a tuned value.
-_NO_DENSE_CUTOFF = -1.0
+# Dense candidates must carry a positive cosine similarity: zero or
+# negative similarity is the absence of a dense signal, not a tuned
+# threshold. Tuned relevance floors stay TBD-P0 (ADR-014, DR-010).
+_DENSE_CUTOFF = 0.0
 
 
 def _llama_backend(
@@ -912,7 +912,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             tokenizer=tokenizer,
             bm25_k1=resolved.bm25_k1,
             bm25_b=resolved.bm25_b,
-            dense_score_cutoff=_NO_DENSE_CUTOFF,
+            dense_score_cutoff=_DENSE_CUTOFF,
             authorize=llama_authorize,
             reranker=reranker,
             refresher=refresher,

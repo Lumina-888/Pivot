@@ -105,3 +105,4 @@
 | [20261023-M05-qa-engine-switch.md](20261023-M05-qa-engine-switch.md) | ADR-013：问答引擎开关与 Agent 生产装配（W1） |
 | [20261023-M05-agent-execution-binding.md](20261023-M05-agent-execution-binding.md) | W2：Agent 结局对接 Run 状态机与 SSE |
 | [20261023-M04-relevance-gate.md](20261023-M04-relevance-gate.md) | ADR-014：相关性门禁与单文档配额（线三 A 至 C） |
+| [20261023-M04-dense-leg-fix.md](20261023-M04-dense-leg-fix.md) | 变更申请：M04 稠密检索腿修复与稠密候选下界（FR-RAG-009） |
