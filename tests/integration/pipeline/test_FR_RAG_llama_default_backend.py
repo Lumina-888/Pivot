@@ -144,7 +144,7 @@ def test_FR_RAG_008_worker_ingest_syncs_llama_collection(tmp_path):
     )
     result = worker.runner(version.id, "req_l4_worker_ingest", "usr_admin")
     assert result["status"] == "ok"
-    synced = raw.count(collection_name="pivot-chunks__llama")
+    synced = raw.count(collection_name="pivot-chunks__llama__unassigned")
     assert synced.count >= 1
 
     # A freshly started API process (the celery deployment shape) serves

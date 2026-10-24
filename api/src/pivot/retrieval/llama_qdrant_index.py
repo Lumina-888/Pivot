@@ -1,21 +1,29 @@
-"""Qdrant-backed LlamaIndex: persistent collection, validation, reconcile.
+"""Qdrant-backed LlamaIndex: per-library collections, validation, reconcile.
 
 The native collection stays the ingest write path. This module owns the
-parallel LlamaIndex collection (same cluster, isolated name). Nodes are
-stored under UUID point ids derived from chunk ids; the chunk id itself
-travels in node metadata, and each node carries its document as its
-reference doc so a whole document can be dropped with one delete.
+parallel LlamaIndex collections (same cluster, one collection per
+library, named {native}__llama__{library_id}). Nodes are stored under
+UUID point ids derived from chunk ids; the chunk id itself travels in
+node metadata, and each node carries its document as its reference doc
+so a whole document can be dropped with one delete. Every node in a
+library collection carries that library in its metadata.
 
-Startup either creates the collection from the native payloads, rebuilds
-it when asked to, or validates and rehydrates the running index from the
-existing collection. Runtime ingest changes reach the index through
-document-level reconciliation against live facts (see LlamaIndexSync in
-the HTTP bootstrap); nothing here trusts flags baked into payloads for
-authorization.
+Startup either creates each library collection from the native
+payloads, rebuilds it when asked to, or validates and rehydrates the
+running index from the existing collections. Runtime ingest changes
+reach the index through document-level reconciliation against live
+facts (see LlamaIndexSync in the HTTP bootstrap); nothing here trusts
+flags baked into payloads for authorization.
+
+The pre-S3 single collection {native}__llama is never opened,
+validated, or deleted here: per-library collections are built fresh
+from native payloads, and the old collection is left untouched for an
+operator to drop after verifying the new ones.
 """
 
 from __future__ import annotations
 
+import logging
 import math
 import threading
 import time
@@ -42,8 +50,58 @@ _SCROLL_PAGE = 256
 ExternalLlmLookup = Callable[[str], bool]
 
 
-def llama_collection_name(native_collection: str) -> str:
-    return f"{native_collection}{_COLLECTION_SUFFIX}"
+def llama_collection_name(native_collection: str, library_id: str) -> str:
+    """Per-library collection name: {native}__llama__{library_id}."""
+    if not isinstance(library_id, str) or not library_id.strip():
+        raise ValueError("library_id must be a non-empty string")
+    return f"{native_collection}{_COLLECTION_SUFFIX}__{library_id}"
+
+
+def resolve_payload_library(
+    payload: Mapping, library_id_for: Callable[[str], str | None] | None
+) -> str | None:
+    """Resolve which library a native payload belongs to, or None.
+
+    Live document facts win over the payload's own library field: a
+    document that moved libraries since ingest still resolves to its
+    current library. When live facts cannot resolve the version
+    (orphan payload, facts not yet loaded), the payload's own library
+    field is the fallback, so startup validation still runs on real
+    data and the payload is not dropped merely because facts lag.
+    Only a payload with neither live facts nor a usable field
+    resolves to None, and is skipped (fail closed); it is never filed
+    under a guessed library. Serving stays safe regardless of this
+    choice: the authorize hook rechecks every hit against live facts.
+    """
+    raw = _payload_of(payload)
+    version_id = raw.get("version_id")
+    if library_id_for is not None and isinstance(version_id, str):
+        try:
+            resolved = library_id_for(version_id)
+        except Exception:
+            resolved = None
+        if isinstance(resolved, str) and resolved.strip():
+            return resolved
+    field = raw.get("library_id")
+    if isinstance(field, str) and field.strip():
+        return field
+    return None
+
+
+def partition_payloads(
+    payloads: Iterable[Mapping],
+    library_id_for: Callable[[str], str | None] | None,
+) -> tuple[dict[str, list[Mapping]], int]:
+    """Group payloads by resolved library; count the unresolvable ones."""
+    by_library: dict[str, list[Mapping]] = {}
+    skipped = 0
+    for item in payloads:
+        library_id = resolve_payload_library(item, library_id_for)
+        if library_id is None:
+            skipped += 1
+            continue
+        by_library.setdefault(library_id, []).append(item)
+    return by_library, skipped
 
 
 def point_id_for(chunk_id: str) -> str:
@@ -83,7 +141,7 @@ def _built_nodes(index: VectorStoreIndex) -> list[TextNode]:
 
 
 class LlamaQdrantIndex:
-    """A VectorStoreIndex whose vectors and nodes live in Qdrant."""
+    """A VectorStoreIndex whose vectors and nodes live in one Qdrant collection."""
 
     def __init__(
         self,
@@ -92,15 +150,21 @@ class LlamaQdrantIndex:
         *,
         client=None,
         collection: str | None = None,
+        library_id: str | None = None,
     ) -> None:
         self._index = index
         self._embed_model = embed_model
         self._client = client
         self._collection = collection
+        self._library_id = library_id
 
     @property
     def index(self) -> VectorStoreIndex:
         return self._index
+
+    @property
+    def library_id(self) -> str | None:
+        return self._library_id
 
     @classmethod
     def open(
@@ -108,16 +172,30 @@ class LlamaQdrantIndex:
         *,
         client,
         native_collection: str,
+        library_id: str,
         embed_model: BaseEmbedding,
         vector_size: int,
         distance: str,
         native_payloads: Iterable[Mapping],
         external_llm_allowed: ExternalLlmLookup,
+        library_id_for: Callable[[str], str | None] | None = None,
         rebuild: bool = False,
         hydrate: bool = True,
     ) -> "LlamaQdrantIndex":
-        payloads = list(native_payloads)
-        collection = llama_collection_name(native_collection)
+        """Open one library's collection, creating or rehydrating it.
+
+        Only payloads resolving to this library are used; everything
+        else is left for its own library's collection. A payload that
+        cannot be resolved is skipped, never filed here.
+        """
+        if not isinstance(library_id, str) or not library_id.strip():
+            raise ValueError("library_id must be a non-empty string")
+        payloads = [
+            item
+            for item in native_payloads
+            if resolve_payload_library(item, library_id_for) == library_id
+        ]
+        collection = llama_collection_name(native_collection, library_id)
         store = QdrantVectorStore(client=client, collection_name=collection)
         exists = bool(client.collection_exists(collection_name=collection))
         if exists and rebuild:
@@ -126,7 +204,9 @@ class LlamaQdrantIndex:
         index = VectorStoreIndex.from_vector_store(
             store, embed_model=embed_model, store_nodes_override=True
         )
-        holder = cls(index, embed_model, client=client, collection=collection)
+        holder = cls(
+            index, embed_model, client=client, collection=collection, library_id=library_id
+        )
         if exists:
             _validate_collection(
                 client, collection, vector_size=vector_size, native_payloads=payloads
@@ -156,7 +236,7 @@ class LlamaQdrantIndex:
     ) -> None:
         """Fill the collection from native payloads (first build/rebuild)."""
         built = build_llama_index(
-            payloads,
+            self._stamped(payloads),
             embed_model=self._embed_model,
             external_llm_allowed=external_llm_allowed,
         )
@@ -176,18 +256,52 @@ class LlamaQdrantIndex:
         Every node of the document is dropped first, then the current
         version's nodes are re-added from the native payloads. The call
         is idempotent: running it twice leaves the same state.
+        Payloads are stamped with this collection's library, so a
+        document that moved libraries never leaves stale-library nodes
+        behind in its new collection.
         """
         # delete_from_docstore=True also clears the docstore ref-doc info,
         # which keeps repeated reconciles of the same document idempotent.
         self._index.delete_ref_doc(document_id, delete_from_docstore=True)
         built = build_llama_index(
-            current_payloads,
+            self._stamped(current_payloads),
             embed_model=self._embed_model,
             external_llm_allowed=external_llm_allowed,
         )
         nodes = _built_nodes(built)
         if nodes:
             self._index.insert_nodes(nodes)
+
+    def drop_document(self, document_id: str) -> bool:
+        """Remove one document's nodes if this collection holds them.
+
+        Returns True when nodes were dropped, False when this
+        collection never held the document (a safe no-op, no Qdrant
+        write). The library set uses this to sweep non-target
+        collections after a reconcile, which also clears the old
+        collection when a document moved libraries.
+        """
+        if self._index.docstore.get_ref_doc_info(document_id) is None:
+            return False
+        self._index.delete_ref_doc(document_id, delete_from_docstore=True)
+        return True
+
+    def _stamped(self, payloads: Iterable[Mapping]) -> list[dict]:
+        """Payload copies stamped with this collection's library.
+
+        Stamping is unconditional: a node stored in a library
+        collection always carries that library in its metadata, even
+        when the native payload still names a library the document has
+        since left. Holders built without a library (legacy direct
+        construction only) pass payloads through unstamped.
+        """
+        stamped: list[dict] = []
+        for item in payloads:
+            payload = dict(_payload_of(item))
+            if self._library_id:
+                payload["library_id"] = self._library_id
+            stamped.append(payload)
+        return stamped
 
     def refresh_from_collection(self) -> tuple[int, int]:
         """Pull collection-side changes into the serving snapshot.
@@ -239,6 +353,249 @@ class LlamaQdrantIndex:
                 self._index.index_struct.add_node(stored, text_id=stored.node_id)
                 self._index.docstore.add_documents([stored], allow_update=True)
         return len(added), len(local - current)
+
+
+class _LiveLibraryIndexes(Mapping):
+    """Live view over a library index set's serving indexes.
+
+    The set gains holders lazily (a new library's first document), so
+    the retriever must see holders created after assembly; a snapshot
+    dict would freeze the serving set at startup and hide new
+    libraries until restart. The retriever snapshots this view once
+    per query, so a holder added mid-query never breaks iteration.
+    """
+
+    def __init__(self, index_set: "LlamaLibraryIndexSet") -> None:
+        self._index_set = index_set
+
+    def __getitem__(self, library_id: str) -> VectorStoreIndex:
+        return self._index_set._holders[library_id].index
+
+    def __iter__(self):
+        return iter(self._index_set._holders)
+
+    def __len__(self) -> int:
+        return len(self._index_set._holders)
+
+
+class LlamaLibraryIndexSet:
+    """One LlamaQdrantIndex holder per library, with routed reconcile.
+
+    The set is the unit the API and worker processes build: startup
+    partitions the native payloads by resolved library and opens one
+    collection per library. Serving indexes come from
+    :attr:`indexes`; refresh is a single :meth:`refresh_from_collection`
+    call that sums every holder, so the existing interval-gated
+    refresher works unchanged. Reconcile is routed by the document's
+    current library, and non-target collections are swept with
+    :meth:`LlamaQdrantIndex.drop_document`, which also clears the old
+    collection when a document moved libraries. A document whose row
+    is gone entirely (library unknown) is dropped from every
+    collection.
+    """
+
+    def __init__(
+        self,
+        holders: dict[str, LlamaQdrantIndex],
+        *,
+        client,
+        native_collection: str,
+        embed_model: BaseEmbedding,
+        vector_size: int,
+        distance: str,
+        external_llm_allowed: ExternalLlmLookup,
+        rebuild: bool = False,
+        hydrate: bool = True,
+    ) -> None:
+        self._holders = dict(holders)
+        self._client = client
+        self._native_collection = native_collection
+        self._embed_model = embed_model
+        self._vector_size = vector_size
+        self._distance = distance
+        self._external_llm_allowed = external_llm_allowed
+        self._rebuild = rebuild
+        self._hydrate = hydrate
+
+    @classmethod
+    def open(
+        cls,
+        *,
+        client,
+        native_collection: str,
+        embed_model: BaseEmbedding,
+        vector_size: int,
+        distance: str,
+        native_payloads: Iterable[Mapping],
+        external_llm_allowed: ExternalLlmLookup,
+        library_id_for: Callable[[str], str | None] | None = None,
+        rebuild: bool = False,
+        hydrate: bool = True,
+    ) -> "LlamaLibraryIndexSet":
+        payloads = list(native_payloads)
+        by_library, skipped = partition_payloads(payloads, library_id_for)
+        if skipped:
+            logging.getLogger(__name__).warning(
+                "skipped %d vector payloads with no resolvable library; "
+                "they are indexed in no library collection",
+                skipped,
+            )
+        holders = {
+            library_id: LlamaQdrantIndex.open(
+                client=client,
+                native_collection=native_collection,
+                library_id=library_id,
+                embed_model=embed_model,
+                vector_size=vector_size,
+                distance=distance,
+                native_payloads=lib_payloads,
+                external_llm_allowed=external_llm_allowed,
+                library_id_for=library_id_for,
+                rebuild=rebuild,
+                hydrate=hydrate,
+            )
+            for library_id, lib_payloads in by_library.items()
+        }
+        return cls(
+            holders,
+            client=client,
+            native_collection=native_collection,
+            embed_model=embed_model,
+            vector_size=vector_size,
+            distance=distance,
+            external_llm_allowed=external_llm_allowed,
+            rebuild=rebuild,
+            hydrate=hydrate,
+        )
+
+    @property
+    def holders(self) -> dict[str, LlamaQdrantIndex]:
+        return dict(self._holders)
+
+    @property
+    def indexes(self) -> Mapping[str, VectorStoreIndex]:
+        """Live view of the serving indexes, keyed by library.
+
+        Deliberately not a snapshot: holders are created lazily when
+        a new library's first document arrives, and the retriever must
+        serve that library without a restart.
+        """
+        return _LiveLibraryIndexes(self)
+
+    def holder_for(
+        self, library_id: str, *, native_payloads: Iterable[Mapping] = ()
+    ) -> LlamaQdrantIndex:
+        """Return the holder for a library, creating its collection lazily.
+
+        A library with no payloads at startup has no holder yet; its
+        first document creates the collection on demand. The current
+        payloads are passed for validation context when the collection
+        already exists with stale points.
+        """
+        holder = self._holders.get(library_id)
+        if holder is None:
+            holder = LlamaQdrantIndex.open(
+                client=self._client,
+                native_collection=self._native_collection,
+                library_id=library_id,
+                embed_model=self._embed_model,
+                vector_size=self._vector_size,
+                distance=self._distance,
+                native_payloads=native_payloads,
+                external_llm_allowed=self._external_llm_allowed,
+                rebuild=False,
+                hydrate=self._hydrate,
+            )
+            self._holders[library_id] = holder
+        return holder
+
+    def reconcile_document(
+        self,
+        document_id: str,
+        *,
+        library_id: str | None,
+        current_payloads: Iterable[Mapping],
+        external_llm_allowed: ExternalLlmLookup,
+    ) -> None:
+        """Reconcile one document in its own library collection only.
+
+        The target collection is reconciled with the current payloads;
+        every other collection is swept for the document. When the
+        library is unknown (document row gone), every collection is
+        swept and nothing is re-added.
+        """
+        payloads = list(current_payloads)
+        target = None
+        if library_id:
+            target = self.holder_for(library_id, native_payloads=payloads)
+            target.reconcile_document(
+                document_id,
+                current_payloads=payloads,
+                external_llm_allowed=external_llm_allowed,
+            )
+        for holder in self._holders.values():
+            if holder is not target:
+                holder.drop_document(document_id)
+
+    def drop_document(self, document_id: str) -> None:
+        for holder in self._holders.values():
+            holder.drop_document(document_id)
+
+    def refresh_from_collection(self) -> tuple[int, int]:
+        """Pull every library collection's changes into the snapshots.
+
+        Returns the summed (added, removed) node counts, so the
+        interval-gated refresher treats the set like a single holder.
+        """
+        added = 0
+        removed = 0
+        for holder in self._holders.values():
+            step_added, step_removed = holder.refresh_from_collection()
+            added += step_added
+            removed += step_removed
+        return added, removed
+
+
+def scroll_library_version_ids(
+    client, native_collection: str, library_ids: Iterable[str]
+) -> dict[str, tuple[str, ...]]:
+    """Version ids held by each named library collection.
+
+    This is the input orphan scanning needs per library: callers pass
+    the libraries they know, and only those collections are read. The
+    legacy single collection is never consulted. Points whose payload
+    cannot be read as a node, or that carry no version id, are skipped.
+    """
+    found: dict[str, tuple[str, ...]] = {}
+    for library_id in library_ids:
+        collection = llama_collection_name(native_collection, library_id)
+        if not client.collection_exists(collection_name=collection):
+            found[library_id] = ()
+            continue
+        versions: list[str] = []
+        offset = None
+        while True:
+            points, offset = client.scroll(
+                collection_name=collection,
+                limit=_SCROLL_PAGE,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            for point in points:
+                try:
+                    node = metadata_dict_to_node(dict(point.payload or {}))
+                except Exception:
+                    continue
+                if not isinstance(node, TextNode):
+                    continue
+                version = node.metadata.get("version_id")
+                if isinstance(version, str) and version:
+                    versions.append(version)
+            if offset is None:
+                break
+        found[library_id] = tuple(versions)
+    return found
 
 
 class CollectionRefresher:

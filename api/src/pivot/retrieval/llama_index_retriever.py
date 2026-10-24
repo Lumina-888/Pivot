@@ -34,12 +34,19 @@ class LlamaIndexRetriever:
     A node's chunk id is its node id, unless the node carries a
     ``chunk_id`` metadata entry (the Qdrant-backed index stores nodes
     under UUID point ids and keeps the chunk id in metadata).
+
+    The retriever may serve several indexes at once, one per library
+    (S3). When ``visible_libraries_for`` is given, only the libraries
+    that principal may see are queried at all: collection selection
+    is library enforcement, and the authorize hook stays as defense
+    in depth. Without it, every given index is queried, as before.
     """
 
     def __init__(
         self,
-        index: VectorStoreIndex,
+        index: VectorStoreIndex | None = None,
         *,
+        indexes: dict[str | None, VectorStoreIndex] | None = None,
         policy: RetrievalPolicy,
         tokenizer: Tokenizer,
         bm25_k1: float,
@@ -48,12 +55,22 @@ class LlamaIndexRetriever:
         authorize: ResourceAuthorizer,
         reranker: Reranker | None = None,
         refresher: CollectionRefresher | None = None,
+        visible_libraries_for: Callable[[str], tuple[str, ...]] | None = None,
     ) -> None:
+        if index is not None and indexes is not None:
+            raise ValueError("pass either index or indexes, not both")
+        if indexes is None:
+            if index is None:
+                raise ValueError("a retriever needs an index")
+            indexes = {None: index}
         if not math.isfinite(dense_score_cutoff):
             raise ValueError("dense_score_cutoff must be finite")
         # Validate BM25 configuration even for an empty index.
         Bm25Retriever(tokenizer, k1=bm25_k1, b=bm25_b)
-        self._index = index
+        # Stored as given, not copied: a library set's indexes mapping
+        # is a live view, and lazily created libraries must become
+        # visible without a restart. Selection snapshots it per query.
+        self._indexes = indexes
         self._policy = policy
         self._tokenizer = tokenizer
         self._bm25_k1 = bm25_k1
@@ -62,6 +79,7 @@ class LlamaIndexRetriever:
         self._authorize = authorize
         self._reranker = reranker
         self._refresher = refresher
+        self._visible_libraries_for = visible_libraries_for
 
     def retrieve(
         self,
@@ -88,13 +106,13 @@ class LlamaIndexRetriever:
         if self._refresher is not None:
             self._refresher.maybe_refresh()
         try:
-            nodes, corpus = self._eligible_nodes(query)
+            nodes, corpus, per_index = self._eligible_nodes(query)
         except Exception:
             # No raw backend error, node text or credentials enter tool observations.
             return RetrievalResult("failed", (), "RESOURCE_FORBIDDEN")
         if not nodes:
             return RetrievalResult("empty", ())
-        dense = _LlamaDense(self._index, nodes, self._cutoff)
+        dense = _LlamaDense(per_index, self._cutoff)
         bm25 = Bm25Retriever(self._tokenizer, k1=self._bm25_k1, b=self._bm25_b)
         bm25.add(corpus)
         service = RetrievalService(
@@ -148,7 +166,7 @@ class LlamaIndexRetriever:
             or (scope_type == "global" and scope_document_id is not None)
         ):
             return None
-        node = self._find_node(chunk_id)
+        node = self._find_node(chunk_id, principal_id=principal_id)
         if node is None:
             return None
         record = _record(node)
@@ -169,68 +187,121 @@ class LlamaIndexRetriever:
             retrieval_config_version=record.retrieval_config_version,
         )
 
-    def _find_node(self, chunk_id: str) -> TextNode | None:
-        node_ids = self._index.index_struct.nodes_dict.values()
-        if chunk_id in node_ids:
-            node = self._index.docstore.get_node(chunk_id)
-            if isinstance(node, TextNode):
+    def _selected_indexes(
+        self, principal_id: str
+    ) -> dict[str | None, VectorStoreIndex]:
+        """Indexes this principal may be served from, by library.
+
+        No resolver means every index (the pre-S3 single-index shape);
+        a legacy single index has no library key, so it is also served
+        whole and the authorize hook remains its enforcement. A resolver
+        failure denies everything (fail closed) rather than falling
+        back to all libraries. The returned dict is a per-query
+        snapshot, so a holder added mid-query never breaks iteration.
+        """
+        if self._visible_libraries_for is None:
+            return dict(self._indexes)
+        if not any(key is not None for key in self._indexes):
+            return dict(self._indexes)
+        try:
+            visible = set(self._visible_libraries_for(principal_id))
+        except Exception:
+            return {}
+        return {
+            key: index
+            for key, index in self._indexes.items()
+            if key in visible
+        }
+
+    def _find_node(self, chunk_id: str, *, principal_id: str) -> TextNode | None:
+        for index in self._selected_indexes(principal_id).values():
+            node_ids = index.index_struct.nodes_dict.values()
+            if chunk_id in node_ids:
+                node = index.docstore.get_node(chunk_id)
+                if isinstance(node, TextNode):
+                    record = _record(node)
+                    if record is not None and record.chunk_id == chunk_id:
+                        return node
+            for node_id in node_ids:
+                node = index.docstore.get_node(node_id)
+                if not isinstance(node, TextNode):
+                    continue
                 record = _record(node)
                 if record is not None and record.chunk_id == chunk_id:
                     return node
-        for node_id in node_ids:
-            node = self._index.docstore.get_node(node_id)
-            if not isinstance(node, TextNode):
-                continue
-            record = _record(node)
-            if record is not None and record.chunk_id == chunk_id:
-                return node
         return None
 
     def _eligible_nodes(self, query: RetrievalQuery):
         nodes: dict[str, TextNode] = {}
         corpus: list[ChunkRecord] = []
-        for node_id in self._index.index_struct.nodes_dict.values():
-            node = self._index.docstore.get_node(node_id)
-            if not isinstance(node, TextNode):
-                continue
-            record = _record(node)
-            if record is None or not passes_filters(record, query):
-                continue
-            authorized = self._authorize(query.principal_id, record.document_id, record.version_id)
-            if authorized is not True:
-                continue
-            nodes[record.chunk_id] = node
-            corpus.append(record)
-        return nodes, tuple(corpus)
+        per_index: list[tuple[VectorStoreIndex, dict[str, TextNode]]] = []
+        for index in self._selected_indexes(query.principal_id).values():
+            index_nodes: dict[str, TextNode] = {}
+            for node_id in index.index_struct.nodes_dict.values():
+                node = index.docstore.get_node(node_id)
+                if not isinstance(node, TextNode):
+                    continue
+                record = _record(node)
+                if record is None or not passes_filters(record, query):
+                    continue
+                authorized = self._authorize(
+                    query.principal_id, record.document_id, record.version_id
+                )
+                if authorized is not True:
+                    continue
+                index_nodes[record.chunk_id] = node
+                if record.chunk_id not in nodes:
+                    nodes[record.chunk_id] = node
+                    corpus.append(record)
+            per_index.append((index, index_nodes))
+        return nodes, tuple(corpus), per_index
 
 
 class _LlamaDense:
-    def __init__(self, index: VectorStoreIndex, nodes: dict[str, TextNode], cutoff: float):
-        self._index = index
-        self._node_ids = tuple(node.node_id for node in nodes.values())
-        self._chunk_by_node = {node.node_id: chunk_id for chunk_id, node in nodes.items()}
+    """Dense search merged across the selected indexes.
+
+    Each index is searched at its own top-k and the hits are merged:
+    per-index top-k union is exactly the global top-k, because any hit
+    below its own index's top-k has k better hits in that index alone.
+    """
+
+    def __init__(
+        self,
+        sources: list[tuple[VectorStoreIndex, dict[str, TextNode]]],
+        cutoff: float,
+    ) -> None:
+        self._sources = sources
         self._cutoff = cutoff
 
     def search(self, query: str, k: int) -> tuple[RankedHit, ...]:
         try:
-            # Construct the retriever directly: index.as_retriever()
-            # forwards node_ids itself on llama-index-core 0.11.23, so
-            # passing node_ids through it raises TypeError and every
-            # dense search silently degraded to no hits (FR-RAG-009).
-            retriever = VectorIndexRetriever(
-                index=self._index,
-                similarity_top_k=k,
-                node_ids=list(self._node_ids),
-            )
-            hits = retriever.retrieve(query)
-            ranked = [
-                RankedHit(self._chunk_by_node[hit.node.node_id], float(hit.score), "dense")
-                for hit in hits
-                if hit.node.node_id in self._chunk_by_node
-                and hit.score is not None
-                and math.isfinite(hit.score)
-                and hit.score > self._cutoff
-            ]
+            ranked: list[RankedHit] = []
+            for index, nodes in self._sources:
+                if not nodes:
+                    continue
+                # Construct the retriever directly: index.as_retriever()
+                # forwards node_ids itself on llama-index-core 0.11.23, so
+                # passing node_ids through it raises TypeError and every
+                # dense search silently degraded to no hits (FR-RAG-009).
+                retriever = VectorIndexRetriever(
+                    index=index,
+                    similarity_top_k=k,
+                    node_ids=[node.node_id for node in nodes.values()],
+                )
+                chunk_by_node = {
+                    node.node_id: chunk_id for chunk_id, node in nodes.items()
+                }
+                hits = retriever.retrieve(query)
+                for hit in hits:
+                    if hit.node.node_id not in chunk_by_node:
+                        continue
+                    if hit.score is None or not math.isfinite(hit.score):
+                        continue
+                    if hit.score <= self._cutoff:
+                        continue
+                    ranked.append(
+                        RankedHit(chunk_by_node[hit.node.node_id], float(hit.score), "dense")
+                    )
             # ANN traversal order varies between runs; make tie order a
             # pure function of (score, chunk_id) so fusion ranks are
             # stable across runs and environments.
@@ -281,6 +352,7 @@ def _record(node: TextNode) -> ChunkRecord | None:
     chunk_id = metadata.get("chunk_id")
     if not isinstance(chunk_id, str) or not chunk_id.strip():
         chunk_id = node.node_id
+    library_id = metadata.get("library_id")
     return ChunkRecord(
         chunk_id=chunk_id,
         document_id=metadata["document_id"],
@@ -289,4 +361,5 @@ def _record(node: TextNode) -> ChunkRecord | None:
         index_generation=metadata["index_generation"],
         embedding_model_version=metadata["embedding_model_version"],
         retrieval_config_version=metadata["retrieval_config_version"],
+        library_id=library_id if isinstance(library_id, str) else "",
     )

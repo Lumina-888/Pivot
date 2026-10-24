@@ -554,19 +554,19 @@ def _llama_backend(
     version_rows,
     visible_libraries_for=None,
 ):
-    """Build the Qdrant-backed LlamaIndex, its reconcile sync and authorize.
+    """Build the per-library Qdrant LlamaIndex set, its reconcile sync and authorize.
 
-    Returns (index holder, sync, authorize). The sync reconciles one
+    Returns (index set, sync, authorize). The sync reconciles one
     document's nodes with live facts after ingest or deletion; it never
     raises, because derived index state must not break document writes
     (authorization is rechecked live at query time regardless).
 
-    visible_libraries_for maps a user id to the libraries that user may
-    see. The LlamaIndex path enforces library visibility here, in the
-    authorize hook, rather than through the query's library filter: node
-    metadata does not carry library_id yet (per-library collections and
-    node metadata land in S3), so filtering nodes by library would drop
-    every node. The hook reads live document facts, never index flags.
+    Library enforcement has two layers here. The set holds one
+    collection per library, and the retriever only queries the
+    collections of libraries the caller may see (collection
+    selection). The authorize hook additionally rechecks each hit
+    against live document facts and library visibility, so a stale
+    node in a visible collection still cannot leak.
     """
     if qdrant_store is None or query_embedder is None:
         raise RuntimeError(
@@ -585,7 +585,7 @@ def _llama_backend(
     try:
         from pivot.retrieval.llama_embeddings import PivotEmbedding
         from pivot.retrieval.llama_index_builder import _payload_of, scroll_payloads
-        from pivot.retrieval.llama_qdrant_index import LlamaQdrantIndex
+        from pivot.retrieval.llama_qdrant_index import LlamaLibraryIndexSet
     except ImportError as exc:
         raise RuntimeError(
             "llama-index packages are not installed; reinstall the api package"
@@ -594,6 +594,23 @@ def _llama_backend(
     def external_llm_allowed(version_id: str) -> bool:
         version = version_rows.get(version_id)
         return bool(version is not None and version.external_llm_allowed)
+
+    def library_id_for(version_id: str) -> str | None:
+        # Live facts win over payload fields: a document that moved
+        # libraries since ingest resolves to its current library, and
+        # a version with no live facts resolves to nothing (its
+        # payload is skipped, fail closed).
+        try:
+            version = version_rows.get(version_id)
+            if version is None:
+                return None
+            document = document_rows.get(version.document_id)
+            if document is None:
+                return None
+            library_id = document.library_id
+            return library_id if isinstance(library_id, str) and library_id.strip() else None
+        except Exception:
+            return None
 
     client = settings.llama_qdrant_client
     if client is None:
@@ -610,7 +627,7 @@ def _llama_backend(
             client_kwargs["api_key"] = settings.qdrant_api_key
         client = SdkQdrantClient(**client_kwargs)
 
-    holder = LlamaQdrantIndex.open(
+    holders = LlamaLibraryIndexSet.open(
         client=client,
         native_collection=settings.qdrant_collection or "",
         embed_model=PivotEmbedding(
@@ -622,6 +639,7 @@ def _llama_backend(
         distance=settings.qdrant_distance or "Cosine",
         native_payloads=scroll_payloads(qdrant_store),
         external_llm_allowed=external_llm_allowed,
+        library_id_for=library_id_for,
         rebuild=settings.llama_index_rebuild,
     )
 
@@ -629,20 +647,24 @@ def _llama_backend(
         try:
             current_payloads: list = []
             document = document_rows.get(document_id)
-            if document is not None and document.deleted_at is None:
-                current = None
-                for version in version_rows.list_for_document(document_id):
-                    if version.current:
-                        current = version
-                        break
-                if current is not None:
-                    current_payloads = [
-                        payload
-                        for payload in scroll_payloads(qdrant_store)
-                        if _payload_of(payload).get("version_id") == current.id
-                    ]
-            holder.reconcile_document(
+            library_id = None
+            if document is not None:
+                library_id = document.library_id
+                if document.deleted_at is None:
+                    current = None
+                    for version in version_rows.list_for_document(document_id):
+                        if version.current:
+                            current = version
+                            break
+                    if current is not None:
+                        current_payloads = [
+                            payload
+                            for payload in scroll_payloads(qdrant_store)
+                            if _payload_of(payload).get("version_id") == current.id
+                        ]
+            holders.reconcile_document(
                 document_id,
+                library_id=library_id,
                 current_payloads=current_payloads,
                 external_llm_allowed=external_llm_allowed,
             )
@@ -671,7 +693,7 @@ def _llama_backend(
         except Exception:
             return False
 
-    return holder, sync, authorize
+    return holders, sync, authorize
 
 
 def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly:
@@ -806,11 +828,11 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         )
         return tuple(sorted(access.visible_libraries(principal)))
 
-    llama_holder = None
+    llama_holders = None
     llama_sync = None
     llama_authorize = None
     if resolved.retrieval_backend == "llama" and resolved.vector_store == "qdrant":
-        llama_holder, llama_sync, llama_authorize = _llama_backend(
+        llama_holders, llama_sync, llama_authorize = _llama_backend(
             resolved,
             qdrant_store=qdrant_store,
             query_embedder=query_embedder,
@@ -970,22 +992,24 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         retrieval, version_rows, library_ids_for=_visible_libraries_for
     )
     agent_runner = None
-    if llama_holder is not None:
+    if llama_holders is not None:
         if llama_authorize is None:
             raise RuntimeError("llama backend was not built during assembly")
         from pivot.retrieval.llama_index_retriever import LlamaIndexRetriever
         from pivot.retrieval.llama_qdrant_index import CollectionRefresher
 
         # Under celery the worker owns ingest and reconciles the
-        # collection from its own process; the API snapshot converges
+        # collections from its own process; the API snapshot converges
         # through the interval-gated refresher instead of a restart.
+        # The set refreshes every library collection, so the refresher
+        # treats it like a single holder.
         refresher = None
         if resolved.ingest_backend == "celery":
             refresher = CollectionRefresher(
-                llama_holder, interval_seconds=resolved.llama_refresh_seconds
+                llama_holders, interval_seconds=resolved.llama_refresh_seconds
             )
         qa_retriever = LlamaIndexRetriever(
-            llama_holder.index,
+            indexes=llama_holders.indexes,
             policy=policy,
             tokenizer=tokenizer,
             bm25_k1=resolved.bm25_k1,
@@ -994,6 +1018,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             authorize=llama_authorize,
             reranker=reranker,
             refresher=refresher,
+            visible_libraries_for=_visible_libraries_for,
         )
     qa_executor: object = QaOrchestrator(qa_retriever, writer=draft_writer)
     if resolved.qa_engine == "agent":

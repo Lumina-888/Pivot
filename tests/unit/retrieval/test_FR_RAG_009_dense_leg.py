@@ -105,8 +105,8 @@ def test_FR_RAG_009_dense_leg_returns_semantic_only_hit():
 def test_FR_RAG_009_dense_search_returns_scored_hits():
     retriever = _retriever(cutoff=0.0)
     query = RetrievalQuery("harbor emblem", "user-1", "global", None)
-    nodes, _corpus = retriever._eligible_nodes(query)
-    dense = _LlamaDense(retriever._index, nodes, retriever._cutoff)
+    _, _corpus, per_index = retriever._eligible_nodes(query)
+    dense = _LlamaDense(per_index, retriever._cutoff)
     hits = dense.search("harbor emblem", 5)
     assert hits[0].chunk_id == "chunk-target"
     assert hits[0].score == pytest.approx(1.0)
@@ -143,12 +143,16 @@ def test_FR_RAG_009_dense_ties_break_by_chunk_id(monkeypatch):
         lambda **kwargs: _FakeRetriever(),
     )
     dense = _LlamaDense(
-        object(),
-        {
-            "chunk-a": TextNode(id_="n-a", text="x"),
-            "chunk-b": TextNode(id_="n-b", text="x"),
-            "chunk-c": TextNode(id_="n-c", text="x"),
-        },
+        [
+            (
+                object(),
+                {
+                    "chunk-a": TextNode(id_="n-a", text="x"),
+                    "chunk-b": TextNode(id_="n-b", text="x"),
+                    "chunk-c": TextNode(id_="n-c", text="x"),
+                },
+            )
+        ],
         0.0,
     )
     hits = dense.search("anything", 3)
