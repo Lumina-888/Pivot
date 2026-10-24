@@ -42,6 +42,7 @@ def create_app(
     conversations: ConversationService | None = None,
     exports: ExportService | None = None,
     audits: AuditService | None = None,
+    departments=None,
     ingest=None,
 ) -> FastAPI:
     """Create the HTTP assembly. Missing probes make /readyz fail closed.
@@ -142,7 +143,21 @@ def create_app(
     if audits is not None and auth is not None:
         from pivot.audit.http import build_audit_router
 
-        app.include_router(build_audit_router(audits, auth), prefix="/api/v1")
+        department_admins = (
+            departments.admin_departments if departments is not None else None
+        )
+        app.include_router(
+            build_audit_router(audits, auth, department_admins),
+            prefix="/api/v1",
+        )
+
+    if auth is not None and departments is not None:
+        from pivot.http.departments import build_departments_router
+
+        app.include_router(
+            build_departments_router(auth, departments),
+            prefix="/api/v1",
+        )
 
     if auth is not None:
         from pivot.http.admin import build_admin_router

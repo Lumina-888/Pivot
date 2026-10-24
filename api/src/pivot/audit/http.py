@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
@@ -49,7 +51,16 @@ def _actor(principal: Principal) -> Actor:
     )
 
 
-def build_audit_router(audits: AuditService, auth: AuthService) -> APIRouter:
+def build_audit_router(
+    audits: AuditService,
+    auth: AuthService,
+    department_admins: Callable[[Principal], frozenset[str]] | None = None,
+) -> APIRouter:
+    """Audit routes. Super admins list everything; department admins list
+    only their own departments' events (ADR-016 D10). The resolver maps a
+    principal to the departments they administer; without it, the route
+    keeps its previous super-admin-only behavior.
+    """
     router = APIRouter()
 
     @router.get("/admin/audit-events")
@@ -61,6 +72,18 @@ def build_audit_router(audits: AuditService, auth: AuthService) -> APIRouter:
         page_size: int | None = None,
     ) -> dict[str, object]:
         request_id, principal = _principal(request, auth)
+        if principal.role != "admin" and department_admins is not None:
+            dept_ids = department_admins(principal)
+            if dept_ids:
+                listed = audits.list_department_events(
+                    _actor(principal),
+                    dept_ids,
+                    request_id,
+                    filter_actor=actor,
+                    filter_action=action,
+                )
+                listed["pagination"] = None
+                return listed
         auth.require_admin(principal, request.url.path, request_id)
         _ = (page, page_size)
         listed = audits.list_events(

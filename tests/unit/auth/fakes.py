@@ -151,6 +151,38 @@ class InMemoryResources:
     def get_memberships(self, user_id: str) -> tuple[Membership, ...]:
         return self.memberships.get(user_id, ())
 
+    def create_library(self, library: Library) -> None:
+        self.libraries[library.id] = library
+
+    def delete_library(self, library_id: str) -> None:
+        self.libraries.pop(library_id, None)
+
+    def get_department_members(self, dept_id: str) -> tuple[Membership, ...]:
+        return tuple(
+            member
+            for members in self.memberships.values()
+            for member in members
+            if member.dept_id == dept_id
+        )
+
+    def add_membership(self, membership: Membership) -> None:
+        current = tuple(
+            member
+            for member in self.memberships.get(membership.user_id, ())
+            if member.dept_id != membership.dept_id
+        )
+        self.memberships[membership.user_id] = current + (membership,)
+
+    def remove_membership(self, user_id: str, dept_id: str) -> None:
+        self.memberships[user_id] = tuple(
+            member
+            for member in self.memberships.get(user_id, ())
+            if member.dept_id != dept_id
+        )
+
+    def set_membership(self, membership: Membership) -> None:
+        self.add_membership(membership)
+
     def claim_conversation(self, conversation_id: str, owner_id: str) -> str:
         current = self.conversations.get(conversation_id)
         if current is None:
