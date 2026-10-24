@@ -77,6 +77,10 @@ class IngestRequest:
     space: str = ""
     tags: tuple[str, ...] = ()
     retrieval_config_version: str = ""
+    # Library the document belongs to (ADR-016 D1), stamped into vector
+    # payloads so retrieval can filter by library. Empty means the caller
+    # predates library tagging; the payload then omits the key.
+    library_id: str = ""
 
 
 class IngestWorker:
@@ -148,6 +152,7 @@ class IngestWorker:
                 title=request.title,
                 space=request.space,
                 tags=request.tags,
+                library_id=request.library_id or None,
                 ready=True,
                 current=True,
                 allowed=True,

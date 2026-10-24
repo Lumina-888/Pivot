@@ -93,6 +93,7 @@ def resources() -> InMemoryResources:
         shared_visible=True,
         export_allowed=True,
         owner_id="usr_admin",
+        library_id="pub",
     )
     catalog.documents["doc_secret"] = DocumentAuthz(
         id="doc_secret",
@@ -100,6 +101,7 @@ def resources() -> InMemoryResources:
         shared_visible=False,
         export_allowed=False,
         owner_id="usr_admin",
+        library_id="dept_eng",
     )
     catalog.documents["doc_deleted"] = DocumentAuthz(
         id="doc_deleted",
@@ -107,6 +109,7 @@ def resources() -> InMemoryResources:
         shared_visible=True,
         export_allowed=True,
         owner_id="usr_admin",
+        library_id="pub",
     )
     catalog.chunks["chk_shared"] = ChunkAuthz(
         id="chk_shared", document_id="doc_shared", published=True

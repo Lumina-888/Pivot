@@ -153,6 +153,25 @@ def persisted_from_run(bundle: RunBundle) -> PersistedAnswer:
     )
 
 
+def seed_admin_user(assembly, user_id: str = "usr_admin") -> None:
+    """Seed an admin user into an assembled runtime's user directory.
+
+    S2 resolves library visibility from live user facts, so a retriever
+    call that names a principal id must name a real account. Tests that
+    used the synthetic "usr_admin" id before S2 now seed it as admin.
+    """
+    assembly.users.save(
+        UserAccount(
+            id=user_id,
+            username=user_id,
+            password_hash="seeded-test-admin",
+            role="admin",
+            status="active",
+            token_version=1,
+        )
+    )
+
+
 class Pipeline:
     def __init__(self) -> None:
         hasher = _auth_fakes.TestPasswordHasher()
@@ -281,6 +300,7 @@ class Pipeline:
                     text=chunk.text,
                     title=document.title,
                     space=document.space,
+                    library_id=document.library_id,
                     ready=version.state == "ready",
                     current=version.current,
                     allowed=True,

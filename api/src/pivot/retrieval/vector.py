@@ -28,6 +28,7 @@ def chunk_record_from_payload(hit: Mapping) -> ChunkRecord | None:
         text=str(payload.get("text") or ""),
         title=str(payload.get("title") or ""),
         space=str(payload.get("space") or ""),
+        library_id=str(payload.get("library_id") or ""),
         tags=tags,
         ready=_flag(payload, "ready", default=False),
         current=_flag(payload, "current", default=False),

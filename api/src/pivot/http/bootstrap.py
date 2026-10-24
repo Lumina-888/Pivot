@@ -13,7 +13,7 @@ from pivot.audit.policy import AuditWriteFailures, TieredAuditSink
 from pivot.audit.service import AuditService
 from pivot.audit.store import AppendOnlyAuditStore
 from pivot.auth.attempts import CacheLoginAttempts
-from pivot.auth.ports import UserAccount, UserDirectory
+from pivot.auth.ports import Principal, UserAccount, UserDirectory
 from pivot.auth.service import AuthService
 from pivot.auth.tokens import TokenService
 from pivot.db.audit import (
@@ -29,6 +29,7 @@ from pivot.db.documents import (
     SqlAlchemyVersionStore,
 )
 from pivot.db.exports import SqlAlchemyExportRepository
+from pivot.db.libraries import SqlAlchemyLibraryCatalog
 from pivot.db.models import Base
 from pivot.db.refresh import SqlAlchemyRefreshTokenStore
 from pivot.db.runs import SqlAlchemyRunStore
@@ -150,6 +151,33 @@ class _ConversationBoundCatalog:
         if record is not None:
             return record.owner_id
         return self._inner.claim_conversation(conversation_id, owner_id)
+
+
+class _LibraryBackedCatalog:
+    """Resource catalog that reads library facts from PostgreSQL.
+
+    The in-memory catalog never carries libraries or memberships, so on
+    the PostgreSQL path it would leave every non-admin with only the
+    public library. This wrapper serves the three library methods from
+    the database reader and delegates everything else to the inner
+    catalog, mirroring _ConversationBoundCatalog above.
+    """
+
+    def __init__(self, inner, libraries: SqlAlchemyLibraryCatalog) -> None:
+        self._inner = inner
+        self._libraries = libraries
+
+    def __getattr__(self, name: str):
+        return getattr(self._inner, name)
+
+    def get_library(self, library_id: str):
+        return self._libraries.get_library(library_id)
+
+    def list_libraries(self):
+        return self._libraries.list_libraries()
+
+    def get_memberships(self, user_id: str):
+        return self._libraries.get_memberships(user_id)
 
 
 class _RuntimeProbes:
@@ -463,9 +491,14 @@ def _open_redis_stores(
 
 
 class _RetrievalBridge:
-    def __init__(self, retrieval: RetrievalService, versions=None) -> None:
+    def __init__(
+        self, retrieval: RetrievalService, versions=None, *, library_ids_for=None
+    ) -> None:
         self._retrieval = retrieval
         self._versions = versions
+        # Maps a user id to the libraries that user may see. When absent
+        # (legacy constructions) the query carries no library constraint.
+        self._library_ids_for = library_ids_for
 
     def retrieve(
         self,
@@ -475,12 +508,16 @@ class _RetrievalBridge:
         scope_document_id: str | None,
         principal_id: str,
     ) -> RetrievalResult:
+        library_ids = None
+        if self._library_ids_for is not None:
+            library_ids = self._library_ids_for(principal_id)
         outcome = self._retrieval.retrieve(
             RetrievalQuery(
                 text=question,
                 principal_id=principal_id,
                 scope_type=scope_type,
                 scope_document_id=scope_document_id,
+                library_ids=library_ids,
             )
         )
         if outcome.status != "ok":
@@ -515,6 +552,7 @@ def _llama_backend(
     query_embedder,
     document_rows,
     version_rows,
+    visible_libraries_for=None,
 ):
     """Build the Qdrant-backed LlamaIndex, its reconcile sync and authorize.
 
@@ -522,6 +560,13 @@ def _llama_backend(
     document's nodes with live facts after ingest or deletion; it never
     raises, because derived index state must not break document writes
     (authorization is rechecked live at query time regardless).
+
+    visible_libraries_for maps a user id to the libraries that user may
+    see. The LlamaIndex path enforces library visibility here, in the
+    authorize hook, rather than through the query's library filter: node
+    metadata does not carry library_id yet (per-library collections and
+    node metadata land in S3), so filtering nodes by library would drop
+    every node. The hook reads live document facts, never index flags.
     """
     if qdrant_store is None or query_embedder is None:
         raise RuntimeError(
@@ -614,11 +659,15 @@ def _llama_backend(
             if document is None or document.deleted_at is not None:
                 return False
             version = version_rows.get(version_id)
-            return bool(
+            if not (
                 version is not None
                 and version.document_id == document_id
                 and version.current
-            )
+            ):
+                return False
+            if visible_libraries_for is None:
+                return True
+            return document.library_id in visible_libraries_for(principal_id)
         except Exception:
             return False
 
@@ -727,6 +776,36 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         ingest_embedding = query_embedder
     else:
         vector_store = None
+    # The catalog is built before the LlamaIndex backend because the
+    # backend's authorize hook needs library visibility (S2). Previously
+    # this block lived below, next to AuthService.
+    resources = InMemoryResources()
+    runs = RunService(store=run_rows)
+    conversations = ConversationService(runs=runs, store=conversation_rows)
+    catalog = _ConversationBoundCatalog(resources, conversations)
+    if resolved.storage == "postgres":
+        # The sessions factory is built in the PostgreSQL branch above;
+        # the memory path keeps the in-memory catalog unchanged.
+        catalog = _LibraryBackedCatalog(catalog, SqlAlchemyLibraryCatalog(sessions))
+    access = AccessControl(catalog)
+
+    def _visible_libraries_for(user_id: str) -> tuple[str, ...]:
+        # Unknown users and lookup failures see nothing (fail closed).
+        try:
+            user = users.get_by_id(user_id)
+        except Exception:
+            return ()
+        if user is None:
+            return ()
+        principal = Principal(
+            user_id=user.id,
+            username=user.username,
+            role=user.role,
+            token_version=user.token_version,
+            status=user.status,
+        )
+        return tuple(sorted(access.visible_libraries(principal)))
+
     llama_holder = None
     llama_sync = None
     llama_authorize = None
@@ -737,6 +816,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             query_embedder=query_embedder,
             document_rows=document_rows,
             version_rows=version_rows,
+            visible_libraries_for=_visible_libraries_for,
         )
     elif resolved.retrieval_backend == "llama" and resolved.retrieval_backend_explicit:
         raise RuntimeError(
@@ -768,10 +848,6 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
                     updated_at=now,
                 )
             )
-    resources = InMemoryResources()
-    runs = RunService(store=run_rows)
-    conversations = ConversationService(runs=runs, store=conversation_rows)
-    catalog = _ConversationBoundCatalog(resources, conversations)
     if (
         resolved.login_max_failures is not None
         and resolved.login_window_seconds is not None
@@ -795,7 +871,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         refresh_tokens=refresh_tokens,
         audits=auth_audits,
         attempts=attempts,
-        access=AccessControl(catalog),
+        access=access,
         clock=clock,
         access_ttl=resolved.access_ttl,
         refresh_ttl=resolved.refresh_ttl,
@@ -890,7 +966,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         download_ttl_seconds=resolved.download_ttl,
     )
     draft_writer = _draft_writer(resolved)
-    qa_retriever: object = _RetrievalBridge(retrieval, version_rows)
+    qa_retriever: object = _RetrievalBridge(
+        retrieval, version_rows, library_ids_for=_visible_libraries_for
+    )
     agent_runner = None
     if llama_holder is not None:
         if llama_authorize is None:

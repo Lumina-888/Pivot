@@ -55,6 +55,11 @@ class DocumentAuthz:
     shared_visible: bool
     export_allowed: bool
     owner_id: str | None = None
+    # Library the document belongs to (ADR-016 D1). "unassigned" is the
+    # fail-closed default: only super admins can see unassigned documents.
+    # shared_visible is retained for compatibility but is no longer an
+    # authorization basis since S2.
+    library_id: str = "unassigned"
 
 
 @dataclass(frozen=True)
@@ -142,6 +147,8 @@ class ResourceCatalog(Protocol):
     def get_conversation_owner(self, conversation_id: str) -> str | None: ...
 
     def get_library(self, library_id: str) -> Library | None: ...
+
+    def list_libraries(self) -> tuple[Library, ...]: ...
 
     def get_memberships(self, user_id: str) -> tuple[Membership, ...]: ...
 

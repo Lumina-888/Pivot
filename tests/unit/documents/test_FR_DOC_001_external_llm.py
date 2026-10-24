@@ -24,7 +24,10 @@ def test_FR_DOC_001_upload_records_external_llm_allowed(service):
     assert allowed.external_llm_allowed is True
     assert denied.external_llm_allowed is False
     detail = service.get_detail(
-        allowed.document_id, viewer_role="admin", request_id="req_detail"
+        allowed.document_id,
+        viewer_role="admin",
+        visible_libraries=frozenset({"pub", "unassigned"}),
+        request_id="req_detail",
     )
     assert detail["versions"][0]["external_llm_allowed"] is True
     assert "storage_key" not in detail["versions"][0]

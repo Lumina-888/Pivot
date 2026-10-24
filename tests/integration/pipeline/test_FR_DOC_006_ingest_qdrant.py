@@ -113,6 +113,8 @@ def _ingest(assembly) -> dict:
             message_id="msg_runtime_ingest",
             title="Attendance Policy",
             space="hr",
+            # Test fixture stages a public policy document.
+            library_id="pub",
             embedding_model_version="hash-embed-test",
             retrieval_config_version="runtime-injected",
         )

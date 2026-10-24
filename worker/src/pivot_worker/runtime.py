@@ -64,6 +64,7 @@ class DocumentIngestRunner:
                 title=prepared.document.title,
                 space=prepared.document.space,
                 tags=prepared.document.tags,
+                library_id=prepared.document.library_id,
                 embedding_model_version=self._embedding_model_version,
                 retrieval_config_version=self._retrieval_config_version,
             )

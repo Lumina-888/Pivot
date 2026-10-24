@@ -111,6 +111,7 @@ def _upsert_policy(assembly, *, ready: bool = True, chunk_id: str = "chk_policy"
                 "text": text,
                 "title": "Attendance Policy",
                 "space": "hr",
+                "library_id": "pub",
                 "ready": ready,
                 "current": ready,
                 "allowed": True,

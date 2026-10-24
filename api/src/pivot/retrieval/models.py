@@ -14,6 +14,10 @@ class ChunkRecord:
     text: str
     title: str = ""
     space: str = ""
+    # Library the chunk's document belongs to (ADR-016 D1). Empty means
+    # the chunk predates library tagging and is fail-closed under a
+    # library-constrained query.
+    library_id: str = ""
     tags: tuple[str, ...] = ()
     kind: str = "pdf"
     ready: bool = True
@@ -38,6 +42,12 @@ class RetrievalQuery:
     space: str | None = None
     tags: tuple[str, ...] = ()
     prompt: str = ""
+    # Libraries the caller may see, derived server-side from the
+    # Principal. None means the caller asserts no library constraint
+    # (legacy and internal paths only); production callers must always
+    # pass the Principal's visible libraries. An explicit empty tuple
+    # matches nothing.
+    library_ids: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)

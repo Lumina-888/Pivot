@@ -50,6 +50,15 @@ def _upload(client: TestClient, token: str, title: str, extra: bytes = b""):
     return response.json()
 
 
+def _set_library(pipeline: Pipeline, document_id: str, library_id: str) -> None:
+    # HTTP uploads land in the fail-closed "unassigned" library; tests
+    # place documents in a library explicitly to exercise visibility.
+    record = pipeline.doc_store.get(document_id)
+    assert record is not None
+    record.library_id = library_id
+    pipeline.doc_store.save(record)
+
+
 def test_FR_RBAC_003_http_document_detail_requires_bearer_and_hides_guessed_id():
     client = _client(_with_admin(Pipeline()))
     missing = client.get("/api/v1/documents/doc_guessed", headers={"X-Request-ID": "req_anon"})
@@ -90,7 +99,10 @@ def test_FR_DOC_007_http_detail_and_versions_omit_storage_key():
     assert versions.json()["items"][0]["version_id"] == uploaded["version_id"]
 
 
-def test_FR_RBAC_004_http_user_can_read_shared_but_not_internal():
+def test_FR_RBAC_004_http_user_can_read_public_library_but_not_other_library():
+    # S2 changed the authorization basis from space to library: the
+    # user reads the public-library document, not the other
+    # department's document, whatever their space flags say.
     pipeline = _with_admin(Pipeline())
     client = _client(pipeline)
     admin = _login(client, "admin", "admin-password", "req_admin")
@@ -108,6 +120,8 @@ def test_FR_RBAC_004_http_user_can_read_shared_but_not_internal():
     )
     assert shared.status_code == 201
     assert internal.status_code == 201
+    _set_library(pipeline, shared.json()["document_id"], "pub")
+    _set_library(pipeline, internal.json()["document_id"], "dept_art")
     user = _login(client, "alice", "correct-password", "req_alice")
     ok = client.get(
         f"/api/v1/documents/{shared.json()['document_id']}",

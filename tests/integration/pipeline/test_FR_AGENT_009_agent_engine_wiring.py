@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage
 from pivot.http import RuntimeSettings, assemble_runtime
 from pivot.qa.agent_model import AgentModel, AgentModelConfig
+from test_FR_RAG_llama_qdrant_backend import _seed_admin_user
 
 UPLOAD_TEXT = "business travel requires an application three days in advance."
 QUESTION = "business travel application three days"
@@ -181,6 +182,9 @@ def test_FR_AGENT_009_agent_engine_assembles_runner_and_answers(tmp_path):
             agent_model=_scripted_model(sink),
         )
     )
+    # S2: the agent run resolves library visibility from live user facts,
+    # so the synthetic "usr_admin" principal must be a real admin account.
+    _seed_admin_user(assembly)
     assert assembly.qa_engine == "agent"
     assert assembly.agent_runner is not None
     token = _login(assembly)
