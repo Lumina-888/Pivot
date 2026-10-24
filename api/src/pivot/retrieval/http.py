@@ -39,6 +39,9 @@ def build_search_router(service: RetrievalService, auth: AuthService) -> APIRout
                 principal_id=principal.user_id,
                 space=space,
                 tags=(tag,) if tag else (),
+                # Library scope is derived server-side from the Principal;
+                # it is never accepted from the request.
+                library_ids=tuple(sorted(auth.visible_libraries(principal))),
             )
         )
         items = [

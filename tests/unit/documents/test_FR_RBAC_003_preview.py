@@ -1,8 +1,39 @@
 from __future__ import annotations
 
 import pytest
-from fakes import pdf_bytes
+from fakes import (
+    MemoryAudits,
+    MemoryChunks,
+    MemoryDocuments,
+    MemoryObjects,
+    MemoryTasks,
+    MemoryVersions,
+    pdf_bytes,
+)
 from pivot.documents.errors import DocumentError
+from pivot.documents.service import DocumentService
+
+ADMIN_LIBRARIES = frozenset({"pub", "unassigned", "dept_eng", "dept_art"})
+
+
+def _service_with_store() -> tuple[DocumentService, MemoryDocuments]:
+    store = MemoryDocuments()
+    service = DocumentService(
+        documents=store,
+        versions=MemoryVersions(),
+        chunks=MemoryChunks(),
+        tasks=MemoryTasks(),
+        objects=MemoryObjects(),
+        audits=MemoryAudits(),
+    )
+    return service, store
+
+
+def _set_library(store: MemoryDocuments, document_id: str, library_id: str) -> None:
+    record = store.get(document_id)
+    assert record is not None
+    record.library_id = library_id
+    store.save(record)
 
 
 def _upload(service, *, title: str, space: str = "shared", extra: bytes = b""):
@@ -17,7 +48,10 @@ def _upload(service, *, title: str, space: str = "shared", extra: bytes = b""):
     )
 
 
-def test_FR_RBAC_003_preview_returns_stored_bytes_without_storage_key(service):
+def test_FR_RBAC_003_preview_returns_stored_bytes_without_storage_key():
+    # The previewed document lives in the public library, which the
+    # user may see; the mechanism assertions are unchanged.
+    service, store = _service_with_store()
     content = pdf_bytes() + b"\npreview-body"
     version = service.upload(
         filename="policy.pdf",
@@ -27,9 +61,11 @@ def test_FR_RBAC_003_preview_returns_stored_bytes_without_storage_key(service):
         actor_id="usr_admin",
         request_id="req_up",
     )
+    _set_library(store, version.document_id, "pub")
     preview = service.open_content(
         version.document_id,
         viewer_role="user",
+        visible_libraries=frozenset({"pub"}),
         request_id="req_preview",
         purpose="preview",
         actor_id="usr_alice",
@@ -43,6 +79,7 @@ def test_FR_RBAC_003_preview_returns_stored_bytes_without_storage_key(service):
     download = service.open_content(
         version.document_id,
         viewer_role="user",
+        visible_libraries=frozenset({"pub"}),
         request_id="req_dl",
         purpose="download",
         actor_id="usr_alice",
@@ -51,12 +88,17 @@ def test_FR_RBAC_003_preview_returns_stored_bytes_without_storage_key(service):
     assert download.body == content
 
 
-def test_FR_RBAC_003_user_cannot_preview_guessed_or_internal_id(service):
+def test_FR_RBAC_003_user_cannot_preview_guessed_or_internal_id():
+    # The "internal" document now lives in another department's
+    # library; the space flag alone authorizes nothing (S2).
+    service, store = _service_with_store()
     internal = _upload(service, title="secret", space="internal")
+    _set_library(store, internal.document_id, "dept_art")
     with pytest.raises(DocumentError) as guessed:
         service.open_content(
             "doc_guessed",
             viewer_role="user",
+            visible_libraries=frozenset({"pub"}),
             request_id="req_guess",
             purpose="preview",
             actor_id="usr_alice",
@@ -66,6 +108,7 @@ def test_FR_RBAC_003_user_cannot_preview_guessed_or_internal_id(service):
         service.open_content(
             internal.document_id,
             viewer_role="user",
+            visible_libraries=frozenset({"pub"}),
             request_id="req_hid",
             purpose="download",
             actor_id="usr_alice",
@@ -74,6 +117,7 @@ def test_FR_RBAC_003_user_cannot_preview_guessed_or_internal_id(service):
     allowed = service.open_content(
         internal.document_id,
         viewer_role="admin",
+        visible_libraries=ADMIN_LIBRARIES,
         request_id="req_admin",
         purpose="preview",
         actor_id="usr_admin",
@@ -98,6 +142,7 @@ def test_FR_DOC_007_download_unavailable_after_cleanup(service):
         service.open_content(
             version.document_id,
             viewer_role="user",
+            visible_libraries=frozenset({"pub"}),
             request_id="req_user",
             purpose="download",
             actor_id="usr_alice",
@@ -106,6 +151,7 @@ def test_FR_DOC_007_download_unavailable_after_cleanup(service):
     still_there = service.open_content(
         version.document_id,
         viewer_role="admin",
+        visible_libraries=ADMIN_LIBRARIES,
         request_id="req_admin",
         purpose="download",
         actor_id="usr_admin",
@@ -116,6 +162,7 @@ def test_FR_DOC_007_download_unavailable_after_cleanup(service):
         service.open_content(
             version.document_id,
             viewer_role="admin",
+            visible_libraries=ADMIN_LIBRARIES,
             request_id="req_gone",
             purpose="preview",
             actor_id="usr_admin",
@@ -135,6 +182,7 @@ def test_NFR_SEC_015_download_filename_is_sanitized(service):
     payload = service.open_content(
         version.document_id,
         viewer_role="admin",
+        visible_libraries=ADMIN_LIBRARIES,
         request_id="req_name",
         purpose="download",
         actor_id="usr_admin",

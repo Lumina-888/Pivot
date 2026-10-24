@@ -15,6 +15,7 @@ from pivot.documents.ports import DocumentRecord, VersionRecord
 from pivot.http import RuntimeSettings, assemble_runtime
 from pivot.retrieval.fakes import HashingQueryEmbedder
 from pivot.storage.adapters.qdrant import QdrantVectorStore
+from test_FR_RAG_llama_qdrant_backend import _seed_admin_user
 
 CHUNK_TEXT = "一个月内累计迟到三次，视为旷工一天。"
 QUESTION = "迟到三次怎么处理？"
@@ -92,6 +93,7 @@ def _seed_payloads(client: _Client) -> None:
                 "text": CHUNK_TEXT,
                 "title": "考勤制度",
                 "space": "shared",
+                "library_id": "unassigned",
                 "tags": [],
                 "ready": True,
                 "current": True,
@@ -173,6 +175,7 @@ def test_FR_RAG_006_native_backend_is_default_and_answers(tmp_path):
     client = _Client()
     _seed_payloads(client)
     assembly = assemble_runtime(_settings(_db_url(tmp_path), client))
+    _seed_admin_user(assembly)
     _seed_facts(assembly)
     result = _retrieve(assembly)
     assert result.status == "ok"
@@ -188,6 +191,7 @@ def test_FR_RAG_006_llama_backend_returns_same_evidence(tmp_path):
     _seed_payloads(client)
     url = _db_url(tmp_path)
     native = assemble_runtime(_settings(url, client))
+    _seed_admin_user(native)
     _seed_facts(native)
     native_result = _retrieve(native)
     llama = assemble_runtime(_settings(url, client, retrieval_backend="llama"))
@@ -225,6 +229,8 @@ def test_FR_RAG_006_llama_backend_rechecks_live_facts(tmp_path):
     llama = assemble_runtime(
         _settings(_db_url(tmp_path), client, retrieval_backend="llama")
     )
+    _seed_admin_user(llama)
+    _seed_facts(llama)
     _seed_facts(llama)
     assert _retrieve(llama).status == "found"
     llama.version_rows.save(

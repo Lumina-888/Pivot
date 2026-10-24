@@ -145,6 +145,9 @@ class InMemoryResources:
     def get_library(self, library_id: str) -> Library | None:
         return self.libraries.get(library_id)
 
+    def list_libraries(self) -> tuple[Library, ...]:
+        return tuple(self.libraries.values())
+
     def get_memberships(self, user_id: str) -> tuple[Membership, ...]:
         return self.memberships.get(user_id, ())
 

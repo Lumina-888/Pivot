@@ -39,6 +39,11 @@ def test_FR_RBAC_001_http_search_requires_bearer():
 def test_FR_SEARCH_001_http_returns_ready_current_hits():
     pipeline = Pipeline()
     _version, _ready, document, _result = pipeline.ingest_policy_pdf("usr_alice")
+    # S2: uploads land in the unassigned library (admin-only). This test
+    # stages a public document, so claiming it to pub simulates the admin
+    # claim step before searching as a regular user.
+    document.library_id = "pub"
+    pipeline.doc_store.save(document)
     client = _client(pipeline, retrieval=pipeline.retrieval_for_ready_chunks())
     token = _login(client)
     response = client.get(

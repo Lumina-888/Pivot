@@ -60,6 +60,7 @@ def build_documents_router(
         principal = auth.authenticate(_bearer_token(request, request_id), request_id)
         items = service.list_library(
             viewer_role=principal.role,
+            visible_libraries=auth.visible_libraries(principal),
             space=space,
             tags=tuple(tags or ()),
         )
@@ -102,12 +103,22 @@ def build_documents_router(
     @router.get("/documents/{id}")
     def get_document(request: Request, id: str) -> dict[str, object]:
         request_id, principal = _principal(request, auth)
-        return service.get_detail(id, viewer_role=principal.role, request_id=request_id)
+        return service.get_detail(
+            id,
+            viewer_role=principal.role,
+            visible_libraries=auth.visible_libraries(principal),
+            request_id=request_id,
+        )
 
     @router.get("/documents/{id}/versions")
     def list_document_versions(request: Request, id: str) -> dict[str, object]:
         request_id, principal = _principal(request, auth)
-        items = service.list_versions(id, viewer_role=principal.role, request_id=request_id)
+        items = service.list_versions(
+            id,
+            viewer_role=principal.role,
+            visible_libraries=auth.visible_libraries(principal),
+            request_id=request_id,
+        )
         return {"items": list(items), "pagination": None}
 
     @router.post("/documents/{id}/retry")
@@ -148,6 +159,7 @@ def _open(
     return service.open_content(
         document_id,
         viewer_role=principal.role,
+        visible_libraries=auth.visible_libraries(principal),
         request_id=request_id,
         purpose=purpose,
         actor_id=principal.user_id,

@@ -26,6 +26,7 @@ from test_FR_RAG_llama_qdrant_backend import (
     _db_url,
     _memory_qdrant_client,
     _retrieve,
+    _seed_admin_user,
     _seed_facts,
     _seed_payloads,
 )
@@ -72,6 +73,7 @@ def test_FR_RAG_008_default_backend_is_llama(tmp_path):
     client = _Client()
     _seed_payloads(client)
     assembly = assemble_runtime(_settings(_db_url(tmp_path), client, _memory_qdrant_client()))
+    _seed_admin_user(assembly)
     _seed_facts(assembly)
     assert isinstance(assembly.qa_retriever, LlamaIndexRetriever)
     result = _retrieve(assembly)
@@ -91,6 +93,7 @@ def test_FR_RAG_008_native_backend_remains_available_for_rollback(tmp_path):
             retrieval_backend="native",
         )
     )
+    _seed_admin_user(assembly)
     _seed_facts(assembly)
     result = _retrieve(assembly)
     assert result.status == "ok"

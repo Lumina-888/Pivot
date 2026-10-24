@@ -29,6 +29,15 @@ def _client(pipeline: Pipeline) -> TestClient:
     )
 
 
+def _set_library(pipeline: Pipeline, document_id: str, library_id: str) -> None:
+    # HTTP uploads land in the fail-closed "unassigned" library; tests
+    # place documents in a library explicitly to exercise visibility.
+    record = pipeline.doc_store.get(document_id)
+    assert record is not None
+    record.library_id = library_id
+    pipeline.doc_store.save(record)
+
+
 def _login(client: TestClient, username: str, password: str, request_id: str) -> str:
     response = client.post(
         "/api/v1/auth/login",
@@ -68,10 +77,12 @@ def test_FR_RBAC_003_http_preview_requires_bearer_and_hides_guessed_id():
     assert guessed.json()["request_id"] == "req_guess"
 
 
-def test_FR_RBAC_003_http_user_can_preview_shared_bytes():
-    client = _client(_with_admin(Pipeline()))
+def test_FR_RBAC_003_http_user_can_preview_public_library_bytes():
+    pipeline = _with_admin(Pipeline())
+    client = _client(pipeline)
     admin = _login(client, "admin", "admin-password", "req_admin")
     uploaded = _upload(client, admin, "policy", extra=b"\nshared")
+    _set_library(pipeline, uploaded["document_id"], "pub")
     user = _login(client, "alice", "correct-password", "req_alice")
     preview = client.get(
         f"/api/v1/documents/{uploaded['document_id']}/preview",
@@ -89,9 +100,11 @@ def test_FR_RBAC_003_http_user_can_preview_shared_bytes():
 
 
 def test_FR_RBAC_003_http_user_cannot_preview_internal():
-    client = _client(_with_admin(Pipeline()))
+    pipeline = _with_admin(Pipeline())
+    client = _client(pipeline)
     admin = _login(client, "admin", "admin-password", "req_admin")
     internal = _upload(client, admin, "internal-doc", extra=b"\nI", space="internal")
+    _set_library(pipeline, internal["document_id"], "dept_art")
     user = _login(client, "alice", "correct-password", "req_alice")
     hidden = client.get(
         f"/api/v1/documents/{internal['document_id']}/preview",
@@ -102,9 +115,11 @@ def test_FR_RBAC_003_http_user_cannot_preview_internal():
 
 
 def test_FR_RBAC_003_http_download_attachment_and_no_minio_url():
-    client = _client(_with_admin(Pipeline()))
+    pipeline = _with_admin(Pipeline())
+    client = _client(pipeline)
     admin = _login(client, "admin", "admin-password", "req_admin")
     uploaded = _upload(client, admin, "handbook", extra=b"\ndl")
+    _set_library(pipeline, uploaded["document_id"], "pub")
     user = _login(client, "alice", "correct-password", "req_alice")
     download = client.get(
         f"/api/v1/documents/{uploaded['document_id']}/download",

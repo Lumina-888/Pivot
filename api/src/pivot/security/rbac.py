@@ -13,6 +13,24 @@ class AccessControl:
     def require_admin(self, principal: Principal) -> bool:
         return principal.role == "admin"
 
+    def visible_libraries(self, principal: Principal) -> frozenset[str]:
+        """Libraries a principal may see (ADR-016 D2-D3).
+
+        Every user sees the public library plus their own department
+        libraries (union, never intersection). Super admins see every
+        library the catalog knows, plus the two fixed system libraries
+        (pub and unassigned, seeded by S1), so they can always find and
+        claim unassigned documents.
+        """
+        if principal.role == "admin":
+            known = {library.id for library in self._catalog.list_libraries()}
+            return frozenset({"pub", "unassigned"} | known)
+        dept_ids = {
+            membership.dept_id
+            for membership in self._catalog.get_memberships(principal.user_id)
+        }
+        return frozenset({"pub"} | dept_ids)
+
     def authorize_conversation(
         self, principal: Principal, conversation_id: str, request_id: str
     ) -> None:
@@ -45,9 +63,12 @@ class AccessControl:
         document = self._catalog.get_document(document_id)
         if document is None or document.deleted:
             raise not_found(request_id)
-        if principal.role == "admin" and action == "manage":
+        # Super admins see every library (ADR-016 D3). Department-internal
+        # role enforcement (dept_admin vs editor vs reader) belongs to the
+        # admin APIs and publish approval, not to this visibility check.
+        if principal.role == "admin":
             return
-        if document.shared_visible:
+        if document.library_id in self.visible_libraries(principal):
             return
         raise not_found(request_id)
 

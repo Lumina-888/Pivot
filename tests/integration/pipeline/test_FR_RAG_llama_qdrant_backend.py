@@ -14,6 +14,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 import pytest
 from fastapi.testclient import TestClient
+from pivot.auth.ports import UserAccount
 from pivot.documents.ports import DocumentRecord, VersionRecord
 from pivot.http import RuntimeSettings, assemble_runtime
 from pivot.retrieval.fakes import HashingQueryEmbedder, ScriptedJsonHttpClient
@@ -123,6 +124,7 @@ def _payload(chunk_id: str, version_id: str, text: str, **overrides: object) -> 
         "text": text,
         "title": "考勤制度",
         "space": "shared",
+        "library_id": "unassigned",
         "tags": [],
         "ready": True,
         "current": True,
@@ -136,6 +138,26 @@ def _payload(chunk_id: str, version_id: str, text: str, **overrides: object) -> 
     }
     payload.update(overrides)
     return payload
+
+
+def _seed_admin_user(assembly) -> None:
+    """Seed the synthetic "usr_admin" principal as a real admin account.
+
+    S2 resolves library visibility from live user facts, so retriever
+    calls naming "usr_admin" need a real account. The username differs
+    from the bootstrap "admin" user, so bootstrap creation still runs
+    and bootstrap logins keep working.
+    """
+    assembly.users.save(
+        UserAccount(
+            id="usr_admin",
+            username="usr_admin",
+            password_hash="seeded-test-admin",
+            role="admin",
+            status="active",
+            token_version=1,
+        )
+    )
 
 
 def _seed_payloads(client: _Client) -> None:
@@ -228,6 +250,7 @@ def test_FR_RAG_007_index_survives_restart_via_hydration(tmp_path):
     _seed_payloads(client)
     url = _db_url(tmp_path)
     first = assemble_runtime(_settings(url, client, raw))
+    _seed_admin_user(first)
     _seed_facts(first)
     # Second assembly is built after the facts exist, so its startup build
     # resolves external_llm_allowed from them; the first assembly proves the
@@ -253,6 +276,7 @@ def test_FR_RAG_007_ingest_and_delete_sync_the_index(tmp_path):
     raw = _memory_qdrant_client()
     url = _db_url(tmp_path)
     assembly = assemble_runtime(_settings(url, client, raw))
+    _seed_admin_user(assembly)
     token = _login(assembly)
     http = TestClient(assembly.app, base_url="https://testserver")
     headers = {"Authorization": f"Bearer {token}", "X-Request-ID": "req_l3"}
@@ -348,6 +372,7 @@ def test_FR_RAG_007_startup_rejects_wrong_vector_size_until_rebuild(tmp_path):
     with pytest.raises(RuntimeError, match="PIVOT_LLAMA_INDEX_REBUILD"):
         assemble_runtime(_settings(url, client, raw))
     rebuilt = assemble_runtime(_settings(url, client, raw, llama_index_rebuild=True))
+    _seed_admin_user(rebuilt)
     _seed_facts(rebuilt)
     again = assemble_runtime(_settings(url, client, raw))
     assert _retrieve(again).status == "found"

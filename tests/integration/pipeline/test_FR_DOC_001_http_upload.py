@@ -47,6 +47,15 @@ def _pdf_form(title: str = "Attendance Policy", filename: str = "handbook.pdf"):
     return {"title": title}, {"file": (filename, policy_pdf(), "application/pdf")}
 
 
+def _set_library(pipeline: Pipeline, document_id: str, library_id: str) -> None:
+    # HTTP uploads land in the fail-closed "unassigned" library; tests
+    # place documents in a library explicitly to exercise visibility.
+    record = pipeline.doc_store.get(document_id)
+    assert record is not None
+    record.library_id = library_id
+    pipeline.doc_store.save(record)
+
+
 def test_FR_DOC_001_http_admin_upload_returns_uploaded_version():
     client = _client(_with_admin(Pipeline()))
     token = _login(client, "admin", "admin-password", "req_admin_login")
@@ -179,7 +188,10 @@ def test_FR_DOC_007_http_list_excludes_tombstone():
     assert "quarantine/" not in str(body)
 
 
-def test_FR_RBAC_004_http_list_hides_non_shared_from_user():
+def test_FR_RBAC_004_http_list_hides_other_library_from_user():
+    # S2 changed the authorization basis from space to library: the
+    # user sees the public-library document, not the other
+    # department's document, whatever their space flags say.
     pipeline = _with_admin(Pipeline())
     client = _client(pipeline)
     admin_token = _login(client, "admin", "admin-password", "req_admin_login")
@@ -197,6 +209,8 @@ def test_FR_RBAC_004_http_list_hides_non_shared_from_user():
     )
     assert shared.status_code == 201
     assert internal.status_code == 201
+    _set_library(pipeline, shared.json()["document_id"], "pub")
+    _set_library(pipeline, internal.json()["document_id"], "dept_art")
     user_token = _login(client, "alice", "correct-password", "req_alice")
     listed = client.get(
         "/api/v1/documents",

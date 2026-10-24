@@ -333,6 +333,10 @@ class AuthService:
     ) -> None:
         self._access.authorize_document(principal, document_id, request_id, action=action)
 
+    def visible_libraries(self, principal: Principal) -> frozenset[str]:
+        """Libraries the principal may see, for server-side retrieval scope."""
+        return self._access.visible_libraries(principal)
+
     def authorize_chunk(
         self, principal: Principal, chunk_id: str, request_id: str = "req_authz"
     ) -> None:

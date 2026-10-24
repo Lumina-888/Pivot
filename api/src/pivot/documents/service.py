@@ -297,13 +297,16 @@ class DocumentService:
         document_id: str,
         *,
         viewer_role: str,
+        visible_libraries: frozenset[str],
         request_id: str,
         purpose: str,
         actor_id: str,
     ) -> FileContent:
         if purpose not in {"preview", "download"}:
             raise DocumentError("RESOURCE_FORBIDDEN", "非法用途", request_id)
-        document = self._visible_document(document_id, viewer_role, request_id)
+        document = self._visible_document(
+            document_id, viewer_role, visible_libraries, request_id
+        )
         body = self._object_bytes(document.id, request_id)
         kind = sniff_kind(body)
         extension = f".{kind}" if kind in KIND_MEDIA_TYPE else ".bin"
@@ -317,9 +320,16 @@ class DocumentService:
         return payload
 
     def get_detail(
-        self, document_id: str, *, viewer_role: str, request_id: str
+        self,
+        document_id: str,
+        *,
+        viewer_role: str,
+        visible_libraries: frozenset[str],
+        request_id: str,
     ) -> dict[str, object]:
-        document = self._visible_document(document_id, viewer_role, request_id)
+        document = self._visible_document(
+            document_id, viewer_role, visible_libraries, request_id
+        )
         created = document.created_at or self._now()
         return {
             "document_id": document.id,
@@ -337,9 +347,19 @@ class DocumentService:
         }
 
     def list_versions(
-        self, document_id: str, *, viewer_role: str, request_id: str
+        self,
+        document_id: str,
+        *,
+        viewer_role: str,
+        visible_libraries: frozenset[str],
+        request_id: str,
     ) -> tuple[dict[str, object], ...]:
-        detail = self.get_detail(document_id, viewer_role=viewer_role, request_id=request_id)
+        detail = self.get_detail(
+            document_id,
+            viewer_role=viewer_role,
+            visible_libraries=visible_libraries,
+            request_id=request_id,
+        )
         return tuple(detail["versions"])  # type: ignore[arg-type]
 
     def request_delete(self, document_id: str, request_id: str, actor_id: str) -> DocumentRecord:
@@ -390,6 +410,7 @@ class DocumentService:
         self,
         *,
         viewer_role: str,
+        visible_libraries: frozenset[str],
         space: str | None = None,
         tags: tuple[str, ...] = (),
     ) -> tuple[dict[str, object], ...]:
@@ -397,7 +418,11 @@ class DocumentService:
         for document in self._documents.list_active():
             if document.deleted_at is not None:
                 continue
-            if viewer_role != "admin" and document.space != "shared":
+            # Library membership is the authorization basis (ADR-016 D2,
+            # S2): the legacy space flag authorizes nothing on its own.
+            # A document in "shared" space but in the unassigned library
+            # is admin-only, exactly like any other unassigned document.
+            if viewer_role != "admin" and document.library_id not in visible_libraries:
                 continue
             if space is not None and document.space != space:
                 continue
@@ -473,11 +498,20 @@ class DocumentService:
         return version
 
     def _visible_document(
-        self, document_id: str, viewer_role: str, request_id: str
+        self,
+        document_id: str,
+        viewer_role: str,
+        visible_libraries: frozenset[str],
+        request_id: str,
     ) -> DocumentRecord:
         document = self._require_document(document_id, request_id)
+        # Super admins keep full access (ADR-016 D3), including deleted
+        # documents, as before. Everyone else sees a document only when
+        # it is not deleted and its library is in their visible set.
+        # Anything else is RESOURCE_NOT_FOUND: no existence leak.
         if viewer_role != "admin" and (
-            document.deleted_at is not None or document.space != "shared"
+            document.deleted_at is not None
+            or document.library_id not in visible_libraries
         ):
             raise DocumentError("RESOURCE_NOT_FOUND", "资源不存在", request_id)
         return document

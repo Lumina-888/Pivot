@@ -10,6 +10,8 @@ def passes_filters(chunk: ChunkRecord, query: RetrievalQuery) -> bool:
         return False
     if not chunk.allowed:
         return False
+    if query.library_ids is not None and chunk.library_id not in query.library_ids:
+        return False
     if query.space and chunk.space != query.space:
         return False
     if query.tags and not set(query.tags).issubset(set(chunk.tags)):
