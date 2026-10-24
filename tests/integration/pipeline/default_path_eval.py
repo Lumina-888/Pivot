@@ -64,6 +64,7 @@ def build_default_retriever(
     holder = LlamaQdrantIndex.open(
         client=QdrantClient(location=":memory:"),
         native_collection=NATIVE_COLLECTION,
+        library_id="pub",
         embed_model=embed_model,
         vector_size=vector_size,
         distance="Cosine",

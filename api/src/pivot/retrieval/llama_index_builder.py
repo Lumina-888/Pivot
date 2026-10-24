@@ -77,6 +77,16 @@ def build_llama_index(
             if type(value) is not bool:
                 raise ValueError(f"vector payload flag {flag!r} must be a bool")
             metadata[flag] = value
+        # Library is optional here but validated when present: the
+        # index layer stamps every node stored in a library collection
+        # with that collection's library, so per-library nodes are
+        # always labeled. Direct builds (evals, single-library
+        # corpora) may omit it.
+        library_id = payload.get("library_id")
+        if library_id is not None:
+            if not isinstance(library_id, str) or not library_id.strip():
+                raise ValueError("vector payload field 'library_id' must be a non-empty string")
+            metadata["library_id"] = library_id
         for key in ("effective_from", "effective_to"):
             raw = payload.get(key)
             if raw is not None:

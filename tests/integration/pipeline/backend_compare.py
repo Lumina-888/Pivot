@@ -64,7 +64,11 @@ class BowEmbedder:
 
 
 def corpus_payloads(records: tuple[ChunkRecord, ...]) -> list[dict[str, Any]]:
-    """Map corpus records to the vector payload shape the L1 builder consumes."""
+    """Map corpus records to the vector payload shape the L1 builder consumes.
+
+    Eval corpora predate libraries and are public by construction, so a
+    record without a library maps to the public library here.
+    """
     return [
         {
             "chunk_id": record.chunk_id,
@@ -72,6 +76,7 @@ def corpus_payloads(records: tuple[ChunkRecord, ...]) -> list[dict[str, Any]]:
             "document_id": record.document_id,
             "text": record.text,
             "locator": f"golden:{record.chunk_id}",
+            "library_id": record.library_id or "pub",
             "ready": record.ready,
             "current": record.current,
             "allowed": record.allowed,

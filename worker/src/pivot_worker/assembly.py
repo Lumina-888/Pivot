@@ -256,11 +256,24 @@ def _llama_document_sync(settings, *, store, document_rows, version_rows, embedd
     """Build the per-document reconcile callback for the worker process."""
     from pivot.retrieval.llama_embeddings import PivotEmbedding
     from pivot.retrieval.llama_index_builder import _payload_of, scroll_payloads
-    from pivot.retrieval.llama_qdrant_index import LlamaQdrantIndex
+    from pivot.retrieval.llama_qdrant_index import LlamaLibraryIndexSet
 
     def external_llm_allowed(version_id: str) -> bool:
         version = version_rows.get(version_id)
         return bool(version is not None and version.external_llm_allowed)
+
+    def library_id_for(version_id: str) -> str | None:
+        try:
+            version = version_rows.get(version_id)
+            if version is None:
+                return None
+            document = document_rows.get(version.document_id)
+            if document is None:
+                return None
+            library_id = document.library_id
+            return library_id if isinstance(library_id, str) and library_id.strip() else None
+        except Exception:
+            return None
 
     client = settings.llama_qdrant_client
     if client is None:
@@ -277,9 +290,9 @@ def _llama_document_sync(settings, *, store, document_rows, version_rows, embedd
         raise RuntimeError(
             "PIVOT_QDRANT_DISTANCE is required when "
             "PIVOT_RETRIEVAL_BACKEND=llama so the worker can sync the "
-            "LlamaIndex collection"
+            "LlamaIndex collections"
         )
-    holder = LlamaQdrantIndex.open_for_sync(
+    holders = LlamaLibraryIndexSet.open(
         client=client,
         native_collection=settings.qdrant_collection or "",
         embed_model=PivotEmbedding(
@@ -291,6 +304,8 @@ def _llama_document_sync(settings, *, store, document_rows, version_rows, embedd
         distance=settings.qdrant_distance,
         native_payloads=scroll_payloads(store),
         external_llm_allowed=external_llm_allowed,
+        library_id_for=library_id_for,
+        hydrate=False,
     )
     logger = logging.getLogger(__name__)
 
@@ -298,20 +313,24 @@ def _llama_document_sync(settings, *, store, document_rows, version_rows, embedd
         try:
             current_payloads: list = []
             document = document_rows.get(document_id)
-            if document is not None and document.deleted_at is None:
-                current = None
-                for version in version_rows.list_for_document(document_id):
-                    if version.current:
-                        current = version
-                        break
-                if current is not None:
-                    current_payloads = [
-                        payload
-                        for payload in scroll_payloads(store)
-                        if _payload_of(payload).get("version_id") == current.id
-                    ]
-            holder.reconcile_document(
+            library_id = None
+            if document is not None:
+                library_id = document.library_id
+                if document.deleted_at is None:
+                    current = None
+                    for version in version_rows.list_for_document(document_id):
+                        if version.current:
+                            current = version
+                            break
+                    if current is not None:
+                        current_payloads = [
+                            payload
+                            for payload in scroll_payloads(store)
+                            if _payload_of(payload).get("version_id") == current.id
+                        ]
+            holders.reconcile_document(
                 document_id,
+                library_id=library_id,
                 current_payloads=current_payloads,
                 external_llm_allowed=external_llm_allowed,
             )

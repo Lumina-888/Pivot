@@ -217,7 +217,9 @@ def test_FR_RAG_007_point_id_mapping_matches_native_convention():
     assert point_id_for("chunk-l3") == str(
         uuid5(NAMESPACE_URL, "pivot:chunk:chunk-l3")
     )
-    assert llama_collection_name("pivot-chunks") == "pivot-chunks__llama"
+    assert llama_collection_name("pivot-chunks", "unassigned") == (
+        "pivot-chunks__llama__unassigned"
+    )
 
 
 def test_FR_RAG_001_llama_runtime_bge_rerank_wires(tmp_path):
@@ -323,6 +325,7 @@ def test_FR_RAG_007_reconcile_replaces_versions_and_drops_deleted():
     holder = LlamaQdrantIndex.open(
         client=raw,
         native_collection="pivot-chunks",
+        library_id="unassigned",
         embed_model=PivotEmbedding(embedder, model_name="hash-embedding", dimension=4),
         vector_size=4,
         distance="Cosine",
@@ -365,7 +368,7 @@ def test_FR_RAG_007_startup_rejects_wrong_vector_size_until_rebuild(tmp_path):
     raw = _memory_qdrant_client()
     _seed_payloads(client)
     raw.create_collection(
-        collection_name="pivot-chunks__llama",
+        collection_name="pivot-chunks__llama__unassigned",
         vectors_config=rest.VectorParams(size=9, distance=rest.Distance.COSINE),
     )
     url = _db_url(tmp_path)
@@ -433,6 +436,7 @@ def test_FR_RAG_007_refresh_picks_up_worker_synced_documents():
     api_holder = LlamaQdrantIndex.open(
         client=raw,
         native_collection="pivot-chunks",
+        library_id="unassigned",
         embed_model=embed,
         vector_size=4,
         distance="Cosine",
@@ -457,6 +461,7 @@ def test_FR_RAG_007_refresh_picks_up_worker_synced_documents():
     worker_holder = LlamaQdrantIndex.open_for_sync(
         client=raw,
         native_collection="pivot-chunks",
+        library_id="unassigned",
         embed_model=embed,
         vector_size=4,
         distance="Cosine",
