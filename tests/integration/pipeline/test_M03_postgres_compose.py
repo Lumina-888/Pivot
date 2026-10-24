@@ -9,13 +9,13 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "postgres-alembic.md"
 _LIMITS = _ROOT / "evidence" / "wave2-m11" / "limits.md"
 _FIXTURE_URL = "postgresql+psycopg://pivot:pivot_dev_only@127.0.0.1:5432/pivot"
-_HEAD = "45f1c8bda305"
 
 
 def _require_compose() -> bool:
@@ -76,7 +76,9 @@ def test_M03_postgres_alembic_upgrade_head_when_compose_up():
             version = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert version == _HEAD
+            assert version == ScriptDirectory.from_config(
+                _alembic_config(database_url)
+            ).get_current_head()
             indexdef = connection.execute(
                 text(
                     "SELECT indexdef FROM pg_indexes "
