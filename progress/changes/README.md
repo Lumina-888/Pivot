@@ -110,3 +110,4 @@
 | [20261023-M05-answer-relevance-gate.md](20261023-M05-answer-relevance-gate.md) | ADR-015：答案层问题-证据相关性判定（FR-AGENT-012） |
 | [20261024-M01-multitenant-library-acl.md](20261024-M01-multitenant-library-acl.md) | ADR-016：多部门文档库隔离（FR-RBAC-004） |
 | [20261024-M11-p1-1-closeout.md](20261024-M11-p1-1-closeout.md) | P1-1 收尾：空间/文档 ACL 落 main（FR-RBAC-004） |
+| [20261024-M01-p1-2-exceptions-grants.md](20261024-M01-p1-2-exceptions-grants.md) | ADR-017：文档级例外与临时授权（FR-RBAC-004，P1-2） |
