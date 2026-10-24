@@ -13,6 +13,7 @@ from pivot.audit.policy import AuditWriteFailures, TieredAuditSink
 from pivot.audit.service import AuditService
 from pivot.audit.store import AppendOnlyAuditStore
 from pivot.auth.attempts import CacheLoginAttempts
+from pivot.auth.departments import DepartmentAdminService
 from pivot.auth.ports import Principal, UserAccount, UserDirectory
 from pivot.auth.service import AuthService
 from pivot.auth.tokens import TokenService
@@ -1028,6 +1029,22 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         from pivot.qa.agent_executor import AgentQaExecutor
 
         qa_executor = AgentQaExecutor(agent_runner)
+    # Department administration (P1-1 S4): the write store follows the
+    # storage mode — PostgreSQL writes go to the S1 tables through the
+    # same session factory as the reads, while the memory path keeps
+    # sharing the in-memory catalog so changes are visible immediately.
+    if resolved.storage == "postgres":
+        library_admin_store = SqlAlchemyLibraryCatalog(sessions)
+    else:
+        library_admin_store = resources
+    departments = DepartmentAdminService(
+        store=library_admin_store,
+        documents=document_rows,
+        users=users,
+        access=access,
+        audits=audits,
+        clock=export_clock,
+    )
     app = create_app(
         probes=probes,
         auth=auth,
@@ -1038,6 +1055,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         conversations=conversations,
         exports=exports,
         audits=audits,
+        departments=departments,
         ingest=ingest_submitter,
     )
     return RuntimeAssembly(

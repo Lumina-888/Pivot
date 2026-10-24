@@ -31,6 +31,30 @@ class AccessControl:
         }
         return frozenset({"pub"} | dept_ids)
 
+    def is_department_admin(self, principal: Principal, dept_id: str) -> bool:
+        """True when the principal administers this department (ADR-016 D3).
+
+        Super admins are not department admins: they use the global path,
+        so this stays False for them and callers check the global role
+        separately. The check is the (user, department) pair, never a
+        bare "is admin" flag, so admin status cannot leak across departments.
+        """
+        return dept_id in self.admin_departments(principal)
+
+    def admin_departments(self, principal: Principal) -> frozenset[str]:
+        """Departments the principal administers as dept_admin.
+
+        Read live from the catalog on every call, so appointment and
+        removal take effect on the next request without any token action.
+        """
+        if principal.role == "admin":
+            return frozenset()
+        return frozenset(
+            membership.dept_id
+            for membership in self._catalog.get_memberships(principal.user_id)
+            if membership.dept_role == "dept_admin"
+        )
+
     def authorize_conversation(
         self, principal: Principal, conversation_id: str, request_id: str
     ) -> None:

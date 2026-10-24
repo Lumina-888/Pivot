@@ -122,6 +122,48 @@ class AuditService:
             "pagination": None,
         }
 
+    def list_department_events(
+        self,
+        actor: Actor,
+        dept_ids: frozenset[str],
+        request_id: str,
+        *,
+        filter_actor: str | None = None,
+        filter_action: str | None = None,
+    ) -> dict[str, Any]:
+        """List audit events scoped to the caller's departments (ADR-016 D10).
+
+        Department admins see only events whose metadata carries one of
+        their departments. Events without a department scope (QA runs,
+        global operations) never appear here; super admins keep the
+        unfiltered list_events path.
+        """
+        if actor.status != "active" or not dept_ids:
+            raise auth_forbidden(request_id)
+        self.record(
+            actor=actor.user_id,
+            action="admin.debug_access",
+            target="audit-events",
+            result="ok",
+            request_id=request_id,
+            metadata={
+                "filter_actor": filter_actor,
+                "filter_action": filter_action,
+                "department_ids": sorted(dept_ids),
+            },
+        )
+        events = self._store.query(actor=filter_actor, action=filter_action)
+        scoped = [
+            event
+            for event in events
+            if isinstance(event.metadata.get("dept_id"), str)
+            and event.metadata["dept_id"] in dept_ids
+        ]
+        return {
+            "items": [event.to_info() for event in scoped],
+            "pagination": None,
+        }
+
     def replay(
         self,
         actor: Actor,
