@@ -108,3 +108,5 @@
 | [20261023-M04-dense-leg-fix.md](20261023-M04-dense-leg-fix.md) | 变更申请：M04 稠密检索腿修复与稠密候选下界（FR-RAG-009） |
 | [20261023-M05-context-slimming.md](20261023-M05-context-slimming.md) | 变更申请：M05 Agent 上下文瘦身（FR-AGENT-011，M 线） |
 | [20261023-M05-answer-relevance-gate.md](20261023-M05-answer-relevance-gate.md) | ADR-015：答案层问题-证据相关性判定（FR-AGENT-012） |
+| [20261024-M01-multitenant-library-acl.md](20261024-M01-multitenant-library-acl.md) | ADR-016：多部门文档库隔离（FR-RBAC-004） |
+| [20261024-M11-p1-1-closeout.md](20261024-M11-p1-1-closeout.md) | P1-1 收尾：空间/文档 ACL 落 main（FR-RBAC-004） |
