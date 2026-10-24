@@ -48,6 +48,47 @@ class User(Base):
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="owner")
     exports: Mapped[list["ExportTask"]] = relationship(back_populates="owner")
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user")
+    memberships: Mapped[list["Membership"]] = relationship(back_populates="user")
+
+
+class Library(Base):
+    """A document library (ADR-016 D1). One row per library."""
+
+    __tablename__ = "libraries"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('public', 'department', 'system')", name="ck_libraries_kind"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    dept_id: Mapped[str | None] = mapped_column(String(128))
+
+
+class Membership(Base):
+    """One user's role inside one department (ADR-016 D2)."""
+
+    __tablename__ = "memberships"
+    __table_args__ = (
+        CheckConstraint(
+            "dept_role IN ('dept_admin', 'editor', 'reader')",
+            name="ck_memberships_dept_role",
+        ),
+    )
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id"), primary_key=True, nullable=False
+    )
+    dept_id: Mapped[str] = mapped_column(String(128), primary_key=True, nullable=False)
+    dept_role: Mapped[str] = mapped_column(String(32), nullable=False)
+    granted_by: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    granted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    user: Mapped["User"] = relationship(back_populates="memberships")
 
 
 class RefreshToken(Base):

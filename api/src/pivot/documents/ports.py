@@ -17,6 +17,9 @@ class DocumentRecord:
     classification: str = ""
     created_at: datetime | None = None
     tags: tuple[str, ...] = ()
+    # ADR-016 D1: every document belongs to exactly one library.
+    # Fail-closed default: unassigned until an admin claims it.
+    library_id: str = "unassigned"
 
 
 @dataclass

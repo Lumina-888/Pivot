@@ -12,6 +12,8 @@ from pivot.auth.ports import (
     CitationAuthz,
     DocumentAuthz,
     ExportAuthz,
+    Library,
+    Membership,
     RefreshSession,
     UserAccount,
 )
@@ -101,6 +103,8 @@ class InMemoryResources:
     citations: dict[str, CitationAuthz] = field(default_factory=dict)
     exports: dict[str, ExportAuthz] = field(default_factory=dict)
     conversations: dict[str, str] = field(default_factory=dict)
+    libraries: dict[str, Library] = field(default_factory=dict)
+    memberships: dict[str, tuple[Membership, ...]] = field(default_factory=dict)
 
     def get_document(self, document_id: str) -> DocumentAuthz | None:
         return self.documents.get(document_id)
@@ -116,6 +120,12 @@ class InMemoryResources:
 
     def get_conversation_owner(self, conversation_id: str) -> str | None:
         return self.conversations.get(conversation_id)
+
+    def get_library(self, library_id: str) -> Library | None:
+        return self.libraries.get(library_id)
+
+    def get_memberships(self, user_id: str) -> tuple[Membership, ...]:
+        return self.memberships.get(user_id, ())
 
     def claim_conversation(self, conversation_id: str, owner_id: str) -> str:
         current = self.conversations.get(conversation_id)

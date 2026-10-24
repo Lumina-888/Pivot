@@ -58,6 +58,27 @@ class DocumentAuthz:
 
 
 @dataclass(frozen=True)
+class Library:
+    """A document library (ADR-016 D1): public, department, or system."""
+
+    id: str
+    name: str
+    kind: str
+    dept_id: str | None = None
+
+
+@dataclass(frozen=True)
+class Membership:
+    """One user's role inside one department (ADR-016 D2)."""
+
+    user_id: str
+    dept_id: str
+    dept_role: str
+    granted_by: str = ""
+    granted_at: datetime | None = None
+
+
+@dataclass(frozen=True)
 class ChunkAuthz:
     id: str
     document_id: str
@@ -119,6 +140,10 @@ class ResourceCatalog(Protocol):
     def get_export(self, export_id: str) -> ExportAuthz | None: ...
 
     def get_conversation_owner(self, conversation_id: str) -> str | None: ...
+
+    def get_library(self, library_id: str) -> Library | None: ...
+
+    def get_memberships(self, user_id: str) -> tuple[Membership, ...]: ...
 
 
 class Clock(Protocol):

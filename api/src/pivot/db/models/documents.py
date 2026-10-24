@@ -31,6 +31,11 @@ class Document(Base):
     tags: Mapped[list] = mapped_column(Text, nullable=False, default="[]")
     classification: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    # ADR-016 D1: every document belongs to exactly one library.
+    # Fail-closed default: unassigned until an admin claims it.
+    library_id: Mapped[str] = mapped_column(
+        String(128), nullable=False, default="unassigned"
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
