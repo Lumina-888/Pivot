@@ -34,6 +34,7 @@ from pivot.db.libraries import SqlAlchemyLibraryCatalog
 from pivot.db.models import Base
 from pivot.db.refresh import SqlAlchemyRefreshTokenStore
 from pivot.db.runs import SqlAlchemyRunStore
+from pivot.db.scoped import shared_session
 from pivot.db.session import create_db_engine, session_factory
 from pivot.db.users import SqlAlchemyUserDirectory
 from pivot.documents.service import DocumentService
@@ -1012,6 +1013,10 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         library_admin_store = SqlAlchemyLibraryCatalog(sessions)
     else:
         library_admin_store = resources
+    # ADR-017 D4: on the PostgreSQL path one shared session brackets
+    # each department-admin mutation and its audit writes, so a failed
+    # audit write rolls the mutation back. The memory path passes no
+    # scope and keeps the compensation behavior.
     departments = DepartmentAdminService(
         store=library_admin_store,
         documents=document_rows,
@@ -1019,6 +1024,11 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         access=access,
         audits=audits,
         clock=export_clock,
+        transaction=(
+            (lambda: shared_session(sessions))
+            if resolved.storage == "postgres"
+            else None
+        ),
     )
     app = create_app(
         probes=probes,

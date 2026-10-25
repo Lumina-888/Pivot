@@ -20,7 +20,7 @@ from pivot.audit.models import AuditEventRecord
 from pivot.audit.redaction import redact_metadata
 from pivot.auth.ports import AuditEventDraft as AuthAuditDraft
 from pivot.db.models import AuditEvent
-from pivot.db.uow import UnitOfWork
+from pivot.db.scoped import scoped_session, write_scope
 from pivot.documents.ports import AuditDraft as DocumentAuditDraft
 from pivot.shared.ids import new_id
 from pivot.shared.time import utc_now
@@ -29,15 +29,10 @@ from pivot.shared.time import utc_now
 def _session_scope(
     session: Session | None, factory: sessionmaker[Session] | None
 ) -> Iterator[Session]:
-    if session is not None:
-        yield session
-        return
-    assert factory is not None
-    owned = factory()
-    try:
-        yield owned
-    finally:
-        owned.close()
+    # A bound session keeps its contract; in factory mode an ambient
+    # shared session joins the enclosing operation (ADR-017 D4).
+    with scoped_session(session, factory) as resolved:
+        yield resolved
 
 
 def _to_record(row: AuditEvent) -> AuditEventRecord:
@@ -77,7 +72,7 @@ class SqlAlchemyAuditStore:
         if self.get(event.id) is not None:
             raise append_only(event.request_id or "req_audit")
         with self._scope() as session:
-            with UnitOfWork(session):
+            with write_scope(session):
                 session.add(
                     AuditEvent(
                         id=event.id,

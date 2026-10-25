@@ -22,7 +22,7 @@ from pivot.auth.ports import DocumentException, Library, Membership
 from pivot.db.models.identity import DocumentException as ExceptionRow
 from pivot.db.models.identity import Library as LibraryRow
 from pivot.db.models.identity import Membership as MembershipRow
-from pivot.db.uow import UnitOfWork
+from pivot.db.scoped import scoped_session, write_scope
 from pivot.shared.time import utc_now
 
 
@@ -93,7 +93,7 @@ class SqlAlchemyLibraryCatalog:
 
     def create_library(self, library: Library) -> None:
         with self._scope() as session:
-            with UnitOfWork(session):
+            with write_scope(session):
                 session.add(
                     LibraryRow(
                         id=library.id,
@@ -105,7 +105,7 @@ class SqlAlchemyLibraryCatalog:
 
     def delete_library(self, library_id: str) -> None:
         with self._scope() as session:
-            with UnitOfWork(session):
+            with write_scope(session):
                 session.execute(
                     delete(LibraryRow).where(LibraryRow.id == library_id)
                 )
@@ -135,7 +135,7 @@ class SqlAlchemyLibraryCatalog:
                 else:
                     live.append(member)
             if expired:
-                with UnitOfWork(session):
+                with write_scope(session):
                     for user_id, expired_dept in expired:
                         session.execute(
                             delete(MembershipRow).where(
@@ -147,7 +147,7 @@ class SqlAlchemyLibraryCatalog:
 
     def add_membership(self, membership: Membership) -> None:
         with self._scope() as session:
-            with UnitOfWork(session):
+            with write_scope(session):
                 row = session.get(
                     MembershipRow, (membership.user_id, membership.dept_id)
                 )
@@ -172,7 +172,7 @@ class SqlAlchemyLibraryCatalog:
 
     def remove_membership(self, user_id: str, dept_id: str) -> None:
         with self._scope() as session:
-            with UnitOfWork(session):
+            with write_scope(session):
                 session.execute(
                     delete(MembershipRow).where(
                         MembershipRow.user_id == user_id,
@@ -227,7 +227,7 @@ class SqlAlchemyLibraryCatalog:
 
     def add_exception(self, exception: DocumentException) -> None:
         with self._scope() as session:
-            with UnitOfWork(session):
+            with write_scope(session):
                 row = session.get(ExceptionRow, exception.id)
                 if row is None:
                     session.add(
@@ -253,15 +253,14 @@ class SqlAlchemyLibraryCatalog:
 
     def remove_exception(self, exception_id: str) -> None:
         with self._scope() as session:
-            with UnitOfWork(session):
+            with write_scope(session):
                 session.execute(
                     delete(ExceptionRow).where(ExceptionRow.id == exception_id)
                 )
 
     @contextmanager
     def _scope(self) -> Iterator[Session]:
-        session = self._sessions()
-        try:
+        # Inside a shared operation scope this yields the ambient
+        # session (ADR-017 D4); otherwise a fresh session as before.
+        with scoped_session(None, self._sessions) as session:
             yield session
-        finally:
-            session.close()

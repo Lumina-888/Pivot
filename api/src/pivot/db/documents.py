@@ -10,23 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from pivot.db.models import CeleryTask, Chunk, Document, DocumentVersion
+from pivot.db.scoped import scoped_session, write_scope
 from pivot.db.uow import UnitOfWork
 from pivot.documents.ports import ChunkRecord, DocumentRecord, TaskRecord, VersionRecord
 from pivot.shared.time import utc_now
-
-
-def _session_scope(
-    session: Session | None, factory: sessionmaker[Session] | None
-) -> Iterator[Session]:
-    if session is not None:
-        yield session
-        return
-    assert factory is not None
-    owned = factory()
-    try:
-        yield owned
-    finally:
-        owned.close()
 
 
 def _tags_text(tags: tuple[str, ...]) -> str:
@@ -107,7 +94,10 @@ class _SessionBound:
 
     @contextmanager
     def _scope(self) -> Iterator[Session]:
-        yield from _session_scope(self._session, self._factory)
+        # A bound session keeps its contract; in factory mode an ambient
+        # shared session joins the enclosing operation (ADR-017 D4).
+        with scoped_session(self._session, self._factory) as session:
+            yield session
 
 
 class SqlAlchemyDocumentStore(_SessionBound):
@@ -120,7 +110,7 @@ class SqlAlchemyDocumentStore(_SessionBound):
         if not document.id or not document.created_by:
             raise ValueError("documents require a non-empty id and created_by")
         with self._scope() as session:
-            with UnitOfWork(session):
+            with write_scope(session):
                 row = session.get(Document, document.id)
                 if row is None:
                     session.add(
