@@ -64,7 +64,9 @@ class DocumentAuthz:
 
 @dataclass(frozen=True)
 class Library:
-    """A document library (ADR-016 D1): public, department, or system."""
+    """A document library (ADR-016 D1, ADR-018 D4): public, department,
+    system, or project. A project library's dept_id is its owning
+    department: the department whose admin created it."""
 
     id: str
     name: str
@@ -82,6 +84,36 @@ class Membership:
     granted_by: str = ""
     granted_at: datetime | None = None
     # ADR-017 D2: NULL means a long-term grant. S1 only stores it.
+    expires_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class Folder:
+    """A restricted folder inside one library (ADR-018 D3).
+
+    The default folder has no row: it is the library itself. S1 only
+    defines the shape; folder management and permission checks are S2.
+    """
+
+    id: str
+    library_id: str
+    name: str
+    created_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class FolderMembership:
+    """One user's role inside one folder (ADR-018 D3).
+
+    folder_role is full, editor, or reader. NULL expires_at means a
+    long-term grant, exactly like Membership; expiry semantics are S2.
+    """
+
+    folder_id: str
+    user_id: str
+    folder_role: str
+    granted_by: str = ""
+    granted_at: datetime | None = None
     expires_at: datetime | None = None
 
 

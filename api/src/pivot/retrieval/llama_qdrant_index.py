@@ -57,6 +57,22 @@ def llama_collection_name(native_collection: str, library_id: str) -> str:
     return f"{native_collection}{_COLLECTION_SUFFIX}__{library_id}"
 
 
+def llama_folder_collection_name(
+    native_collection: str, library_id: str, folder_id: str
+) -> str:
+    """Per-folder collection name (ADR-018 D3).
+
+    {native}__llama__{library_id}__{folder_id}. Naming only: S1 does
+    not wire retrieval to folder collections (that is S2). The default
+    folder has no row and keeps the library collection above.
+    """
+    if not isinstance(library_id, str) or not library_id.strip():
+        raise ValueError("library_id must be a non-empty string")
+    if not isinstance(folder_id, str) or not folder_id.strip():
+        raise ValueError("folder_id must be a non-empty string")
+    return f"{native_collection}{_COLLECTION_SUFFIX}__{library_id}__{folder_id}"
+
+
 def resolve_payload_library(
     payload: Mapping, library_id_for: Callable[[str], str | None] | None
 ) -> str | None:

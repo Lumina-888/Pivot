@@ -45,6 +45,8 @@ def _to_document(row: Document) -> DocumentRecord:
         # PostgreSQL-backed read saw the "unassigned" default. S2 maps it
         # for real: library visibility cannot work on a dropped field.
         library_id=row.library_id,
+        # ADR-018 D3: mapped from the start, unlike library_id above.
+        folder_id=row.folder_id,
     )
 
 
@@ -125,6 +127,7 @@ class SqlAlchemyDocumentStore(_SessionBound):
                             created_at=document.created_at or utc_now(),
                             updated_at=utc_now(),
                             library_id=document.library_id,
+                            folder_id=document.folder_id,
                         )
                     )
                     return
@@ -136,6 +139,7 @@ class SqlAlchemyDocumentStore(_SessionBound):
                 row.deleted_at = document.deleted_at
                 row.updated_at = utc_now()
                 row.library_id = document.library_id
+                row.folder_id = document.folder_id
 
     def list_active(self) -> tuple[DocumentRecord, ...]:
         with self._scope() as session:

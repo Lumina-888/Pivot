@@ -36,6 +36,13 @@ class Document(Base):
     library_id: Mapped[str] = mapped_column(
         String(128), nullable=False, default="unassigned"
     )
+    # ADR-018 D3: exactly one location per document. NULL means the
+    # default folder, which is the library itself, so existing rows
+    # need no data migration. Like library_id, this is a plain string
+    # on purpose: folder lifecycle is service-gated (only empty folders
+    # may be deleted), and S2's authorize hook rechecks live folder
+    # facts, so a stale value still fails closed.
+    folder_id: Mapped[str | None] = mapped_column(String(128))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False

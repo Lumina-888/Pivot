@@ -52,12 +52,17 @@ class User(Base):
 
 
 class Library(Base):
-    """A document library (ADR-016 D1). One row per library."""
+    """A document library (ADR-016 D1, ADR-018 D4).
+
+    One row per library. A project library (kind 'project') records its
+    owning department in dept_id: the department whose admin created it.
+    """
 
     __tablename__ = "libraries"
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('public', 'department', 'system')", name="ck_libraries_kind"
+            "kind IN ('public', 'department', 'system', 'project')",
+            name="ck_libraries_kind",
         ),
     )
 
@@ -92,6 +97,64 @@ class Membership(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped["User"] = relationship(back_populates="memberships")
+
+
+class Folder(Base):
+    """A restricted folder inside one library (ADR-018 D3).
+
+    The default folder needs no row: it is the library itself, and a
+    document with a NULL folder_id lives there. Only restricted folders
+    have rows. Folders are single-level, never nested.
+    """
+
+    __tablename__ = "folders"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    library_id: Mapped[str] = mapped_column(
+        ForeignKey("libraries.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class FolderMembership(Base):
+    """One user's role inside one folder (ADR-018 D3).
+
+    Mirrors Membership: folder_role is full, editor, or reader (full
+    excludes member management, so it is not called admin). NULL
+    expires_at means a long-term grant; expiry, renewal, and purge
+    semantics follow ADR-017 D2 and land in S2. S1 only stores it.
+    """
+
+    __tablename__ = "folder_memberships"
+    __table_args__ = (
+        CheckConstraint(
+            "folder_role IN ('full', 'editor', 'reader')",
+            name="ck_folder_memberships_folder_role",
+        ),
+    )
+
+    folder_id: Mapped[str] = mapped_column(
+        ForeignKey("folders.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+        index=True,
+    )
+    folder_role: Mapped[str] = mapped_column(String(32), nullable=False)
+    granted_by: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    granted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class DocumentException(Base):
