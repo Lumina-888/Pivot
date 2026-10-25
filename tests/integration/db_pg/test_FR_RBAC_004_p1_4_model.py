@@ -46,12 +46,16 @@ def _seed(pg_session) -> None:
 def test_FR_RBAC_004_p1_4_model_round_trip_pg(pg_session, pg_engine) -> None:
     _seed(pg_session)
     pg_session.commit()
+    # Commit the project library first: the folder row references it,
+    # and the folder insert must see a committed library row (same
+    # lesson as CI #240 — do not rely on one flush to order new rows).
     pg_session.add(
         LibraryRow(
             id="proj_x", name="跨部门项目", kind="project",
             dept_id="dept_art",
         )
     )
+    pg_session.commit()
     pg_session.add(
         FolderRow(id="fold_1", library_id="proj_x", name="项目甲")
     )
