@@ -27,7 +27,7 @@ RETRYABLE_CODES = frozenset(
 )
 
 
-@dataclass(frozen=True)
+@dataclass
 class ParseError(Exception):
     code: str
     message: str
