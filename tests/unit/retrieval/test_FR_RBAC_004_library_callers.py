@@ -28,6 +28,10 @@ class _StubAuth:
         assert principal.user_id == "usr_alice"
         return self._visible
 
+    def exception_document_ids(self, principal: Principal) -> frozenset[str]:
+        assert principal.user_id == "usr_alice"
+        return frozenset()
+
 
 class _StubSearchService:
     def __init__(self) -> None:

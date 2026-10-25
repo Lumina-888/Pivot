@@ -6,7 +6,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from pivot.auth.departments import DepartmentAdminService
 from pivot.auth.errors import invalid_credentials
@@ -35,6 +35,21 @@ class SetRoleBody(BaseModel):
 
 class ClaimBody(BaseModel):
     library_id: str = Field(min_length=1)
+
+
+class GrantExceptionBody(BaseModel):
+    target_user_id: str | None = None
+    target_dept_id: str | None = None
+    reason: str = ""
+    expires_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one_target(self):
+        if (self.target_user_id is None) == (self.target_dept_id is None):
+            raise ValueError(
+                "exactly one of target_user_id / target_dept_id is required"
+            )
+        return self
 
 
 def _bearer_token(request: Request, request_id: str) -> str:
@@ -73,6 +88,23 @@ def _member_view(member) -> dict[str, object]:
         else None,
         "expires_at": member.expires_at.isoformat().replace("+00:00", "Z")
         if member.expires_at is not None
+        else None,
+    }
+
+
+def _exception_view(exception) -> dict[str, object]:
+    return {
+        "id": exception.id,
+        "document_id": exception.document_id,
+        "target_user_id": exception.target_user_id,
+        "target_dept_id": exception.target_dept_id,
+        "granted_by": exception.granted_by,
+        "reason": exception.reason,
+        "expires_at": exception.expires_at.isoformat().replace("+00:00", "Z")
+        if exception.expires_at is not None
+        else None,
+        "created_at": exception.created_at.isoformat().replace("+00:00", "Z")
+        if exception.created_at is not None
         else None,
     }
 
@@ -168,5 +200,45 @@ def build_departments_router(
             "document_id": claimed.id,
             "library_id": claimed.library_id,
         }
+
+    @router.post("/admin/documents/{document_id}/exceptions")
+    def grant_exception(
+        document_id: str, body: GrantExceptionBody, request: Request
+    ):
+        request_id, principal = _principal(request, auth)
+        exception, created = departments.grant_exception(
+            principal, document_id, request_id,
+            target_user_id=body.target_user_id,
+            target_dept_id=body.target_dept_id,
+            reason=body.reason,
+            expires_at=body.expires_at,
+        )
+        return JSONResponse(
+            _exception_view(exception), status_code=201 if created else 200
+        )
+
+    @router.get("/admin/documents/{document_id}/exceptions")
+    def list_exceptions(
+        document_id: str, request: Request, permanent_only: bool = False
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        rows = departments.list_exceptions(
+            principal, document_id, request_id,
+            permanent_only=permanent_only,
+        )
+        return {"items": [_exception_view(row) for row in rows]}
+
+    @router.delete(
+        "/admin/documents/{document_id}/exceptions/{exception_id}",
+        status_code=204,
+    )
+    def revoke_exception(
+        document_id: str, exception_id: str, request: Request
+    ) -> JSONResponse:
+        request_id, principal = _principal(request, auth)
+        departments.revoke_exception(
+            principal, exception_id, request_id, document_id=document_id
+        )
+        return JSONResponse(None, status_code=204)
 
     return router

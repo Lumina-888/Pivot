@@ -1,4 +1,6 @@
-"""Department administration: libraries, memberships, claims (ADR-016 D3, D10).
+"""Department administration: libraries, memberships, claims, exceptions.
+
+(ADR-016 D3, D10; ADR-017 D1, Q2, Q4.)
 
 Power matrix, enforced here and nowhere else:
 
@@ -17,6 +19,11 @@ Power matrix, enforced here and nowhere else:
   the mutation is compensated back so no permission change ever lands
   without its trace. Denied attempts are audited best-effort: the
   denial stands even if that audit write fails.
+- Document exceptions (ADR-017 D1) grant whole-document visibility to
+  one user or one department. Super admins grant anywhere; department
+  admins grant personal exceptions only for their own department's
+  documents, never department-target ones, and never on a document
+  they see only through an exception of their own.
 - Appointment and removal take effect on the next request with no
   token action: authentication rebuilds the Principal from the live
   user directory on every request, and membership reads go to the live
@@ -40,6 +47,7 @@ from pivot.auth.errors import forbidden, not_found, resource_forbidden
 from pivot.auth.ports import (
     Clock,
     DepartmentAdminStore,
+    DocumentException,
     Library,
     Membership,
     Principal,
@@ -47,6 +55,7 @@ from pivot.auth.ports import (
 )
 from pivot.documents.ports import DocumentRecord, DocumentStore
 from pivot.security.rbac import AccessControl
+from pivot.shared.ids import new_id
 
 logger = logging.getLogger("pivot.auth.departments")
 
@@ -582,3 +591,208 @@ class DepartmentAdminService:
             },
         )
         return claimed
+
+    # -- document exceptions (ADR-017 D1, Q2, Q4) --------------------------
+
+    def _require_exception_manager(
+        self, principal: Principal, doc_library_id: str, request_id: str, *,
+        target: str,
+    ) -> None:
+        """Super admin anywhere; dept admin only inside their department.
+
+        Callers who administer no department at all get forbidden: they
+        are not managers. Dept admins outside the document's department
+        get not_found: the document is not theirs to manage.
+        """
+        if principal.role == "admin":
+            return
+        if not self._access.admin_departments(principal):
+            self._deny(
+                principal, request_id, dept_id=doc_library_id,
+                target=target, error=forbidden(request_id),
+            )
+        if not self._access.is_department_admin(principal, doc_library_id):
+            self._deny(
+                principal, request_id, dept_id=doc_library_id,
+                target=target, error=not_found(request_id),
+            )
+
+    def grant_exception(
+        self, principal: Principal, document_id: str, request_id: str, *,
+        target_user_id: str | None = None,
+        target_dept_id: str | None = None,
+        reason: str = "",
+        expires_at: datetime | None = None,
+    ) -> tuple[DocumentException, bool]:
+        """Grant whole-document visibility to one user or one department.
+
+        Returns (exception, created). Granting is an upsert by
+        (document, target): a re-grant updates the stored row's terms
+        instead of adding a duplicate, whether the old row is live or
+        expired. Permanent grants use NULL expires_at (ADR-017 Q2);
+        no duration cap applies to exceptions.
+        """
+        if (target_user_id is None) == (target_dept_id is None):
+            raise ValueError(
+                "exactly one of target_user_id / target_dept_id is required"
+            )
+        document = self._documents.get(document_id)
+        if document is None or document.deleted_at is not None:
+            raise not_found(request_id)
+        if target_user_id is not None:
+            if self._users.get_by_id(target_user_id) is None:
+                raise not_found(request_id)
+        else:
+            target_library = self._store.get_library(target_dept_id)
+            if target_library is None or target_library.kind != "department":
+                raise not_found(request_id)
+        if principal.role != "admin":
+            # Department-target grants are super-admin-only. This check
+            # runs before the scope check so a dept admin attempting one
+            # gets forbidden (a privilege denial), not not_found.
+            if target_dept_id is not None:
+                self._deny(
+                    principal, request_id, dept_id=document.library_id,
+                    target=document_id, error=forbidden(request_id),
+                )
+            # Grantor visibility is judged by library scope alone, never
+            # by exceptions: a grantor who sees a document only through
+            # an exception of their own cannot pass that visibility on.
+            self._require_exception_manager(
+                principal, document.library_id, request_id, target=document_id,
+            )
+        existing = next(
+            (
+                exception
+                for exception in self._access.document_exceptions(document_id)
+                if exception.target_user_id == target_user_id
+                and exception.target_dept_id == target_dept_id
+            ),
+            None,
+        )
+        if existing is not None:
+            exception = replace(
+                existing,
+                granted_by=principal.user_id,
+                reason=reason,
+                expires_at=expires_at,
+            )
+            created = False
+        else:
+            exception = DocumentException(
+                id=new_id("exception"),
+                document_id=document_id,
+                target_user_id=target_user_id,
+                target_dept_id=target_dept_id,
+                granted_by=principal.user_id,
+                reason=reason,
+                expires_at=expires_at,
+                created_at=self._clock.now(),
+            )
+            created = True
+        self._store.add_exception(exception)
+        metadata: dict[str, object] = {
+            # Department audit views key on the DOCUMENT's library, not
+            # on the grant target, so the owning department sees the
+            # change (ADR-017 D1).
+            "dept_id": document.library_id,
+            "exception_id": exception.id,
+            "expires_at": _iso(expires_at),
+        }
+        if target_user_id is not None:
+            metadata["target_user_id"] = target_user_id
+        if target_dept_id is not None:
+            metadata["target_dept_id"] = target_dept_id
+        if existing is None:
+            def rollback():
+                return self._store.remove_exception(exception.id)
+        else:
+            def rollback():
+                return self._store.add_exception(existing)
+        self._record_or_rollback(
+            rollback=rollback,
+            record_kwargs={
+                "actor": principal.user_id,
+                "action": "authz.document_exception_granted",
+                "target": document_id,
+                "result": "ok",
+                "request_id": request_id,
+                "metadata": metadata,
+            },
+        )
+        return exception, created
+
+    def revoke_exception(
+        self, principal: Principal, exception_id: str, request_id: str, *,
+        document_id: str | None = None,
+    ) -> None:
+        """Revoke one exception grant.
+
+        When document_id is given (the router path), it must match the
+        exception's document, so a grant cannot be revoked through a
+        stranger document's URL. Revocation only shrinks visibility, so
+        a dept admin may revoke any grant on their own department's
+        documents, including super-admin grants.
+        """
+        exception = self._access.exception(exception_id)
+        if exception is None:
+            raise not_found(request_id)
+        if document_id is not None and exception.document_id != document_id:
+            raise not_found(request_id)
+        document = self._documents.get(exception.document_id)
+        if document is None or document.deleted_at is not None:
+            # Orphaned rows (document gone) can only be cleaned up by a
+            # super admin; a dept admin cannot establish scope for one.
+            if principal.role != "admin":
+                self._deny(
+                    principal, request_id, dept_id=None,
+                    target=exception_id, error=not_found(request_id),
+                )
+            doc_library_id: str | None = None
+        else:
+            doc_library_id = document.library_id
+            self._require_exception_manager(
+                principal, doc_library_id, request_id, target=exception_id,
+            )
+        self._store.remove_exception(exception_id)
+        metadata: dict[str, object] = {"exception_id": exception.id}
+        if doc_library_id is not None:
+            metadata["dept_id"] = doc_library_id
+        if exception.target_user_id is not None:
+            metadata["target_user_id"] = exception.target_user_id
+        if exception.target_dept_id is not None:
+            metadata["target_dept_id"] = exception.target_dept_id
+        self._record_or_rollback(
+            rollback=lambda: self._store.add_exception(exception),
+            record_kwargs={
+                "actor": principal.user_id,
+                "action": "authz.document_exception_revoked",
+                "target": exception.document_id,
+                "result": "ok",
+                "request_id": request_id,
+                "metadata": metadata,
+            },
+        )
+
+    def list_exceptions(
+        self, principal: Principal, document_id: str, request_id: str, *,
+        permanent_only: bool = False,
+    ) -> tuple[DocumentException, ...]:
+        """Stored exception rows for one document, for its managers.
+
+        Rows are returned as-is, live and expired alike; expiry is
+        enforced by the visibility computation, not by this list. The
+        permanent filter (expires_at NULL) is the ADR-017 Q2 review
+        list for super admins. Non-managers never see this list: it
+        reveals who else may read the document.
+        """
+        document = self._documents.get(document_id)
+        if document is None or document.deleted_at is not None:
+            raise not_found(request_id)
+        self._require_exception_manager(
+            principal, document.library_id, request_id, target=document_id,
+        )
+        rows = self._access.document_exceptions(document_id)
+        if permanent_only:
+            rows = tuple(row for row in rows if row.expires_at is None)
+        return rows

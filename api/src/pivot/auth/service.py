@@ -337,6 +337,10 @@ class AuthService:
         """Libraries the principal may see, for server-side retrieval scope."""
         return self._access.visible_libraries(principal)
 
+    def exception_document_ids(self, principal: Principal) -> frozenset[str]:
+        """Documents the principal may see only via live exceptions (ADR-017 D1)."""
+        return self._access.exception_document_ids(principal)
+
     def authorize_chunk(
         self, principal: Principal, chunk_id: str, request_id: str = "req_authz"
     ) -> None:

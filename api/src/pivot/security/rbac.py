@@ -5,7 +5,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from pivot.auth.errors import not_found, resource_forbidden
-from pivot.auth.ports import Clock, Membership, Principal, ResourceCatalog
+from pivot.auth.ports import (
+    Clock,
+    DocumentException,
+    Membership,
+    Principal,
+    ResourceCatalog,
+)
 from pivot.shared.time import utc_now
 
 
@@ -26,6 +32,18 @@ def _is_live(membership: Membership, now: datetime) -> bool:
     if membership.expires_at is None:
         return True
     return _as_utc(membership.expires_at) > now
+
+
+def _exception_is_live(exception: DocumentException, now: datetime) -> bool:
+    """True when an exception grant has not expired (ADR-017 D1).
+
+    Same exclusive boundary as membership expiry (ADR-017 D2): NULL
+    expires_at means a permanent grant; at expires_at itself the grant
+    is already gone. Naive stored timestamps (SQLite) read as UTC.
+    """
+    if exception.expires_at is None:
+        return True
+    return _as_utc(exception.expires_at) > now
 
 
 class AccessControl:
@@ -93,6 +111,57 @@ class AccessControl:
             and _is_live(membership, now)
         )
 
+    def document_exceptions(
+        self, document_id: str
+    ) -> tuple[DocumentException, ...]:
+        """Stored exception rows for one document, as-is (ADR-017 D1).
+
+        No expiry filtering and no department expansion here; the
+        visibility computation in exception_document_ids owns both.
+        """
+        return self._catalog.get_document_exceptions(document_id)
+
+    def exception(
+        self, exception_id: str
+    ) -> DocumentException | None:
+        """One stored exception row by id, or None."""
+        return self._catalog.get_exception(exception_id)
+
+    def exception_document_ids(self, principal: Principal) -> frozenset[str]:
+        """Documents this principal may see only via exceptions (ADR-017 D1).
+
+        The single exception set shared by authorize_document, the QA
+        retriever hook, and the search scope: personal grants plus
+        department-target grants expanded over the principal's LIVE
+        memberships. Expansion reads get_memberships (the hot path that
+        never writes) and applies the same exclusive expiry boundary as
+        membership visibility, so an expired member is never expanded
+        into a grant. Super admins bypass visibility everywhere, so
+        they need no exception set.
+        """
+        if principal.role == "admin":
+            return frozenset()
+        now = self._now()
+        doc_ids = {
+            exception.document_id
+            for exception in self._catalog.get_exceptions_for_user(
+                principal.user_id
+            )
+            if _exception_is_live(exception, now)
+        }
+        live_depts = {
+            membership.dept_id
+            for membership in self._catalog.get_memberships(principal.user_id)
+            if _is_live(membership, now)
+        }
+        for dept_id in live_depts:
+            for exception in self._catalog.get_exceptions_for_department(
+                dept_id
+            ):
+                if _exception_is_live(exception, now):
+                    doc_ids.add(exception.document_id)
+        return frozenset(doc_ids)
+
     def authorize_conversation(
         self, principal: Principal, conversation_id: str, request_id: str
     ) -> None:
@@ -131,6 +200,12 @@ class AccessControl:
         if principal.role == "admin":
             return
         if document.library_id in self.visible_libraries(principal):
+            return
+        # Second channel (ADR-017 D1): a live exception grant on this
+        # exact document, personal or via a department the principal
+        # currently belongs to. Library membership stays the first
+        # channel; exceptions never widen a library, only a document.
+        if document.id in self.exception_document_ids(principal):
             return
         raise not_found(request_id)
 
