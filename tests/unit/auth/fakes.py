@@ -13,6 +13,7 @@ from pivot.auth.ports import (
     ChunkAuthz,
     CitationAuthz,
     DocumentAuthz,
+    DocumentException,
     ExportAuthz,
     Library,
     Membership,
@@ -126,6 +127,7 @@ class InMemoryResources:
     conversations: dict[str, str] = field(default_factory=dict)
     libraries: dict[str, Library] = field(default_factory=dict)
     memberships: dict[str, tuple[Membership, ...]] = field(default_factory=dict)
+    exceptions: dict[str, DocumentException] = field(default_factory=dict)
 
     def get_document(self, document_id: str) -> DocumentAuthz | None:
         return self.documents.get(document_id)
@@ -182,6 +184,34 @@ class InMemoryResources:
 
     def set_membership(self, membership: Membership) -> None:
         self.add_membership(membership)
+
+    def get_document_exceptions(
+        self, document_id: str
+    ) -> tuple[DocumentException, ...]:
+        return tuple(
+            exception
+            for exception in sorted(
+                self.exceptions.values(), key=lambda item: item.id
+            )
+            if exception.document_id == document_id
+        )
+
+    def get_exceptions_for_user(
+        self, user_id: str
+    ) -> tuple[DocumentException, ...]:
+        return tuple(
+            exception
+            for exception in sorted(
+                self.exceptions.values(), key=lambda item: item.id
+            )
+            if exception.target_user_id == user_id
+        )
+
+    def add_exception(self, exception: DocumentException) -> None:
+        self.exceptions[exception.id] = exception
+
+    def remove_exception(self, exception_id: str) -> None:
+        self.exceptions.pop(exception_id, None)
 
     def claim_conversation(self, conversation_id: str, owner_id: str) -> str:
         current = self.conversations.get(conversation_id)

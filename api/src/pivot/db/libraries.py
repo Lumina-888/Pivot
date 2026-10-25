@@ -17,7 +17,8 @@ from contextlib import contextmanager
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from pivot.auth.ports import Library, Membership
+from pivot.auth.ports import DocumentException, Library, Membership
+from pivot.db.models.identity import DocumentException as ExceptionRow
 from pivot.db.models.identity import Library as LibraryRow
 from pivot.db.models.identity import Membership as MembershipRow
 from pivot.db.uow import UnitOfWork
@@ -35,6 +36,20 @@ def _to_membership(row: MembershipRow) -> Membership:
         dept_role=row.dept_role,
         granted_by=row.granted_by,
         granted_at=row.granted_at,
+        expires_at=row.expires_at,
+    )
+
+
+def _to_exception(row: ExceptionRow) -> DocumentException:
+    return DocumentException(
+        id=row.id,
+        document_id=row.document_id,
+        target_user_id=row.target_user_id,
+        target_dept_id=row.target_dept_id,
+        granted_by=row.granted_by,
+        reason=row.reason,
+        expires_at=row.expires_at,
+        created_at=row.created_at,
     )
 
 
@@ -107,12 +122,14 @@ class SqlAlchemyLibraryCatalog:
                             # An explicit None would override the column
                             # default with NULL and violate NOT NULL.
                             granted_at=membership.granted_at or utc_now(),
+                            expires_at=membership.expires_at,
                         )
                     )
                 else:
                     row.dept_role = membership.dept_role
                     row.granted_by = membership.granted_by
                     row.granted_at = membership.granted_at or utc_now()
+                    row.expires_at = membership.expires_at
 
     def remove_membership(self, user_id: str, dept_id: str) -> None:
         with self._scope() as session:
@@ -126,6 +143,63 @@ class SqlAlchemyLibraryCatalog:
 
     def set_membership(self, membership: Membership) -> None:
         self.add_membership(membership)
+
+    def get_document_exceptions(
+        self, document_id: str
+    ) -> tuple[DocumentException, ...]:
+        with self._scope() as session:
+            rows = session.scalars(
+                select(ExceptionRow)
+                .where(ExceptionRow.document_id == document_id)
+                .order_by(ExceptionRow.id)
+            ).all()
+            return tuple(_to_exception(row) for row in rows)
+
+    def get_exceptions_for_user(
+        self, user_id: str
+    ) -> tuple[DocumentException, ...]:
+        # Personal grants only. Department-target expansion reads the
+        # user's memberships and is an S3 concern, not a storage one.
+        with self._scope() as session:
+            rows = session.scalars(
+                select(ExceptionRow)
+                .where(ExceptionRow.target_user_id == user_id)
+                .order_by(ExceptionRow.id)
+            ).all()
+            return tuple(_to_exception(row) for row in rows)
+
+    def add_exception(self, exception: DocumentException) -> None:
+        with self._scope() as session:
+            with UnitOfWork(session):
+                row = session.get(ExceptionRow, exception.id)
+                if row is None:
+                    session.add(
+                        ExceptionRow(
+                            id=exception.id,
+                            document_id=exception.document_id,
+                            target_user_id=exception.target_user_id,
+                            target_dept_id=exception.target_dept_id,
+                            granted_by=exception.granted_by,
+                            reason=exception.reason,
+                            expires_at=exception.expires_at,
+                            created_at=exception.created_at or utc_now(),
+                        )
+                    )
+                else:
+                    row.document_id = exception.document_id
+                    row.target_user_id = exception.target_user_id
+                    row.target_dept_id = exception.target_dept_id
+                    row.granted_by = exception.granted_by
+                    row.reason = exception.reason
+                    row.expires_at = exception.expires_at
+                    row.created_at = exception.created_at or utc_now()
+
+    def remove_exception(self, exception_id: str) -> None:
+        with self._scope() as session:
+            with UnitOfWork(session):
+                session.execute(
+                    delete(ExceptionRow).where(ExceptionRow.id == exception_id)
+                )
 
     @contextmanager
     def _scope(self) -> Iterator[Session]:
