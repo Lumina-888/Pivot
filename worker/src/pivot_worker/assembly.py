@@ -286,6 +286,21 @@ def _llama_document_sync(
         except Exception:
             return None
 
+    def folder_id_for(version_id: str) -> str | None:
+        # Live folder facts for startup partition (ADR-018 D3); None
+        # means the default folder, which is the library collection.
+        try:
+            version = version_rows.get(version_id)
+            if version is None:
+                return None
+            document = document_rows.get(version.document_id)
+            if document is None:
+                return None
+            folder_id = document.folder_id
+            return folder_id if isinstance(folder_id, str) and folder_id.strip() else None
+        except Exception:
+            return None
+
     client = settings.llama_qdrant_client
     if client is None:
         from pivot.storage.adapters.qdrant import _normalize_endpoint
@@ -316,6 +331,7 @@ def _llama_document_sync(
         native_payloads=scroll_payloads(store),
         external_llm_allowed=external_llm_allowed,
         library_id_for=library_id_for,
+        folder_id_for=folder_id_for,
         hydrate=False,
     )
     logger = logging.getLogger(__name__)
@@ -325,8 +341,10 @@ def _llama_document_sync(
         current_payloads: list = []
         document = document_rows.get(document_id)
         library_id = None
+        folder_id = None
         if document is not None:
             library_id = document.library_id
+            folder_id = document.folder_id
             if document.deleted_at is None:
                 current = None
                 for version in version_rows.list_for_document(document_id):
@@ -342,6 +360,7 @@ def _llama_document_sync(
         holders.reconcile_document(
             document_id,
             library_id=library_id,
+            folder_id=folder_id,
             current_payloads=current_payloads,
             external_llm_allowed=external_llm_allowed,
         )

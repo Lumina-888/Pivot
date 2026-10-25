@@ -98,6 +98,11 @@ def test_FR_RBAC_004_search_router_derives_exception_scope() -> None:
         def exception_document_ids(self, principal):
             return frozenset({"doc-a"})
 
+        def visible_folder_ids(self, principal):
+            # The test corpus carries no folder facts (default folder),
+            # so the folder scope passes it regardless of this set.
+            return frozenset()
+
     app = FastAPI()
     app.include_router(build_search_router(service, _FakeAuth()))
     client = TestClient(app, base_url="https://testserver")

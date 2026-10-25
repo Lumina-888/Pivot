@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 
 from llama_index.core import VectorStoreIndex
@@ -40,6 +40,10 @@ class LlamaIndexRetriever:
     that principal may see are queried at all: collection selection
     is library enforcement, and the authorize hook stays as defense
     in depth. Without it, every given index is queried, as before.
+    Folder indexes (ADR-018 D3) follow the same shape under
+    ``visible_folders_for``: only the caller's visible folders are
+    queried, and the default folder is the library collection itself,
+    never a separate index.
 
     Document-level exceptions (ADR-017 D1) widen selection but never
     visibility: when ``exception_documents_for`` reports live exception
@@ -66,6 +70,8 @@ class LlamaIndexRetriever:
         refresher: CollectionRefresher | None = None,
         visible_libraries_for: Callable[[str], tuple[str, ...]] | None = None,
         exception_documents_for: Callable[[str], tuple[str, ...]] | None = None,
+        folder_indexes: Mapping[str, VectorStoreIndex] | None = None,
+        visible_folders_for: Callable[[str], tuple[str, ...]] | None = None,
     ) -> None:
         if index is not None and indexes is not None:
             raise ValueError("pass either index or indexes, not both")
@@ -91,6 +97,14 @@ class LlamaIndexRetriever:
         self._refresher = refresher
         self._visible_libraries_for = visible_libraries_for
         self._exception_documents_for = exception_documents_for
+        # Folder collections (ADR-018 D3): stored as given, not copied,
+        # like _indexes: a library set's folder_indexes mapping is a
+        # live view, and a lazily created folder must become visible
+        # without a restart. Folder ids never equal library ids (the
+        # folder service refuses the collision at creation), so the
+        # merged selection dict cannot drop a library key.
+        self._folder_indexes = folder_indexes
+        self._visible_folders_for = visible_folders_for
 
     def retrieve(
         self,
@@ -201,7 +215,7 @@ class LlamaIndexRetriever:
     def _selected_indexes(
         self, principal_id: str
     ) -> dict[str | None, VectorStoreIndex]:
-        """Indexes this principal may be served from, by library.
+        """Indexes this principal may be served from, by library and folder.
 
         No resolver means every index (the pre-S3 single-index shape);
         a legacy single index has no library key, so it is also served
@@ -218,26 +232,67 @@ class LlamaIndexRetriever:
         wider selection cannot leak ungranted documents. An exception
         resolver failure only drops the exception widening; library
         visibility is unaffected.
+
+        Folder indexes (ADR-018 D3) follow the same shape: without a
+        folder resolver every folder index is served; with one, only
+        the caller's visible folders are. Exceptions widen the folder
+        selection too, because an exception document's folder is not
+        derivable from its id either, and the hook still filters every
+        node. Without folder_indexes the selection is exactly the
+        library selection, so pre-folder callers are untouched.
         """
         if self._visible_libraries_for is None:
-            return dict(self._indexes)
-        if not any(key is not None for key in self._indexes):
-            return dict(self._indexes)
+            library_selected = dict(self._indexes)
+        elif not any(key is not None for key in self._indexes):
+            library_selected = dict(self._indexes)
+        else:
+            try:
+                visible = set(self._visible_libraries_for(principal_id))
+            except Exception:
+                # A library resolver failure denies everything, as
+                # before: folder selection does not run either.
+                return {}
+            if self._exception_documents_for is not None:
+                try:
+                    exceptions = self._exception_documents_for(principal_id)
+                except Exception:
+                    exceptions = ()
+                if exceptions:
+                    library_selected = dict(self._indexes)
+                else:
+                    library_selected = {
+                        key: index
+                        for key, index in self._indexes.items()
+                        if key in visible
+                    }
+            else:
+                library_selected = {
+                    key: index
+                    for key, index in self._indexes.items()
+                    if key in visible
+                }
+        if self._folder_indexes is None:
+            return library_selected
+        if self._visible_folders_for is None:
+            return {**library_selected, **dict(self._folder_indexes)}
         try:
-            visible = set(self._visible_libraries_for(principal_id))
+            visible_folders = set(self._visible_folders_for(principal_id))
         except Exception:
-            return {}
+            return library_selected
         if self._exception_documents_for is not None:
             try:
                 exceptions = self._exception_documents_for(principal_id)
             except Exception:
                 exceptions = ()
             if exceptions:
-                return dict(self._indexes)
+                return {**library_selected, **dict(self._folder_indexes)}
         return {
-            key: index
-            for key, index in self._indexes.items()
-            if key in visible
+            **library_selected,
+            **{
+                key: index
+                for key, index in self._folder_indexes.items()
+                if key in visible_folders
+            },
         }
 
     def _find_node(self, chunk_id: str, *, principal_id: str) -> TextNode | None:
@@ -380,6 +435,7 @@ def _record(node: TextNode) -> ChunkRecord | None:
     if not isinstance(chunk_id, str) or not chunk_id.strip():
         chunk_id = node.node_id
     library_id = metadata.get("library_id")
+    folder_id = metadata.get("folder_id")
     return ChunkRecord(
         chunk_id=chunk_id,
         document_id=metadata["document_id"],
@@ -389,4 +445,8 @@ def _record(node: TextNode) -> ChunkRecord | None:
         embedding_model_version=metadata["embedding_model_version"],
         retrieval_config_version=metadata["retrieval_config_version"],
         library_id=library_id if isinstance(library_id, str) else "",
+        # Nodes in a folder collection carry their folder id (stamped
+        # by the folder holder); anything else reads as the default
+        # folder, which is the library itself.
+        folder_id=folder_id if isinstance(folder_id, str) else None,
     )

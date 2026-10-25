@@ -37,6 +37,32 @@ class ClaimBody(BaseModel):
     library_id: str = Field(min_length=1)
 
 
+class CreateFolderBody(BaseModel):
+    folder_id: str = Field(pattern=_DEPT_ID_PATTERN)
+    name: str = Field(min_length=1, max_length=255)
+
+
+class RenameFolderBody(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
+class AddFolderMemberBody(BaseModel):
+    user_id: str = Field(min_length=1)
+    folder_role: str = Field(pattern=r"^(full|editor|reader)$")
+    expires_at: datetime | None = None
+
+
+class SetFolderRoleBody(BaseModel):
+    folder_role: str = Field(pattern=r"^(full|editor|reader)$")
+    expires_at: datetime | None = None
+
+
+class MoveDocumentBody(BaseModel):
+    # None means the default folder (the library itself): the move
+    # clears folder_id. An explicit folder id moves into that folder.
+    folder_id: str | None = None
+
+
 class GrantExceptionBody(BaseModel):
     target_user_id: str | None = None
     target_dept_id: str | None = None
@@ -92,6 +118,32 @@ def _member_view(member) -> dict[str, object]:
     }
 
 
+def _folder_view(folder) -> dict[str, object]:
+    return {
+        "folder_id": folder.id,
+        "library_id": folder.library_id,
+        "name": folder.name,
+        "created_at": folder.created_at.isoformat().replace("+00:00", "Z")
+        if folder.created_at is not None
+        else None,
+    }
+
+
+def _folder_member_view(member) -> dict[str, object]:
+    return {
+        "folder_id": member.folder_id,
+        "user_id": member.user_id,
+        "folder_role": member.folder_role,
+        "granted_by": member.granted_by,
+        "granted_at": member.granted_at.isoformat().replace("+00:00", "Z")
+        if member.granted_at is not None
+        else None,
+        "expires_at": member.expires_at.isoformat().replace("+00:00", "Z")
+        if member.expires_at is not None
+        else None,
+    }
+
+
 def _exception_view(exception) -> dict[str, object]:
     return {
         "id": exception.id,
@@ -116,7 +168,8 @@ def build_departments_router(
     reconcile dispatcher (ADR-017 D3): called after a successful claim
     with (document_id, library_id, request_id, actor_id); None means
     there is nothing to reconcile (no llama backend) and the claim
-    simply lands without a dispatch.
+    simply lands without a dispatch. Folder moves (ADR-018 D3) reuse
+    the same dispatcher after a move that actually changed the folder.
     """
     router = APIRouter()
 
@@ -207,6 +260,139 @@ def build_departments_router(
         return {
             "document_id": claimed.id,
             "library_id": claimed.library_id,
+        }
+
+    # -- folders (ADR-018 D3) ------------------------------------------
+    #
+    # Folder management is a department admin act; folder documents
+    # (rename, move) are a full-member act, with department admins
+    # bypassing folder roles. The move endpoint reuses the claim-sync
+    # dispatcher: a successful move reconciles the document into its
+    # new collection, exactly like a claim, and a no-op move (same
+    # folder) dispatches nothing.
+
+    @router.post("/admin/departments/{dept_id}/folders")
+    def create_folder(dept_id: str, body: CreateFolderBody, request: Request):
+        request_id, principal = _principal(request, auth)
+        folder, created = departments.create_folder(
+            principal, dept_id, body.folder_id, body.name, request_id
+        )
+        return JSONResponse(
+            _folder_view(folder), status_code=201 if created else 200
+        )
+
+    @router.get("/admin/departments/{dept_id}/folders")
+    def list_folders(dept_id: str, request: Request) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        items = departments.list_folders(principal, dept_id, request_id)
+        return {
+            "items": [_folder_view(item) for item in items],
+            "pagination": None,
+        }
+
+    @router.get("/admin/departments/{dept_id}/folders/{folder_id}")
+    def get_folder(dept_id: str, folder_id: str, request: Request) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        return _folder_view(
+            departments.get_folder(principal, dept_id, folder_id, request_id)
+        )
+
+    @router.patch("/admin/departments/{dept_id}/folders/{folder_id}")
+    def rename_folder(
+        dept_id: str, folder_id: str, body: RenameFolderBody, request: Request
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        folder = departments.rename_folder(
+            principal, dept_id, folder_id, body.name, request_id
+        )
+        return _folder_view(folder)
+
+    @router.delete(
+        "/admin/departments/{dept_id}/folders/{folder_id}", status_code=204
+    )
+    def delete_folder(
+        dept_id: str, folder_id: str, request: Request
+    ) -> JSONResponse:
+        request_id, principal = _principal(request, auth)
+        departments.delete_folder(principal, dept_id, folder_id, request_id)
+        return JSONResponse(None, status_code=204)
+
+    @router.get("/admin/departments/{dept_id}/folders/{folder_id}/members")
+    def list_folder_members(
+        dept_id: str, folder_id: str, request: Request
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        items = departments.list_folder_members(
+            principal, dept_id, folder_id, request_id
+        )
+        return {
+            "items": [_folder_member_view(item) for item in items],
+            "pagination": None,
+        }
+
+    @router.post("/admin/departments/{dept_id}/folders/{folder_id}/members")
+    def add_folder_member(
+        dept_id: str, folder_id: str, body: AddFolderMemberBody, request: Request
+    ):
+        request_id, principal = _principal(request, auth)
+        member, created = departments.add_folder_member(
+            principal, dept_id, folder_id, body.user_id, body.folder_role,
+            request_id, expires_at=body.expires_at,
+        )
+        return JSONResponse(
+            _folder_member_view(member), status_code=201 if created else 200
+        )
+
+    @router.patch(
+        "/admin/departments/{dept_id}/folders/{folder_id}/members/{user_id}"
+    )
+    def set_folder_member_role(
+        dept_id: str, folder_id: str, user_id: str, body: SetFolderRoleBody,
+        request: Request,
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        # PATCH tri-state, same as set_member_role: an omitted
+        # expires_at keeps the stored value, an explicit null clears it.
+        kwargs: dict[str, object] = {}
+        if "expires_at" in body.model_fields_set:
+            kwargs["expires_at"] = body.expires_at
+        member = departments.set_folder_member_role(
+            principal, dept_id, folder_id, user_id, body.folder_role,
+            request_id, **kwargs,
+        )
+        return _folder_member_view(member)
+
+    @router.delete(
+        "/admin/departments/{dept_id}/folders/{folder_id}/members/{user_id}",
+        status_code=204,
+    )
+    def remove_folder_member(
+        dept_id: str, folder_id: str, user_id: str, request: Request
+    ) -> JSONResponse:
+        request_id, principal = _principal(request, auth)
+        departments.remove_folder_member(
+            principal, dept_id, folder_id, user_id, request_id
+        )
+        return JSONResponse(None, status_code=204)
+
+    @router.post("/admin/departments/{dept_id}/documents/{document_id}/folder")
+    def move_document_to_folder(
+        dept_id: str, document_id: str, body: MoveDocumentBody, request: Request
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        moved, changed = departments.move_document_to_folder(
+            principal, dept_id, document_id, body.folder_id, request_id
+        )
+        if changed and claim_sync is not None:
+            # The library is unchanged by a folder move; the dispatcher
+            # reconciles by document id against live facts, so it picks
+            # up the new folder_id on its own.
+            claim_sync(moved.id, dept_id, request_id, principal.user_id)
+        return {
+            "document_id": moved.id,
+            "library_id": moved.library_id,
+            "folder_id": moved.folder_id,
+            "moved": changed,
         }
 
     @router.post("/admin/documents/{document_id}/exceptions")

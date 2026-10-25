@@ -352,6 +352,13 @@ class AuthService:
         """Libraries the principal may see, for server-side retrieval scope."""
         return self._access.visible_libraries(principal)
 
+    def visible_folder_ids(self, principal: Principal) -> frozenset[str]:
+        """Folders the principal may see, for server-side retrieval scope
+        (ADR-018 D2-D3): department admins see every folder in their
+        departments, members see their own folders plus the default
+        folder (which is the library itself, not a row)."""
+        return self._access.visible_folder_ids(principal)
+
     def exception_document_ids(self, principal: Principal) -> frozenset[str]:
         """Documents the principal may see only via live exceptions (ADR-017 D1)."""
         return self._access.exception_document_ids(principal)

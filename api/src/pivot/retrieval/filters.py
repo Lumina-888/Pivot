@@ -20,6 +20,21 @@ def passes_filters(chunk: ChunkRecord, query: RetrievalQuery) -> bool:
             and chunk.document_id not in query.exception_document_ids
         ):
             return False
+        # Folder scope (ADR-018 D3): inside a visible library, a chunk
+        # in a restricted folder passes only when the folder is visible
+        # to the caller, or its document carries an exception grant.
+        # Folders never replace exceptions: an exception-granted
+        # document inside an invisible folder still passes. Chunks
+        # without a folder fact (folder_id None) sit in the default
+        # folder, which is the library itself, so the library check
+        # above already decided them.
+        if (
+            query.visible_folder_ids is not None
+            and chunk.folder_id is not None
+            and chunk.folder_id not in query.visible_folder_ids
+            and chunk.document_id not in query.exception_document_ids
+        ):
+            return False
     if query.space and chunk.space != query.space:
         return False
     if query.tags and not set(query.tags).issubset(set(chunk.tags)):

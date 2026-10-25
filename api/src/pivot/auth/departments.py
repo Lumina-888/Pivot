@@ -27,6 +27,19 @@ Power matrix, enforced here and nowhere else:
   admins grant personal exceptions only for their own department's
   documents, never department-target ones, and never on a document
   they see only through an exception of their own.
+- Folders (ADR-018 D3, D2) are single-level restricted folders inside
+  one department library; the default folder has no row, it is the
+  library itself. Folder management (create, delete, member
+  add/remove/role) is a department admin act. Folder documents
+  (rename, move in/out) are a full-member act, and department admins
+  bypass folder roles entirely inside their own department: a
+  read-only folder is still fully open to its department admin.
+  Folder members come only from the department's live members, and
+  moving a document checks both sides: the source folder's full
+  member (or department admin) and the target folder's. Deletion
+  mirrors remove_department: members or live documents refuse it,
+  and an empty folder's retrieval collection is deleted with it.
+  Project libraries and project folders are P1-4 S3/S4, not here.
 - Appointment and removal take effect on the next request with no
   token action: authentication rebuilds the Principal from the live
   user directory on every request, and membership reads go to the live
@@ -53,6 +66,8 @@ from pivot.auth.ports import (
     Clock,
     DepartmentAdminStore,
     DocumentException,
+    Folder,
+    FolderMembership,
     Library,
     Membership,
     Principal,
@@ -67,6 +82,13 @@ logger = logging.getLogger("pivot.auth.departments")
 _DEPT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,127}$")
 _DEPT_ROLES = frozenset({"dept_admin", "editor", "reader"})
 _ASSIGNABLE_BY_DEPT_ADMIN = frozenset({"editor", "reader"})
+# ADR-018 D3: folder roles. full manages folder documents (add, remove,
+# rename, move) but never folder members, so it is not called admin.
+_FOLDER_ROLES = frozenset({"full", "editor", "reader"})
+# Fixed system library ids: folders share the retrieval key namespace
+# with libraries, so a folder id equal to one of these would collide
+# with the system library collection even when no row exists yet.
+_SYSTEM_LIBRARY_IDS = frozenset({"pub", "unassigned"})
 
 
 class _UnsetType:
@@ -111,6 +133,19 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+def _folder_is_live(member: FolderMembership, now: datetime) -> bool:
+    """True when a folder membership has not expired (ADR-018 D3).
+
+    Same exclusive boundary as department memberships (ADR-017 D2):
+    NULL expires_at means a long-term grant; at expires_at itself the
+    membership is already gone. Checked in Python because the hot
+    get_folder_memberships path never writes (no lazy purge there).
+    """
+    if member.expires_at is None:
+        return True
+    return _as_utc(member.expires_at) > _as_utc(now)
+
+
 def _iso(value: datetime | None) -> str | None:
     if value is None:
         return None
@@ -128,6 +163,7 @@ class DepartmentAdminService:
         audits: AuditService,
         clock: Clock,
         transaction: Callable[[], AbstractContextManager[None]] | None = None,
+        folder_collection_drop: Callable[[str, str], None] | None = None,
     ) -> None:
         """Build the service.
 
@@ -136,6 +172,12 @@ class DepartmentAdminService:
         session for the mutation and its audit writes, so a failed
         audit write rolls the mutation back. The memory path passes
         nothing and keeps the compensation behavior.
+        ``folder_collection_drop`` (library_id, folder_id) deletes a
+        folder's retrieval collection when an empty folder is removed
+        (ADR-018 D3): bootstrap wires the library index set's drop;
+        None means no retrieval backend is attached, so deletion only
+        removes rows. The drop runs before the row delete, so a failed
+        drop refuses the deletion with nothing changed.
         """
         self._store = store
         self._documents = documents
@@ -144,6 +186,7 @@ class DepartmentAdminService:
         self._audits = audits
         self._clock = clock
         self._transaction = transaction
+        self._folder_collection_drop = folder_collection_drop
 
     @contextmanager
     def _atomic(self):
@@ -835,3 +878,600 @@ class DepartmentAdminService:
         if permanent_only:
             rows = tuple(row for row in rows if row.expires_at is None)
         return rows
+
+    # -- folders (ADR-018 D3, D2) -----------------------------------------
+    #
+    # Power matrix, enforced here and nowhere else:
+    # - Folder management (create, delete, member add/remove/role) is a
+    #   department admin act: super admins anywhere, department admins
+    #   only inside their own department. Folder members never manage
+    #   members, not even full members: full excludes member management.
+    # - Folder documents (rename, move in/out) are a full-member act:
+    #   super admins and the department's admins bypass folder roles
+    #   entirely (D2: a read-only folder is still fully open to its
+    #   department admin), full members act, editors and readers are
+    #   refused. Folder membership alone never grants anything outside
+    #   the folder: the document's library check runs first.
+    # - Cross-department attempts are answered as "not found", same as
+    #   departments above. A member refused inside a folder they belong
+    #   to gets a plain forbidden: the folder is already known to them.
+    # - The default folder has no row: it is the library itself. Moving
+    #   into it clears folder_id; listing never includes it.
+    # - Deletion mirrors remove_department: members or live documents
+    #   refuse it, and an empty folder's retrieval collection is
+    #   deleted with it. The collection drop runs before the row
+    #   delete, so a failed drop refuses the deletion with nothing
+    #   changed; the reverse residue (row restored, collection gone)
+    #   self-heals on the next reconcile, and the folder is empty, so
+    #   no document is affected.
+
+    def _require_department_folder(
+        self, dept_id: str, folder_id: str, request_id: str, *, target: str
+    ) -> Folder:
+        """A folder that exists inside this department's library.
+
+        Folders live only in department libraries in S2; a folder from
+        any other library (including a future project library) is
+        answered as not found through this path, never leaked.
+        """
+        self._require_department_library(dept_id, request_id)
+        folder = self._store.get_folder(folder_id)
+        if folder is None or folder.library_id != dept_id:
+            raise not_found(request_id)
+        return folder
+
+    def _folder_role_of(
+        self, user_id: str, folder_id: str
+    ) -> str | None:
+        """The caller's live role inside one folder, or None.
+
+        Reads the hot path (no purge) and applies the expiry boundary
+        in Python, like AccessControl: an expired folder member holds
+        no role here, and the row itself is purged only by the
+        admin-side get_folder_members read.
+        """
+        now = self._clock.now()
+        for member in self._store.get_folder_memberships(user_id):
+            if member.folder_id == folder_id and _folder_is_live(member, now):
+                return member.folder_role
+        return None
+
+    def _require_folder_document_act(
+        self, principal: Principal, dept_id: str, folder_id: str,
+        request_id: str, *, target: str,
+    ) -> None:
+        """Gate one side of a folder document act (rename, move).
+
+        Super admins and the department's admins bypass folder roles
+        (ADR-018 D2). A live full member passes. A member in another
+        role gets forbidden (the folder is already known to them); a
+        non-member gets not_found (the folder is not theirs to know).
+        The default folder (folder_id None) never reaches this gate:
+        it has no members and no role to check.
+        """
+        if principal.role == "admin":
+            return
+        if self._access.is_department_admin(principal, dept_id):
+            return
+        role = self._folder_role_of(principal.user_id, folder_id)
+        if role is None:
+            self._deny(
+                principal, request_id, dept_id=dept_id, target=target,
+                error=not_found(request_id),
+            )
+        if role != "full":
+            self._deny(
+                principal, request_id, dept_id=dept_id, target=target,
+                error=forbidden(request_id),
+            )
+
+    def create_folder(
+        self, principal: Principal, dept_id: str, folder_id: str, name: str,
+        request_id: str,
+    ) -> tuple[Folder, bool]:
+        self._require_department_scope(
+            principal, dept_id, request_id, target=folder_id
+        )
+        self._require_department_library(dept_id, request_id)
+        if not _DEPT_ID_PATTERN.match(folder_id):
+            raise ValueError("folder_id must match [a-z0-9][a-z0-9_-]{0,127}")
+        if folder_id in _SYSTEM_LIBRARY_IDS:
+            raise ValueError("folder_id collides with a system library id")
+        if not name or len(name) > 255:
+            raise ValueError("folder name must be 1-255 characters")
+        # Folder ids share the retrieval key namespace with library
+        # ids: a folder id equal to a library id would make the
+        # library and folder collections indistinguishable at
+        # selection time, so the collision is refused at creation.
+        if self._store.get_library(folder_id) is not None:
+            raise ValueError("folder_id collides with a library id")
+        existing = self._store.get_folder(folder_id)
+        if existing is not None:
+            if existing.library_id == dept_id:
+                return existing, False
+            raise resource_forbidden(request_id)
+        folder = Folder(
+            id=folder_id,
+            library_id=dept_id,
+            name=name,
+            created_at=self._clock.now(),
+        )
+        with self._atomic():
+            self._store.create_folder(folder)
+            self._record_or_rollback(
+                rollback=lambda: self._store.delete_folder(folder_id),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.folder.created",
+                    "target": folder_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "folder_id": folder_id,
+                        "name": name,
+                    },
+                },
+            )
+        return folder, True
+
+    def delete_folder(
+        self, principal: Principal, dept_id: str, folder_id: str,
+        request_id: str,
+    ) -> None:
+        self._require_department_scope(
+            principal, dept_id, request_id, target=folder_id
+        )
+        folder = self._require_department_folder(
+            dept_id, folder_id, request_id, target=folder_id
+        )
+        members = self._store.get_folder_members(folder_id)
+        live_docs = tuple(
+            document
+            for document in self._documents.list_active()
+            if document.folder_id == folder_id and document.deleted_at is None
+        )
+        if members or live_docs:
+            raise resource_forbidden(request_id)
+        with self._atomic():
+            # Collection first: a failed drop refuses the deletion with
+            # nothing changed, and the folder is empty, so the reverse
+            # residue (row restored, collection gone) affects no
+            # document and heals on the next reconcile.
+            if self._folder_collection_drop is not None:
+                self._folder_collection_drop(dept_id, folder_id)
+            self._store.delete_folder(folder_id)
+            self._record_or_rollback(
+                rollback=lambda: self._store.create_folder(folder),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.folder.deleted",
+                    "target": folder_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "folder_id": folder_id,
+                        "document_count": len(live_docs),
+                        "member_count": len(members),
+                    },
+                },
+            )
+
+    def list_folders(
+        self, principal: Principal, dept_id: str, request_id: str
+    ) -> tuple[Folder, ...]:
+        if principal.role == "admin":
+            self._require_department_library(dept_id, request_id)
+            return self._store.list_folders(dept_id)
+        if self._access.is_department_admin(principal, dept_id):
+            self._require_department_library(dept_id, request_id)
+            return self._store.list_folders(dept_id)
+        # A plain member sees only their own folders, and only inside a
+        # department they still belong to: folder membership in a
+        # department the caller left grants nothing (visible_folder_ids
+        # intersects libraries the same way).
+        if dept_id not in self._access.visible_libraries(principal):
+            self._deny(
+                principal, request_id, dept_id=dept_id, target=dept_id,
+                error=not_found(request_id),
+            )
+        self._require_department_library(dept_id, request_id)
+        visible = self._access.visible_folder_ids(principal)
+        return tuple(
+            folder
+            for folder in self._store.list_folders(dept_id)
+            if folder.id in visible
+        )
+
+    def get_folder(
+        self, principal: Principal, dept_id: str, folder_id: str,
+        request_id: str,
+    ) -> Folder:
+        if principal.role == "admin":
+            return self._require_department_folder(
+                dept_id, folder_id, request_id, target=folder_id
+            )
+        if self._access.is_department_admin(principal, dept_id):
+            return self._require_department_folder(
+                dept_id, folder_id, request_id, target=folder_id
+            )
+        if dept_id not in self._access.visible_libraries(principal):
+            self._deny(
+                principal, request_id, dept_id=dept_id, target=folder_id,
+                error=not_found(request_id),
+            )
+        folder = self._require_department_folder(
+            dept_id, folder_id, request_id, target=folder_id
+        )
+        if folder.id not in self._access.visible_folder_ids(principal):
+            raise not_found(request_id)
+        return folder
+
+    def rename_folder(
+        self, principal: Principal, dept_id: str, folder_id: str, name: str,
+        request_id: str,
+    ) -> Folder:
+        if not name or len(name) > 255:
+            raise ValueError("folder name must be 1-255 characters")
+        folder = self._require_department_folder(
+            dept_id, folder_id, request_id, target=folder_id
+        )
+        self._require_folder_document_act(
+            principal, dept_id, folder_id, request_id, target=folder_id
+        )
+        renamed = replace(folder, name=name)
+        with self._atomic():
+            self._store.set_folder(renamed)
+            self._record_or_rollback(
+                rollback=lambda: self._store.set_folder(folder),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.folder.renamed",
+                    "target": folder_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "folder_id": folder_id,
+                        "name": name,
+                    },
+                },
+            )
+        return renamed
+
+    # -- folder members ---------------------------------------------------
+
+    def list_folder_members(
+        self, principal: Principal, dept_id: str, folder_id: str,
+        request_id: str,
+    ) -> tuple[FolderMembership, ...]:
+        """Members of one folder, for its managers only.
+
+        The member list reveals who else may read the folder, so folder
+        members themselves do not get it: only super admins and the
+        department's admins, who manage the list.
+        """
+        if principal.role != "admin":
+            if not self._access.admin_departments(principal):
+                self._deny(
+                    principal, request_id, dept_id=dept_id, target=folder_id,
+                    error=forbidden(request_id),
+                )
+            self._require_department_scope(
+                principal, dept_id, request_id, target=folder_id
+            )
+        self._require_department_folder(
+            dept_id, folder_id, request_id, target=folder_id
+        )
+        return self._store.get_folder_members(folder_id)
+
+    def add_folder_member(
+        self, principal: Principal, dept_id: str, folder_id: str,
+        user_id: str, folder_role: str, request_id: str,
+        *, expires_at: datetime | None = None,
+    ) -> tuple[FolderMembership, bool]:
+        """Add a user to a folder, or return the existing row.
+
+        Folder members come only from the department's live members:
+        a user from another department (or a former member) cannot be
+        added, so folder visibility never escapes the department. All
+        three folder roles are assignable by department admins; full
+        excludes member management, but a department admin assigning
+        it is not a member-management act by the assignee.
+        """
+        if folder_role not in _FOLDER_ROLES:
+            raise ValueError("folder_role must be full, editor, or reader")
+        if principal.role != "admin":
+            if not self._access.admin_departments(principal):
+                self._deny(
+                    principal, request_id, dept_id=dept_id, target=user_id,
+                    error=forbidden(request_id),
+                )
+            self._require_department_scope(
+                principal, dept_id, request_id, target=user_id
+            )
+        self._require_department_folder(
+            dept_id, folder_id, request_id, target=user_id
+        )
+        if self._users.get_by_id(user_id) is None:
+            raise not_found(request_id)
+        dept_member_ids = {
+            member.user_id
+            for member in self._store.get_department_members(dept_id)
+        }
+        if user_id not in dept_member_ids:
+            self._deny(
+                principal, request_id, dept_id=dept_id, target=user_id,
+                error=forbidden(request_id),
+            )
+        for member in self._store.get_folder_members(folder_id):
+            if member.user_id == user_id:
+                return member, False
+        _check_grant_expiry(
+            _grantor_kind(principal), expires_at, self._clock.now()
+        )
+        member = FolderMembership(
+            folder_id=folder_id,
+            user_id=user_id,
+            folder_role=folder_role,
+            granted_by=principal.user_id,
+            granted_at=self._clock.now(),
+            expires_at=expires_at,
+        )
+        with self._atomic():
+            self._store.add_folder_member(member)
+            self._record_or_rollback(
+                rollback=lambda: self._store.remove_folder_member(
+                    folder_id, user_id
+                ),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.folder.member_added",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "folder_id": folder_id,
+                        "folder_role": folder_role,
+                        "granted_by": principal.user_id,
+                        "expires_at": _iso(expires_at),
+                    },
+                },
+            )
+        return member, True
+
+    def remove_folder_member(
+        self, principal: Principal, dept_id: str, folder_id: str,
+        user_id: str, request_id: str,
+    ) -> None:
+        if principal.role != "admin":
+            if not self._access.admin_departments(principal):
+                self._deny(
+                    principal, request_id, dept_id=dept_id, target=user_id,
+                    error=forbidden(request_id),
+                )
+            self._require_department_scope(
+                principal, dept_id, request_id, target=user_id
+            )
+        self._require_department_folder(
+            dept_id, folder_id, request_id, target=user_id
+        )
+        current = next(
+            (
+                member
+                for member in self._store.get_folder_members(folder_id)
+                if member.user_id == user_id
+            ),
+            None,
+        )
+        if current is None:
+            raise not_found(request_id)
+        with self._atomic():
+            self._store.remove_folder_member(folder_id, user_id)
+            self._record_or_rollback(
+                rollback=lambda: self._store.add_folder_member(current),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.folder.member_removed",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "folder_id": folder_id,
+                        "removed_role": current.folder_role,
+                    },
+                },
+            )
+
+    def set_folder_member_role(
+        self, principal: Principal, dept_id: str, folder_id: str,
+        user_id: str, folder_role: str, request_id: str,
+        *, expires_at: datetime | None | _UnsetType = _UNSET,
+    ) -> FolderMembership:
+        """Change a folder member's role and optionally its expiry.
+
+        Same tri-state expiry rule as set_member_role (ADR-017 D2):
+        omitted keeps the stored value, explicit None clears it to a
+        long-term grant, and an extension before expiry writes its own
+        renewal audit event. An expired row is already purged by the
+        folder-member read above, so it cannot be renewed, only
+        re-granted through add_folder_member.
+        """
+        if folder_role not in _FOLDER_ROLES:
+            raise ValueError("folder_role must be full, editor, or reader")
+        if principal.role != "admin":
+            if not self._access.admin_departments(principal):
+                self._deny(
+                    principal, request_id, dept_id=dept_id, target=user_id,
+                    error=forbidden(request_id),
+                )
+            self._require_department_scope(
+                principal, dept_id, request_id, target=user_id
+            )
+        self._require_department_folder(
+            dept_id, folder_id, request_id, target=user_id
+        )
+        current = next(
+            (
+                member
+                for member in self._store.get_folder_members(folder_id)
+                if member.user_id == user_id
+            ),
+            None,
+        )
+        if current is None:
+            raise not_found(request_id)
+        explicit = not isinstance(expires_at, _UnsetType)
+        new_expires = current.expires_at if not explicit else expires_at
+        if explicit:
+            _check_grant_expiry(
+                _grantor_kind(principal), new_expires, self._clock.now()
+            )
+        updated = FolderMembership(
+            folder_id=folder_id,
+            user_id=user_id,
+            folder_role=folder_role,
+            granted_by=principal.user_id,
+            granted_at=self._clock.now(),
+            expires_at=new_expires,
+        )
+        records = [
+            {
+                "actor": principal.user_id,
+                "action": "authz.folder.member_role_changed",
+                "target": user_id,
+                "result": "ok",
+                "request_id": request_id,
+                "metadata": {
+                    "dept_id": dept_id,
+                    "folder_id": folder_id,
+                    "old_role": current.folder_role,
+                    "new_role": folder_role,
+                    "expires_at": _iso(new_expires),
+                },
+            },
+        ]
+        if (
+            explicit
+            and new_expires != current.expires_at
+            and current.expires_at is not None
+            and (
+                new_expires is None
+                or _as_utc(new_expires) > _as_utc(current.expires_at)
+            )
+        ):
+            records.append(
+                {
+                    "actor": principal.user_id,
+                    "action": "authz.folder.member_renewed",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "folder_id": folder_id,
+                        "old_expires_at": _iso(current.expires_at),
+                        "new_expires_at": _iso(new_expires),
+                    },
+                }
+            )
+        with self._atomic():
+            self._store.set_folder_member(updated)
+            self._record_all_or_rollback(
+                rollback=lambda: self._store.set_folder_member(current),
+                records=records,
+            )
+        return updated
+
+    # -- folder documents ---------------------------------------------------
+
+    def move_document_to_folder(
+        self, principal: Principal, dept_id: str, document_id: str,
+        folder_id: str | None, request_id: str,
+    ) -> tuple[DocumentRecord, bool]:
+        """Move a document into a folder, or into the default folder.
+
+        folder_id None means the default folder (the library itself):
+        the move clears folder_id. Returns (document, moved): a move
+        to the folder the document already sits in is a no-op, but
+        only after the permission checks, so probing a document's
+        current folder through a no-op answer is impossible.
+        Permission is checked on both sides: the source folder needs
+        its full member (or a department admin), and so does the
+        target folder. The default folder has no members, so moving
+        out of it is gated by the target side alone, and moving into
+        it by the source side alone: that is what lets a full member
+        add documents to their own folder from the default folder.
+        The retrieval reconcile after a successful move is the
+        router's job, reusing the claim-sync dispatch (ADR-017 D3):
+        until it runs, retrieval may lag, but never over-serves,
+        because the authorization hook rechecks live folder facts.
+        """
+        document = self._documents.get(document_id)
+        if document is None or document.deleted_at is not None:
+            raise not_found(request_id)
+        if document.library_id != dept_id:
+            if principal.role == "admin":
+                raise resource_forbidden(request_id)
+            raise not_found(request_id)
+        self._require_department_library(dept_id, request_id)
+        if folder_id is not None:
+            self._require_department_folder(
+                dept_id, folder_id, request_id, target=document_id
+            )
+        if document.folder_id is not None:
+            self._require_folder_document_act(
+                principal, dept_id, document.folder_id,
+                request_id, target=document_id,
+            )
+        if folder_id is not None:
+            self._require_folder_document_act(
+                principal, dept_id, folder_id,
+                request_id, target=document_id,
+            )
+        if document.folder_id == folder_id:
+            return document, False
+        moved = replace(document, folder_id=folder_id)
+        records = []
+        if document.folder_id is not None:
+            records.append(
+                {
+                    "actor": principal.user_id,
+                    "action": "authz.folder.document_removed",
+                    "target": document_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "folder_id": document.folder_id,
+                        "from_folder": document.folder_id,
+                        "to_folder": folder_id,
+                    },
+                }
+            )
+        if folder_id is not None:
+            records.append(
+                {
+                    "actor": principal.user_id,
+                    "action": "authz.folder.document_added",
+                    "target": document_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "folder_id": folder_id,
+                        "from_folder": document.folder_id,
+                        "to_folder": folder_id,
+                    },
+                }
+            )
+        with self._atomic():
+            self._documents.save(moved)
+            self._record_all_or_rollback(
+                rollback=lambda: self._documents.save(document),
+                records=records,
+            )
+        return moved, True

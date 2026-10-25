@@ -32,6 +32,10 @@ class _StubAuth:
         assert principal.user_id == "usr_alice"
         return frozenset()
 
+    def visible_folder_ids(self, principal: Principal) -> frozenset[str]:
+        assert principal.user_id == "usr_alice"
+        return frozenset()
+
 
 class _StubSearchService:
     def __init__(self) -> None:
@@ -54,3 +58,4 @@ def test_FR_RBAC_004_search_endpoint_derives_libraries_from_principal():
     assert response.status_code == 200
     assert service.seen is not None
     assert service.seen.library_ids == ("dept_eng", "pub")
+    assert service.seen.visible_folder_ids == ()

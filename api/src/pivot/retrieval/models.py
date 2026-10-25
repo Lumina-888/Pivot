@@ -18,6 +18,12 @@ class ChunkRecord:
     # the chunk predates library tagging and is fail-closed under a
     # library-constrained query.
     library_id: str = ""
+    # Folder the chunk's document sits in (ADR-018 D3, S2). None is the
+    # default folder, which is the library itself. Chunks without a
+    # folder fact (native payloads, legacy rows) read as default, so
+    # old corpus entries keep passing the library check alone; the
+    # search router's live recheck covers what the payload cannot say.
+    folder_id: str | None = None
     tags: tuple[str, ...] = ()
     kind: str = "pdf"
     ready: bool = True
@@ -53,6 +59,14 @@ class RetrievalQuery:
     # library_ids. Only consulted when library_ids is set; a document
     # listed here passes even when its library is not visible.
     exception_document_ids: tuple[str, ...] = ()
+    # Folders the caller may see (ADR-018 D3), derived server-side
+    # from the Principal alongside library_ids. None means no folder
+    # constraint (legacy and internal paths only); production callers
+    # pass the Principal's visible folders. Only consulted when
+    # library_ids is set. A chunk in a folder outside this set fails
+    # unless its document carries an exception grant: folders never
+    # replace exceptions.
+    visible_folder_ids: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
