@@ -82,6 +82,12 @@ logger = logging.getLogger("pivot.auth.departments")
 _DEPT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,127}$")
 _DEPT_ROLES = frozenset({"dept_admin", "editor", "reader"})
 _ASSIGNABLE_BY_DEPT_ADMIN = frozenset({"editor", "reader"})
+# Project member roles (ADR-018 D4, Q3): lead, editor, reader. A lead
+# manages members but cannot appoint other leads, so lead is not in
+# the lead-assignable set; owning-department admins and super admins
+# assign any role.
+_PROJECT_ROLES = frozenset({"project_lead", "editor", "reader"})
+_ASSIGNABLE_BY_PROJECT_LEAD = frozenset({"editor", "reader"})
 # ADR-018 D3: folder roles. full manages folder documents (add, remove,
 # rename, move) but never folder members, so it is not called admin.
 _FOLDER_ROLES = frozenset({"full", "editor", "reader"})
@@ -98,16 +104,28 @@ class _UnsetType:
 _UNSET = _UnsetType()
 
 # ADR-017 Q1: the 60-day cap binds only the project-lead level. Project
-# leads do not exist until P1-4, so no live grantor is capped today; the
-# cap lives here as a grantor-kind parameter so P1-4 wires it in without
-# touching this validation again. Super admins and department admins
-# are unlimited, including long-term grants.
+# leads exist since P1-4 S3, so a lead acting on their own project is
+# capped; the cap lives here as a grantor-kind parameter so the
+# validation never changes. Super admins and department admins are
+# unlimited, including long-term grants.
 _MAX_GRANT_DAYS: dict[str, int] = {"project_lead": 60}
 
 
-def _grantor_kind(principal: Principal) -> str:
+def _grantor_kind(principal: Principal, *, acting_as_lead: bool = False) -> str:
+    """Grantor kind for the expiry cap (ADR-017 Q1, ADR-018 D4).
+
+    Department member paths call this without arguments and keep the
+    old behavior (admin uncapped, everyone else dept_admin). Project
+    member paths pass acting_as_lead=True exactly when the actor is a
+    project lead who is neither a super admin nor an owning-department
+    admin; only then does the 60-day cap (and the no-permanent rule)
+    bite. Scope checks run before any cap check, so an out-of-scope
+    caller never reaches this.
+    """
     if principal.role == "admin":
         return "admin"
+    if acting_as_lead:
+        return "project_lead"
     return "dept_admin"
 
 
@@ -616,6 +634,533 @@ class DepartmentAdminService:
             )
         return updated
 
+    # -- projects (ADR-018 D4) ------------------------------------------------
+
+    def _require_project_library(
+        self, project_id: str, request_id: str
+    ) -> Library:
+        library = self._store.get_library(project_id)
+        if library is None or library.kind != "project":
+            raise not_found(request_id)
+        return library
+
+    def _require_project_create_scope(
+        self, principal: Principal, owning_dept_id: str, request_id: str,
+        *, target: str,
+    ) -> None:
+        """Creation scope: super admin, or dept admin of the owning dept.
+
+        A dept admin of another department gets not_found (wrong scope,
+        invisible); a principal with no admin standing gets forbidden,
+        mirroring _require_super_admin for creation acts.
+        """
+        if principal.role == "admin":
+            return
+        if self._access.is_department_admin(principal, owning_dept_id):
+            return
+        if self._access.admin_departments(principal):
+            self._deny(
+                principal, request_id, dept_id=owning_dept_id, target=target,
+                error=not_found(request_id),
+            )
+        self._deny(
+            principal, request_id, dept_id=owning_dept_id, target=target,
+            error=forbidden(request_id),
+        )
+
+    def _require_project_manage(
+        self, principal: Principal, project: Library, request_id: str,
+        *, target: str, allow_lead: bool,
+    ) -> None:
+        """Manage scope: super admin, owning-dept admin, optionally lead.
+
+        A live project member who lacks the power gets forbidden
+        (in-scope but underprivileged, like a dept admin removing a
+        dept_admin); a non-member gets not_found (cross-project
+        invisibility, ADR-018 D4). Membership is read through
+        visible_libraries (the no-write hot path), never through the
+        purging admin member read, so a permission check never writes.
+        """
+        if principal.role == "admin":
+            return
+        if self._access.is_department_admin(principal, project.dept_id):
+            return
+        if allow_lead and self._access.is_project_lead(
+            principal, project.id
+        ):
+            return
+        if project.id in self._access.visible_libraries(principal):
+            self._deny(
+                principal, request_id, dept_id=project.dept_id, target=target,
+                error=forbidden(request_id),
+            )
+        self._deny(
+            principal, request_id, dept_id=project.dept_id, target=target,
+            error=not_found(request_id),
+        )
+
+    def _require_project_visible(
+        self, principal: Principal, project: Library, request_id: str,
+        *, target: str,
+    ) -> None:
+        """Read scope: super admin, owning-dept admin, any live member.
+
+        Exactly the visible_libraries union (ADR-018 D4), read through
+        the no-write hot path.
+        """
+        if principal.role == "admin":
+            return
+        if project.id in self._access.visible_libraries(principal):
+            return
+        self._deny(
+            principal, request_id, dept_id=project.dept_id, target=target,
+            error=not_found(request_id),
+        )
+
+    def _project_grantor_kind(
+        self, principal: Principal, project: Library
+    ) -> str:
+        """Cap kind for a project grant (ADR-017 Q1, ADR-018 D4).
+
+        Called after scope checks, so the actor is always a super
+        admin, an owning-department admin, or a lead. Only the lead
+        is capped (60 days, no permanent); the other two are uncapped.
+        """
+        acting_as_lead = (
+            principal.role != "admin"
+            and not self._access.is_department_admin(
+                principal, project.dept_id
+            )
+            and self._access.is_project_lead(principal, project.id)
+        )
+        return _grantor_kind(principal, acting_as_lead=acting_as_lead)
+
+    def _project_audit_meta(
+        self, project: Library, **extra: object
+    ) -> dict[str, object]:
+        """Audit metadata for project events (ADR-018 D5).
+
+        dept_id is always the owning department, so the existing
+        department audit view (keyed on metadata dept_id) picks project
+        events up for the owning dept admin; project_id keys the
+        project-lead view S4 builds.
+        """
+        return {"dept_id": project.dept_id, "project_id": project.id, **extra}
+
+    def create_project(
+        self, principal: Principal, project_id: str, name: str,
+        owning_dept_id: str, request_id: str,
+    ) -> tuple[Library, bool]:
+        self._require_project_create_scope(
+            principal, owning_dept_id, request_id, target=project_id
+        )
+        if not _DEPT_ID_PATTERN.match(project_id):
+            raise ValueError("project_id must match [a-z0-9][a-z0-9_-]{0,127}")
+        if not name or len(name) > 255:
+            raise ValueError("project name must be 1-255 characters")
+        self._require_department_library(owning_dept_id, request_id)
+        existing = self._store.get_library(project_id)
+        if existing is not None:
+            if existing.kind == "project":
+                return existing, False
+            raise resource_forbidden(request_id)
+        library = Library(
+            id=project_id, name=name, kind="project", dept_id=owning_dept_id
+        )
+        with self._atomic():
+            self._store.create_library(library)
+            self._record_or_rollback(
+                rollback=lambda: self._store.delete_library(project_id),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.project.create",
+                    "target": project_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        library, name=name
+                    ),
+                },
+            )
+        return library, True
+
+    def remove_project(
+        self, principal: Principal, project_id: str, request_id: str
+    ) -> None:
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=project_id,
+            allow_lead=False,
+        )
+        members = self._store.get_department_members(project_id)
+        live_docs = tuple(
+            document
+            for document in self._documents.list_active()
+            if document.library_id == project_id
+            and document.deleted_at is None
+        )
+        if members or live_docs:
+            raise resource_forbidden(request_id)
+        with self._atomic():
+            self._store.delete_library(project_id)
+            self._record_or_rollback(
+                rollback=lambda: self._store.create_library(project),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.project.remove",
+                    "target": project_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project,
+                        document_count=len(live_docs),
+                        member_count=len(members),
+                    ),
+                },
+            )
+
+    def list_projects(
+        self, principal: Principal, request_id: str
+    ) -> tuple[Library, ...]:
+        """Projects the principal may see (ADR-018 D4 visibility union).
+
+        Reuses visible_libraries: joined projects arrive through live
+        membership rows, owned projects through the owning-department
+        branch, super admins see everything. An empty result is a
+        valid answer, not a denial: listing one's own projects is a
+        read, and an outsider learns nothing from an empty list.
+        """
+        visible = self._access.visible_libraries(principal)
+        return tuple(
+            library
+            for library in self._store.list_libraries()
+            if library.kind == "project" and library.id in visible
+        )
+
+    def get_project(
+        self, principal: Principal, project_id: str, request_id: str
+    ) -> Library:
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_visible(
+            principal, project, request_id, target=project_id
+        )
+        return project
+
+    def list_project_members(
+        self, principal: Principal, project_id: str, request_id: str
+    ) -> tuple[Membership, ...]:
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=project_id,
+            allow_lead=True,
+        )
+        return self._store.get_department_members(project_id)
+
+    def add_project_member(
+        self, principal: Principal, project_id: str, user_id: str,
+        project_role: str, request_id: str,
+        *, expires_at: datetime | None = None,
+    ) -> tuple[Membership, bool]:
+        if project_role not in _PROJECT_ROLES:
+            raise ValueError(
+                "project_role must be project_lead, editor, or reader"
+            )
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=user_id,
+            allow_lead=True,
+        )
+        if (
+            project_role == "project_lead"
+            and principal.role != "admin"
+            and not self._access.is_department_admin(
+                principal, project.dept_id
+            )
+        ):
+            # A lead manages members but never appoints other leads
+            # (ADR-018 D4); appointment is appoint_project_lead's job,
+            # restricted to owning-dept admins and super admins.
+            self._deny(
+                principal, request_id, dept_id=project.dept_id,
+                target=user_id, error=forbidden(request_id),
+            )
+        user = self._users.get_by_id(user_id)
+        if user is None or user.status != "active":
+            raise not_found(request_id)
+        for member in self._store.get_department_members(project_id):
+            if member.user_id == user_id:
+                return member, False
+        _check_grant_expiry(
+            self._project_grantor_kind(principal, project),
+            expires_at,
+            self._clock.now(),
+        )
+        membership = Membership(
+            user_id=user_id,
+            dept_id=project_id,
+            dept_role=project_role,
+            granted_by=principal.user_id,
+            granted_at=self._clock.now(),
+            expires_at=expires_at,
+        )
+        with self._atomic():
+            self._store.add_membership(membership)
+            self._record_or_rollback(
+                rollback=lambda: self._store.remove_membership(
+                    user_id, project_id
+                ),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.project.member_added",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project,
+                        project_role=project_role,
+                        granted_by=principal.user_id,
+                        expires_at=_iso(expires_at),
+                    ),
+                },
+            )
+        return membership, True
+
+    def remove_project_member(
+        self, principal: Principal, project_id: str, user_id: str,
+        request_id: str,
+    ) -> None:
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=user_id,
+            allow_lead=True,
+        )
+        current = next(
+            (
+                member
+                for member in self._store.get_department_members(project_id)
+                if member.user_id == user_id
+            ),
+            None,
+        )
+        if current is None:
+            raise not_found(request_id)
+        if (
+            current.dept_role == "project_lead"
+            and principal.role != "admin"
+            and not self._access.is_department_admin(
+                principal, project.dept_id
+            )
+        ):
+            # Mirrors remove_member's dept_admin guard: a lead never
+            # removes another lead; only owning-dept admins and super
+            # admins touch lead rows.
+            self._deny(
+                principal, request_id, dept_id=project.dept_id,
+                target=user_id, error=forbidden(request_id),
+            )
+        with self._atomic():
+            self._store.remove_membership(user_id, project_id)
+            self._record_or_rollback(
+                rollback=lambda: self._store.add_membership(current),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.project.member_removed",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project, project_role=current.dept_role
+                    ),
+                },
+            )
+
+    def set_project_member_role(
+        self, principal: Principal, project_id: str, user_id: str,
+        project_role: str, request_id: str,
+        *, expires_at: datetime | None | _UnsetType = _UNSET,
+    ) -> Membership:
+        """Change a project member's role and optionally its expiry.
+
+        Same tri-state and renewal semantics as set_member_role
+        (ADR-017 D2): omitted expires_at keeps the stored value,
+        explicit None clears to long-term, an extending change before
+        expiry writes its own renewal event. The 60-day cap binds only
+        lead grantors; owning-dept admins and super admins are uncapped.
+        """
+        if project_role not in _PROJECT_ROLES:
+            raise ValueError(
+                "project_role must be project_lead, editor, or reader"
+            )
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=user_id,
+            allow_lead=True,
+        )
+        if (
+            project_role == "project_lead"
+            and principal.role != "admin"
+            and not self._access.is_department_admin(
+                principal, project.dept_id
+            )
+        ):
+            self._deny(
+                principal, request_id, dept_id=project.dept_id,
+                target=user_id, error=forbidden(request_id),
+            )
+        current = next(
+            (
+                member
+                for member in self._store.get_department_members(project_id)
+                if member.user_id == user_id
+            ),
+            None,
+        )
+        if current is None:
+            # Expired rows are purged by the member read above, so an
+            # expired membership is already gone: it cannot be renewed,
+            # only re-granted through add_project_member (ADR-017 Q3).
+            raise not_found(request_id)
+        explicit = not isinstance(expires_at, _UnsetType)
+        new_expires = current.expires_at if not explicit else expires_at
+        if explicit:
+            _check_grant_expiry(
+                self._project_grantor_kind(principal, project),
+                new_expires,
+                self._clock.now(),
+            )
+        updated = Membership(
+            user_id=user_id,
+            dept_id=project_id,
+            dept_role=project_role,
+            granted_by=principal.user_id,
+            granted_at=self._clock.now(),
+            expires_at=new_expires,
+        )
+        records = [
+            {
+                "actor": principal.user_id,
+                "action": "authz.project.member_role_changed",
+                "target": user_id,
+                "result": "ok",
+                "request_id": request_id,
+                "metadata": self._project_audit_meta(
+                    project,
+                    old_role=current.dept_role,
+                    new_role=project_role,
+                    expires_at=_iso(new_expires),
+                ),
+            },
+        ]
+        if (
+            explicit
+            and new_expires != current.expires_at
+            and current.expires_at is not None
+            and (
+                new_expires is None
+                or _as_utc(new_expires) > _as_utc(current.expires_at)
+            )
+        ):
+            records.append(
+                {
+                    "actor": principal.user_id,
+                    "action": "authz.project.member_renewed",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project,
+                        old_expires_at=_iso(current.expires_at),
+                        new_expires_at=_iso(new_expires),
+                    ),
+                }
+            )
+        with self._atomic():
+            self._store.set_membership(updated)
+            self._record_all_or_rollback(
+                rollback=lambda: self._store.set_membership(current),
+                records=records,
+            )
+        return updated
+
+    def appoint_project_lead(
+        self, principal: Principal, project_id: str, user_id: str,
+        request_id: str,
+    ) -> tuple[Membership, bool]:
+        """Appoint a project's lead (ADR-018 D4).
+
+        Only owning-department admins and super admins appoint: a lead
+        attempting this gets forbidden through _require_project_manage
+        with allow_lead=False, never a silent no-op. The candidate may
+        come from any department; they must be an active user. An
+        existing member keeps their stored expiry when promoted; a new
+        member is appointed long-term.
+        """
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=user_id,
+            allow_lead=False,
+        )
+        user = self._users.get_by_id(user_id)
+        if user is None or user.status != "active":
+            raise not_found(request_id)
+        current = next(
+            (
+                member
+                for member in self._store.get_department_members(project_id)
+                if member.user_id == user_id
+            ),
+            None,
+        )
+        if current is not None and current.dept_role == "project_lead":
+            return current, False
+        if current is not None:
+            updated = Membership(
+                user_id=user_id,
+                dept_id=project_id,
+                dept_role="project_lead",
+                granted_by=principal.user_id,
+                granted_at=self._clock.now(),
+                expires_at=current.expires_at,
+            )
+            with self._atomic():
+                self._store.set_membership(updated)
+                self._record_or_rollback(
+                    rollback=lambda: self._store.set_membership(current),
+                    record_kwargs={
+                        "actor": principal.user_id,
+                        "action": "authz.project.lead_appointed",
+                        "target": user_id,
+                        "result": "ok",
+                        "request_id": request_id,
+                        "metadata": self._project_audit_meta(project),
+                    },
+                )
+            return updated, True
+        membership = Membership(
+            user_id=user_id,
+            dept_id=project_id,
+            dept_role="project_lead",
+            granted_by=principal.user_id,
+            granted_at=self._clock.now(),
+            expires_at=None,
+        )
+        with self._atomic():
+            self._store.add_membership(membership)
+            self._record_or_rollback(
+                rollback=lambda: self._store.remove_membership(
+                    user_id, project_id
+                ),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.project.lead_appointed",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(project),
+                },
+            )
+        return membership, True
+
     # -- claims ------------------------------------------------------------------
 
     def claim_document(
@@ -626,27 +1171,48 @@ class DepartmentAdminService:
         if document is None or document.deleted_at is not None:
             raise not_found(request_id)
         if principal.role != "admin":
-            if not self._access.admin_departments(principal):
-                self._deny(
-                    principal, request_id, dept_id=library_id,
-                    target=document_id, error=forbidden(request_id),
-                )
-            if library_id == "pub":
-                self._deny(
-                    principal, request_id, dept_id=library_id,
-                    target=document_id, error=forbidden(request_id),
-                )
-            if not self._access.is_department_admin(principal, library_id):
-                self._deny(
-                    principal, request_id, dept_id=library_id,
-                    target=document_id, error=not_found(request_id),
-                )
+            target_early = self._store.get_library(library_id)
+            if target_early is not None and target_early.kind == "project":
+                # Project claims (ADR-018 D4): the project lead, or an
+                # admin of the owning department. Anyone else gets
+                # not_found: cross-project invisibility, not a
+                # permission lecture. The denial audit carries the
+                # owning department so the dept view keeps it.
+                if not (
+                    self._access.is_department_admin(
+                        principal, target_early.dept_id
+                    )
+                    or self._access.is_project_lead(principal, library_id)
+                ):
+                    self._deny(
+                        principal, request_id,
+                        dept_id=target_early.dept_id, target=document_id,
+                        error=not_found(request_id),
+                    )
+            else:
+                if not self._access.admin_departments(principal):
+                    self._deny(
+                        principal, request_id, dept_id=library_id,
+                        target=document_id, error=forbidden(request_id),
+                    )
+                if library_id == "pub":
+                    self._deny(
+                        principal, request_id, dept_id=library_id,
+                        target=document_id, error=forbidden(request_id),
+                    )
+                if not self._access.is_department_admin(
+                    principal, library_id
+                ):
+                    self._deny(
+                        principal, request_id, dept_id=library_id,
+                        target=document_id, error=not_found(request_id),
+                    )
         target = self._store.get_library(library_id)
         if target is None:
             raise not_found(request_id)
         if library_id == "unassigned":
             raise resource_forbidden(request_id)
-        if target.kind not in ("public", "department"):
+        if target.kind not in ("public", "department", "project"):
             raise not_found(request_id)
         if document.library_id != "unassigned":
             if principal.role == "admin":
@@ -655,21 +1221,43 @@ class DepartmentAdminService:
         claimed = replace(document, library_id=library_id)
         with self._atomic():
             self._documents.save(claimed)
-            self._record_or_rollback(
-                rollback=lambda: self._documents.save(document),
-                record_kwargs={
-                    "actor": principal.user_id,
-                    "action": "authz.library.claim",
-                    "target": document_id,
-                    "result": "ok",
-                    "request_id": request_id,
-                    "metadata": {
-                        "dept_id": library_id,
-                        "from_library": "unassigned",
-                        "to_library": library_id,
+            if target.kind == "project":
+                # Project claims audit under the owning department
+                # (ADR-018 D5), not the project id, so the owning
+                # dept admin's audit view picks them up; project_id
+                # keys the project-lead view S4 builds.
+                self._record_or_rollback(
+                    rollback=lambda: self._documents.save(document),
+                    record_kwargs={
+                        "actor": principal.user_id,
+                        "action": "authz.project.claim",
+                        "target": document_id,
+                        "result": "ok",
+                        "request_id": request_id,
+                        "metadata": {
+                            "dept_id": target.dept_id,
+                            "project_id": library_id,
+                            "from_library": "unassigned",
+                            "to_library": library_id,
+                        },
                     },
-                },
-            )
+                )
+            else:
+                self._record_or_rollback(
+                    rollback=lambda: self._documents.save(document),
+                    record_kwargs={
+                        "actor": principal.user_id,
+                        "action": "authz.library.claim",
+                        "target": document_id,
+                        "result": "ok",
+                        "request_id": request_id,
+                        "metadata": {
+                            "dept_id": library_id,
+                            "from_library": "unassigned",
+                            "to_library": library_id,
+                        },
+                    },
+                )
         return claimed
 
     # -- document exceptions (ADR-017 D1, Q2, Q4) --------------------------
