@@ -87,8 +87,49 @@ class Membership(Base):
     granted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
+    # ADR-017 D2: NULL means a long-term grant. Expiry semantics
+    # (read-time exclusion, renewal, purge) land in S2; S1 only stores it.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped["User"] = relationship(back_populates="memberships")
+
+
+class DocumentException(Base):
+    """A grant-only document-level exception (ADR-017 D1, Q4).
+
+    Exactly one target: target_user_id for a personal grant, or
+    target_dept_id for a department grant (expanded at read time in
+    S3). NULL expires_at means a permanent grant (ADR-017 Q2).
+    granted_by carries no foreign key on purpose: grant provenance
+    must survive the grantor's row. S1 is storage only; no endpoint
+    and no visibility check reads this table yet.
+    """
+
+    __tablename__ = "document_exceptions"
+    __table_args__ = (
+        CheckConstraint(
+            "(target_user_id IS NOT NULL AND target_dept_id IS NULL)"
+            " OR (target_user_id IS NULL AND target_dept_id IS NOT NULL)",
+            name="ck_document_exceptions_single_target",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    document_id: Mapped[str] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    target_dept_id: Mapped[str | None] = mapped_column(
+        ForeignKey("libraries.id", ondelete="CASCADE"), index=True
+    )
+    granted_by: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    reason: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
 
 
 class RefreshToken(Base):

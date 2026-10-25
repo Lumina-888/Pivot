@@ -81,6 +81,28 @@ class Membership:
     dept_role: str
     granted_by: str = ""
     granted_at: datetime | None = None
+    # ADR-017 D2: NULL means a long-term grant. S1 only stores it.
+    expires_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class DocumentException:
+    """A grant-only document-level exception (ADR-017 D1, Q4).
+
+    Exactly one of target_user_id / target_dept_id is set; the other
+    is None. NULL expires_at means a permanent grant (ADR-017 Q2).
+    Reads return stored rows as-is; expiry and department expansion
+    are S3 concerns, not storage concerns.
+    """
+
+    id: str
+    document_id: str
+    target_user_id: str | None = None
+    target_dept_id: str | None = None
+    granted_by: str = ""
+    reason: str = ""
+    expires_at: datetime | None = None
+    created_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -152,6 +174,14 @@ class ResourceCatalog(Protocol):
 
     def get_memberships(self, user_id: str) -> tuple[Membership, ...]: ...
 
+    def get_document_exceptions(
+        self, document_id: str
+    ) -> tuple[DocumentException, ...]: ...
+
+    def get_exceptions_for_user(
+        self, user_id: str
+    ) -> tuple[DocumentException, ...]: ...
+
 
 class DepartmentAdminStore(Protocol):
     """Write side for department libraries and memberships (ADR-016 D3).
@@ -176,6 +206,10 @@ class DepartmentAdminStore(Protocol):
     def remove_membership(self, user_id: str, dept_id: str) -> None: ...
 
     def set_membership(self, membership: Membership) -> None: ...
+
+    def add_exception(self, exception: DocumentException) -> None: ...
+
+    def remove_exception(self, exception_id: str) -> None: ...
 
 
 class Clock(Protocol):
