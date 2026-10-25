@@ -77,7 +77,7 @@ def build_documents_router(
     ) -> JSONResponse:
         request_id = resolve_request_id(request)
         principal = auth.authenticate(_bearer_token(request, request_id), request_id)
-        auth.require_admin(principal, request.url.path, request_id)
+        auth.require_upload(principal, request.url.path, request_id)
         content = file.file.read()
         version = service.upload(
             filename=file.filename or "",

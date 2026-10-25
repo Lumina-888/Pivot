@@ -61,6 +61,24 @@ class AccessControl:
     def require_admin(self, principal: Principal) -> bool:
         return principal.role == "admin"
 
+    def can_upload(self, principal: Principal) -> bool:
+        """Upload gate (ADR-017 D5): super admin, or editor / dept_admin
+        in any department. Pure readers and users with no membership
+        cannot upload. Expired memberships are excluded at read time,
+        like everywhere else, so an expired editor loses the gate on
+        the next request. The gate lives here and in AuthService, never
+        in the visibility check: uploads still land in the unassigned
+        library, and library selection is P1-3's job.
+        """
+        if principal.role == "admin":
+            return True
+        now = self._now()
+        return any(
+            membership.dept_role in ("editor", "dept_admin")
+            and _is_live(membership, now)
+            for membership in self._catalog.get_memberships(principal.user_id)
+        )
+
     def visible_libraries(self, principal: Principal) -> frozenset[str]:
         """Libraries a principal may see (ADR-016 D2-D3, ADR-017 D2).
 

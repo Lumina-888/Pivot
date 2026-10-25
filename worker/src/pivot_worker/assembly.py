@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from pivot.audit.policy import AuditWriteFailures, TieredAuditSink
 from pivot.db.audit import SqlAlchemyAuditStore, SqlAlchemyDocumentAuditSink
@@ -253,8 +254,17 @@ class _LlamaSyncingRunner:
         return result
 
 
-def _llama_document_sync(settings, *, store, document_rows, version_rows, embedding):
-    """Build the per-document reconcile callback for the worker process."""
+def _llama_document_sync(
+    settings, *, store, document_rows, version_rows, embedding, strict: bool = False
+):
+    """Build the per-document reconcile callback for the worker process.
+
+    The default logging wrapper never raises: ingest only needs a
+    best-effort sync, and the API rechecks authorization against live
+    facts on every query regardless. The claim-sync task instead needs
+    ``strict``: failures must propagate so its bounded retries and its
+    final-failure audit event can trigger (ADR-017 D3).
+    """
     from pivot.retrieval.llama_embeddings import PivotEmbedding
     from pivot.retrieval.llama_index_builder import _payload_of, scroll_payloads
     from pivot.retrieval.llama_qdrant_index import LlamaLibraryIndexSet
@@ -310,34 +320,40 @@ def _llama_document_sync(settings, *, store, document_rows, version_rows, embedd
     )
     logger = logging.getLogger(__name__)
 
+    def reconcile(document_id: str) -> None:
+        """Reconcile one document, raising on failure (claim-sync path)."""
+        current_payloads: list = []
+        document = document_rows.get(document_id)
+        library_id = None
+        if document is not None:
+            library_id = document.library_id
+            if document.deleted_at is None:
+                current = None
+                for version in version_rows.list_for_document(document_id):
+                    if version.current:
+                        current = version
+                        break
+                if current is not None:
+                    current_payloads = [
+                        payload
+                        for payload in scroll_payloads(store)
+                        if _payload_of(payload).get("version_id") == current.id
+                    ]
+        holders.reconcile_document(
+            document_id,
+            library_id=library_id,
+            current_payloads=current_payloads,
+            external_llm_allowed=external_llm_allowed,
+        )
+
     def sync(document_id: str) -> None:
         try:
-            current_payloads: list = []
-            document = document_rows.get(document_id)
-            library_id = None
-            if document is not None:
-                library_id = document.library_id
-                if document.deleted_at is None:
-                    current = None
-                    for version in version_rows.list_for_document(document_id):
-                        if version.current:
-                            current = version
-                            break
-                    if current is not None:
-                        current_payloads = [
-                            payload
-                            for payload in scroll_payloads(store)
-                            if _payload_of(payload).get("version_id") == current.id
-                        ]
-            holders.reconcile_document(
-                document_id,
-                library_id=library_id,
-                current_payloads=current_payloads,
-                external_llm_allowed=external_llm_allowed,
-            )
+            reconcile(document_id)
         except Exception:
             logger.exception("llama index reconcile failed for document %s", document_id)
 
+    if strict:
+        return reconcile
     return sync
 
 
@@ -353,6 +369,8 @@ class IngestAssembly:
     index: IndexPublisher | None = None
     embedding: object | None = None
     parsers: ParserRegistry | None = None
+    claim_sync: Callable[[str], None] | None = None
+    claim_sync_audit: Callable[..., Any] | None = None
 
 
 def _engine_kwargs(database_url: str) -> dict[str, object]:
@@ -520,6 +538,27 @@ def assemble_ingest_runtime(
             embedding=embedding,
         )
         runner = _LlamaSyncingRunner(runner, sync=sync, version_rows=version_rows)
+        # Claim-sync task (ADR-017 D3): the strict variant raises so the
+        # task's bounded retries and final-failure audit can trigger.
+        # AuditService shares the worker's session factory, like the
+        # document stores above.
+        from pivot.audit.service import AuditService
+        from pivot.http.memory import UtcClock
+
+        claim_sync = _llama_document_sync(
+            resolved,
+            store=vectors,
+            document_rows=document_rows,
+            version_rows=version_rows,
+            embedding=embedding,
+            strict=True,
+        )
+        claim_sync_audit = AuditService(
+            SqlAlchemyAuditStore(sessions), UtcClock()
+        ).record
+    else:
+        claim_sync = None
+        claim_sync_audit = None
     return IngestAssembly(
         runner=runner,
         documents=documents,
@@ -531,4 +570,6 @@ def assemble_ingest_runtime(
         index=index,
         embedding=embedding,
         parsers=parsers,
+        claim_sync=claim_sync,
+        claim_sync_audit=claim_sync_audit,
     )

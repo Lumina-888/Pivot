@@ -314,6 +314,21 @@ class AuthService:
             )
             raise forbidden(request_id)
 
+    def require_upload(self, principal: Principal, path: str, request_id: str) -> None:
+        """Upload gate (ADR-017 D5): the admin-only upload endpoint is
+        loosened to editors and department admins, readers stay out.
+        Denials are audited best-effort like any other denial.
+        """
+        if not self._access.can_upload(principal):
+            self._audit(
+                principal.user_id,
+                "auth.upload_forbidden",
+                path,
+                "denied",
+                request_id,
+            )
+            raise forbidden(request_id)
+
     def authorize_conversation(
         self, principal: Principal, conversation_id: str, request_id: str = "req_authz"
     ) -> None:

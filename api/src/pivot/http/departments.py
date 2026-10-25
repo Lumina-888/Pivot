@@ -110,8 +110,14 @@ def _exception_view(exception) -> dict[str, object]:
 
 
 def build_departments_router(
-    auth: AuthService, departments: DepartmentAdminService
+    auth: AuthService, departments: DepartmentAdminService, claim_sync=None
 ) -> APIRouter:
+    """Department admin routes. ``claim_sync`` is the post-claim
+    reconcile dispatcher (ADR-017 D3): called after a successful claim
+    with (document_id, library_id, request_id, actor_id); None means
+    there is nothing to reconcile (no llama backend) and the claim
+    simply lands without a dispatch.
+    """
     router = APIRouter()
 
     @router.post("/admin/departments")
@@ -196,6 +202,8 @@ def build_departments_router(
         claimed = departments.claim_document(
             principal, document_id, body.library_id, request_id
         )
+        if claim_sync is not None:
+            claim_sync(claimed.id, claimed.library_id, request_id, principal.user_id)
         return {
             "document_id": claimed.id,
             "library_id": claimed.library_id,
