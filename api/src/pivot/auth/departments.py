@@ -14,11 +14,14 @@ Power matrix, enforced here and nowhere else:
   dept_admin, claiming to the public library) is a plain forbidden:
   the target is already known to the caller.
 - Every change writes an ``authz.*`` audit event (critical under the
-  tiered policy: a failed audit write refuses the operation). The
-  mutation runs first and the audit second; if the audit write raises,
-  the mutation is compensated back so no permission change ever lands
-  without its trace. Denied attempts are audited best-effort: the
-  denial stands even if that audit write fails.
+  tiered policy: a failed audit write refuses the operation). On the
+  PostgreSQL path (ADR-017 D4) the mutation and its audit events share
+  one transaction, so a failed audit write rolls the mutation back
+  with it and no permission change ever lands without its trace. On
+  the memory path there is no transaction, so the mutation is
+  compensated back after a failed audit write instead. Denied attempts
+  are audited best-effort: the denial stands even if that audit write
+  fails.
 - Document exceptions (ADR-017 D1) grant whole-document visibility to
   one user or one department. Super admins grant anywhere; department
   admins grant personal exceptions only for their own department's
@@ -39,6 +42,8 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
@@ -122,13 +127,32 @@ class DepartmentAdminService:
         access: AccessControl,
         audits: AuditService,
         clock: Clock,
+        transaction: Callable[[], AbstractContextManager[None]] | None = None,
     ) -> None:
+        """Build the service.
+
+        ``transaction`` is the PostgreSQL path's per-operation scope
+        (ADR-017 D4): bootstrap passes a factory that opens one shared
+        session for the mutation and its audit writes, so a failed
+        audit write rolls the mutation back. The memory path passes
+        nothing and keeps the compensation behavior.
+        """
         self._store = store
         self._documents = documents
         self._users = users
         self._access = access
         self._audits = audits
         self._clock = clock
+        self._transaction = transaction
+
+    @contextmanager
+    def _atomic(self):
+        """Scope one mutation and its audit writes, if PG-backed."""
+        if self._transaction is not None:
+            with self._transaction():
+                yield
+        else:
+            yield
 
     # -- authorization helpers -------------------------------------------------
 
@@ -184,12 +208,19 @@ class DepartmentAdminService:
     def _record_all_or_rollback(self, *, rollback, records) -> None:
         """Record audit events, compensating the mutation on any failure.
 
-        With two events (a role change plus its renewal event) both are
-        attempted before the rollback decision, so a failure in either
-        restores the old membership. The append-only audit cannot unwrite
-        an event recorded before a later one fails; S4 (ADR-017 D4) makes
-        the mutation and its events atomic on the PostgreSQL path.
+        On the PostgreSQL path (a transaction scope was supplied,
+        ADR-017 D4) there is no compensation to run: the mutation and
+        its events share one transaction owned by the enclosing scope,
+        so a failed audit write propagates and the scope rolls
+        everything back — including an event recorded before a later
+        one fails. On the memory path both events are attempted before
+        the rollback decision, and an event already recorded cannot be
+        unwritten from the append-only audit.
         """
+        if self._transaction is not None:
+            for record_kwargs in records:
+                self._audits.record(**record_kwargs)
+            return
         try:
             for record_kwargs in records:
                 self._audits.record(**record_kwargs)
@@ -222,18 +253,19 @@ class DepartmentAdminService:
         library = Library(
             id=dept_id, name=name, kind="department", dept_id=dept_id
         )
-        self._store.create_library(library)
-        self._record_or_rollback(
-            rollback=lambda: self._store.delete_library(dept_id),
-            record_kwargs={
-                "actor": principal.user_id,
-                "action": "authz.department.create",
-                "target": dept_id,
-                "result": "ok",
-                "request_id": request_id,
-                "metadata": {"dept_id": dept_id, "name": name},
-            },
-        )
+        with self._atomic():
+            self._store.create_library(library)
+            self._record_or_rollback(
+                rollback=lambda: self._store.delete_library(dept_id),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.department.create",
+                    "target": dept_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {"dept_id": dept_id, "name": name},
+                },
+            )
         return library, True
 
     def remove_department(
@@ -251,22 +283,23 @@ class DepartmentAdminService:
         )
         if members or live_docs:
             raise resource_forbidden(request_id)
-        self._store.delete_library(dept_id)
-        self._record_or_rollback(
-            rollback=lambda: self._store.create_library(library),
-            record_kwargs={
-                "actor": principal.user_id,
-                "action": "authz.department.remove",
-                "target": dept_id,
-                "result": "ok",
-                "request_id": request_id,
-                "metadata": {
-                    "dept_id": dept_id,
-                    "document_count": len(live_docs),
-                    "member_count": len(members),
+        with self._atomic():
+            self._store.delete_library(dept_id)
+            self._record_or_rollback(
+                rollback=lambda: self._store.create_library(library),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.department.remove",
+                    "target": dept_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "document_count": len(live_docs),
+                        "member_count": len(members),
+                    },
                 },
-            },
-        )
+            )
 
     def list_departments(
         self, principal: Principal, request_id: str
@@ -367,23 +400,24 @@ class DepartmentAdminService:
             granted_at=self._clock.now(),
             expires_at=expires_at,
         )
-        self._store.add_membership(membership)
-        self._record_or_rollback(
-            rollback=lambda: self._store.remove_membership(user_id, dept_id),
-            record_kwargs={
-                "actor": principal.user_id,
-                "action": "authz.permission_change",
-                "target": user_id,
-                "result": "ok",
-                "request_id": request_id,
-                "metadata": {
-                    "dept_id": dept_id,
-                    "dept_role": dept_role,
-                    "granted_by": principal.user_id,
-                    "expires_at": _iso(expires_at),
+        with self._atomic():
+            self._store.add_membership(membership)
+            self._record_or_rollback(
+                rollback=lambda: self._store.remove_membership(user_id, dept_id),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.permission_change",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "dept_role": dept_role,
+                        "granted_by": principal.user_id,
+                        "expires_at": _iso(expires_at),
+                    },
                 },
-            },
-        )
+            )
         return membership, True
 
     def remove_member(
@@ -417,21 +451,22 @@ class DepartmentAdminService:
                 principal, request_id, dept_id=dept_id, target=user_id,
                 error=forbidden(request_id),
             )
-        self._store.remove_membership(user_id, dept_id)
-        self._record_or_rollback(
-            rollback=lambda: self._store.add_membership(current),
-            record_kwargs={
-                "actor": principal.user_id,
-                "action": "authz.permission_change",
-                "target": user_id,
-                "result": "ok",
-                "request_id": request_id,
-                "metadata": {
-                    "dept_id": dept_id,
-                    "removed_role": current.dept_role,
+        with self._atomic():
+            self._store.remove_membership(user_id, dept_id)
+            self._record_or_rollback(
+                rollback=lambda: self._store.add_membership(current),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.permission_change",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "removed_role": current.dept_role,
+                    },
                 },
-            },
-        )
+            )
 
     def set_member_role(
         self, principal: Principal, dept_id: str, user_id: str,
@@ -492,7 +527,6 @@ class DepartmentAdminService:
             granted_at=self._clock.now(),
             expires_at=new_expires,
         )
-        self._store.set_membership(updated)
         records = [
             {
                 "actor": principal.user_id,
@@ -531,10 +565,12 @@ class DepartmentAdminService:
                     },
                 }
             )
-        self._record_all_or_rollback(
-            rollback=lambda: self._store.set_membership(current),
-            records=records,
-        )
+        with self._atomic():
+            self._store.set_membership(updated)
+            self._record_all_or_rollback(
+                rollback=lambda: self._store.set_membership(current),
+                records=records,
+            )
         return updated
 
     # -- claims ------------------------------------------------------------------
@@ -574,22 +610,23 @@ class DepartmentAdminService:
                 raise resource_forbidden(request_id)
             raise not_found(request_id)
         claimed = replace(document, library_id=library_id)
-        self._documents.save(claimed)
-        self._record_or_rollback(
-            rollback=lambda: self._documents.save(document),
-            record_kwargs={
-                "actor": principal.user_id,
-                "action": "authz.library.claim",
-                "target": document_id,
-                "result": "ok",
-                "request_id": request_id,
-                "metadata": {
-                    "dept_id": library_id,
-                    "from_library": "unassigned",
-                    "to_library": library_id,
+        with self._atomic():
+            self._documents.save(claimed)
+            self._record_or_rollback(
+                rollback=lambda: self._documents.save(document),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.library.claim",
+                    "target": document_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": library_id,
+                        "from_library": "unassigned",
+                        "to_library": library_id,
+                    },
                 },
-            },
-        )
+            )
         return claimed
 
     # -- document exceptions (ADR-017 D1, Q2, Q4) --------------------------
@@ -690,7 +727,6 @@ class DepartmentAdminService:
                 created_at=self._clock.now(),
             )
             created = True
-        self._store.add_exception(exception)
         metadata: dict[str, object] = {
             # Department audit views key on the DOCUMENT's library, not
             # on the grant target, so the owning department sees the
@@ -709,17 +745,19 @@ class DepartmentAdminService:
         else:
             def rollback():
                 return self._store.add_exception(existing)
-        self._record_or_rollback(
-            rollback=rollback,
-            record_kwargs={
-                "actor": principal.user_id,
-                "action": "authz.document_exception_granted",
-                "target": document_id,
-                "result": "ok",
-                "request_id": request_id,
-                "metadata": metadata,
-            },
-        )
+        with self._atomic():
+            self._store.add_exception(exception)
+            self._record_or_rollback(
+                rollback=rollback,
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.document_exception_granted",
+                    "target": document_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": metadata,
+                },
+            )
         return exception, created
 
     def revoke_exception(
@@ -754,7 +792,6 @@ class DepartmentAdminService:
             self._require_exception_manager(
                 principal, doc_library_id, request_id, target=exception_id,
             )
-        self._store.remove_exception(exception_id)
         metadata: dict[str, object] = {"exception_id": exception.id}
         if doc_library_id is not None:
             metadata["dept_id"] = doc_library_id
@@ -762,17 +799,19 @@ class DepartmentAdminService:
             metadata["target_user_id"] = exception.target_user_id
         if exception.target_dept_id is not None:
             metadata["target_dept_id"] = exception.target_dept_id
-        self._record_or_rollback(
-            rollback=lambda: self._store.add_exception(exception),
-            record_kwargs={
-                "actor": principal.user_id,
-                "action": "authz.document_exception_revoked",
-                "target": exception.document_id,
-                "result": "ok",
-                "request_id": request_id,
-                "metadata": metadata,
-            },
-        )
+        with self._atomic():
+            self._store.remove_exception(exception_id)
+            self._record_or_rollback(
+                rollback=lambda: self._store.add_exception(exception),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.document_exception_revoked",
+                    "target": exception.document_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": metadata,
+                },
+            )
 
     def list_exceptions(
         self, principal: Principal, document_id: str, request_id: str, *,
