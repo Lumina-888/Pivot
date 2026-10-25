@@ -20,6 +20,9 @@ class DocumentRecord:
     # ADR-016 D1: every document belongs to exactly one library.
     # Fail-closed default: unassigned until an admin claims it.
     library_id: str = "unassigned"
+    # ADR-018 D3: exactly one location per document. None means the
+    # default folder, which is the library itself.
+    folder_id: str | None = None
 
 
 @dataclass

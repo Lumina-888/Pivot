@@ -4,16 +4,17 @@ Verifies the P1-2 migration on SQLite following the P1-1 migration
 test pattern: fresh upgrade to head, data migration from the
 pre-P1-2 head, and downgrade back to it.
 
-Both heads are read from the migration scripts at runtime: the
-current head from ScriptDirectory, the pre-P1-2 head from the new
-migration's own down_revision. No revision id is hardcoded here.
+The pre-P1-2 head is pinned, following the P1-1 migration test
+precedent: reading "current head" as this migration's own head breaks
+the moment a later migration lands (P1-4 S1 did exactly that).
+Fresh upgrades still target "head"; the data-migration and downgrade
+tests target the pinned pre-P1-2 head.
 """
 
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 
 
@@ -24,15 +25,7 @@ def _alembic_config(database_url: str) -> Config:
     return config
 
 
-def _heads() -> tuple[str, str]:
-    root = Path(__file__).resolve().parents[3]
-    script = ScriptDirectory.from_config(
-        Config(str(root / "migrations" / "alembic.ini"))
-    )
-    head = script.get_current_head()
-    pre_head = script.get_revision(head).down_revision
-    assert isinstance(pre_head, str)
-    return head, pre_head
+PRE_P1_2_HEAD = "256a7677d31f"
 
 
 def _seed_pre_p1_2_rows(engine) -> None:
@@ -84,8 +77,7 @@ def test_FR_RBAC_004_p1_2_migration_keeps_memberships_expiry_null(
 ) -> None:
     database_url = f"sqlite+pysqlite:///{(tmp_path / 'p12map.db').as_posix()}"
     config = _alembic_config(database_url)
-    _, pre_head = _heads()
-    command.upgrade(config, pre_head)
+    command.upgrade(config, PRE_P1_2_HEAD)
     engine = create_engine(database_url)
     _seed_pre_p1_2_rows(engine)
     command.upgrade(config, "head")
@@ -107,9 +99,8 @@ def test_FR_RBAC_004_p1_2_migration_downgrade_removes_artifacts(
 ) -> None:
     database_url = f"sqlite+pysqlite:///{(tmp_path / 'p12down.db').as_posix()}"
     config = _alembic_config(database_url)
-    _, pre_head = _heads()
     command.upgrade(config, "head")
-    command.downgrade(config, pre_head)
+    command.downgrade(config, PRE_P1_2_HEAD)
     engine = create_engine(database_url)
     tables = set(inspect(engine).get_table_names())
     assert "document_exceptions" not in tables
