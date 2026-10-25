@@ -182,6 +182,14 @@ class ResourceCatalog(Protocol):
         self, user_id: str
     ) -> tuple[DocumentException, ...]: ...
 
+    def get_exceptions_for_department(
+        self, dept_id: str
+    ) -> tuple[DocumentException, ...]: ...
+
+    def get_exception(
+        self, exception_id: str
+    ) -> DocumentException | None: ...
+
 
 class DepartmentAdminStore(Protocol):
     """Write side for department libraries and memberships (ADR-016 D3).

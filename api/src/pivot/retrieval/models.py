@@ -48,6 +48,11 @@ class RetrievalQuery:
     # pass the Principal's visible libraries. An explicit empty tuple
     # matches nothing.
     library_ids: tuple[str, ...] | None = None
+    # Documents the caller may see only via live exception grants
+    # (ADR-017 D1), derived server-side from the Principal alongside
+    # library_ids. Only consulted when library_ids is set; a document
+    # listed here passes even when its library is not visible.
+    exception_document_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

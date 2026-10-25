@@ -496,6 +496,7 @@ def _llama_backend(
     document_rows,
     version_rows,
     visible_libraries_for=None,
+    exception_documents_for=None,
 ):
     """Build the per-library Qdrant LlamaIndex set, its reconcile sync and authorize.
 
@@ -632,7 +633,18 @@ def _llama_backend(
                 return False
             if visible_libraries_for is None:
                 return True
-            return document.library_id in visible_libraries_for(principal_id)
+            if document.library_id in visible_libraries_for(principal_id):
+                return True
+            # Second channel (ADR-017 D1): a live exception grant on this
+            # exact document. The library check runs first, so an
+            # exception resolver failure denies only exception access,
+            # never library access.
+            if exception_documents_for is None:
+                return False
+            try:
+                return document_id in exception_documents_for(principal_id)
+            except Exception:
+                return False
         except Exception:
             return False
 
@@ -771,6 +783,24 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         )
         return tuple(sorted(access.visible_libraries(principal)))
 
+    def _exception_documents_for(user_id: str) -> tuple[str, ...]:
+        # Same fail-closed shape as _visible_libraries_for, over the one
+        # exception set shared with authorize_document (ADR-017 D1).
+        try:
+            user = users.get_by_id(user_id)
+        except Exception:
+            return ()
+        if user is None:
+            return ()
+        principal = Principal(
+            user_id=user.id,
+            username=user.username,
+            role=user.role,
+            token_version=user.token_version,
+            status=user.status,
+        )
+        return tuple(sorted(access.exception_document_ids(principal)))
+
     llama_holders = None
     llama_sync = None
     llama_authorize = None
@@ -782,6 +812,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             document_rows=document_rows,
             version_rows=version_rows,
             visible_libraries_for=_visible_libraries_for,
+            exception_documents_for=_exception_documents_for,
         )
     else:
         raise RuntimeError(
@@ -959,6 +990,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             reranker=reranker,
             refresher=refresher,
             visible_libraries_for=_visible_libraries_for,
+            exception_documents_for=_exception_documents_for,
         )
     else:
         raise RuntimeError(

@@ -40,6 +40,15 @@ class LlamaIndexRetriever:
     that principal may see are queried at all: collection selection
     is library enforcement, and the authorize hook stays as defense
     in depth. Without it, every given index is queried, as before.
+
+    Document-level exceptions (ADR-017 D1) widen selection but never
+    visibility: when ``exception_documents_for`` reports live exception
+    documents for a principal, every library-keyed index is selected,
+    because the retriever cannot map document ids to libraries without
+    a live-fact lookup it does not own. Per-node authorization in
+    _eligible_nodes (the exception-aware hook) is what keeps ungranted
+    nodes out of the scoring corpus, so selection breadth costs scan
+    time only, never leakage.
     """
 
     def __init__(
@@ -56,6 +65,7 @@ class LlamaIndexRetriever:
         reranker: Reranker | None = None,
         refresher: CollectionRefresher | None = None,
         visible_libraries_for: Callable[[str], tuple[str, ...]] | None = None,
+        exception_documents_for: Callable[[str], tuple[str, ...]] | None = None,
     ) -> None:
         if index is not None and indexes is not None:
             raise ValueError("pass either index or indexes, not both")
@@ -80,6 +90,7 @@ class LlamaIndexRetriever:
         self._reranker = reranker
         self._refresher = refresher
         self._visible_libraries_for = visible_libraries_for
+        self._exception_documents_for = exception_documents_for
 
     def retrieve(
         self,
@@ -198,6 +209,15 @@ class LlamaIndexRetriever:
         failure denies everything (fail closed) rather than falling
         back to all libraries. The returned dict is a per-query
         snapshot, so a holder added mid-query never breaks iteration.
+
+        With live exception documents, every library-keyed index is
+        selected: an exception document's library is not derivable from
+        its id inside the retriever, so wholesale exclusion would hide
+        granted documents. The per-node authorize hook (exception-aware)
+        still filters every node before it reaches the corpus, so the
+        wider selection cannot leak ungranted documents. An exception
+        resolver failure only drops the exception widening; library
+        visibility is unaffected.
         """
         if self._visible_libraries_for is None:
             return dict(self._indexes)
@@ -207,6 +227,13 @@ class LlamaIndexRetriever:
             visible = set(self._visible_libraries_for(principal_id))
         except Exception:
             return {}
+        if self._exception_documents_for is not None:
+            try:
+                exceptions = self._exception_documents_for(principal_id)
+            except Exception:
+                exceptions = ()
+            if exceptions:
+                return dict(self._indexes)
         return {
             key: index
             for key, index in self._indexes.items()

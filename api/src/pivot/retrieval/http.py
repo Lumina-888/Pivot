@@ -40,8 +40,12 @@ def build_search_router(service: RetrievalService, auth: AuthService) -> APIRout
                 space=space,
                 tags=(tag,) if tag else (),
                 # Library scope is derived server-side from the Principal;
-                # it is never accepted from the request.
+                # it is never accepted from the request. The exception
+                # channel rides alongside it (ADR-017 D1).
                 library_ids=tuple(sorted(auth.visible_libraries(principal))),
+                exception_document_ids=tuple(
+                    sorted(auth.exception_document_ids(principal))
+                ),
             )
         )
         items = [

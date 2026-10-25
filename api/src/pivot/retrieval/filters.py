@@ -10,8 +10,16 @@ def passes_filters(chunk: ChunkRecord, query: RetrievalQuery) -> bool:
         return False
     if not chunk.allowed:
         return False
-    if query.library_ids is not None and chunk.library_id not in query.library_ids:
-        return False
+    if query.library_ids is not None:
+        # Library scope, plus the exception channel (ADR-017 D1): a
+        # chunk whose document carries a live exception grant for the
+        # caller passes even when its library is not visible. Exceptions
+        # never widen a library, only the granted document.
+        if (
+            chunk.library_id not in query.library_ids
+            and chunk.document_id not in query.exception_document_ids
+        ):
+            return False
     if query.space and chunk.space != query.space:
         return False
     if query.tags and not set(query.tags).issubset(set(chunk.tags)):

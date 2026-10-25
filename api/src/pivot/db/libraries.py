@@ -207,6 +207,24 @@ class SqlAlchemyLibraryCatalog:
             ).all()
             return tuple(_to_exception(row) for row in rows)
 
+    def get_exceptions_for_department(
+        self, dept_id: str
+    ) -> tuple[DocumentException, ...]:
+        with self._scope() as session:
+            rows = session.scalars(
+                select(ExceptionRow)
+                .where(ExceptionRow.target_dept_id == dept_id)
+                .order_by(ExceptionRow.id)
+            ).all()
+            return tuple(_to_exception(row) for row in rows)
+
+    def get_exception(
+        self, exception_id: str
+    ) -> DocumentException | None:
+        with self._scope() as session:
+            row = session.get(ExceptionRow, exception_id)
+            return _to_exception(row) if row is not None else None
+
     def add_exception(self, exception: DocumentException) -> None:
         with self._scope() as session:
             with UnitOfWork(session):

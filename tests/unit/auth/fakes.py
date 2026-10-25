@@ -220,6 +220,22 @@ class InMemoryResources:
             if exception.target_user_id == user_id
         )
 
+    def get_exceptions_for_department(
+        self, dept_id: str
+    ) -> tuple[DocumentException, ...]:
+        return tuple(
+            exception
+            for exception in sorted(
+                self.exceptions.values(), key=lambda item: item.id
+            )
+            if exception.target_dept_id == dept_id
+        )
+
+    def get_exception(
+        self, exception_id: str
+    ) -> DocumentException | None:
+        return self.exceptions.get(exception_id)
+
     def add_exception(self, exception: DocumentException) -> None:
         self.exceptions[exception.id] = exception
 
