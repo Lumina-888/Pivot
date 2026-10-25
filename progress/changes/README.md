@@ -112,3 +112,4 @@
 | [20261024-M11-p1-1-closeout.md](20261024-M11-p1-1-closeout.md) | P1-1 收尾：空间/文档 ACL 落 main（FR-RBAC-004） |
 | [20261024-M01-p1-2-exceptions-grants.md](20261024-M01-p1-2-exceptions-grants.md) | ADR-017：文档级例外与临时授权（FR-RBAC-004，P1-2） |
 | [20261024-M01-p1-4-folders-projects.md](20261024-M01-p1-4-folders-projects.md) | ADR-018：文件夹与跨部门项目（FR-RBAC-004，P1-4） |
+| [20261024-M01-p1-3-approval-flow.md](20261024-M01-p1-3-approval-flow.md) | ADR-019：审批流（FR-RBAC-004，P1-3） |
