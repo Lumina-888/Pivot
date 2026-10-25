@@ -292,3 +292,52 @@ def test_FR_RBAC_004_http_audit_events_have_no_mutation_route():
         headers=_auth(tokens["admin"], "req_audit_delete"),
     )
     assert delete.status_code in {404, 405}
+
+
+def test_FR_RBAC_004_http_member_expiry_round_trip_and_purge():
+    _, _, _, client = _assembly()
+    tokens = _tokens(client)
+    added = client.post(
+        "/api/v1/admin/departments/dept_eng/members",
+        json={
+            "user_id": "usr_dave",
+            "dept_role": "reader",
+            "expires_at": "2030-01-01T00:00:00Z",
+        },
+        headers=_auth(tokens["admin"], "req_exp_add"),
+    )
+    assert added.status_code == 201
+    assert added.json()["expires_at"] == "2030-01-01T00:00:00Z"
+    kept = client.patch(
+        "/api/v1/admin/departments/dept_eng/members/usr_dave",
+        json={"dept_role": "editor"},
+        headers=_auth(tokens["admin"], "req_exp_keep"),
+    )
+    assert kept.status_code == 200
+    assert kept.json()["expires_at"] == "2030-01-01T00:00:00Z"
+    assert kept.json()["dept_role"] == "editor"
+    cleared = client.patch(
+        "/api/v1/admin/departments/dept_eng/members/usr_dave",
+        json={"dept_role": "editor", "expires_at": None},
+        headers=_auth(tokens["admin"], "req_exp_clear"),
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["expires_at"] is None
+    past = client.post(
+        "/api/v1/admin/departments/dept_eng/members",
+        json={
+            "user_id": "usr_carol",
+            "dept_role": "reader",
+            "expires_at": "2020-01-01T00:00:00Z",
+        },
+        headers=_auth(tokens["admin"], "req_exp_past"),
+    )
+    assert past.status_code == 201
+    listed = client.get(
+        "/api/v1/admin/departments/dept_eng/members",
+        headers=_auth(tokens["admin"], "req_exp_list"),
+    )
+    assert listed.status_code == 200
+    user_ids = [item["user_id"] for item in listed.json()["items"]]
+    assert "usr_carol" not in user_ids
+    assert "usr_dave" in user_ids
