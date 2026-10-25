@@ -22,6 +22,15 @@ def _seed(pg_session) -> None:
             role="user", status="active",
         )
     )
+    # documents.created_by references users.id: the admin creator row
+    # must exist, or PostgreSQL rejects the document insert (SQLite
+    # does not enforce FKs, which is why the SQLite proof missed this).
+    pg_session.add(
+        UserRow(
+            id="usr_admin", username="admin", password_hash="hash",
+            role="admin", status="active",
+        )
+    )
     if pg_session.get(LibraryRow, "dept_art") is None:
         pg_session.add(
             LibraryRow(
