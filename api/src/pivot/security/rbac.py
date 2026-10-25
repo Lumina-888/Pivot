@@ -8,6 +8,7 @@ from pivot.auth.errors import not_found, resource_forbidden
 from pivot.auth.ports import (
     Clock,
     DocumentException,
+    FolderMembership,
     Membership,
     Principal,
     ResourceCatalog,
@@ -44,6 +45,19 @@ def _exception_is_live(exception: DocumentException, now: datetime) -> bool:
     if exception.expires_at is None:
         return True
     return _as_utc(exception.expires_at) > now
+
+
+def _folder_membership_is_live(membership: FolderMembership, now: datetime) -> bool:
+    """True when a folder membership has not expired (ADR-018 D3).
+
+    Same rule as department memberships (ADR-017 D2): NULL expires_at
+    means a long-term grant; at expires_at itself the membership is
+    already gone. Folder rows carry expires_at, so the same exclusive
+    boundary applies at read time with no sweeper.
+    """
+    if membership.expires_at is None:
+        return True
+    return _as_utc(membership.expires_at) > now
 
 
 class AccessControl:
@@ -127,6 +141,67 @@ class AccessControl:
             for membership in self._catalog.get_memberships(principal.user_id)
             if membership.dept_role == "dept_admin"
             and _is_live(membership, now)
+        )
+
+    def visible_folder_ids(self, principal: Principal) -> frozenset[str]:
+        """Folders a principal may see (ADR-018 D2-D3).
+
+        Super admins see every folder the catalog knows. Department
+        admins see every folder inside the libraries of departments
+        they administer: folder roles never restrict a department
+        admin inside their own department, so a read-only folder is
+        still fully visible to them. Everyone else sees only folders
+        where they hold a live membership, and only inside libraries
+        they can already see: a folder membership in a library the
+        caller lost (expired department membership) grants nothing.
+        """
+        if principal.role == "admin":
+            return frozenset(
+                folder.id
+                for library in self._catalog.list_libraries()
+                for folder in self._catalog.list_folders(library.id)
+            )
+        now = self._now()
+        visible = self.visible_libraries(principal)
+        folder_ids = set()
+        for dept_id in self.admin_departments(principal):
+            if dept_id in visible:
+                folder_ids.update(
+                    folder.id
+                    for folder in self._catalog.list_folders(dept_id)
+                )
+        for membership in self._catalog.get_folder_memberships(
+            principal.user_id
+        ):
+            if not _folder_membership_is_live(membership, now):
+                continue
+            folder = self._catalog.get_folder(membership.folder_id)
+            if folder is not None and folder.library_id in visible:
+                folder_ids.add(folder.id)
+        return frozenset(folder_ids)
+
+    def folder_visible(
+        self, principal: Principal, folder_id: str, library_id: str
+    ) -> bool:
+        """True when the principal may see one restricted folder.
+
+        Super admins see everything. A department admin of the folder's
+        department sees it regardless of folder role (ADR-018 D2). Any
+        other live folder member sees it, in any role. Folder
+        membership alone never widens the library: callers check the
+        library first, and visible_folder_ids intersects the two.
+        """
+        if principal.role == "admin":
+            return True
+        if self.is_department_admin(principal, library_id):
+            return True
+        now = self._now()
+        return any(
+            membership.folder_id == folder_id
+            and _folder_membership_is_live(membership, now)
+            for membership in self._catalog.get_folder_memberships(
+                principal.user_id
+            )
         )
 
     def document_exceptions(
@@ -218,11 +293,23 @@ class AccessControl:
         if principal.role == "admin":
             return
         if document.library_id in self.visible_libraries(principal):
-            return
+            # Folder channel (ADR-018 D3): the default folder (folder_id
+            # None) is the library itself, so library visibility alone
+            # suffices. A restricted folder needs folder visibility on
+            # top: department admins bypass folder roles (D2), live
+            # folder members pass in any role, everyone else falls
+            # through to the exception channel below.
+            if document.folder_id is None or self.folder_visible(
+                principal, document.folder_id, document.library_id
+            ):
+                return
         # Second channel (ADR-017 D1): a live exception grant on this
         # exact document, personal or via a department the principal
         # currently belongs to. Library membership stays the first
         # channel; exceptions never widen a library, only a document.
+        # Folders never replace exceptions (ADR-018 D3): a document an
+        # exception grants stays visible even inside a folder the
+        # caller cannot see.
         if document.id in self.exception_document_ids(principal):
             return
         raise not_found(request_id)

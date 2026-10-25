@@ -2,11 +2,13 @@
 
 The native collection stays the ingest write path. This module owns the
 parallel LlamaIndex collections (same cluster, one collection per
-library, named {native}__llama__{library_id}). Nodes are stored under
-UUID point ids derived from chunk ids; the chunk id itself travels in
-node metadata, and each node carries its document as its reference doc
-so a whole document can be dropped with one delete. Every node in a
-library collection carries that library in its metadata.
+library, named {native}__llama__{library_id}, plus one per restricted
+folder, named {native}__llama__{library_id}__{folder_id}). Nodes are
+stored under UUID point ids derived from chunk ids; the chunk id
+itself travels in node metadata, and each node carries its document as
+its reference doc so a whole document can be dropped with one delete.
+Every node in a library collection carries that library in its
+metadata; every node in a folder collection carries its folder too.
 
 Startup either creates each library collection from the native
 payloads, rebuilds it when asked to, or validates and rehydrates the
@@ -60,11 +62,12 @@ def llama_collection_name(native_collection: str, library_id: str) -> str:
 def llama_folder_collection_name(
     native_collection: str, library_id: str, folder_id: str
 ) -> str:
-    """Per-folder collection name (ADR-018 D3).
+    """Per-folder collection name (ADR-018 D3, S2).
 
-    {native}__llama__{library_id}__{folder_id}. Naming only: S1 does
-    not wire retrieval to folder collections (that is S2). The default
-    folder has no row and keeps the library collection above.
+    {native}__llama__{library_id}__{folder_id}. The default folder has
+    no row and keeps the library collection above; only restricted
+    folders get their own collection, created lazily by the first
+    reconcile that routes a document into them.
     """
     if not isinstance(library_id, str) or not library_id.strip():
         raise ValueError("library_id must be a non-empty string")
@@ -99,6 +102,36 @@ def resolve_payload_library(
         if isinstance(resolved, str) and resolved.strip():
             return resolved
     field = raw.get("library_id")
+    if isinstance(field, str) and field.strip():
+        return field
+    return None
+
+
+def resolve_payload_folder(
+    payload: Mapping, folder_id_for: Callable[[str], str | None] | None
+) -> str | None:
+    """Resolve which folder a native payload belongs to, or None.
+
+    None means the default folder (the library itself), not "skip":
+    every payload has a library, and a payload with no folder fact
+    sits in the default folder by definition. Live document facts win
+    over the payload's own folder field, like the library resolver;
+    when live facts cannot resolve the version, the payload's folder
+    field is the fallback (native payloads do not carry one today, so
+    orphans land in the default folder). Serving stays safe
+    regardless: the authorize hook rechecks every hit against live
+    folder facts, so a misplaced node is denied, never leaked.
+    """
+    raw = _payload_of(payload)
+    version_id = raw.get("version_id")
+    if folder_id_for is not None and isinstance(version_id, str):
+        try:
+            resolved = folder_id_for(version_id)
+        except Exception:
+            resolved = None
+        if isinstance(resolved, str) and resolved.strip():
+            return resolved
+    field = raw.get("folder_id")
     if isinstance(field, str) and field.strip():
         return field
     return None
@@ -167,12 +200,14 @@ class LlamaQdrantIndex:
         client=None,
         collection: str | None = None,
         library_id: str | None = None,
+        folder_id: str | None = None,
     ) -> None:
         self._index = index
         self._embed_model = embed_model
         self._client = client
         self._collection = collection
         self._library_id = library_id
+        self._folder_id = folder_id
 
     @property
     def index(self) -> VectorStoreIndex:
@@ -181,6 +216,12 @@ class LlamaQdrantIndex:
     @property
     def library_id(self) -> str | None:
         return self._library_id
+
+    @property
+    def folder_id(self) -> str | None:
+        """The restricted folder this holder serves, or None for a
+        library holder (whose collection is the default folder)."""
+        return self._folder_id
 
     @classmethod
     def open(
@@ -195,6 +236,7 @@ class LlamaQdrantIndex:
         native_payloads: Iterable[Mapping],
         external_llm_allowed: ExternalLlmLookup,
         library_id_for: Callable[[str], str | None] | None = None,
+        folder_id: str | None = None,
         rebuild: bool = False,
         hydrate: bool = True,
     ) -> "LlamaQdrantIndex":
@@ -202,7 +244,12 @@ class LlamaQdrantIndex:
 
         Only payloads resolving to this library are used; everything
         else is left for its own library's collection. A payload that
-        cannot be resolved is skipped, never filed here.
+        cannot be resolved is skipped, never filed here. With
+        folder_id set, the collection is that folder's collection
+        instead, and the caller (the library set) owns partitioning
+        payloads by folder before calling: the library filter here
+        still applies, and folder placement is exact after the
+        reconcile step, which stamps and re-adds from live facts.
         """
         if not isinstance(library_id, str) or not library_id.strip():
             raise ValueError("library_id must be a non-empty string")
@@ -211,7 +258,12 @@ class LlamaQdrantIndex:
             for item in native_payloads
             if resolve_payload_library(item, library_id_for) == library_id
         ]
-        collection = llama_collection_name(native_collection, library_id)
+        if folder_id is not None:
+            collection = llama_folder_collection_name(
+                native_collection, library_id, folder_id
+            )
+        else:
+            collection = llama_collection_name(native_collection, library_id)
         store = QdrantVectorStore(client=client, collection_name=collection)
         exists = bool(client.collection_exists(collection_name=collection))
         if exists and rebuild:
@@ -221,7 +273,8 @@ class LlamaQdrantIndex:
             store, embed_model=embed_model, store_nodes_override=True
         )
         holder = cls(
-            index, embed_model, client=client, collection=collection, library_id=library_id
+            index, embed_model, client=client, collection=collection,
+            library_id=library_id, folder_id=folder_id,
         )
         if exists:
             _validate_collection(
@@ -303,19 +356,23 @@ class LlamaQdrantIndex:
         return True
 
     def _stamped(self, payloads: Iterable[Mapping]) -> list[dict]:
-        """Payload copies stamped with this collection's library.
+        """Payload copies stamped with this collection's library and folder.
 
         Stamping is unconditional: a node stored in a library
         collection always carries that library in its metadata, even
         when the native payload still names a library the document has
-        since left. Holders built without a library (legacy direct
-        construction only) pass payloads through unstamped.
+        since left, and a node stored in a folder collection always
+        carries that folder too. Holders built without a library
+        (legacy direct construction only) pass payloads through
+        unstamped.
         """
         stamped: list[dict] = []
         for item in payloads:
             payload = dict(_payload_of(item))
             if self._library_id:
                 payload["library_id"] = self._library_id
+            if self._folder_id:
+                payload["folder_id"] = self._folder_id
             stamped.append(payload)
         return stamped
 
@@ -394,6 +451,29 @@ class _LiveLibraryIndexes(Mapping):
         return len(self._index_set._holders)
 
 
+class _LiveFolderIndexes(Mapping):
+    """Live view over a library index set's folder serving indexes.
+
+    Same laziness contract as _LiveLibraryIndexes: folder holders are
+    created on demand (a folder's first reconciled document), so the
+    retriever must see holders created after assembly. Folder ids are
+    globally unique primary keys, so the view is keyed by folder id
+    alone, never by (library, folder).
+    """
+
+    def __init__(self, index_set: "LlamaLibraryIndexSet") -> None:
+        self._index_set = index_set
+
+    def __getitem__(self, folder_id: str) -> VectorStoreIndex:
+        return self._index_set._folder_holders[folder_id].index
+
+    def __iter__(self):
+        return iter(self._index_set._folder_holders)
+
+    def __len__(self) -> int:
+        return len(self._index_set._folder_holders)
+
+
 class LlamaLibraryIndexSet:
     """One LlamaQdrantIndex holder per library, with routed reconcile.
 
@@ -408,6 +488,16 @@ class LlamaLibraryIndexSet:
     collection when a document moved libraries. A document whose row
     is gone entirely (library unknown) is dropped from every
     collection.
+
+    Restricted folders (ADR-018 D3, S2) extend the same shape: one
+    holder per folder, keyed by folder id in :attr:`folder_indexes`,
+    created lazily by the first reconcile that routes a document into
+    the folder. Startup partitions each library's payloads by folder
+    (live folder facts first, payload field fallback); payloads with
+    no folder fact sit in the library collection, which is the default
+    folder. Reconcile routes by (library, folder) and sweeps every
+    other holder, library and folder alike, so a moved document never
+    stays visible in its old folder's collection.
     """
 
     def __init__(
@@ -422,8 +512,10 @@ class LlamaLibraryIndexSet:
         external_llm_allowed: ExternalLlmLookup,
         rebuild: bool = False,
         hydrate: bool = True,
+        folder_holders: dict[str, LlamaQdrantIndex] | None = None,
     ) -> None:
         self._holders = dict(holders)
+        self._folder_holders = dict(folder_holders or {})
         self._client = client
         self._native_collection = native_collection
         self._embed_model = embed_model
@@ -445,6 +537,7 @@ class LlamaLibraryIndexSet:
         native_payloads: Iterable[Mapping],
         external_llm_allowed: ExternalLlmLookup,
         library_id_for: Callable[[str], str | None] | None = None,
+        folder_id_for: Callable[[str], str | None] | None = None,
         rebuild: bool = False,
         hydrate: bool = True,
     ) -> "LlamaLibraryIndexSet":
@@ -456,22 +549,48 @@ class LlamaLibraryIndexSet:
                 "they are indexed in no library collection",
                 skipped,
             )
-        holders = {
-            library_id: LlamaQdrantIndex.open(
-                client=client,
-                native_collection=native_collection,
-                library_id=library_id,
-                embed_model=embed_model,
-                vector_size=vector_size,
-                distance=distance,
-                native_payloads=lib_payloads,
-                external_llm_allowed=external_llm_allowed,
-                library_id_for=library_id_for,
-                rebuild=rebuild,
-                hydrate=hydrate,
-            )
-            for library_id, lib_payloads in by_library.items()
-        }
+        holders = {}
+        folder_holders = {}
+        for library_id, lib_payloads in by_library.items():
+            # Folder partition inside the library: payloads with no
+            # folder fact stay in the library collection (the default
+            # folder); each restricted folder gets its own holder.
+            # The holder's own library filter still applies, so the
+            # partition only narrows what each collection loads.
+            by_folder: dict[str | None, list[Mapping]] = {}
+            for item in lib_payloads:
+                folder_id = resolve_payload_folder(item, folder_id_for)
+                by_folder.setdefault(folder_id, []).append(item)
+            for folder_id, folder_payloads in by_folder.items():
+                if folder_id is None:
+                    holders[library_id] = LlamaQdrantIndex.open(
+                        client=client,
+                        native_collection=native_collection,
+                        library_id=library_id,
+                        embed_model=embed_model,
+                        vector_size=vector_size,
+                        distance=distance,
+                        native_payloads=folder_payloads,
+                        external_llm_allowed=external_llm_allowed,
+                        library_id_for=library_id_for,
+                        rebuild=rebuild,
+                        hydrate=hydrate,
+                    )
+                else:
+                    folder_holders[folder_id] = LlamaQdrantIndex.open(
+                        client=client,
+                        native_collection=native_collection,
+                        library_id=library_id,
+                        embed_model=embed_model,
+                        vector_size=vector_size,
+                        distance=distance,
+                        native_payloads=folder_payloads,
+                        external_llm_allowed=external_llm_allowed,
+                        library_id_for=library_id_for,
+                        folder_id=folder_id,
+                        rebuild=rebuild,
+                        hydrate=hydrate,
+                    )
         return cls(
             holders,
             client=client,
@@ -482,11 +601,16 @@ class LlamaLibraryIndexSet:
             external_llm_allowed=external_llm_allowed,
             rebuild=rebuild,
             hydrate=hydrate,
+            folder_holders=folder_holders,
         )
 
     @property
     def holders(self) -> dict[str, LlamaQdrantIndex]:
         return dict(self._holders)
+
+    @property
+    def folder_holders(self) -> dict[str, LlamaQdrantIndex]:
+        return dict(self._folder_holders)
 
     @property
     def indexes(self) -> Mapping[str, VectorStoreIndex]:
@@ -497,6 +621,18 @@ class LlamaLibraryIndexSet:
         serve that library without a restart.
         """
         return _LiveLibraryIndexes(self)
+
+    @property
+    def folder_indexes(self) -> Mapping[str, VectorStoreIndex]:
+        """Live view of the folder serving indexes, keyed by folder id.
+
+        Same laziness contract as indexes: folder holders are created
+        by the first reconcile that routes a document into them, and
+        the retriever must serve that folder without a restart. The
+        default folder has no entry here: it is the library collection
+        in indexes.
+        """
+        return _LiveFolderIndexes(self)
 
     def holder_for(
         self, library_id: str, *, native_payloads: Iterable[Mapping] = ()
@@ -525,40 +661,114 @@ class LlamaLibraryIndexSet:
             self._holders[library_id] = holder
         return holder
 
+    def holder_for_folder(
+        self, library_id: str, folder_id: str,
+        *, native_payloads: Iterable[Mapping] = ()
+    ) -> LlamaQdrantIndex:
+        """Return the holder for a folder, creating its collection lazily.
+
+        A folder with no reconciled document yet has no holder; its
+        first document creates the collection on demand, mirroring
+        holder_for. The set-level reconcile that follows re-adds the
+        document's nodes stamped with the folder, so the initial load
+        here (payload-field filtering only, like holder_for) is exact
+        after that step.
+        """
+        holder = self._folder_holders.get(folder_id)
+        if holder is None:
+            holder = LlamaQdrantIndex.open(
+                client=self._client,
+                native_collection=self._native_collection,
+                library_id=library_id,
+                embed_model=self._embed_model,
+                vector_size=self._vector_size,
+                distance=self._distance,
+                native_payloads=native_payloads,
+                external_llm_allowed=self._external_llm_allowed,
+                folder_id=folder_id,
+                rebuild=False,
+                hydrate=self._hydrate,
+            )
+            self._folder_holders[folder_id] = holder
+        return holder
+
     def reconcile_document(
         self,
         document_id: str,
         *,
         library_id: str | None,
+        folder_id: str | None = None,
         current_payloads: Iterable[Mapping],
         external_llm_allowed: ExternalLlmLookup,
     ) -> None:
-        """Reconcile one document in its own library collection only.
+        """Reconcile one document in its own library/folder collection only.
 
         The target collection is reconciled with the current payloads;
-        every other collection is swept for the document. When the
-        library is unknown (document row gone), every collection is
-        swept and nothing is re-added.
+        every other collection, library and folder alike, is swept for
+        the document. When the library is unknown (document row gone),
+        every collection is swept and nothing is re-added. A folder
+        move routes to the folder's collection (or back to the library
+        collection for the default folder), and the sweep clears the
+        old folder's collection, so the move is visible exactly once
+        the reconcile runs — and never before, because the authorize
+        hook rechecks live folder facts on every hit.
         """
         payloads = list(current_payloads)
         target = None
-        if library_id:
+        if folder_id is not None and library_id:
+            target = self.holder_for_folder(
+                library_id, folder_id, native_payloads=payloads
+            )
+            target.reconcile_document(
+                document_id,
+                current_payloads=payloads,
+                external_llm_allowed=external_llm_allowed,
+            )
+        elif library_id:
             target = self.holder_for(library_id, native_payloads=payloads)
             target.reconcile_document(
                 document_id,
                 current_payloads=payloads,
                 external_llm_allowed=external_llm_allowed,
             )
-        for holder in self._holders.values():
+        for holder in list(self._holders.values()):
+            if holder is not target:
+                holder.drop_document(document_id)
+        for holder in list(self._folder_holders.values()):
             if holder is not target:
                 holder.drop_document(document_id)
 
     def drop_document(self, document_id: str) -> None:
         for holder in self._holders.values():
             holder.drop_document(document_id)
+        for holder in self._folder_holders.values():
+            holder.drop_document(document_id)
+
+    def drop_folder_collection(self, library_id: str, folder_id: str) -> None:
+        """Delete one folder's collection, if it exists (ADR-018 D3).
+
+        Called when an empty folder is deleted: the folder row is
+        already gone (or about to be), so the collection must not
+        survive it. A folder that never held a document has no holder
+        and no collection, which is a no-op success. A delete failure
+        propagates with the holder still registered: the folder
+        service refuses the deletion, and the folder keeps serving
+        from its intact collection instead of going dark. Only a
+        successful delete (or a collection that never existed) drops
+        the holder, so a later reconcile recreates the collection
+        lazily instead of serving stale points.
+        """
+        collection = llama_folder_collection_name(
+            self._native_collection, library_id, folder_id
+        )
+        if self._client is not None and self._client.collection_exists(
+            collection_name=collection
+        ):
+            self._client.delete_collection(collection_name=collection)
+        self._folder_holders.pop(folder_id, None)
 
     def refresh_from_collection(self) -> tuple[int, int]:
-        """Pull every library collection's changes into the snapshots.
+        """Pull every library and folder collection's changes into the snapshots.
 
         Returns the summed (added, removed) node counts, so the
         interval-gated refresher treats the set like a single holder.
@@ -566,6 +776,10 @@ class LlamaLibraryIndexSet:
         added = 0
         removed = 0
         for holder in self._holders.values():
+            step_added, step_removed = holder.refresh_from_collection()
+            added += step_added
+            removed += step_removed
+        for holder in self._folder_holders.values():
             step_added, step_removed = holder.refresh_from_collection()
             added += step_added
             removed += step_removed

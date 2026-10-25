@@ -158,8 +158,8 @@ class _LibraryBackedCatalog:
 
     The in-memory catalog never carries libraries or memberships, so on
     the PostgreSQL path it would leave every non-admin with only the
-    public library. This wrapper serves the three library methods from
-    the database reader and delegates everything else to the inner
+    public library. This wrapper serves the library and folder methods
+    from the database reader and delegates everything else to the inner
     catalog, mirroring _ConversationBoundCatalog above.
     """
 
@@ -178,6 +178,19 @@ class _LibraryBackedCatalog:
 
     def get_memberships(self, user_id: str):
         return self._libraries.get_memberships(user_id)
+
+    def get_folder(self, folder_id: str):
+        # Folder visibility (ADR-018 D3) reads live folder facts from
+        # the same reader: the inner memory catalog never carries
+        # folders, so without this every folder would read invisible
+        # on the PostgreSQL path.
+        return self._libraries.get_folder(folder_id)
+
+    def list_folders(self, library_id: str):
+        return self._libraries.list_folders(library_id)
+
+    def get_folder_memberships(self, user_id: str):
+        return self._libraries.get_folder_memberships(user_id)
 
 
 class _RuntimeProbes:
@@ -542,11 +555,12 @@ def _llama_backend(
     version_rows,
     visible_libraries_for=None,
     exception_documents_for=None,
+    visible_folders_for=None,
 ):
     """Build the per-library Qdrant LlamaIndex set, its reconcile sync and authorize.
 
-    Returns (index set, sync, authorize). The sync reconciles one
-    document's nodes with live facts after ingest or deletion; it never
+    Returns (index set, sync, reconcile, authorize, search_authorize).
+    The sync reconciles one document's nodes with live facts after ingest or deletion; it never
     raises, because derived index state must not break document writes
     (authorization is rechecked live at query time regardless).
 
@@ -556,6 +570,13 @@ def _llama_backend(
     selection). The authorize hook additionally rechecks each hit
     against live document facts and library visibility, so a stale
     node in a visible collection still cannot leak.
+
+    Folder enforcement (ADR-018 D3) is the same shape one level down:
+    the set holds one collection per restricted folder, the retriever
+    only queries the caller's visible folders, and the authorize hook
+    rechecks the document's live folder_id against visible folders
+    before the exception channel. The default folder is the library
+    collection itself, so it needs no separate check.
     """
     if qdrant_store is None or query_embedder is None:
         raise RuntimeError(
@@ -601,6 +622,26 @@ def _llama_backend(
         except Exception:
             return None
 
+    def folder_id_for(version_id: str) -> str | None:
+        # Live folder facts for startup partition (ADR-018 D3): a
+        # document that moved folders since ingest resolves to its
+        # current folder. None means the default folder, which is the
+        # library collection; unlike the library resolver, an
+        # unresolvable version lands in the default folder rather
+        # than being skipped, because the hook rechecks live folder
+        # facts on every hit regardless of placement.
+        try:
+            version = version_rows.get(version_id)
+            if version is None:
+                return None
+            document = document_rows.get(version.document_id)
+            if document is None:
+                return None
+            folder_id = document.folder_id
+            return folder_id if isinstance(folder_id, str) and folder_id.strip() else None
+        except Exception:
+            return None
+
     client = settings.llama_qdrant_client
     if client is None:
         try:
@@ -629,6 +670,7 @@ def _llama_backend(
         native_payloads=scroll_payloads(qdrant_store),
         external_llm_allowed=external_llm_allowed,
         library_id_for=library_id_for,
+        folder_id_for=folder_id_for,
         rebuild=settings.llama_index_rebuild,
     )
 
@@ -642,8 +684,10 @@ def _llama_backend(
         current_payloads: list = []
         document = document_rows.get(document_id)
         library_id = None
+        folder_id = None
         if document is not None:
             library_id = document.library_id
+            folder_id = document.folder_id
             if document.deleted_at is None:
                 current = None
                 for version in version_rows.list_for_document(document_id):
@@ -659,6 +703,7 @@ def _llama_backend(
         holders.reconcile_document(
             document_id,
             library_id=library_id,
+            folder_id=folder_id,
             current_payloads=current_payloads,
             external_llm_allowed=external_llm_allowed,
         )
@@ -688,11 +733,29 @@ def _llama_backend(
             if visible_libraries_for is None:
                 return True
             if document.library_id in visible_libraries_for(principal_id):
-                return True
+                # Folder channel (ADR-018 D3): the default folder
+                # (folder_id None) is the library itself, so library
+                # visibility alone suffices. A restricted folder needs
+                # folder visibility on top; without a folder resolver
+                # the library check decides, as before. A folder
+                # resolver failure denies only the folder channel and
+                # falls through to the exception channel below, same
+                # shape as the library check's exception fallback.
+                if document.folder_id is None:
+                    return True
+                if visible_folders_for is None:
+                    return True
+                try:
+                    if document.folder_id in visible_folders_for(principal_id):
+                        return True
+                except Exception:
+                    pass
             # Second channel (ADR-017 D1): a live exception grant on this
             # exact document. The library check runs first, so an
             # exception resolver failure denies only exception access,
-            # never library access.
+            # never library access. Folders never replace exceptions:
+            # an exception-granted document inside an invisible folder
+            # still passes here.
             if exception_documents_for is None:
                 return False
             try:
@@ -702,7 +765,57 @@ def _llama_backend(
         except Exception:
             return False
 
-    return holders, sync, reconcile, authorize
+    def search_authorize(
+        principal_id: str, document_id: str, version_id: str
+    ) -> bool:
+        """Document-level live recheck for the search route (ADR-018 D3).
+
+        Same library/folder/exception channels as authorize, but at
+        document level and without the version-currency requirement:
+        search hits are document-level (title, snippet), not
+        version-pinned evidence, and the QA hook keeps the strict
+        version check for evidence. The one deliberate difference is
+        the missing-row case: a hit with no document row in this
+        assembly defers (True) instead of denying. Search legitimately
+        serves payloads whose rows live in another store (worker
+        ingest publishes vectors while the HTTP assembly holds no
+        rows) or nowhere (raw vector upserts), and a row-less document
+        cannot have been moved into a folder — moves go through the
+        service, which requires a row. The payload scope
+        (library + exception, via passes_filters) remains the
+        enforcement for those hits, exactly as before S2. A row that
+        exists is checked strictly: deleted denies, and a live folder
+        move is enforced even though the payload still names the old
+        place.
+        """
+        try:
+            document = document_rows.get(document_id)
+            if document is None:
+                return True
+            if document.deleted_at is not None:
+                return False
+            if visible_libraries_for is None:
+                return True
+            if document.library_id in visible_libraries_for(principal_id):
+                if document.folder_id is None:
+                    return True
+                if visible_folders_for is None:
+                    return True
+                try:
+                    if document.folder_id in visible_folders_for(principal_id):
+                        return True
+                except Exception:
+                    pass
+            if exception_documents_for is None:
+                return False
+            try:
+                return document_id in exception_documents_for(principal_id)
+            except Exception:
+                return False
+        except Exception:
+            return False
+
+    return holders, sync, reconcile, authorize, search_authorize
 
 
 def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly:
@@ -855,12 +968,38 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         )
         return tuple(sorted(access.exception_document_ids(principal)))
 
+    def _visible_folders_for(user_id: str) -> tuple[str, ...]:
+        # Same fail-closed shape, over the visible folder set (ADR-018
+        # D3): department admins see every folder in their departments,
+        # members see their own folders, and the default folder is the
+        # library itself, never a row in this set.
+        try:
+            user = users.get_by_id(user_id)
+        except Exception:
+            return ()
+        if user is None:
+            return ()
+        principal = Principal(
+            user_id=user.id,
+            username=user.username,
+            role=user.role,
+            token_version=user.token_version,
+            status=user.status,
+        )
+        return tuple(sorted(access.visible_folder_ids(principal)))
+
     llama_holders = None
     llama_sync = None
     llama_reconcile = None
     llama_authorize = None
     if resolved.vector_store == "qdrant":
-        llama_holders, llama_sync, llama_reconcile, llama_authorize = _llama_backend(
+        (
+            llama_holders,
+            llama_sync,
+            llama_reconcile,
+            llama_authorize,
+            llama_search_authorize,
+        ) = _llama_backend(
             resolved,
             qdrant_store=qdrant_store,
             query_embedder=query_embedder,
@@ -868,6 +1007,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             version_rows=version_rows,
             visible_libraries_for=_visible_libraries_for,
             exception_documents_for=_exception_documents_for,
+            visible_folders_for=_visible_folders_for,
         )
     else:
         raise RuntimeError(
@@ -1046,6 +1186,8 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             refresher=refresher,
             visible_libraries_for=_visible_libraries_for,
             exception_documents_for=_exception_documents_for,
+            folder_indexes=llama_holders.folder_indexes,
+            visible_folders_for=_visible_folders_for,
         )
     else:
         raise RuntimeError(
@@ -1083,6 +1225,14 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             if resolved.storage == "postgres"
             else None
         ),
+        # Folder deletion drops the folder's retrieval collection
+        # (ADR-018 D3); without a llama backend there is nothing to
+        # drop and deletion only removes rows.
+        folder_collection_drop=(
+            llama_holders.drop_folder_collection
+            if llama_holders is not None
+            else None
+        ),
     )
     app = create_app(
         probes=probes,
@@ -1102,6 +1252,12 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             audit_record=audits.record,
             settings=resolved,
         ),
+        # Search hits are rechecked against live document facts
+        # (library, folder, exception) before release: native payloads
+        # are stamped at ingest and never updated by folder moves or
+        # claims, so the payload scope alone could over-serve a moved
+        # document's title and snippet (ADR-018 D3).
+        authorize_hit=llama_search_authorize,
     )
     return RuntimeAssembly(
         app=app,

@@ -18,8 +18,16 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from pivot.auth.ports import DocumentException, Library, Membership
+from pivot.auth.ports import (
+    DocumentException,
+    Folder,
+    FolderMembership,
+    Library,
+    Membership,
+)
 from pivot.db.models.identity import DocumentException as ExceptionRow
+from pivot.db.models.identity import Folder as FolderRow
+from pivot.db.models.identity import FolderMembership as FolderMembershipRow
 from pivot.db.models.identity import Library as LibraryRow
 from pivot.db.models.identity import Membership as MembershipRow
 from pivot.db.scoped import scoped_session, write_scope
@@ -63,6 +71,26 @@ def _to_exception(row: ExceptionRow) -> DocumentException:
         reason=row.reason,
         expires_at=row.expires_at,
         created_at=row.created_at,
+    )
+
+
+def _to_folder(row: FolderRow) -> Folder:
+    return Folder(
+        id=row.id,
+        library_id=row.library_id,
+        name=row.name,
+        created_at=row.created_at,
+    )
+
+
+def _to_folder_membership(row: FolderMembershipRow) -> FolderMembership:
+    return FolderMembership(
+        folder_id=row.folder_id,
+        user_id=row.user_id,
+        folder_role=row.folder_role,
+        granted_by=row.granted_by,
+        granted_at=row.granted_at,
+        expires_at=row.expires_at,
     )
 
 
@@ -182,6 +210,153 @@ class SqlAlchemyLibraryCatalog:
 
     def set_membership(self, membership: Membership) -> None:
         self.add_membership(membership)
+
+    def get_folder(self, folder_id: str) -> Folder | None:
+        with self._scope() as session:
+            row = session.get(FolderRow, folder_id)
+            return None if row is None else _to_folder(row)
+
+    def list_folders(self, library_id: str) -> tuple[Folder, ...]:
+        with self._scope() as session:
+            rows = session.scalars(
+                select(FolderRow)
+                .where(FolderRow.library_id == library_id)
+                .order_by(FolderRow.id)
+            ).all()
+            return tuple(_to_folder(row) for row in rows)
+
+    def create_folder(self, folder: Folder) -> None:
+        with self._scope() as session:
+            with write_scope(session):
+                session.add(
+                    FolderRow(
+                        id=folder.id,
+                        library_id=folder.library_id,
+                        name=folder.name,
+                        created_at=folder.created_at or utc_now(),
+                    )
+                )
+
+    def set_folder(self, folder: Folder) -> None:
+        """Upsert a folder row without touching its member rows.
+
+        Rename (ADR-018 D3) rewrites only the name: delete + create
+        would drop the member rows with it, so the update path is
+        separate from creation.
+        """
+        with self._scope() as session:
+            with write_scope(session):
+                row = session.get(FolderRow, folder.id)
+                if row is None:
+                    session.add(
+                        FolderRow(
+                            id=folder.id,
+                            library_id=folder.library_id,
+                            name=folder.name,
+                            created_at=folder.created_at or utc_now(),
+                        )
+                    )
+                else:
+                    row.library_id = folder.library_id
+                    row.name = folder.name
+
+    def delete_folder(self, folder_id: str) -> None:
+        with self._scope() as session:
+            with write_scope(session):
+                # Member rows are deleted explicitly rather than left to
+                # the FK cascade: SQLite test databases do not enforce
+                # ON DELETE CASCADE unless the pragma is on, and the
+                # service's compensation path re-creates rows it deleted.
+                session.execute(
+                    delete(FolderMembershipRow).where(
+                        FolderMembershipRow.folder_id == folder_id
+                    )
+                )
+                session.execute(
+                    delete(FolderRow).where(FolderRow.id == folder_id)
+                )
+
+    def get_folder_members(
+        self, folder_id: str
+    ) -> tuple[FolderMembership, ...]:
+        """Live members of a folder (ADR-018 D3, ADR-017 D2 Q3).
+
+        Same lazy purge as get_department_members: this is the
+        admin-side read, not the per-request hot path, so expired rows
+        are physically deleted here and never on get_folder_memberships.
+        """
+        with self._scope() as session:
+            rows = session.scalars(
+                select(FolderMembershipRow)
+                .where(FolderMembershipRow.folder_id == folder_id)
+                .order_by(FolderMembershipRow.user_id)
+            ).all()
+            now = utc_now()
+            live: list[FolderMembership] = []
+            expired: list[tuple[str, str]] = []
+            for row in rows:
+                member = _to_folder_membership(row)
+                if member.expires_at is not None and _as_utc(member.expires_at) <= now:
+                    expired.append((row.folder_id, row.user_id))
+                else:
+                    live.append(member)
+            if expired:
+                with write_scope(session):
+                    for expired_folder, user_id in expired:
+                        session.execute(
+                            delete(FolderMembershipRow).where(
+                                FolderMembershipRow.folder_id == expired_folder,
+                                FolderMembershipRow.user_id == user_id,
+                            )
+                        )
+            return tuple(live)
+
+    def get_folder_memberships(
+        self, user_id: str
+    ) -> tuple[FolderMembership, ...]:
+        with self._scope() as session:
+            rows = session.scalars(
+                select(FolderMembershipRow)
+                .where(FolderMembershipRow.user_id == user_id)
+                .order_by(FolderMembershipRow.folder_id)
+            ).all()
+            return tuple(_to_folder_membership(row) for row in rows)
+
+    def add_folder_member(self, member: FolderMembership) -> None:
+        with self._scope() as session:
+            with write_scope(session):
+                row = session.get(
+                    FolderMembershipRow, (member.folder_id, member.user_id)
+                )
+                if row is None:
+                    session.add(
+                        FolderMembershipRow(
+                            folder_id=member.folder_id,
+                            user_id=member.user_id,
+                            folder_role=member.folder_role,
+                            granted_by=member.granted_by,
+                            granted_at=member.granted_at or utc_now(),
+                            expires_at=member.expires_at,
+                        )
+                    )
+                else:
+                    row.folder_role = member.folder_role
+                    row.granted_by = member.granted_by
+                    row.granted_at = member.granted_at or utc_now()
+                    row.expires_at = member.expires_at
+
+    def remove_folder_member(self, folder_id: str, user_id: str) -> None:
+        with self._scope() as session:
+            with write_scope(session):
+                session.execute(
+                    delete(FolderMembershipRow).where(
+                        FolderMembershipRow.folder_id == folder_id,
+                        FolderMembershipRow.user_id == user_id,
+                    )
+                )
+
+    def set_folder_member(self, member: FolderMembership) -> None:
+        self.add_folder_member(member)
 
     def get_document_exceptions(
         self, document_id: str

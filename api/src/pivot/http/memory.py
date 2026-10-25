@@ -13,6 +13,8 @@ from pivot.auth.ports import (
     DocumentAuthz,
     DocumentException,
     ExportAuthz,
+    Folder,
+    FolderMembership,
     Library,
     Membership,
     RefreshSession,
@@ -38,6 +40,17 @@ class UtcClock:
 
 def _is_expired(member: Membership, now: datetime) -> bool:
     # Naive stored values read as UTC (SQLite); aware values compare as-is.
+    if member.expires_at is None:
+        return False
+    expires = member.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    return expires <= now
+
+
+def _folder_is_expired(member: FolderMembership, now: datetime) -> bool:
+    # Same exclusive boundary as _is_expired (ADR-017 D2): at
+    # expires_at itself the folder membership is already gone.
     if member.expires_at is None:
         return False
     expires = member.expires_at
@@ -116,6 +129,10 @@ class InMemoryResources:
     conversations: dict[str, str] = field(default_factory=dict)
     libraries: dict[str, Library] = field(default_factory=dict)
     memberships: dict[str, tuple[Membership, ...]] = field(default_factory=dict)
+    folders: dict[str, Folder] = field(default_factory=dict)
+    folder_memberships: dict[str, tuple[FolderMembership, ...]] = field(
+        default_factory=dict
+    )
     exceptions: dict[str, DocumentException] = field(default_factory=dict)
 
     def get_document(self, document_id: str) -> DocumentAuthz | None:
@@ -186,6 +203,78 @@ class InMemoryResources:
 
     def set_membership(self, membership: Membership) -> None:
         self.add_membership(membership)
+
+    def get_folder(self, folder_id: str) -> Folder | None:
+        return self.folders.get(folder_id)
+
+    def list_folders(self, library_id: str) -> tuple[Folder, ...]:
+        return tuple(
+            folder
+            for folder in sorted(self.folders.values(), key=lambda item: item.id)
+            if folder.library_id == library_id
+        )
+
+    def create_folder(self, folder: Folder) -> None:
+        self.folders[folder.id] = folder
+
+    def set_folder(self, folder: Folder) -> None:
+        self.folders[folder.id] = folder
+
+    def delete_folder(self, folder_id: str) -> None:
+        self.folders.pop(folder_id, None)
+        for user_id, members in list(self.folder_memberships.items()):
+            self.folder_memberships[user_id] = tuple(
+                member for member in members if member.folder_id != folder_id
+            )
+
+    def get_folder_members(
+        self, folder_id: str
+    ) -> tuple[FolderMembership, ...]:
+        """Live members of a folder (ADR-018 D3, ADR-017 D2 Q3).
+
+        Expired rows are physically deleted here (lazy purge); the
+        per-request get_folder_memberships path never writes.
+        """
+        now = utc_now()
+        live: list[FolderMembership] = []
+        for user_id, members in list(self.folder_memberships.items()):
+            remaining = tuple(
+                member
+                for member in members
+                if not (
+                    member.folder_id == folder_id
+                    and _folder_is_expired(member, now)
+                )
+            )
+            if len(remaining) != len(members):
+                self.folder_memberships[user_id] = remaining
+            live.extend(
+                member for member in remaining if member.folder_id == folder_id
+            )
+        return tuple(live)
+
+    def get_folder_memberships(
+        self, user_id: str
+    ) -> tuple[FolderMembership, ...]:
+        return self.folder_memberships.get(user_id, ())
+
+    def add_folder_member(self, member: FolderMembership) -> None:
+        current = tuple(
+            item
+            for item in self.folder_memberships.get(member.user_id, ())
+            if item.folder_id != member.folder_id
+        )
+        self.folder_memberships[member.user_id] = current + (member,)
+
+    def remove_folder_member(self, folder_id: str, user_id: str) -> None:
+        self.folder_memberships[user_id] = tuple(
+            member
+            for member in self.folder_memberships.get(user_id, ())
+            if member.folder_id != folder_id
+        )
+
+    def set_folder_member(self, member: FolderMembership) -> None:
+        self.add_folder_member(member)
 
     def get_document_exceptions(
         self, document_id: str

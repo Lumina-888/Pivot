@@ -45,6 +45,7 @@ def create_app(
     departments=None,
     ingest=None,
     claim_sync=None,
+    authorize_hit=None,
 ) -> FastAPI:
     """Create the HTTP assembly. Missing probes make /readyz fail closed.
 
@@ -124,7 +125,10 @@ def create_app(
     if retrieval is not None and auth is not None:
         from pivot.retrieval.http import build_search_router
 
-        app.include_router(build_search_router(retrieval, auth), prefix="/api/v1")
+        app.include_router(
+            build_search_router(retrieval, auth, authorize_hit=authorize_hit),
+            prefix="/api/v1",
+        )
 
     if runs is not None and qa is not None and auth is not None:
         from pivot.runs.http import build_runs_router

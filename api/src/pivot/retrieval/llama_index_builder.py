@@ -87,6 +87,15 @@ def build_llama_index(
             if not isinstance(library_id, str) or not library_id.strip():
                 raise ValueError("vector payload field 'library_id' must be a non-empty string")
             metadata["library_id"] = library_id
+        # Folder likewise (ADR-018 D3): the index layer stamps every
+        # node stored in a folder collection with that folder, so
+        # per-folder nodes are always labeled. Nodes without a folder
+        # fact sit in the default folder, which is the library itself.
+        folder_id = payload.get("folder_id")
+        if folder_id is not None:
+            if not isinstance(folder_id, str) or not folder_id.strip():
+                raise ValueError("vector payload field 'folder_id' must be a non-empty string")
+            metadata["folder_id"] = folder_id
         for key in ("effective_from", "effective_to"):
             raw = payload.get(key)
             if raw is not None:
