@@ -376,6 +376,50 @@ def _celery_submitter(runner, settings: RuntimeSettings):
     )
 
 
+def _claim_sync_submitter(*, sync, reconcile, audit_record, settings: RuntimeSettings):
+    """Post-claim reconcile dispatcher (ADR-017 D3).
+
+    Celery mode delays a worker task by name, mirroring ingest. Without
+    a broker the same task runs eager inline when the worker package is
+    present (bounded retries plus the final-failure audit still apply);
+    when it is absent, a plain inline sync call is the fallback — the
+    same best-effort semantics the in-process ingest sync already has.
+    Returns None when there is no llama backend to reconcile.
+    """
+    if reconcile is None:
+        return None
+    try:
+        from pivot_worker.celery_app import CeleryClaimSyncSubmitter
+    except ImportError:
+        if settings.ingest_backend == "celery":
+            raise RuntimeError(
+                "pivot_worker[celery] is required when PIVOT_INGEST=celery"
+            )
+        def _inline(document_id, library_id, request_id, actor_id, _sync=sync):
+            _sync(document_id)
+
+        return _inline
+    if settings.ingest_backend == "celery":
+        return CeleryClaimSyncSubmitter(
+            reconcile,
+            audit=audit_record,
+            parse_queue=settings.parse_queue or "",
+            online_queue=settings.online_queue or "",
+            concurrency=settings.worker_concurrency or 0,
+            broker_url=settings.celery_broker,
+            always_eager=settings.celery_always_eager,
+        )
+    return CeleryClaimSyncSubmitter(
+        reconcile,
+        audit=audit_record,
+        parse_queue=settings.parse_queue or "parse",
+        online_queue=settings.online_queue or "online",
+        concurrency=settings.worker_concurrency or 1,
+        broker_url="memory://",
+        always_eager=True,
+    )
+
+
 def _json_http_client(settings: RuntimeSettings):
     if settings.json_http_client is not None:
         return settings.json_http_client
@@ -588,31 +632,40 @@ def _llama_backend(
         rebuild=settings.llama_index_rebuild,
     )
 
+    def reconcile(document_id: str) -> None:
+        """Reconcile one document, raising on failure (claim-sync path).
+
+        The ingest/delete paths use the logging ``sync`` wrapper below;
+        the claim-sync task needs the raising variant so its bounded
+        retries and final-failure audit can trigger (ADR-017 D3).
+        """
+        current_payloads: list = []
+        document = document_rows.get(document_id)
+        library_id = None
+        if document is not None:
+            library_id = document.library_id
+            if document.deleted_at is None:
+                current = None
+                for version in version_rows.list_for_document(document_id):
+                    if version.current:
+                        current = version
+                        break
+                if current is not None:
+                    current_payloads = [
+                        payload
+                        for payload in scroll_payloads(qdrant_store)
+                        if _payload_of(payload).get("version_id") == current.id
+                    ]
+        holders.reconcile_document(
+            document_id,
+            library_id=library_id,
+            current_payloads=current_payloads,
+            external_llm_allowed=external_llm_allowed,
+        )
+
     def sync(document_id: str) -> None:
         try:
-            current_payloads: list = []
-            document = document_rows.get(document_id)
-            library_id = None
-            if document is not None:
-                library_id = document.library_id
-                if document.deleted_at is None:
-                    current = None
-                    for version in version_rows.list_for_document(document_id):
-                        if version.current:
-                            current = version
-                            break
-                    if current is not None:
-                        current_payloads = [
-                            payload
-                            for payload in scroll_payloads(qdrant_store)
-                            if _payload_of(payload).get("version_id") == current.id
-                        ]
-            holders.reconcile_document(
-                document_id,
-                library_id=library_id,
-                current_payloads=current_payloads,
-                external_llm_allowed=external_llm_allowed,
-            )
+            reconcile(document_id)
         except Exception:
             logging.getLogger(__name__).exception(
                 "llama index reconcile failed for document %s", document_id
@@ -649,7 +702,7 @@ def _llama_backend(
         except Exception:
             return False
 
-    return holders, sync, authorize
+    return holders, sync, reconcile, authorize
 
 
 def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly:
@@ -804,9 +857,10 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
 
     llama_holders = None
     llama_sync = None
+    llama_reconcile = None
     llama_authorize = None
     if resolved.vector_store == "qdrant":
-        llama_holders, llama_sync, llama_authorize = _llama_backend(
+        llama_holders, llama_sync, llama_reconcile, llama_authorize = _llama_backend(
             resolved,
             qdrant_store=qdrant_store,
             query_embedder=query_embedder,
@@ -1042,6 +1096,12 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         audits=audits,
         departments=departments,
         ingest=ingest_submitter,
+        claim_sync=_claim_sync_submitter(
+            sync=llama_sync,
+            reconcile=llama_reconcile,
+            audit_record=audits.record,
+            settings=resolved,
+        ),
     )
     return RuntimeAssembly(
         app=app,

@@ -12,7 +12,13 @@ def main() -> None:
     settings = WorkerSettings.from_env()
     runtime = assemble_ingest_runtime()
     start_health_server(host=settings.health_host, port=settings.health_port)
-    start_celery_worker(settings, runtime.runner, block=True)
+    start_celery_worker(
+        settings,
+        runtime.runner,
+        claim_sync=runtime.claim_sync,
+        claim_sync_audit=runtime.claim_sync_audit,
+        block=True,
+    )
 
 
 if __name__ == "__main__":

@@ -44,6 +44,7 @@ def create_app(
     audits: AuditService | None = None,
     departments=None,
     ingest=None,
+    claim_sync=None,
 ) -> FastAPI:
     """Create the HTTP assembly. Missing probes make /readyz fail closed.
 
@@ -155,7 +156,7 @@ def create_app(
         from pivot.http.departments import build_departments_router
 
         app.include_router(
-            build_departments_router(auth, departments),
+            build_departments_router(auth, departments, claim_sync=claim_sync),
             prefix="/api/v1",
         )
 
