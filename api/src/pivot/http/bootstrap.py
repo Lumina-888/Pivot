@@ -192,6 +192,22 @@ class _LibraryBackedCatalog:
     def get_folder_memberships(self, user_id: str):
         return self._libraries.get_folder_memberships(user_id)
 
+    def get_document_exceptions(self, document_id: str):
+        # Exception visibility (ADR-017 D1) reads live exception facts
+        # from the same reader: the inner memory catalog never carries
+        # exceptions on the PostgreSQL path, so without these four the
+        # exception channel silently reads empty and grants nothing.
+        return self._libraries.get_document_exceptions(document_id)
+
+    def get_exceptions_for_user(self, user_id: str):
+        return self._libraries.get_exceptions_for_user(user_id)
+
+    def get_exceptions_for_department(self, dept_id: str):
+        return self._libraries.get_exceptions_for_department(dept_id)
+
+    def get_exception(self, exception_id: str):
+        return self._libraries.get_exception(exception_id)
+
 
 class _RuntimeProbes:
     def __init__(
