@@ -37,6 +37,27 @@ class ClaimBody(BaseModel):
     library_id: str = Field(min_length=1)
 
 
+class CreateProjectBody(BaseModel):
+    project_id: str = Field(pattern=_DEPT_ID_PATTERN)
+    name: str = Field(min_length=1, max_length=255)
+    owning_dept_id: str = Field(pattern=_DEPT_ID_PATTERN)
+
+
+class AddProjectMemberBody(BaseModel):
+    user_id: str = Field(min_length=1)
+    project_role: str = Field(pattern=r"^(project_lead|editor|reader)$")
+    expires_at: datetime | None = None
+
+
+class SetProjectRoleBody(BaseModel):
+    project_role: str = Field(pattern=r"^(project_lead|editor|reader)$")
+    expires_at: datetime | None = None
+
+
+class AppointLeadBody(BaseModel):
+    user_id: str = Field(min_length=1)
+
+
 class CreateFolderBody(BaseModel):
     folder_id: str = Field(pattern=_DEPT_ID_PATTERN)
     name: str = Field(min_length=1, max_length=255)
@@ -261,6 +282,138 @@ def build_departments_router(
             "document_id": claimed.id,
             "library_id": claimed.library_id,
         }
+
+    # -- projects (ADR-018 D4) ------------------------------------------
+    #
+    # Project routes mirror the department routes: creation returns
+    # 201/200 on create/existing, member adds the same, deletes are
+    # 204, role patches use the same expires_at tri-state. The claim
+    # route above already serves project claims (the service allows
+    # project targets and the claim_sync dispatch is kind-agnostic).
+
+    @router.post("/admin/projects")
+    def create_project(body: CreateProjectBody, request: Request):
+        request_id, principal = _principal(request, auth)
+        library, created = departments.create_project(
+            principal, body.project_id, body.name, body.owning_dept_id,
+            request_id,
+        )
+        return JSONResponse(
+            _library_view(library), status_code=201 if created else 200
+        )
+
+    @router.get("/admin/projects")
+    def list_projects(request: Request) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        items = departments.list_projects(principal, request_id)
+        return {
+            "items": [_library_view(item) for item in items],
+            "pagination": None,
+        }
+
+    @router.get("/admin/projects/{project_id}")
+    def get_project(project_id: str, request: Request) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        return _library_view(
+            departments.get_project(principal, project_id, request_id)
+        )
+
+    @router.delete("/admin/projects/{project_id}", status_code=204)
+    def remove_project(project_id: str, request: Request) -> JSONResponse:
+        request_id, principal = _principal(request, auth)
+        departments.remove_project(principal, project_id, request_id)
+        return JSONResponse(None, status_code=204)
+
+    @router.get("/admin/projects/{project_id}/members")
+    def list_project_members(
+        project_id: str, request: Request
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        items = departments.list_project_members(
+            principal, project_id, request_id
+        )
+        return {
+            "items": [_member_view(item) for item in items],
+            "pagination": None,
+        }
+
+    @router.post("/admin/projects/{project_id}/members")
+    def add_project_member(
+        project_id: str, body: AddProjectMemberBody, request: Request
+    ):
+        request_id, principal = _principal(request, auth)
+        try:
+            member, created = departments.add_project_member(
+                principal, project_id, body.user_id, body.project_role,
+                request_id, expires_at=body.expires_at,
+            )
+        except ValueError as exc:
+            # The body pattern already constrains project_role, so the
+            # only ValueError reachable here is the lead grant cap
+            # (ADR-017 Q1): a client error, not a 500.
+            return JSONResponse(
+                {
+                    "code": "GRANT_EXPIRY_INVALID",
+                    "message": str(exc),
+                    "request_id": request_id,
+                    "retryable": False,
+                },
+                status_code=422,
+            )
+        return JSONResponse(
+            _member_view(member), status_code=201 if created else 200
+        )
+
+    @router.patch("/admin/projects/{project_id}/members/{user_id}")
+    def set_project_member_role(
+        project_id: str, user_id: str, body: SetProjectRoleBody,
+        request: Request,
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        kwargs: dict[str, object] = {}
+        if "expires_at" in body.model_fields_set:
+            kwargs["expires_at"] = body.expires_at
+        try:
+            member = departments.set_project_member_role(
+                principal, project_id, user_id, body.project_role, request_id,
+                **kwargs,
+            )
+        except ValueError as exc:
+            # Same lead grant cap as add_project_member (ADR-017 Q1).
+            return JSONResponse(
+                {
+                    "code": "GRANT_EXPIRY_INVALID",
+                    "message": str(exc),
+                    "request_id": request_id,
+                    "retryable": False,
+                },
+                status_code=422,
+            )
+        return _member_view(member)
+
+    @router.delete(
+        "/admin/projects/{project_id}/members/{user_id}", status_code=204
+    )
+    def remove_project_member(
+        project_id: str, user_id: str, request: Request
+    ) -> JSONResponse:
+        request_id, principal = _principal(request, auth)
+        departments.remove_project_member(
+            principal, project_id, user_id, request_id
+        )
+        return JSONResponse(None, status_code=204)
+
+    @router.post("/admin/projects/{project_id}/lead")
+    def appoint_project_lead(
+        project_id: str, body: AppointLeadBody, request: Request
+    ):
+        request_id, principal = _principal(request, auth)
+        member, created = departments.appoint_project_lead(
+            principal, project_id, body.user_id, request_id
+        )
+        return JSONResponse(
+            _member_view(member), status_code=201 if created else 200
+        )
 
     # -- folders (ADR-018 D3) ------------------------------------------
     #

@@ -78,7 +78,7 @@ class Membership(Base):
     __tablename__ = "memberships"
     __table_args__ = (
         CheckConstraint(
-            "dept_role IN ('dept_admin', 'editor', 'reader')",
+            "dept_role IN ('dept_admin', 'editor', 'reader', 'project_lead')",
             name="ck_memberships_dept_role",
         ),
     )

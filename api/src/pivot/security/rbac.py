@@ -113,6 +113,14 @@ class AccessControl:
             for membership in self._catalog.get_memberships(principal.user_id)
             if _is_live(membership, now)
         }
+        # ADR-018 D2: a department admin sees the project libraries
+        # their department owns, without joining them. Project members
+        # already arrive through the membership branch above (their
+        # membership rows carry dept_id == project id).
+        for dept_id in self.admin_departments(principal):
+            for library in self._catalog.list_libraries():
+                if library.kind == "project" and library.dept_id == dept_id:
+                    dept_ids.add(library.id)
         return frozenset({"pub"} | dept_ids)
 
     def is_department_admin(self, principal: Principal, dept_id: str) -> bool:
@@ -141,6 +149,26 @@ class AccessControl:
             for membership in self._catalog.get_memberships(principal.user_id)
             if membership.dept_role == "dept_admin"
             and _is_live(membership, now)
+        )
+
+    def is_project_lead(self, principal: Principal, project_id: str) -> bool:
+        """True when the principal leads this project (ADR-018 D4).
+
+        A live membership row with dept_id == project id and
+        dept_role == project_lead. Super admins are not project leads:
+        they use the global path, so this stays False for them and
+        callers check the global role separately. Department admins of
+        the owning department are not leads either; they use the
+        owning-department branch of visible_libraries.
+        """
+        if principal.role == "admin":
+            return False
+        now = self._now()
+        return any(
+            membership.dept_id == project_id
+            and membership.dept_role == "project_lead"
+            and _is_live(membership, now)
+            for membership in self._catalog.get_memberships(principal.user_id)
         )
 
     def visible_folder_ids(self, principal: Principal) -> frozenset[str]:
