@@ -752,7 +752,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         # The sessions factory is built in the PostgreSQL branch above;
         # the memory path keeps the in-memory catalog unchanged.
         catalog = _LibraryBackedCatalog(catalog, SqlAlchemyLibraryCatalog(sessions))
-    access = AccessControl(catalog)
+    access = AccessControl(catalog, clock=clock)
 
     def _visible_libraries_for(user_id: str) -> tuple[str, ...]:
         # Unknown users and lookup failures see nothing (fail closed).

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -23,10 +25,12 @@ class CreateDepartmentBody(BaseModel):
 class AddMemberBody(BaseModel):
     user_id: str = Field(min_length=1)
     dept_role: str = Field(pattern=r"^(dept_admin|editor|reader)$")
+    expires_at: datetime | None = None
 
 
 class SetRoleBody(BaseModel):
     dept_role: str = Field(pattern=r"^(dept_admin|editor|reader)$")
+    expires_at: datetime | None = None
 
 
 class ClaimBody(BaseModel):
@@ -66,6 +70,9 @@ def _member_view(member) -> dict[str, object]:
         "granted_by": member.granted_by,
         "granted_at": member.granted_at.isoformat().replace("+00:00", "Z")
         if member.granted_at is not None
+        else None,
+        "expires_at": member.expires_at.isoformat().replace("+00:00", "Z")
+        if member.expires_at is not None
         else None,
     }
 
@@ -118,7 +125,8 @@ def build_departments_router(
     def add_member(dept_id: str, body: AddMemberBody, request: Request):
         request_id, principal = _principal(request, auth)
         member, created = departments.add_member(
-            principal, dept_id, body.user_id, body.dept_role, request_id
+            principal, dept_id, body.user_id, body.dept_role, request_id,
+            expires_at=body.expires_at,
         )
         return JSONResponse(
             _member_view(member), status_code=201 if created else 200
@@ -129,8 +137,14 @@ def build_departments_router(
         dept_id: str, user_id: str, body: SetRoleBody, request: Request
     ) -> dict[str, object]:
         request_id, principal = _principal(request, auth)
+        # PATCH tri-state: an omitted expires_at keeps the stored value,
+        # an explicit null clears it to a long-term grant. The service
+        # default is keep, so only pass the field when the client sent it.
+        kwargs: dict[str, object] = {}
+        if "expires_at" in body.model_fields_set:
+            kwargs["expires_at"] = body.expires_at
         member = departments.set_member_role(
-            principal, dept_id, user_id, body.dept_role, request_id
+            principal, dept_id, user_id, body.dept_role, request_id, **kwargs
         )
         return _member_view(member)
 

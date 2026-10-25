@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pivot.audit.ports import Actor
 from pivot.auth.ports import (
@@ -34,6 +34,16 @@ from pivot.shared.time import utc_now
 class UtcClock:
     def now(self) -> datetime:
         return utc_now()
+
+
+def _is_expired(member: Membership, now: datetime) -> bool:
+    # Naive stored values read as UTC (SQLite); aware values compare as-is.
+    if member.expires_at is None:
+        return False
+    expires = member.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    return expires <= now
 
 
 class InMemoryUserDirectory:
@@ -139,12 +149,25 @@ class InMemoryResources:
         self.libraries.pop(library_id, None)
 
     def get_department_members(self, dept_id: str) -> tuple[Membership, ...]:
-        return tuple(
-            member
-            for members in self.memberships.values()
-            for member in members
-            if member.dept_id == dept_id
-        )
+        """Live members of a department (ADR-017 D2, Q3).
+
+        Expired rows are physically deleted here (lazy purge); the
+        per-request get_memberships path never writes.
+        """
+        now = utc_now()
+        live: list[Membership] = []
+        for user_id, members in list(self.memberships.items()):
+            remaining = tuple(
+                member
+                for member in members
+                if not (member.dept_id == dept_id and _is_expired(member, now))
+            )
+            if len(remaining) != len(members):
+                self.memberships[user_id] = remaining
+            live.extend(
+                member for member in remaining if member.dept_id == dept_id
+            )
+        return tuple(live)
 
     def add_membership(self, membership: Membership) -> None:
         current = tuple(

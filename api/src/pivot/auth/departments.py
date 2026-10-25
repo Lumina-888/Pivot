@@ -33,6 +33,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 
 from pivot.audit.service import AuditService
 from pivot.auth.errors import forbidden, not_found, resource_forbidden
@@ -52,6 +53,54 @@ logger = logging.getLogger("pivot.auth.departments")
 _DEPT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,127}$")
 _DEPT_ROLES = frozenset({"dept_admin", "editor", "reader"})
 _ASSIGNABLE_BY_DEPT_ADMIN = frozenset({"editor", "reader"})
+
+
+class _UnsetType:
+    """Sentinel for 'argument omitted' on set_member_role."""
+
+
+_UNSET = _UnsetType()
+
+# ADR-017 Q1: the 60-day cap binds only the project-lead level. Project
+# leads do not exist until P1-4, so no live grantor is capped today; the
+# cap lives here as a grantor-kind parameter so P1-4 wires it in without
+# touching this validation again. Super admins and department admins
+# are unlimited, including long-term grants.
+_MAX_GRANT_DAYS: dict[str, int] = {"project_lead": 60}
+
+
+def _grantor_kind(principal: Principal) -> str:
+    if principal.role == "admin":
+        return "admin"
+    return "dept_admin"
+
+
+def _check_grant_expiry(
+    grantor_kind: str, expires_at: datetime | None, now: datetime
+) -> None:
+    cap = _MAX_GRANT_DAYS.get(grantor_kind)
+    if cap is None:
+        return
+    if expires_at is None:
+        # ADR-017 Q1: a capped grantor (project lead) cannot grant
+        # permanent membership; long-term is reserved for uncapped roles.
+        raise ValueError(f"{grantor_kind} grants cannot be permanent")
+    if _as_utc(expires_at) > _as_utc(now) + timedelta(days=cap):
+        raise ValueError(f"{grantor_kind} grants last at most {cap} days")
+
+
+def _as_utc(value: datetime) -> datetime:
+    # SQLite reads DateTime(timezone=True) back naive; stored values are
+    # UTC, so a naive value reads as UTC rather than local time.
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return _as_utc(value).isoformat().replace("+00:00", "Z")
 
 
 class DepartmentAdminService:
@@ -123,16 +172,28 @@ class DepartmentAdminService:
             error=not_found(request_id),
         )
 
-    def _record_or_rollback(self, *, rollback, record_kwargs) -> None:
-        """Record the audit event, compensating the mutation on failure."""
+    def _record_all_or_rollback(self, *, rollback, records) -> None:
+        """Record audit events, compensating the mutation on any failure.
+
+        With two events (a role change plus its renewal event) both are
+        attempted before the rollback decision, so a failure in either
+        restores the old membership. The append-only audit cannot unwrite
+        an event recorded before a later one fails; S4 (ADR-017 D4) makes
+        the mutation and its events atomic on the PostgreSQL path.
+        """
         try:
-            self._audits.record(**record_kwargs)
+            for record_kwargs in records:
+                self._audits.record(**record_kwargs)
         except Exception:
             try:
                 rollback()
             except Exception:
                 logger.exception("audit failure rollback failed")
             raise
+
+    def _record_or_rollback(self, *, rollback, record_kwargs) -> None:
+        """Record the audit event, compensating the mutation on failure."""
+        self._record_all_or_rollback(rollback=rollback, records=[record_kwargs])
 
     # -- departments ------------------------------------------------------------
 
@@ -262,6 +323,7 @@ class DepartmentAdminService:
     def add_member(
         self, principal: Principal, dept_id: str, user_id: str,
         dept_role: str, request_id: str,
+        *, expires_at: datetime | None = None,
     ) -> tuple[Membership, bool]:
         if dept_role not in _DEPT_ROLES:
             raise ValueError("dept_role must be dept_admin, editor, or reader")
@@ -285,12 +347,16 @@ class DepartmentAdminService:
         for member in self._store.get_department_members(dept_id):
             if member.user_id == user_id:
                 return member, False
+        _check_grant_expiry(
+            _grantor_kind(principal), expires_at, self._clock.now()
+        )
         membership = Membership(
             user_id=user_id,
             dept_id=dept_id,
             dept_role=dept_role,
             granted_by=principal.user_id,
             granted_at=self._clock.now(),
+            expires_at=expires_at,
         )
         self._store.add_membership(membership)
         self._record_or_rollback(
@@ -305,6 +371,7 @@ class DepartmentAdminService:
                     "dept_id": dept_id,
                     "dept_role": dept_role,
                     "granted_by": principal.user_id,
+                    "expires_at": _iso(expires_at),
                 },
             },
         )
@@ -360,7 +427,18 @@ class DepartmentAdminService:
     def set_member_role(
         self, principal: Principal, dept_id: str, user_id: str,
         dept_role: str, request_id: str,
+        *, expires_at: datetime | None | _UnsetType = _UNSET,
     ) -> Membership:
+        """Change a member's role and optionally its expiry (ADR-017 D2).
+
+        Omitted expires_at keeps the stored value: the role-change path
+        rebuilds the Membership (and resets grantor/granted_at, as before)
+        but must not drop the expiry. Explicit None clears it to a
+        long-term grant. A renewal is an explicit expiry change before
+        expiry that extends it (later finite value, or to long-term);
+        it writes its own renewal audit event. Shortening an expiry or
+        restricting a long-term grant is not a renewal.
+        """
         if dept_role not in _DEPT_ROLES:
             raise ValueError("dept_role must be dept_admin, editor, or reader")
         if principal.role != "admin":
@@ -387,18 +465,27 @@ class DepartmentAdminService:
             None,
         )
         if current is None:
+            # Expired rows are purged by the department-member read above,
+            # so an expired membership is already gone: it cannot be
+            # renewed, only re-granted through add_member (ADR-017 Q3).
             raise not_found(request_id)
+        explicit = not isinstance(expires_at, _UnsetType)
+        new_expires = current.expires_at if not explicit else expires_at
+        if explicit:
+            _check_grant_expiry(
+                _grantor_kind(principal), new_expires, self._clock.now()
+            )
         updated = Membership(
             user_id=user_id,
             dept_id=dept_id,
             dept_role=dept_role,
             granted_by=principal.user_id,
             granted_at=self._clock.now(),
+            expires_at=new_expires,
         )
         self._store.set_membership(updated)
-        self._record_or_rollback(
-            rollback=lambda: self._store.set_membership(current),
-            record_kwargs={
+        records = [
+            {
                 "actor": principal.user_id,
                 "action": "authz.permission_change",
                 "target": user_id,
@@ -408,8 +495,36 @@ class DepartmentAdminService:
                     "dept_id": dept_id,
                     "old_role": current.dept_role,
                     "new_role": dept_role,
+                    "expires_at": _iso(new_expires),
                 },
             },
+        ]
+        if (
+            explicit
+            and new_expires != current.expires_at
+            and current.expires_at is not None
+            and (
+                new_expires is None
+                or _as_utc(new_expires) > _as_utc(current.expires_at)
+            )
+        ):
+            records.append(
+                {
+                    "actor": principal.user_id,
+                    "action": "authz.permission_renewed",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": {
+                        "dept_id": dept_id,
+                        "old_expires_at": _iso(current.expires_at),
+                        "new_expires_at": _iso(new_expires),
+                    },
+                }
+            )
+        self._record_all_or_rollback(
+            rollback=lambda: self._store.set_membership(current),
+            records=records,
         )
         return updated
 

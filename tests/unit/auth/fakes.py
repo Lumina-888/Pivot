@@ -160,12 +160,25 @@ class InMemoryResources:
         self.libraries.pop(library_id, None)
 
     def get_department_members(self, dept_id: str) -> tuple[Membership, ...]:
-        return tuple(
-            member
-            for members in self.memberships.values()
-            for member in members
-            if member.dept_id == dept_id
-        )
+        # Mirror the real in-memory catalog's lazy purge (ADR-017 Q3):
+        # expired rows are deleted on this read, never on get_memberships.
+        # Naive stored values read as UTC (SQLite).
+        def expired(member: Membership, now: datetime) -> bool:
+            if member.dept_id != dept_id or member.expires_at is None:
+                return False
+            expires = member.expires_at
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=UTC)
+            return expires <= now
+
+        now = datetime.now(UTC)
+        live: list[Membership] = []
+        for user_id, members in list(self.memberships.items()):
+            remaining = tuple(m for m in members if not expired(m, now))
+            if len(remaining) != len(members):
+                self.memberships[user_id] = remaining
+            live.extend(m for m in remaining if m.dept_id == dept_id)
+        return tuple(live)
 
     def add_membership(self, membership: Membership) -> None:
         current = tuple(

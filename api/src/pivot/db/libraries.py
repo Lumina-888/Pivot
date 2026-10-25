@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime, timezone
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -23,6 +24,18 @@ from pivot.db.models.identity import Library as LibraryRow
 from pivot.db.models.identity import Membership as MembershipRow
 from pivot.db.uow import UnitOfWork
 from pivot.shared.time import utc_now
+
+
+def _as_utc(value: datetime) -> datetime:
+    # SQLite reads DateTime(timezone=True) back naive; stored values are
+    # UTC, so a naive value reads as UTC rather than local time.
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _is_expired(member: Membership, now: datetime) -> bool:
+    return member.expires_at is not None and _as_utc(member.expires_at) <= now
 
 
 def _to_library(row: LibraryRow) -> Library:
@@ -98,13 +111,39 @@ class SqlAlchemyLibraryCatalog:
                 )
 
     def get_department_members(self, dept_id: str) -> tuple[Membership, ...]:
+        """Live members of a department (ADR-017 D2, Q3).
+
+        Expired rows are physically deleted here (lazy purge): this is
+        the admin-side read, not the per-request hot path, so the write
+        stays off get_memberships. Filtering is done in Python, not in
+        SQL, because SQLite returns DateTime(timezone=True) naive and a
+        SQL comparison against an aware bound value is not portable.
+        """
         with self._scope() as session:
             rows = session.scalars(
                 select(MembershipRow)
                 .where(MembershipRow.dept_id == dept_id)
                 .order_by(MembershipRow.user_id)
             ).all()
-            return tuple(_to_membership(row) for row in rows)
+            now = utc_now()
+            live: list[Membership] = []
+            expired: list[tuple[str, str]] = []
+            for row in rows:
+                member = _to_membership(row)
+                if _is_expired(member, now):
+                    expired.append((row.user_id, row.dept_id))
+                else:
+                    live.append(member)
+            if expired:
+                with UnitOfWork(session):
+                    for user_id, expired_dept in expired:
+                        session.execute(
+                            delete(MembershipRow).where(
+                                MembershipRow.user_id == user_id,
+                                MembershipRow.dept_id == expired_dept,
+                            )
+                        )
+            return tuple(live)
 
     def add_membership(self, membership: Membership) -> None:
         with self._scope() as session:
