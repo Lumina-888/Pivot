@@ -158,7 +158,6 @@ class RuntimeSettings:
     rerank_api_key: str | None = None
     rerank_timeout: float | None = None
     retrieval_backend: str = "llama"
-    retrieval_backend_explicit: bool = False
     cache_store: str = "memory"
     queue_store: str = "memory"
     redis_endpoint: str | None = None
@@ -240,10 +239,11 @@ class RuntimeSettings:
             raise RuntimeError(
                 f"unsupported PIVOT_QA_ENGINE={self.qa_engine!r}; use pipeline or agent"
             )
-        if self.retrieval_backend not in {"native", "llama"}:
+        if self.retrieval_backend not in {"llama"}:
             raise RuntimeError(
                 "unsupported PIVOT_RETRIEVAL_BACKEND="
-                f"{self.retrieval_backend!r}; this slice wires native or llama"
+                f"{self.retrieval_backend!r}; native was removed,"
+                " llama is the only backend (ADR-020)"
             )
         if self.rerank == "bm25" and self.bm25_k1 is None:
             raise RuntimeError("PIVOT_BM25_K1 and PIVOT_BM25_B are required when PIVOT_RERANK=bm25")
@@ -361,9 +361,6 @@ class RuntimeSettings:
             rerank_timeout=_optional_positive_float(env, "PIVOT_RERANK_TIMEOUT"),
             retrieval_backend=(env.get("PIVOT_RETRIEVAL_BACKEND") or "llama").strip()
             or "llama",
-            retrieval_backend_explicit=bool(
-                (env.get("PIVOT_RETRIEVAL_BACKEND") or "").strip()
-            ),
             llama_index_rebuild=(env.get("PIVOT_LLAMA_INDEX_REBUILD") or "").strip()
             in {"1", "true"},
             llama_refresh_seconds=_optional_non_negative_float(

@@ -8,10 +8,12 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 from pivot.http import RuntimeSettings, assemble_runtime
-from pivot.retrieval.fakes import HashingQueryEmbedder, KeywordRetriever
+from pivot.retrieval.bm25 import Bm25Retriever
+from pivot.retrieval.fakes import HashingQueryEmbedder
 from pivot.retrieval.models import RetrievalQuery
 from pivot.retrieval.vector import VectorStoreRetriever
 from pivot.storage.adapters.qdrant import QdrantVectorStore
+from test_FR_RAG_llama_qdrant_backend import _memory_qdrant_client
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "qdrant-retrieval.md"
@@ -49,6 +51,16 @@ class _StoringQdrantClient:
 
     def delete(self, collection_name, points_selector=None) -> None:
         return None
+
+    def scroll(self, collection_name, *, limit, offset=None):
+        items = sorted(self.points.get(collection_name, {}).items())
+        start = int(offset) if offset is not None else 0
+        page = items[start : start + limit]
+        next_offset = start + limit
+        return (
+            [SimpleNamespace(id=pid, payload=payload) for pid, (_, payload) in page],
+            str(next_offset) if next_offset < len(items) else None,
+        )
 
 
 def _payload_matches(payload: dict, selector: dict | None) -> bool:
@@ -91,9 +103,11 @@ def _settings(**overrides: object) -> RuntimeSettings:
         "qdrant_vector_size": 4,
         "qdrant_distance": "Cosine",
         "vector_store_client": _StoringQdrantClient(),
+        "bm25_k1": 1.2,
+        "bm25_b": 0.75,
+        "llama_qdrant_client": _memory_qdrant_client(),
     }
     values.update(overrides)
-    values.setdefault("retrieval_backend", "native")
     return RuntimeSettings(**values)
 
 
@@ -143,7 +157,7 @@ def test_NFR_OBS_runtime_qdrant_wires_dense_retriever():
     assert isinstance(assembly.vectors, QdrantVectorStore)
     assert isinstance(assembly.query_embedder, HashingQueryEmbedder)
     assert isinstance(assembly.retrieval._dense, VectorStoreRetriever)
-    assert isinstance(assembly.retrieval._bm25, KeywordRetriever)
+    assert isinstance(assembly.retrieval._bm25, Bm25Retriever)
 
 
 def test_FR_SEARCH_001_runtime_qdrant_search_roundtrip():

@@ -15,9 +15,14 @@ from pivot.db.session import create_db_engine, session_factory
 from pivot.http import RuntimeSettings, assemble_runtime
 from pivot.retrieval.fakes import HashingQueryEmbedder
 from pivot.storage.adapters.qdrant import QdrantVectorStore
-from pivot_worker.assembly import IngestAssemblySettings, assemble_ingest_runtime
+from pivot_worker.assembly import (
+    IngestAssemblySettings,
+    _LlamaSyncingRunner,
+    assemble_ingest_runtime,
+)
 from pivot_worker.index import IndexPublisher
 from pivot_worker.runtime import DocumentIngestRunner
+from test_FR_RAG_llama_qdrant_backend import _memory_qdrant_client
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "worker-qdrant.md"
@@ -140,7 +145,7 @@ def _worker_settings(
         "qdrant_vector_size": 4,
         "qdrant_distance": "Cosine",
         "vector_store_client": qdrant,
-        "retrieval_backend": "native",
+        "llama_qdrant_client": _memory_qdrant_client(),
     }
     values.update(overrides)
     return IngestAssemblySettings(**values)
@@ -168,7 +173,9 @@ def _http_settings(qdrant: _StoringQdrantClient) -> RuntimeSettings:
         qdrant_vector_size=4,
         qdrant_distance="Cosine",
         vector_store_client=qdrant,
-        retrieval_backend="native",
+        bm25_k1=1.2,
+        bm25_b=0.75,
+        llama_qdrant_client=_memory_qdrant_client(),
     )
 
 
@@ -196,7 +203,8 @@ def test_FR_DOC_006_worker_qdrant_publish_wires_index_publisher(tmp_path):
         _worker_settings(url, _FakeMinioClient(), _StoringQdrantClient())
     )
     assert worker.vector_store == "qdrant"
-    assert isinstance(worker.runner, DocumentIngestRunner)
+    assert isinstance(worker.runner, _LlamaSyncingRunner)
+    assert isinstance(worker.runner._runner, DocumentIngestRunner)
     assert isinstance(worker.vectors, QdrantVectorStore)
     assert isinstance(worker.index, IndexPublisher)
     assert isinstance(worker.embedding, HashingQueryEmbedder)

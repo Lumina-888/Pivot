@@ -7,8 +7,9 @@ from pathlib import Path
 import pytest
 from pivot.http import RuntimeSettings, assemble_runtime
 from pivot.retrieval.bm25 import Bm25Reranker, Bm25Retriever
-from pivot.retrieval.fakes import KeywordRetriever, OverlapReranker
+from pivot.retrieval.fakes import OverlapReranker
 from pivot.retrieval.models import ChunkRecord, RetrievalQuery
+from test_FR_RAG_llama_qdrant_backend import qdrant_runtime_keys
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "bm25-rerank.md"
@@ -32,6 +33,7 @@ def _settings(**overrides: object) -> RuntimeSettings:
         "argon2_memory_cost": 8,
         "argon2_parallelism": 1,
     }
+    values.update(qdrant_runtime_keys())
     values.update(overrides)
     return RuntimeSettings(**values)
 
@@ -55,7 +57,7 @@ def _policy_chunk() -> ChunkRecord:
 
 def test_NFR_OBS_runtime_bm25_requires_both_params():
     with pytest.raises(RuntimeError, match="PIVOT_BM25_K1"):
-        assemble_runtime(_settings(bm25_k1=1.2))
+        assemble_runtime(_settings(bm25_k1=1.2, bm25_b=None))
 
 
 def test_NFR_OBS_runtime_rejects_unwired_rerank():
@@ -67,8 +69,6 @@ def test_NFR_OBS_runtime_bm25_wires_retriever():
     assembly = assemble_runtime(_settings(bm25_k1=1.2, bm25_b=0.75))
     assert isinstance(assembly.bm25, Bm25Retriever)
     assert isinstance(assembly.retrieval._bm25, Bm25Retriever)
-    defaulted = assemble_runtime(_settings())
-    assert isinstance(defaulted.bm25, KeywordRetriever)
 
 
 def test_FR_RAG_001_runtime_bm25_retrieve_after_add():

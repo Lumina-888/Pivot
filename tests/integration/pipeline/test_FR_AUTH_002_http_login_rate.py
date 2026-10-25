@@ -11,6 +11,7 @@ from pivot.auth.attempts import CacheLoginAttempts
 from pivot.http import RuntimeSettings, assemble_runtime, assemble_runtime_app
 from pivot.http.memory import InMemoryAttempts
 from pivot.storage.adapters.redis import RedisCacheStore
+from test_FR_RAG_llama_qdrant_backend import qdrant_runtime_keys
 
 _ROOT = Path(__file__).resolve().parents[3]
 _COMPOSE = _ROOT / "docker-compose.yml"
@@ -68,6 +69,7 @@ def _settings(**overrides: object) -> RuntimeSettings:
         "argon2_memory_cost": 8,
         "argon2_parallelism": 1,
     }
+    values.update(qdrant_runtime_keys())
     values.update(overrides)
     return RuntimeSettings(**values)
 

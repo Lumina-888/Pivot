@@ -132,10 +132,11 @@ class IngestAssemblySettings:
                 "unsupported PIVOT_VECTOR_STORE="
                 f"{self.vector_store!r}; this slice wires memory or qdrant"
             )
-        if self.retrieval_backend not in {"native", "llama"}:
+        if self.retrieval_backend not in {"llama"}:
             raise RuntimeError(
                 "unsupported PIVOT_RETRIEVAL_BACKEND="
-                f"{self.retrieval_backend!r}; this slice wires native or llama"
+                f"{self.retrieval_backend!r}; native was removed,"
+                " llama is the only backend (ADR-020)"
             )
         if self.vector_store == "qdrant":
             if not (self.qdrant_endpoint or "").strip() or not (

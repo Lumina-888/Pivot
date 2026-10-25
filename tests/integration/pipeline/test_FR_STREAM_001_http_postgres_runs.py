@@ -10,6 +10,7 @@ from pivot.db.runs import SqlAlchemyRunStore
 from pivot.http import RuntimeSettings, assemble_runtime, assemble_runtime_app
 from pivot.runs.service import InMemoryRunStore, RunService
 from pivot.stream.events import TERMINAL_EVENTS
+from test_FR_RAG_llama_qdrant_backend import qdrant_runtime_keys
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "postgres-run-eventlog.md"
@@ -34,6 +35,7 @@ def _settings(url: str, **overrides: object) -> RuntimeSettings:
         "argon2_memory_cost": 8,
         "argon2_parallelism": 1,
     }
+    values.update(qdrant_runtime_keys())
     values.update(overrides)
     return RuntimeSettings(**values)
 
@@ -85,6 +87,7 @@ def test_NFR_OBS_runtime_postgres_wires_runs_and_event_log(tmp_path):
             argon2_time_cost=1,
             argon2_memory_cost=8,
             argon2_parallelism=1,
+            **qdrant_runtime_keys(),
         )
     )
     assert isinstance(memory.runs, RunService)

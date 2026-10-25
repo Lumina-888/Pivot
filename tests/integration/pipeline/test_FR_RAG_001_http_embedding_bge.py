@@ -13,6 +13,7 @@ from pivot.retrieval.models import ChunkRecord, RetrievalQuery
 from pivot.retrieval.providers import HttpBgeReranker, HttpQueryEmbedder
 from pivot.retrieval.vector import VectorStoreRetriever
 from pivot.storage.adapters.qdrant import QdrantVectorStore
+from test_FR_RAG_llama_qdrant_backend import qdrant_runtime_keys
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "http-embedding-bge.md"
@@ -51,6 +52,16 @@ class _StoringQdrantClient:
     def delete(self, collection_name, points_selector=None) -> None:
         return None
 
+    def scroll(self, collection_name, *, limit, offset=None):
+        items = sorted(self.points.get(collection_name, {}).items())
+        start = int(offset) if offset is not None else 0
+        page = items[start : start + limit]
+        next_offset = start + limit
+        return (
+            [SimpleNamespace(id=pid, payload=payload) for pid, (_, payload) in page],
+            str(next_offset) if next_offset < len(items) else None,
+        )
+
 
 def _dot(left: list[float], right: list[float]) -> float:
     return sum(a * b for a, b in zip(left, right, strict=False))
@@ -72,8 +83,8 @@ def _settings(**overrides: object) -> RuntimeSettings:
         "argon2_memory_cost": 8,
         "argon2_parallelism": 1,
     }
+    values.update(qdrant_runtime_keys())
     values.update(overrides)
-    values.setdefault("retrieval_backend", "native")
     return RuntimeSettings(**values)
 
 
@@ -143,6 +154,7 @@ def test_NFR_OBS_runtime_http_embedding_requires_qdrant():
                 embedding_endpoint="https://embed.test/v1/embeddings",
                 embedding_model="injected-embed-model",
                 embedding_api_key="secret-embed-key",
+                vector_store="memory",
             )
         )
 

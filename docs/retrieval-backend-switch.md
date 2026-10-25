@@ -1,19 +1,14 @@
-# 检索后端切换说明
+# 检索后端说明
 
-本文说明智能问答的检索后端。自 L4 起默认后端是 LlamaIndex，自研路径保留为回滚选项。切换只影响智能问答的检索环节，文档搜索始终走自研 RetrievalService。对比证据见[双路径行为对比报告](../evidence/llama-index-l2/backend-comparison.md)。
+本文说明智能问答的检索后端。自 ADR-020 起问答只走 LlamaIndex。文档搜索始终走自研 RetrievalService。对比证据见[双路径行为对比报告](../evidence/llama-index-l2/backend-comparison.md)。
 
-## 1 开关
+## 1 后端
 
-环境变量是 `PIVOT_RETRIEVAL_BACKEND`。取值只有两个：
-
-- `llama`：LlamaIndex 路径，也是默认值。不设置该变量时等同于此取值。问答检索走 LlamaIndexRetriever 与 Qdrant 持久索引。
-- `native`：自研路径。自 L4 起只作回滚用途，不再演进。
-
-其他取值在启动校验时报错，服务不会启动。后端选择只对向量存储为 Qdrant 的部署生效：向量存储不是 Qdrant 时问答走关键词桥接，显式设置 `llama` 而向量存储不是 Qdrant 会启动失败。
+问答固定走 LlamaIndex，没有开关。环境变量 `PIVOT_RETRIEVAL_BACKEND` 只认 `llama`。旧 `native` 值在启动校验时报错。问答要求向量存储为 Qdrant，否则装配直接报错。
 
 ## 2 前置条件
 
-`llama` 后端在 Qdrant 部署下要求：
+问答在 Qdrant 部署下要求：
 
 - 向量存储为 Qdrant，即 `PIVOT_VECTOR_STORE=qdrant`，且集合可达。
 - 已设置 `PIVOT_BM25_K1` 与 `PIVOT_BM25_B`。
@@ -24,7 +19,7 @@ LlamaIndex 依赖自 L4 起是主依赖，随 api 包一同安装，不再需要
 
 ## 3 索引形态与同步
 
-LlamaIndex 路径在同一 Qdrant 集群内使用独立集合，集合名是原生集合名加后缀 `__llama`。两条路径的数据互不覆盖。
+LlamaIndex 路径在同一 Qdrant 集群内使用独立集合，集合名是原生集合名加后缀 `__llama`。构建时读原生集合的载荷。两处集合的数据互不覆盖。
 
 启动时分三种情况：
 
@@ -39,18 +34,6 @@ LlamaIndex 路径在同一 Qdrant 集群内使用独立集合，集合名是原�
 - `PIVOT_INGEST=sync`：API 进程在入库完成后同步，问答立即检索到新文档。
 - `PIVOT_INGEST=celery`：worker 进程在入库完成后同步集合；API 进程的运行索引在每次检索前按间隔增量再水化（`PIVOT_LLAMA_REFRESH_SECONDS`，默认 5 秒）。因此 celery 下新入库文档在数秒内即可被问答检索，无须重启 API。删除仍即时生效：删除由 API 进程同步，且授权复核按实时事实拦截；刷新同时把集合侧的删除收敛进运行索引。
 
-## 4 两条路径的差异
+## 4 授权复核
 
-- 证据条数：LlamaIndex 路径按融合结果补足到证据上限；自研评测口径下常少于上限。生产装配下两路都会返回足量证据。
-- 排序：融合的输入分数分布不同，同一问题的证据顺序可能不同。金标集上两路的标注命中率相同。
-- 授权复核：LlamaIndex 路径每次检索都用文档与版本的实时事实复核；自研路径依据载荷中的静态标志。文档删除或版本失效后，LlamaIndex 路径立即不再返回对应证据。
-- 状态词：问答层内部状态词不同（ok 与 found），编排器按同一语义处理，对外接口无差别。
-
-## 5 回滚
-
-回滚到自研路径不需要数据迁移：
-
-1. 设置 `PIVOT_RETRIEVAL_BACKEND=native`。
-2. 重启服务。
-
-原生集合在 L4 后保留一个发布周期且不被改写，回滚后问答立即恢复自研路径行为。如果切到 `llama` 后修改过 BM25 参数，切回时一并核对：自研路径的 BM25 与重排也用同一组参数。原生集合的删除与自研问答代码的移除在一个发布周期后另行处理。
+LlamaIndex 路径每次检索都用文档与版本的实时事实复核。文档删除或版本失效后，问答立即不再返回对应证据。证据按融合结果补足到证据上限。

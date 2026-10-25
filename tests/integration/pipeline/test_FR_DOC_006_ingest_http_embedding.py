@@ -15,6 +15,7 @@ from pivot.retrieval.providers import HttpQueryEmbedder
 from pivot.storage.adapters.qdrant import QdrantVectorStore
 from pivot_worker.assembly import IngestAssemblySettings, assemble_ingest_runtime
 from pivot_worker.index import IndexPublisher
+from test_FR_RAG_llama_qdrant_backend import _memory_qdrant_client
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "ingest-http-embedding.md"
@@ -91,6 +92,16 @@ class _StoringQdrantClient:
     def delete(self, collection_name, points_selector=None) -> None:
         return None
 
+    def scroll(self, collection_name, *, limit, offset=None):
+        items = sorted(self.points.get(collection_name, {}).items())
+        start = int(offset) if offset is not None else 0
+        page = items[start : start + limit]
+        next_offset = start + limit
+        return (
+            [SimpleNamespace(id=pid, payload=payload) for pid, (_, payload) in page],
+            str(next_offset) if next_offset < len(items) else None,
+        )
+
 
 def _payload_matches(payload: dict, selector: dict | None) -> bool:
     if not selector:
@@ -148,6 +159,9 @@ def _runtime_settings(**overrides: object) -> RuntimeSettings:
         "qdrant_vector_size": 4,
         "qdrant_distance": "Cosine",
         "vector_store_client": _StoringQdrantClient(),
+        "bm25_k1": 1.2,
+        "bm25_b": 0.75,
+        "llama_qdrant_client": _memory_qdrant_client(),
         "embedding": "http",
         "embedding_endpoint": "https://embed.test/v1/embeddings",
         "embedding_model": "injected-embed-model",
@@ -155,7 +169,6 @@ def _runtime_settings(**overrides: object) -> RuntimeSettings:
         "json_http_client": _http_client(),
     }
     values.update(overrides)
-    values.setdefault("retrieval_backend", "native")
     return RuntimeSettings(**values)
 
 
@@ -188,7 +201,7 @@ def _worker_settings(
         "embedding_model": "injected-embed-model",
         "embedding_api_key": "secret-embed-key",
         "json_http_client": _http_client(),
-        "retrieval_backend": "native",
+        "llama_qdrant_client": _memory_qdrant_client(),
     }
     values.update(overrides)
     return IngestAssemblySettings(**values)

@@ -6,18 +6,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pivot.documents.ports import VersionRecord
 from pivot.http import RuntimeSettings, assemble_runtime
-from pivot.http.bootstrap import _RetrievalBridge
-from pivot.http.memory import MemoryVersions
 from pivot.qa.orchestrator import QaOrchestrator
 from pivot.qa.ports import EvidenceHit, RetrievalResult
 from pivot.qa.writer import EvidenceJoinWriter, FailoverDraftWriter, HttpDraftWriter
-from pivot.retrieval.fakes import KeywordRetriever, ScriptedJsonHttpClient
-from pivot.retrieval.models import ChunkRecord
-from pivot.retrieval.policy import RetrievalPolicy
-from pivot.retrieval.service import RetrievalService
+from pivot.retrieval.fakes import ScriptedJsonHttpClient
 from pivot.runs.service import RunService
+from test_FR_RAG_llama_qdrant_backend import qdrant_runtime_keys
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "http-draft-writer.md"
@@ -60,6 +55,7 @@ def _settings(**overrides: Any) -> RuntimeSettings:
         "argon2_memory_cost": 8,
         "argon2_parallelism": 1,
     }
+    values.update(qdrant_runtime_keys())
     values.update(overrides)
     return RuntimeSettings(**values)
 
@@ -146,67 +142,6 @@ def test_FR_QA_003_runtime_http_writer_refuses_when_not_allowed():
     assert bundle.run.state == "refused"
     assert bundle.run.error_code == "EXTERNAL_LLM_NOT_ALLOWED"
     assert client.calls == []
-
-
-def test_FR_QA_003_runtime_bridge_reads_version_external_llm_flag():
-    store = MemoryVersions()
-    store.save(
-        VersionRecord(
-            id="ver_ok",
-            document_id="doc_ok",
-            content_sha256="abc",
-            storage_key="quarantine/doc_ok/ver_ok",
-            state="ready",
-            current=True,
-            external_llm_allowed=True,
-        )
-    )
-    chunk = ChunkRecord(
-        chunk_id="chk_ok",
-        version_id="ver_ok",
-        document_id="doc_ok",
-        text="迟到三次以上记为旷工",
-        title="Attendance Policy",
-        space="hr",
-        ready=True,
-        current=True,
-        allowed=True,
-        index_generation="gen_llm",
-        embedding_model_version="hash",
-        retrieval_config_version="runtime-injected",
-    )
-    retrieval = RetrievalService(
-        corpus=(chunk,),
-        dense=KeywordRetriever((chunk,), "dense"),
-        bm25=KeywordRetriever((chunk,), "bm25"),
-        policy=RetrievalPolicy(dense_k=4, bm25_k=4, rrf_k=4, evidence_limit=4),
-    )
-    allowed = _RetrievalBridge(retrieval, store).retrieve(
-        "迟到",
-        scope_type="global",
-        scope_document_id=None,
-        principal_id="usr_admin",
-    )
-    assert allowed.status == "ok"
-    assert allowed.evidence[0].external_llm_allowed is True
-    store.save(
-        VersionRecord(
-            id="ver_ok",
-            document_id="doc_ok",
-            content_sha256="abc",
-            storage_key="quarantine/doc_ok/ver_ok",
-            state="ready",
-            current=True,
-            external_llm_allowed=False,
-        )
-    )
-    denied = _RetrievalBridge(retrieval, store).retrieve(
-        "迟到",
-        scope_type="global",
-        scope_document_id=None,
-        principal_id="usr_admin",
-    )
-    assert denied.evidence[0].external_llm_allowed is False
 
 
 def test_GATE_P0_004_not_verified_by_http_writer():

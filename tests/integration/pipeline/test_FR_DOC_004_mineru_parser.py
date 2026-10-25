@@ -16,6 +16,7 @@ from pivot.http import RuntimeSettings, assemble_runtime
 from pivot.parsing.fakes import ScriptedMinerUHttpClient
 from pivot.parsing.mineru import MinerUCloudParser
 from pivot_worker.assembly import IngestAssemblySettings, assemble_ingest_runtime
+from test_FR_RAG_llama_qdrant_backend import qdrant_runtime_keys
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "mineru-cloud-parser.md"
@@ -122,6 +123,7 @@ def _runtime_settings(**overrides: object) -> RuntimeSettings:
         "parser_token": "secret-mineru-token",
         "parser_http_client": _scripted_client(),
     }
+    values.update(qdrant_runtime_keys())
     values.update(overrides)
     return RuntimeSettings(**values)
 

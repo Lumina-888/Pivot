@@ -10,6 +10,7 @@ from harness import POLICY_TEXT, policy_pdf
 from pivot.http import RuntimeSettings, assemble_runtime
 from pivot.retrieval.models import RetrievalQuery
 from pivot_worker.runtime import DocumentIngestRunner
+from test_FR_RAG_llama_qdrant_backend import qdrant_runtime_keys
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "http-upload-ingest.md"
@@ -47,6 +48,16 @@ class _StoringQdrantClient:
     def delete(self, collection_name, points_selector=None) -> None:
         return None
 
+    def scroll(self, collection_name, *, limit, offset=None):
+        items = sorted(self.points.get(collection_name, {}).items())
+        start = int(offset) if offset is not None else 0
+        page = items[start : start + limit]
+        next_offset = start + limit
+        return (
+            [SimpleNamespace(id=pid, payload=payload) for pid, (_, payload) in page],
+            str(next_offset) if next_offset < len(items) else None,
+        )
+
 
 def _settings(**overrides: object) -> RuntimeSettings:
     values: dict[str, object] = {
@@ -64,8 +75,8 @@ def _settings(**overrides: object) -> RuntimeSettings:
         "argon2_memory_cost": 8,
         "argon2_parallelism": 1,
     }
+    values.update(qdrant_runtime_keys())
     values.update(overrides)
-    values.setdefault("retrieval_backend", "native")
     return RuntimeSettings(**values)
 
 
@@ -102,7 +113,11 @@ def _upload(client: TestClient, token: str, title: str = "Attendance Policy", ex
 
 def test_NFR_OBS_runtime_wires_ingest_runner():
     assembly = assemble_runtime(_settings())
-    assert isinstance(assembly.ingest, DocumentIngestRunner)
+    submitter = assembly.ingest
+    # With qdrant wired, the runtime wraps the runner in a syncing submitter
+    # that reconciles the llama collection after each ingest.
+    runner = submitter.__defaults__[0] if getattr(submitter, "__defaults__", None) else submitter
+    assert isinstance(runner, DocumentIngestRunner)
 
 
 def test_FR_DOC_001_http_upload_envelope_stays_uploaded():

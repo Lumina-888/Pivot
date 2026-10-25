@@ -24,6 +24,7 @@ from pivot_worker.celery_app import CeleryIngestSubmitter
 from pivot_worker.index import IndexPublisher
 from pivot_worker.runtime import DocumentIngestRunner
 from sqlalchemy import select
+from test_FR_RAG_llama_qdrant_backend import qdrant_runtime_keys
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "celery-ingest.md"
@@ -60,6 +61,7 @@ def _settings(**overrides: object) -> RuntimeSettings:
         "argon2_memory_cost": 8,
         "argon2_parallelism": 1,
     }
+    values.update(qdrant_runtime_keys())
     values.update(overrides)
     return RuntimeSettings(**values)
 
