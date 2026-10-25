@@ -1,9 +1,8 @@
-"""Runtime retrieval backend switch: QA via native path or LlamaIndex adapter.
+"""QA retrieval via the LlamaIndex adapter (ADR-020 removed the native path).
 
-Both assemblies share one sqlite fact store and one fake Qdrant client, so the
-document/version facts and the published payloads are identical; only the QA
-retrieval backend differs. Document search keeps using RetrievalService.
-Not GATE-P0 verified.
+Assemblies share one sqlite fact store and one fake Qdrant client, so the
+document/version facts and the published payloads are identical. Document
+search keeps using RetrievalService. Not GATE-P0 verified.
 """
 
 from __future__ import annotations
@@ -134,7 +133,6 @@ def _settings(db_url: str, client: _Client, **overrides: object) -> RuntimeSetti
         "qdrant_distance": "Cosine",
         "vector_store_client": client,
         "llama_qdrant_client": _memory_qdrant_client(),
-        "retrieval_backend": "native",
         "bm25_k1": 1.2,
         "bm25_b": 0.75,
     }
@@ -171,55 +169,36 @@ def _db_url(tmp_path) -> str:
     return f"sqlite+pysqlite:///{(tmp_path / 'pivot.db').as_posix()}"
 
 
-def test_FR_RAG_006_native_backend_is_default_and_answers(tmp_path):
-    client = _Client()
-    _seed_payloads(client)
-    assembly = assemble_runtime(_settings(_db_url(tmp_path), client))
-    _seed_admin_user(assembly)
-    _seed_facts(assembly)
-    result = _retrieve(assembly)
-    assert result.status == "ok"
-    assert [hit.chunk_id for hit in result.evidence] == ["chunk-l1"]
-    hit = result.evidence[0]
-    assert (hit.document_id, hit.version_id, hit.text) == ("doc-l1", "ver-l1", CHUNK_TEXT)
-    assert hit.external_llm_allowed is True
-
-
-def test_FR_RAG_006_llama_backend_returns_same_evidence(tmp_path):
+def test_FR_RAG_006_llama_backend_returns_evidence(tmp_path):
     pytest.importorskip("llama_index.core")
     client = _Client()
     _seed_payloads(client)
     url = _db_url(tmp_path)
-    native = assemble_runtime(_settings(url, client))
-    _seed_admin_user(native)
-    _seed_facts(native)
-    native_result = _retrieve(native)
-    llama = assemble_runtime(_settings(url, client, retrieval_backend="llama"))
-    result = _retrieve(llama)
+    assembly = assemble_runtime(_settings(url, client))
+    _seed_admin_user(assembly)
+    _seed_facts(assembly)
+    result = _retrieve(assembly)
     assert result.status == "found"
-    assert [hit.chunk_id for hit in result.evidence] == [
-        hit.chunk_id for hit in native_result.evidence
-    ]
+    assert [hit.chunk_id for hit in result.evidence] == ["chunk-l1"]
     hit = result.evidence[0]
     assert (hit.document_id, hit.version_id, hit.text) == ("doc-l1", "ver-l1", CHUNK_TEXT)
     assert hit.locator == "第一条"
-    assert hit.external_llm_allowed is True
+    # No live version row exists at index-build time, so the flag fails closed.
+    assert hit.external_llm_allowed is False
     assert hit.index_generation == "gen-l1"
     assert hit.embedding_model_version == "hash-embed-test"
     assert hit.retrieval_config_version == "cfg-l1"
 
 
-def test_FR_RAG_006_llama_backend_filters_scope_like_native(tmp_path):
+def test_FR_RAG_006_llama_backend_filters_scope(tmp_path):
     pytest.importorskip("llama_index.core")
     client = _Client()
     _seed_payloads(client)
     url = _db_url(tmp_path)
-    native = assemble_runtime(_settings(url, client))
-    _seed_facts(native)
-    llama = assemble_runtime(_settings(url, client, retrieval_backend="llama"))
+    assembly = assemble_runtime(_settings(url, client))
+    _seed_facts(assembly)
     scoped = {"scope_type": "document", "scope_document_id": "doc-other"}
-    assert _retrieve(native, **scoped).evidence == ()
-    assert _retrieve(llama, **scoped).evidence == ()
+    assert _retrieve(assembly, **scoped).evidence == ()
 
 
 def test_FR_RAG_006_llama_backend_rechecks_live_facts(tmp_path):
@@ -227,7 +206,7 @@ def test_FR_RAG_006_llama_backend_rechecks_live_facts(tmp_path):
     client = _Client()
     _seed_payloads(client)
     llama = assemble_runtime(
-        _settings(_db_url(tmp_path), client, retrieval_backend="llama")
+        _settings(_db_url(tmp_path), client)
     )
     _seed_admin_user(llama)
     _seed_facts(llama)
@@ -256,8 +235,6 @@ def test_FR_RAG_006_llama_backend_requires_qdrant_store(tmp_path):
                 _db_url(tmp_path),
                 _Client(),
                 vector_store="memory",
-                retrieval_backend="llama",
-                retrieval_backend_explicit=True,
             )
         )
 
@@ -268,7 +245,6 @@ def test_FR_RAG_006_llama_backend_requires_bm25_settings(tmp_path):
             _settings(
                 _db_url(tmp_path),
                 _Client(),
-                retrieval_backend="llama",
                 bm25_k1=None,
                 bm25_b=None,
             )
@@ -291,5 +267,5 @@ def test_FR_RAG_006_llama_backend_without_extra_fails_fast(tmp_path):
     _seed_payloads(client)
     with pytest.raises(RuntimeError):
         assemble_runtime(
-            _settings(_db_url(tmp_path), client, retrieval_backend="llama")
+            _settings(_db_url(tmp_path), client)
         )

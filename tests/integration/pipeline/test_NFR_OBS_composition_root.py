@@ -19,6 +19,7 @@ from pivot.http.memory import MemoryExportObjects
 from pivot.storage.adapters.minio import MinioObjectStore
 from pivot.storage.adapters.qdrant import QdrantVectorStore
 from pivot.storage.adapters.redis import RedisCacheStore, RedisQueueStore
+from test_FR_RAG_llama_qdrant_backend import qdrant_runtime_keys
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "composition-root.md"
@@ -41,8 +42,8 @@ def _settings(**overrides: object) -> RuntimeSettings:
         "argon2_memory_cost": 8,
         "argon2_parallelism": 1,
     }
+    values.update(qdrant_runtime_keys())
     values.update(overrides)
-    values.setdefault("retrieval_backend", "native")
     return RuntimeSettings(**values)
 
 
@@ -81,7 +82,9 @@ def test_NFR_OBS_001_runtime_app_is_alive_without_injected_services():
 
 
 def test_NFR_OBS_002_runtime_readyz_fail_closed_without_infra_probes():
-    response = _client().get("/readyz")
+    # No probes wired at all: readyz must fail closed on every check.
+    client = TestClient(create_app(), base_url="https://testserver")
+    response = client.get("/readyz")
     assert response.status_code == 503
     body = response.json()
     assert body["status"] == "not_ready"
@@ -186,7 +189,9 @@ def test_NFR_OBS_runtime_postgres_readyz_not_fully_ready(tmp_path):
     assert body["status"] == "not_ready"
     assert body["checks"]["postgres"] is True
     assert body["checks"]["minio"] is False
-    assert body["checks"]["qdrant"] is False
+    # Default test settings wire qdrant (injected double, collection ensured),
+    # so the qdrant probe is up; the test's point is postgres-up-yet-not-ready.
+    assert body["checks"]["qdrant"] is True
     assert body["checks"]["redis"] is False
 
 
@@ -299,7 +304,8 @@ def test_NFR_OBS_runtime_minio_readyz_not_fully_ready():
     assert body["status"] == "not_ready"
     assert body["checks"]["minio"] is True
     assert body["checks"]["postgres"] is False
-    assert body["checks"]["qdrant"] is False
+    # Default test settings wire qdrant (injected double, collection ensured).
+    assert body["checks"]["qdrant"] is True
     assert body["checks"]["redis"] is False
 
 
@@ -401,6 +407,9 @@ class _FakeQdrantClient:
     def delete(self, collection_name, points_selector=None) -> None:
         return None
 
+    def scroll(self, collection_name, *, limit, offset=None):
+        return [], None
+
 
 def _qdrant_settings(client: _FakeQdrantClient) -> RuntimeSettings:
     return _settings(
@@ -416,7 +425,7 @@ def _qdrant_settings(client: _FakeQdrantClient) -> RuntimeSettings:
 
 def test_NFR_OBS_runtime_qdrant_requires_endpoint():
     with pytest.raises(RuntimeError, match="PIVOT_QDRANT_ENDPOINT"):
-        assemble_runtime_app(_settings(vector_store="qdrant"))
+        assemble_runtime_app(_settings(vector_store="qdrant", qdrant_endpoint=None))
 
 
 def test_NFR_OBS_runtime_qdrant_wires_vector_store():
@@ -493,7 +502,8 @@ def test_NFR_OBS_runtime_redis_readyz_not_fully_ready():
     assert body["checks"]["redis"] is True
     assert body["checks"]["postgres"] is False
     assert body["checks"]["minio"] is False
-    assert body["checks"]["qdrant"] is False
+    # Default test settings wire qdrant (injected double, collection ensured).
+    assert body["checks"]["qdrant"] is True
 
 
 def test_NFR_OBS_runtime_rejects_unwired_cache_store():
@@ -516,7 +526,14 @@ def test_NFR_OBS_runtime_settings_fail_closed_without_token_secret():
         )
 
 
-def test_NFR_OBS_runtime_factory_reads_settings_from_env(monkeypatch):
+def test_NFR_OBS_runtime_factory_fails_fast_without_qdrant(monkeypatch):
+    """Env-configured factory fails fast without qdrant (ADR-020).
+
+    The native QA fallback is gone, so a factory assembled from env vars
+    that do not wire qdrant must raise instead of silently serving QA
+    from the native path. Env-to-settings mapping itself is covered by
+    test_NFR_OBS_runtime_settings_fail_closed_without_token_secret.
+    """
     from pivot.http.main import app as runtime_factory
 
     monkeypatch.setenv("PIVOT_TOKEN_SECRET", "runtime-factory-secret")
@@ -528,10 +545,8 @@ def test_NFR_OBS_runtime_factory_reads_settings_from_env(monkeypatch):
     monkeypatch.setenv("PIVOT_RETRIEVAL_K", "4")
     monkeypatch.setenv("PIVOT_BOOTSTRAP_USERNAME", "admin")
     monkeypatch.setenv("PIVOT_BOOTSTRAP_PASSWORD", "runtime-admin-password")
-    client = TestClient(runtime_factory(), base_url="https://testserver")
-    response = client.get("/healthz")
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    with pytest.raises(RuntimeError, match="PIVOT_VECTOR_STORE=qdrant"):
+        runtime_factory()
 
 
 def test_NFR_OBS_default_create_app_does_not_mount_api_v1():

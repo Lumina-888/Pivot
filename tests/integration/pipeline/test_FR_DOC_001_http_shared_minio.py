@@ -12,6 +12,7 @@ from pivot.db.session import create_db_engine, session_factory
 from pivot.http import RuntimeSettings, assemble_runtime
 from pivot.storage.adapters.minio import MinioObjectStore
 from pivot_worker.assembly import IngestAssemblySettings, assemble_ingest_runtime
+from test_FR_RAG_llama_qdrant_backend import qdrant_runtime_keys
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "compose-api-shared-storage.md"
@@ -80,6 +81,7 @@ def _http_settings(url: str, client: _FakeMinioClient) -> RuntimeSettings:
         argon2_time_cost=1,
         argon2_memory_cost=8,
         argon2_parallelism=1,
+        **qdrant_runtime_keys(),
     )
 
 

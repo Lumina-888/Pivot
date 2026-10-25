@@ -18,6 +18,7 @@ from pivot.parsing.native import (
     PythonPptxParser,
 )
 from pivot_worker.assembly import IngestAssemblySettings, assemble_ingest_runtime
+from test_FR_RAG_llama_qdrant_backend import qdrant_runtime_keys
 
 _ROOT = Path(__file__).resolve().parents[3]
 _EVIDENCE = _ROOT / "evidence" / "wave3-m11" / "native-parsers.md"
@@ -96,6 +97,7 @@ def _runtime_settings(**overrides: object) -> RuntimeSettings:
         "argon2_parallelism": 1,
         "parser": "native",
     }
+    values.update(qdrant_runtime_keys())
     values.update(overrides)
     return RuntimeSettings(**values)
 

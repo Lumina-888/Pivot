@@ -67,11 +67,9 @@ from pivot.parsing import (
     native_parser_registry,
 )
 from pivot.qa.orchestrator import QaOrchestrator
-from pivot.qa.ports import EvidenceHit, RetrievalResult
 from pivot.qa.writer import EvidenceJoinWriter, FailoverDraftWriter, HttpDraftWriter
 from pivot.retrieval.bm25 import Bm25Reranker, Bm25Retriever
 from pivot.retrieval.fakes import HashingQueryEmbedder, KeywordRetriever, OverlapReranker
-from pivot.retrieval.models import RetrievalQuery
 from pivot.retrieval.policy import RetrievalPolicy
 from pivot.retrieval.providers import HttpBgeReranker, HttpQueryEmbedder, StdlibJsonHttpClient
 from pivot.retrieval.service import RetrievalService
@@ -434,14 +432,7 @@ def _draft_writer(settings: RuntimeSettings):
     return FailoverDraftWriter(primary, fallback)
 
 
-def _external_llm_allowed(versions, version_id: str) -> bool:
-    if versions is None:
-        return False
-    getter = getattr(versions, "get", None)
-    if getter is None:
-        return False
-    version = getter(version_id)
-    return bool(version is not None and getattr(version, "external_llm_allowed", False))
+
 
 
 def _query_embedder(settings: RuntimeSettings):
@@ -489,55 +480,6 @@ def _open_redis_stores(
     if probe is None or not probe.healthy():
         raise RuntimeError("redis is not reachable")
     return cache, queue, probe
-
-
-class _RetrievalBridge:
-    def __init__(
-        self, retrieval: RetrievalService, versions=None, *, library_ids_for=None
-    ) -> None:
-        self._retrieval = retrieval
-        self._versions = versions
-        # Maps a user id to the libraries that user may see. When absent
-        # (legacy constructions) the query carries no library constraint.
-        self._library_ids_for = library_ids_for
-
-    def retrieve(
-        self,
-        question: str,
-        *,
-        scope_type: str,
-        scope_document_id: str | None,
-        principal_id: str,
-    ) -> RetrievalResult:
-        library_ids = None
-        if self._library_ids_for is not None:
-            library_ids = self._library_ids_for(principal_id)
-        outcome = self._retrieval.retrieve(
-            RetrievalQuery(
-                text=question,
-                principal_id=principal_id,
-                scope_type=scope_type,
-                scope_document_id=scope_document_id,
-                library_ids=library_ids,
-            )
-        )
-        if outcome.status != "ok":
-            return RetrievalResult(
-                status=outcome.status,
-                evidence=(),
-                error_code=outcome.error_code,
-            )
-        evidence = tuple(
-            EvidenceHit(
-                chunk_id=item.chunk_id,
-                document_id=item.document_id,
-                version_id=item.version_id,
-                text=item.text,
-                external_llm_allowed=_external_llm_allowed(self._versions, item.version_id),
-            )
-            for item in outcome.evidence
-        )
-        return RetrievalResult(status="ok", evidence=evidence)
 
 
 # Dense candidates must carry a positive cosine similarity: zero or
@@ -832,7 +774,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     llama_holders = None
     llama_sync = None
     llama_authorize = None
-    if resolved.retrieval_backend == "llama" and resolved.vector_store == "qdrant":
+    if resolved.vector_store == "qdrant":
         llama_holders, llama_sync, llama_authorize = _llama_backend(
             resolved,
             qdrant_store=qdrant_store,
@@ -841,9 +783,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             version_rows=version_rows,
             visible_libraries_for=_visible_libraries_for,
         )
-    elif resolved.retrieval_backend == "llama" and resolved.retrieval_backend_explicit:
+    else:
         raise RuntimeError(
-            "PIVOT_RETRIEVAL_BACKEND=llama requires PIVOT_VECTOR_STORE=qdrant"
+            "QA requires PIVOT_VECTOR_STORE=qdrant; the native QA path was removed (ADR-020)"
         )
     if resolved.cache_store == "redis" or resolved.queue_store == "redis":
         cache_port, queue_port, redis_probe = _open_redis_stores(resolved)
@@ -989,9 +931,6 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         download_ttl_seconds=resolved.download_ttl,
     )
     draft_writer = _draft_writer(resolved)
-    qa_retriever: object = _RetrievalBridge(
-        retrieval, version_rows, library_ids_for=_visible_libraries_for
-    )
     agent_runner = None
     if llama_holders is not None:
         if llama_authorize is None:
@@ -1020,6 +959,10 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             reranker=reranker,
             refresher=refresher,
             visible_libraries_for=_visible_libraries_for,
+        )
+    else:
+        raise RuntimeError(
+            "QA requires PIVOT_VECTOR_STORE=qdrant; the native QA path was removed (ADR-020)"
         )
     qa_executor: object = QaOrchestrator(qa_retriever, writer=draft_writer)
     if resolved.qa_engine == "agent":

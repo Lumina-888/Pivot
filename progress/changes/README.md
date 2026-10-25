@@ -114,3 +114,4 @@
 | [20261024-M01-p1-4-folders-projects.md](20261024-M01-p1-4-folders-projects.md) | ADR-018：文件夹与跨部门项目（FR-RBAC-004，P1-4） |
 | [20261024-M01-p1-3-approval-flow.md](20261024-M01-p1-3-approval-flow.md) | ADR-019：审批流（FR-RBAC-004，P1-3） |
 | [20261025-M01-frozen-exception-errors.md](20261025-M01-frozen-exception-errors.md) | 变更申请：取消异常类的冻结 dataclass |
+| [20261025-M01-native-path-deletion.md](20261025-M01-native-path-deletion.md) | ADR-020：删除原生检索路径，测试与开发切 Qdrant |

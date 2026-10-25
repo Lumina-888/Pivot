@@ -1,8 +1,8 @@
 """FR-RAG-008: the LlamaIndex backend is the default (L4 switch).
 
-Covers the default flip itself, the native path as the rollback option,
-the non-Qdrant assembly rule, and the worker-side collection sync that
-makes the default work with celery ingest.
+Covers the default flip itself, the non-Qdrant assembly rule (ADR-020:
+QA requires qdrant), and the worker-side collection sync that makes the
+default work with celery ingest.
 """
 
 from __future__ import annotations
@@ -81,38 +81,17 @@ def test_FR_RAG_008_default_backend_is_llama(tmp_path):
     assert [hit.chunk_id for hit in result.evidence] == ["chunk-l3"]
 
 
-def test_FR_RAG_008_native_backend_remains_available_for_rollback(tmp_path):
+def test_FR_RAG_008_default_backend_without_qdrant_fails_fast(tmp_path):
     pytest.importorskip("llama_index.core")
-    client = _Client()
-    _seed_payloads(client)
-    assembly = assemble_runtime(
-        _settings(
-            _db_url(tmp_path),
-            client,
-            _memory_qdrant_client(),
-            retrieval_backend="native",
+    with pytest.raises(RuntimeError):
+        assemble_runtime(
+            _settings(
+                _db_url(tmp_path),
+                _Client(),
+                _memory_qdrant_client(),
+                vector_store="memory",
+            )
         )
-    )
-    _seed_admin_user(assembly)
-    _seed_facts(assembly)
-    result = _retrieve(assembly)
-    assert result.status == "ok"
-    assert [hit.chunk_id for hit in result.evidence] == ["chunk-l3"]
-
-
-def test_FR_RAG_008_default_backend_without_qdrant_keeps_bridge(tmp_path):
-    pytest.importorskip("llama_index.core")
-    from pivot.retrieval.llama_index_retriever import LlamaIndexRetriever
-
-    assembly = assemble_runtime(
-        _settings(
-            _db_url(tmp_path),
-            _Client(),
-            _memory_qdrant_client(),
-            vector_store="memory",
-        )
-    )
-    assert not isinstance(assembly.qa_retriever, LlamaIndexRetriever)
 
 
 def test_FR_RAG_008_worker_ingest_syncs_llama_collection(tmp_path):

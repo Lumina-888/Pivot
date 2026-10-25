@@ -29,7 +29,7 @@ UPLOAD_QUESTION = "business travel application three days"
 
 def _pdf_bytes(text: str) -> bytes:
     """Minimal PDF fixture the built-in local parser can read."""
-    return f"%PDF-1.4\n({text}) Tj\n%%EOF".encode("utf-8")
+    return f"%PDF-1.4\n({text}) Tj\n%%EOF".encode()
 
 
 class _Client:
@@ -81,6 +81,26 @@ def _dot(left: list[float], right: list[float]) -> float:
 def _memory_qdrant_client():
     qdrant_client = pytest.importorskip("qdrant_client")
     return qdrant_client.QdrantClient(location=":memory:")
+
+
+def qdrant_runtime_keys() -> dict[str, object]:
+    """Qdrant-backed assembly keys for tests that only need assembly to build.
+
+    The native store uses the in-memory double; the llama index uses a real
+    in-memory Qdrant client. No server is needed.
+    """
+    return {
+        "vector_store": "qdrant",
+        "qdrant_endpoint": "vectors.test:443",
+        "qdrant_collection": "pivot-chunks",
+        "qdrant_ensure_collection": True,
+        "qdrant_vector_size": 4,
+        "qdrant_distance": "Cosine",
+        "vector_store_client": _Client(),
+        "llama_qdrant_client": _memory_qdrant_client(),
+        "bm25_k1": 1.2,
+        "bm25_b": 0.75,
+    }
 
 
 def _settings(db_url: str, client: _Client, raw_client, **overrides: object) -> RuntimeSettings:

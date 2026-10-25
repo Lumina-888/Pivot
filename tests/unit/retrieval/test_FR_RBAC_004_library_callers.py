@@ -1,6 +1,6 @@
 """Caller wiring for FR-RBAC-004: library scope comes from the Principal.
 
-Neither the search endpoint nor the agent bridge accepts a library scope
+Neither the search endpoint nor the agent retriever accepts a library scope
 from the request or the model. Both derive it server-side from the
 authenticated user, so a caller cannot widen its own visibility.
 """
@@ -10,11 +10,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pivot.auth.ports import Principal
-from pivot.http.bootstrap import _RetrievalBridge
-from pivot.qa.ports import RetrievalResult
 from pivot.retrieval.http import build_search_router
 from pivot.retrieval.models import RetrievalQuery
-from pivot.retrieval.service import RetrievalOutcome
 
 
 class _StubAuth:
@@ -41,15 +38,6 @@ class _StubSearchService:
         return ()
 
 
-class _StubRetrievalService:
-    def __init__(self) -> None:
-        self.seen: RetrievalQuery | None = None
-
-    def retrieve(self, query: RetrievalQuery) -> RetrievalOutcome:
-        self.seen = query
-        return RetrievalOutcome(status="empty", evidence=(), warnings=())
-
-
 def test_FR_RBAC_004_search_endpoint_derives_libraries_from_principal():
     service = _StubSearchService()
     auth = _StubAuth(frozenset({"pub", "dept_eng"}))
@@ -62,32 +50,3 @@ def test_FR_RBAC_004_search_endpoint_derives_libraries_from_principal():
     assert response.status_code == 200
     assert service.seen is not None
     assert service.seen.library_ids == ("dept_eng", "pub")
-
-
-def test_FR_RBAC_004_agent_bridge_derives_libraries_from_resolver():
-    service = _StubRetrievalService()
-    bridge = _RetrievalBridge(
-        service, None, library_ids_for=lambda user_id: ("pub", "dept_eng")
-    )
-    result = bridge.retrieve(
-        "手册",
-        scope_type="global",
-        scope_document_id=None,
-        principal_id="usr_alice",
-    )
-    assert isinstance(result, RetrievalResult)
-    assert service.seen is not None
-    assert service.seen.library_ids == ("pub", "dept_eng")
-
-
-def test_FR_RBAC_004_agent_bridge_without_resolver_keeps_legacy_query():
-    service = _StubRetrievalService()
-    bridge = _RetrievalBridge(service, None)
-    bridge.retrieve(
-        "手册",
-        scope_type="global",
-        scope_document_id=None,
-        principal_id="usr_alice",
-    )
-    assert service.seen is not None
-    assert service.seen.library_ids is None
