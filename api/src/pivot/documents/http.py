@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
-from pivot.auth.errors import invalid_credentials
+from pivot.auth.errors import invalid_credentials, not_found
 from pivot.auth.http import resolve_request_id
 from pivot.auth.service import AuthService
 from pivot.documents.errors import DocumentError
 from pivot.documents.ports import FileContent
 from pivot.documents.service import DocumentService
+
+if TYPE_CHECKING:
+    from pivot.auth.approvals import ApprovalService
 
 
 class IngestSubmitter(Protocol):
@@ -47,6 +50,7 @@ def build_documents_router(
     service: DocumentService,
     auth: AuthService,
     ingest: IngestSubmitter | None = None,
+    approvals: ApprovalService | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -74,10 +78,23 @@ def build_documents_router(
         space: str = Form(default="shared"),
         classification: str = Form(default=""),
         external_llm_allowed: bool = Form(default=False),
+        target_library_id: str | None = Form(default=None),
     ) -> JSONResponse:
         request_id = resolve_request_id(request)
         principal = auth.authenticate(_bearer_token(request, request_id), request_id)
         auth.require_upload(principal, request.url.path, request_id)
+        # P1-3 S3 (ADR-019 D2): validate the target BEFORE anything is
+        # created, so a failed validation refuses the upload without
+        # leaving a pending version behind. Without an approvals
+        # service wired, a targeted upload cannot be validated and
+        # fails closed as not_found.
+        library = None
+        if target_library_id is not None:
+            if approvals is None:
+                raise not_found(request_id)
+            library = approvals.validate_upload_target(
+                principal, target_library_id, request_id
+            )
         content = file.file.read()
         version = service.upload(
             filename=file.filename or "",
@@ -90,13 +107,42 @@ def build_documents_router(
             space=space or "shared",
             classification=classification,
             external_llm_allowed=external_llm_allowed,
+            target_library_id=target_library_id,
         )
+        approval_request_id = None
+        self_approved = False
+        if library is not None and version.state == "pending_approval":
+            # Repeat uploads return the existing version untouched, so
+            # an existing pending request means "repeat", not "new":
+            # return the envelope without a second request and without
+            # re-deciding. Only a fresh pending version with no
+            # request yet creates one.
+            approval = approvals.pending_request_for(version.document_id)
+            if approval is None:
+                approval = approvals.create_upload_request(
+                    principal=principal,
+                    document_id=version.document_id,
+                    version_id=version.id,
+                    library=library,
+                    http_request_id=request_id,
+                )
+                # Self-approval fast path: the uploader IS the target
+                # approver, judged by the same rule queue decisions
+                # use. approve() runs the full execution order and
+                # dispatches ingest itself, so the route must not
+                # dispatch a second time below.
+                if approvals.is_approver(principal, library):
+                    approvals.approve(principal, approval.id, request_id)
+                    self_approved = True
+            approval_request_id = approval.id
         envelope = {
             "document_id": version.document_id,
             "version_id": version.id,
-            "state": version.state,
+            "state": "uploaded" if self_approved else version.state,
+            "target_library_id": target_library_id,
+            "approval_request_id": approval_request_id,
         }
-        if ingest is not None:
+        if ingest is not None and not self_approved and version.state != "pending_approval":
             ingest(version.id, request_id, principal.user_id)
         return JSONResponse(envelope, status_code=201)
 

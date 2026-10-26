@@ -77,18 +77,23 @@ class AccessControl:
 
     def can_upload(self, principal: Principal) -> bool:
         """Upload gate (ADR-017 D5): super admin, or editor / dept_admin
-        in any department. Pure readers and users with no membership
-        cannot upload. Expired memberships are excluded at read time,
-        like everywhere else, so an expired editor loses the gate on
-        the next request. The gate lives here and in AuthService, never
-        in the visibility check: uploads still land in the unassigned
-        library, and library selection is P1-3's job.
+        in any department, or project lead in any project. Pure readers
+        and users with no membership cannot upload. Expired memberships
+        are excluded at read time, like everywhere else, so an expired
+        editor loses the gate on the next request. The gate lives here
+        and in AuthService, never in the visibility check: uploads still
+        land in the unassigned library, and library selection is P1-3's
+        job. Project leads are in the gate since P1-3 S3: ADR-019 D1
+        lets a lead self-approve an upload to their own project, which
+        is unreachable if a lead holding only project membership cannot
+        upload at all; per-target rules (D2) still bind what they may
+        target.
         """
         if principal.role == "admin":
             return True
         now = self._now()
         return any(
-            membership.dept_role in ("editor", "dept_admin")
+            membership.dept_role in ("editor", "dept_admin", "project_lead")
             and _is_live(membership, now)
             for membership in self._catalog.get_memberships(principal.user_id)
         )
@@ -168,6 +173,25 @@ class AccessControl:
             membership.dept_id == project_id
             and membership.dept_role == "project_lead"
             and _is_live(membership, now)
+            for membership in self._catalog.get_memberships(principal.user_id)
+        )
+
+    def is_member(self, principal: Principal, dept_id: str) -> bool:
+        """True when the principal holds a live membership row for
+        this department or project (ADR-019 D2, P1-3 S3).
+
+        Project membership rows carry dept_id == project id, so the
+        same check answers "joined this project". Any role counts:
+        role gates (upload permission, approver power) live in their
+        own checks, never here. Super admins hold no membership rows,
+        so this stays False for them and callers check the global
+        role separately, like is_department_admin/is_project_lead.
+        """
+        if principal.role == "admin":
+            return False
+        now = self._now()
+        return any(
+            membership.dept_id == dept_id and _is_live(membership, now)
             for membership in self._catalog.get_memberships(principal.user_id)
         )
 

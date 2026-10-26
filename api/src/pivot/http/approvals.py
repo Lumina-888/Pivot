@@ -23,6 +23,10 @@ class ResubmitBody(BaseModel):
     target_library_id: str | None = None
 
 
+class RetargetBody(BaseModel):
+    target_library_id: str
+
+
 def _bearer_token(request: Request, request_id: str) -> str:
     header = request.headers.get("authorization") or ""
     if not header.startswith("Bearer "):
@@ -105,6 +109,19 @@ def build_approvals_router(
             target_library_id=body.target_library_id,
         )
         return _request_view(reopened)
+
+    @router.post("/approvals/{request_id}/retarget")
+    def retarget_request(
+        request: Request, request_id: str, body: RetargetBody
+    ) -> dict[str, object]:
+        http_request_id, principal = _principal(request, auth)
+        retargeted = approvals.retarget(
+            principal,
+            request_id,
+            http_request_id,
+            target_library_id=body.target_library_id,
+        )
+        return _request_view(retargeted)
 
     @router.get("/approvals/{request_id}/review")
     def review_request(request: Request, request_id: str) -> Response:
