@@ -9,7 +9,7 @@ foreign-key target exists before its referrer is inserted.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from pivot.audit.service import AuditService
@@ -156,13 +156,17 @@ def test_FR_RBAC_004_project_folder_service_flow_and_visibility_pg(
     catalog, documents, audit_store, service = _assembly(pg_engine)
     service.add_member(ADMIN, "dept_eng", "usr_alice", "dept_admin", "req_1")
     _, _ = service.appoint_project_lead(ADMIN, "proj_x", "usr_bob", "req_2")
-    service.add_project_member(LEAD, "proj_x", "usr_dave", "editor", "req_3")
+    service.add_project_member(
+        LEAD, "proj_x", "usr_dave", "editor", "req_3",
+        expires_at=NOW + timedelta(days=30),
+    )
     folder, created = service.create_project_folder(
         LEAD, "proj_x", "fld_px", "项目文件夹", "req_4"
     )
     assert created is True
     member, created = service.add_project_folder_member(
-        LEAD, "proj_x", "fld_px", "usr_dave", "reader", "req_5"
+        LEAD, "proj_x", "fld_px", "usr_dave", "reader", "req_5",
+        expires_at=NOW + timedelta(days=30),
     )
     assert created is True
     moved, changed = service.move_document_to_project_folder(
