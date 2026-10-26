@@ -300,4 +300,4 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 
 ## 6. 轮次日志
 
-轮次日志已经拆出，见 [progress/history/progress-log.md](progress/history/progress-log.md)。本文件只维护现行状态。后续轮次记录直接写入轮次日志文件。
+轮次日志已经拆出，见 [progress/history/progress-log.md](progress/history/progress-log.md)。本文件只维护现行状态。后续轮次记录直接写入轮次日志文件。P1-3 S4 跨库移动审批已经完成（ADR-019 D3、D6）：新增 MoveService 与 /api/v1/moves 路由（提议、批准、拒绝、撤回、队列查询）；提议人按源库范围定（部门管理员提本部门库、项目负责人提本项目库、总管理员提任意），审批仅目标库管理员单边（Q3），决策先查权限后查状态；一文档一未决移动请求（服务预检加 S1 部分唯一索引双保险）；批准顺序为请求关闭→库改写→文件夹置空落默认文件夹（O7）→作用域外触发 reconcile（复用认领同步入口）；事件名按 ADR-019 D6（提议 doc.move.proposed、批准 authz.library.move、拒绝 authz.approval.rejected、撤回 doc.move.cancelled，代批按 O2）；例外随文档走、PG 路径决策与库改写同事务；服务、SQLite 目录与 HTTP 新测全过，真实 PG 2 项留 CI（本机无 PG 服务）；无新迁移，alembic 单头仍为 c8842fce3b98；残留：成功派发后 reconcile_status 仍为 pending（broker 模式完成态与耗尽态须 worker 侧更新，现有认领任务无 move 行句柄，见 M01.md S4 一节）。
