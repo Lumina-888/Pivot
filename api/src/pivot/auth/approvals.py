@@ -397,9 +397,9 @@ class ApprovalService:
         request, then calls approve() as the target approver.
         """
         request = self._require_request(request_id, http_request_id)
-        self._require_pending(request, http_request_id)
         library = self._require_target(request, http_request_id)
         self._require_decider(principal, request, library, http_request_id)
+        self._require_pending(request, http_request_id)
         version = self._require_version(request, http_request_id)
         document = self._require_document(request, http_request_id)
         if document.library_id != "unassigned":
@@ -454,9 +454,9 @@ class ApprovalService:
         rejected, the document stays unassigned, the request closes
         with the (optional, Q2) reason. No ingest is dispatched."""
         request = self._require_request(request_id, http_request_id)
-        self._require_pending(request, http_request_id)
         library = self._require_target(request, http_request_id)
         self._require_decider(principal, request, library, http_request_id)
+        self._require_pending(request, http_request_id)
         version = self._require_version(request, http_request_id)
         new_state = next_state(version.state, "reject", http_request_id)
         now = self._clock.now()
@@ -500,9 +500,9 @@ class ApprovalService:
         stalling in uploaded, which would make withdraw a disguised
         rejection."""
         request = self._require_request(request_id, http_request_id)
-        self._require_pending(request, http_request_id)
         library = self._require_target(request, http_request_id)
         self._require_proposer(principal, request, library, http_request_id)
+        self._require_pending(request, http_request_id)
         version = self._require_version(request, http_request_id)
         new_state = next_state(version.state, "withdraw", http_request_id)
         now = self._clock.now()
@@ -551,12 +551,12 @@ class ApprovalService:
         as a fresh doc.approval.requested: there is no separate
         resubmit event in the 8+1 set."""
         request = self._require_request(request_id, http_request_id)
+        library = self._require_target(request, http_request_id)
+        self._require_proposer(principal, request, library, http_request_id)
         if request.status != "rejected":
             raise illegal_state(
                 http_request_id, f"request is {request.status}, not rejected"
             )
-        library = self._require_target(request, http_request_id)
-        self._require_proposer(principal, request, library, http_request_id)
         if target_library_id is not None and target_library_id != request.target_library_id:
             new_library = self._store.get_library(target_library_id)
             if new_library is None:

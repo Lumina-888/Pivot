@@ -243,6 +243,29 @@ def test_FR_RBAC_004_p1_3_approve_non_pending_is_illegal() -> None:
     assert _code(excinfo) == "RESOURCE_FORBIDDEN"
 
 
+def test_FR_RBAC_004_p1_3_decided_request_scope_checked_first() -> None:
+    # Scope precedes state on every decision path: a decided request
+    # must not leak its state to someone outside the queue, and the
+    # proposer must still hear forbidden rather than illegal state.
+    service, _, _, _, _, _ = _seed()
+    service.approve(ENG_ADMIN, "req_eng", "req_approve")
+    with pytest.raises(AuthError) as excinfo:
+        service.approve(PROPOSER, "req_eng", "req_no")
+    assert _code(excinfo) == "AUTH_FORBIDDEN"
+    with pytest.raises(AuthError) as excinfo:
+        service.approve(OUTSIDER, "req_eng", "req_no")
+    assert _code(excinfo) == "RESOURCE_NOT_FOUND"
+    with pytest.raises(AuthError) as excinfo:
+        service.reject(PROPOSER, "req_eng", "req_no")
+    assert _code(excinfo) == "AUTH_FORBIDDEN"
+    with pytest.raises(AuthError) as excinfo:
+        service.withdraw(ENG_ADMIN, "req_eng", "req_no")
+    assert _code(excinfo) == "AUTH_FORBIDDEN"
+    with pytest.raises(AuthError) as excinfo:
+        service.resubmit(OUTSIDER, "req_eng", "req_no")
+    assert _code(excinfo) == "RESOURCE_NOT_FOUND"
+
+
 def test_FR_RBAC_004_p1_3_approve_non_unassigned_document_is_illegal() -> None:
     service, _, documents, _, _, _ = _seed()
     # Inconsistent seed: a pending request whose document already
