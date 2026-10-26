@@ -17,6 +17,7 @@ from pivot.documents.service import DocumentService
 
 if TYPE_CHECKING:
     from pivot.auth.approvals import ApprovalService
+    from pivot.auth.moves import MoveService
 
 
 class IngestSubmitter(Protocol):
@@ -51,6 +52,7 @@ def build_documents_router(
     auth: AuthService,
     ingest: IngestSubmitter | None = None,
     approvals: ApprovalService | None = None,
+    moves: MoveService | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -181,6 +183,22 @@ def build_documents_router(
         request_id, principal = _principal(request, auth)
         auth.require_admin(principal, request.url.path, request_id)
         service.request_delete(id, request_id, principal.user_id)
+        # P1-3 S5 delete-cancel (ADR-019 D4, decided O4): the tombstone
+        # closes the document's pending publish and move requests
+        # (status cancelled, events audited); version states are NOT
+        # force-transitioned by this step — request_delete already
+        # owns version states and leaves pending_approval versions
+        # untouched. Decided requests are untouched. Cancellation runs
+        # after the tombstone, so a cancellation failure leaves the
+        # tombstone standing and the request inert (decisions on a
+        # deleted document fail not_found) rather than rolling the
+        # delete back.
+        if approvals is not None:
+            approvals.cancel_pending_for_document(
+                id, principal.user_id, request_id
+            )
+        if moves is not None:
+            moves.cancel_pending_for_document(id, principal.user_id, request_id)
         return JSONResponse({"document_id": id, "accepted": True}, status_code=202)
 
     @router.get("/documents/{id}/preview")

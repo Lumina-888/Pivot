@@ -1302,6 +1302,14 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         ),
         reconcile=claim_sync,
     )
+    # P1-3 S5 single channel (ADR-019 D4): claim and exception-grant
+    # refuse documents with pending publish or move requests. The
+    # binding happens here, after both services exist, because the
+    # departments service is constructed before them above.
+    departments.bind_pending_request_checks(
+        pending_approval_for=approvals.pending_request_for,
+        pending_move_for=moves.pending_request_for,
+    )
     app = create_app(
         probes=probes,
         auth=auth,

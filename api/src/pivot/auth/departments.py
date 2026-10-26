@@ -205,6 +205,25 @@ class DepartmentAdminService:
         self._clock = clock
         self._transaction = transaction
         self._folder_collection_drop = folder_collection_drop
+        # P1-3 S5 pending-request checks, bound by bootstrap after the
+        # approval/move services exist (they are constructed after
+        # this service). Unbound means unwired: the checks are skipped
+        # only in assemblies that never bind them; production
+        # bootstrap always binds both.
+        self._pending_approval_for = None
+        self._pending_move_for = None
+
+    def bind_pending_request_checks(
+        self,
+        *,
+        pending_approval_for=None,
+        pending_move_for=None,
+    ) -> None:
+        """Bind P1-3 S5 pending-request lookups (document_id -> request
+        or None). Claim and exception-grant consult them; see
+        claim_document and grant_exception."""
+        self._pending_approval_for = pending_approval_for
+        self._pending_move_for = pending_move_for
 
     @contextmanager
     def _atomic(self):
@@ -1238,7 +1257,25 @@ class DepartmentAdminService:
             if principal.role == "admin":
                 raise resource_forbidden(request_id)
             raise not_found(request_id)
-        claimed = replace(document, library_id=library_id)
+        # P1-3 S5 single channel (ADR-019 D4): a document with a
+        # pending publish or move request is claimed only through its
+        # queue, never through claim — this covers every claimant,
+        # including department admins and the super admin (the fast
+        # lane is for ordinary unassigned documents only). The check
+        # runs after the scope checks above, so a claimant who fails
+        # scope still hears scope's answer, never the request state.
+        if self._pending_approval_for is not None and (
+            self._pending_approval_for(document_id) is not None
+        ):
+            raise resource_forbidden(request_id)
+        if self._pending_move_for is not None and (
+            self._pending_move_for(document_id) is not None
+        ):
+            raise resource_forbidden(request_id)
+        # A claimed document lands in the target library's default
+        # folder (S4 O7 parity): unassigned documents carry no folder,
+        # and the claim pins that rather than inheriting a stale one.
+        claimed = replace(document, library_id=library_id, folder_id=None)
         with self._atomic():
             self._documents.save(claimed)
             if target.kind == "project":
@@ -1358,6 +1395,17 @@ class DepartmentAdminService:
             self._require_exception_manager(
                 principal, document.library_id, request_id, target=document_id,
             )
+        # P1-3 S5 exception gate (ADR-019 D4): no exception may target
+        # a pending-approval document — it is unpublished, and an
+        # exception would leak it through the exception channel. The
+        # gate runs after scope, so a non-manager still hears scope's
+        # answer. Move-pending documents are already published, so
+        # the gate covers publish requests only; exceptions travel
+        # with moved documents unchanged.
+        if self._pending_approval_for is not None and (
+            self._pending_approval_for(document_id) is not None
+        ):
+            raise resource_forbidden(request_id)
         existing = next(
             (
                 exception

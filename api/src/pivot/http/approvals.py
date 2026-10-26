@@ -43,10 +43,11 @@ def _principal(request: Request, auth: AuthService) -> tuple[str, Principal]:
     return request_id, principal
 
 
-def _request_view(request) -> dict[str, object]:
+def _request_view(request, approvals) -> dict[str, object]:
     return {
         "request_id": request.id,
         "document_id": request.document_id,
+        "document_title": approvals.document_title(request.document_id),
         "version_id": request.version_id,
         "target_library_id": request.target_library_id,
         "proposer": request.proposer,
@@ -67,19 +68,19 @@ def build_approvals_router(
     def list_pending(request: Request) -> dict[str, object]:
         _request_id, principal = _principal(request, auth)
         items = approvals.list_pending(principal)
-        return {"items": [_request_view(item) for item in items]}
+        return {"items": [_request_view(item, approvals) for item in items]}
 
     @router.get("/approvals/{request_id}")
     def get_request(request: Request, request_id: str) -> dict[str, object]:
         http_request_id, principal = _principal(request, auth)
         found = approvals.get_request(principal, request_id, http_request_id)
-        return _request_view(found)
+        return _request_view(found, approvals)
 
     @router.post("/approvals/{request_id}/approve")
     def approve_request(request: Request, request_id: str) -> dict[str, object]:
         http_request_id, principal = _principal(request, auth)
         decided = approvals.approve(principal, request_id, http_request_id)
-        return _request_view(decided)
+        return _request_view(decided, approvals)
 
     @router.post("/approvals/{request_id}/reject")
     def reject_request(
@@ -89,13 +90,13 @@ def build_approvals_router(
         decided = approvals.reject(
             principal, request_id, http_request_id, reason=body.reason
         )
-        return _request_view(decided)
+        return _request_view(decided, approvals)
 
     @router.post("/approvals/{request_id}/withdraw")
     def withdraw_request(request: Request, request_id: str) -> dict[str, object]:
         http_request_id, principal = _principal(request, auth)
         withdrawn = approvals.withdraw(principal, request_id, http_request_id)
-        return _request_view(withdrawn)
+        return _request_view(withdrawn, approvals)
 
     @router.post("/approvals/{request_id}/resubmit")
     def resubmit_request(
@@ -108,7 +109,7 @@ def build_approvals_router(
             http_request_id,
             target_library_id=body.target_library_id,
         )
-        return _request_view(reopened)
+        return _request_view(reopened, approvals)
 
     @router.post("/approvals/{request_id}/retarget")
     def retarget_request(
@@ -121,7 +122,7 @@ def build_approvals_router(
             http_request_id,
             target_library_id=body.target_library_id,
         )
-        return _request_view(retargeted)
+        return _request_view(retargeted, approvals)
 
     @router.get("/approvals/{request_id}/review")
     def review_request(request: Request, request_id: str) -> Response:

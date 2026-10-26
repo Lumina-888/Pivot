@@ -317,6 +317,68 @@ class ApprovalService:
                 return request
         return None
 
+    def document_title(self, document_id: str) -> str | None:
+        """Todo-queue display title (P1-3 S5): the document's title,
+        or None when the document is gone. The queue views carry the
+        title so a todo item is actionable without a second lookup."""
+        document = self._documents.get(document_id)
+        return None if document is None else document.title
+
+    def cancel_pending_for_document(
+        self, document_id: str, actor_id: str, http_request_id: str
+    ) -> ApprovalRequest | None:
+        """Close the document's pending publish request on delete
+        (ADR-019 D4, P1-3 S5, decided O4): the request closes as
+        cancelled, the version state is NOT force-transitioned (the
+        delete path owns version states), and the cancellation is
+        audited as doc.approval.cancelled. That event is an S5
+        closeout addition to the ADR-019 D6 8+1 set: withdraw records
+        a proposer's act, delete-cancel records an operator's act,
+        and conflating the two would corrupt the single-channel
+        audit trail. Returns the cancelled request, or None when
+        there is no pending request; decided requests are untouched.
+        Called by the delete route after the tombstone lands, so a
+        cancellation failure leaves the tombstone standing and the
+        request inert (decisions on a deleted document fail
+        not_found) rather than rolling the delete back.
+        """
+        request = self.pending_request_for(document_id)
+        if request is None:
+            return None
+        # The target library may itself be gone (removal refuses only
+        # on live docs/members, not on pending requests); a missing
+        # target must not block closing the dead request, so fall back
+        # to a stub library for metadata instead of failing not_found.
+        library = self._store.get_library(request.target_library_id)
+        if library is None:
+            library = Library(
+                id=request.target_library_id, name="", kind="unknown"
+            )
+        now = self._clock.now()
+        cancelled = replace(
+            request, status="cancelled", decided_at=now, decided_by=actor_id
+        )
+
+        def rollback() -> None:
+            self._store.set_approval_request(request)
+
+        with self._atomic():
+            self._store.set_approval_request(cancelled)
+            self._record_all_or_rollback(
+                rollback=rollback,
+                records=[
+                    {
+                        "actor": actor_id,
+                        "action": "doc.approval.cancelled",
+                        "target": request.id,
+                        "result": "ok",
+                        "request_id": http_request_id,
+                        "metadata": self._meta(cancelled, library),
+                    }
+                ],
+            )
+        return cancelled
+
     def _meta(
         self, request: ApprovalRequest, library: Library
     ) -> dict[str, object]:
