@@ -63,6 +63,19 @@ def test_FR_RBAC_004_upload_gate_denies_reader_and_plain_user(
     assert access.can_upload(PLAIN) is False
 
 
+def test_FR_RBAC_004_upload_gate_allows_project_lead(
+    resources, clock: FakeClock
+) -> None:
+    # P1-3 S3: a lead holding only project membership must still pass
+    # the gate, or ADR-019 D1's lead self-approval is unreachable.
+    # Readers stay out; the per-target D2 rules still bind targets.
+    resources.memberships = {
+        "usr_bob": (_membership("usr_bob", "project_lead"),),
+    }
+    access = AccessControl(resources, clock=clock)
+    assert access.can_upload(EDITOR) is True
+
+
 def test_FR_RBAC_004_upload_gate_excludes_expired_editor(
     resources
 ) -> None:

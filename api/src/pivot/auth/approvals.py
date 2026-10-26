@@ -2,9 +2,10 @@
 
 Owns the approval decision path for publish requests: approve, reject,
 withdraw, resubmit, queue listing, and the dedicated review read. It
-does NOT own request creation (S3's upload-with-target path creates
-the request, then reuses approve() for the self-approval fast path) and
-it does NOT own move requests (S4).
+also owns publish-request creation for targeted uploads (P1-3 S3:
+validate_upload_target, create_upload_request, pending_request_for),
+orchestrated by the upload route, and it does NOT own move requests
+(S4).
 
 Scope rules, fixed by ADR-019 and the Owner-settled O2/O3:
 
@@ -63,6 +64,7 @@ from pivot.documents.ports import (
 )
 from pivot.domain.document_state import next_state
 from pivot.security.rbac import AccessControl
+from pivot.shared.ids import new_id
 
 logger = logging.getLogger("pivot.approvals")
 
@@ -200,6 +202,120 @@ class ApprovalService:
         ordinary approval (the public queue already belongs to super
         admins)."""
         return principal.role == "admin" and library.kind != "public"
+
+    # -- upload with target (P1-3 S3) ----------------------------------
+
+    def is_approver(self, principal: Principal, library: Library) -> bool:
+        """Public form of _is_approver: the self-approval fast path
+        must judge "uploader is the target approver" with exactly the
+        same rule the queue decisions use, never a second standard."""
+        return self._is_approver(principal, library)
+
+    def validate_upload_target(
+        self, principal: Principal, target_library_id: str, http_request_id: str
+    ) -> Library:
+        """Validate an upload target (ADR-019 D2), fail closed.
+
+        Invisible targets read as not_found (no existence leak, the
+        same rule as claim); "unassigned" is not a target and reads
+        the same way, as does any system-kind library or unknown kind.
+        Department targets need a live membership in that department;
+        project targets need a live membership in that project (an
+        owning-department admin who never joined is not a member, per
+        D2's letter); public targets take any uploader (Q1). The
+        global upload gate (require_upload) already ran at the route,
+        so this method checks membership and visibility only, not the
+        upload permission itself.
+        """
+        library = self._store.get_library(target_library_id)
+        if library is None or library.kind not in (
+            "public",
+            "department",
+            "project",
+        ):
+            self._deny(
+                principal,
+                http_request_id,
+                dept_id=None,
+                target=target_library_id,
+                error=not_found(http_request_id),
+            )
+        if principal.role == "admin" or library.kind == "public":
+            return library
+        if library.kind == "department" and self._access.is_member(
+            principal, library.dept_id or library.id
+        ):
+            return library
+        if library.kind == "project" and self._access.is_member(
+            principal, library.id
+        ):
+            return library
+        if library.kind == "department":
+            deny_dept: str | None = library.dept_id or library.id
+        elif library.kind == "project":
+            deny_dept = library.dept_id
+        else:
+            deny_dept = None
+        self._deny(
+            principal,
+            http_request_id,
+            dept_id=deny_dept,
+            target=target_library_id,
+            error=not_found(http_request_id),
+        )
+
+    def create_upload_request(
+        self,
+        *,
+        principal: Principal,
+        document_id: str,
+        version_id: str,
+        library: Library,
+        http_request_id: str,
+    ) -> ApprovalRequest:
+        """Create the pending request for a targeted upload (ADR-019 D1).
+
+        Called by the upload route after DocumentService.upload made
+        the version pending_approval, and only when no pending request
+        already exists for the document (the route's repeat-upload
+        gate). A second pending request for the same document is
+        refused, never duplicated: the store's partial unique index
+        (PG) / pending check (memory) is the backstop, this pre-check
+        maps it to a clean refusal first. The request row and the
+        requested audit share the PG scope, like decisions (D6); the
+        requested event is doc.* tier, best-effort under ND-GAP-02.
+        """
+        if self.pending_request_for(document_id) is not None:
+            raise illegal_state(
+                http_request_id, "document already has a pending request"
+            )
+        request = ApprovalRequest(
+            id=new_id("approval"),
+            document_id=document_id,
+            version_id=version_id,
+            target_library_id=library.id,
+            proposer=principal.user_id,
+            status="pending",
+            created_at=self._clock.now(),
+        )
+        with self._atomic():
+            self._store.add_approval_request(request)
+            self._audits.record(
+                actor=principal.user_id,
+                action="doc.approval.requested",
+                target=request.id,
+                result="ok",
+                request_id=http_request_id,
+                metadata=self._meta(request, library),
+            )
+        return request
+
+    def pending_request_for(self, document_id: str) -> ApprovalRequest | None:
+        """The document's pending publish request, if any."""
+        for request in self._store.list_approval_requests(document_id):
+            if request.status == "pending":
+                return request
+        return None
 
     def _meta(
         self, request: ApprovalRequest, library: Library
@@ -597,6 +713,60 @@ class ApprovalService:
                 ],
             )
         return reopened
+
+    def retarget(
+        self,
+        principal: Principal,
+        request_id: str,
+        http_request_id: str,
+        target_library_id: str,
+    ) -> ApprovalRequest:
+        """Retarget a pending request before decision (ADR-019 D2, O1).
+
+        Proposer only, pending requests only, scope checked before
+        state like every other decision path (S2 fix): a queue-visible
+        non-proposer hears forbidden, anyone else hears not_found,
+        whatever the request's state. The new target passes the same
+        validate_upload_target rule as an upload-time target
+        (invisible reads as not_found, no existence leak). The next
+        decision judges the approver against the new target; no new
+        request is created, the request id never changes, the version
+        stays pending_approval, and no ingest is dispatched. The
+        retarget is audited as doc.approval.retargeted with both the
+        old and the new target in metadata.
+        """
+        request = self._require_request(request_id, http_request_id)
+        library = self._require_target(request, http_request_id)
+        self._require_proposer(principal, request, library, http_request_id)
+        self._require_pending(request, http_request_id)
+        new_library = self.validate_upload_target(
+            principal, target_library_id, http_request_id
+        )
+        old_target_library_id = request.target_library_id
+        retargeted = replace(request, target_library_id=new_library.id)
+        metadata = self._meta(retargeted, new_library)
+        metadata["old_target_library_id"] = old_target_library_id
+        metadata["new_target_library_id"] = new_library.id
+
+        def rollback() -> None:
+            self._store.set_approval_request(request)
+
+        with self._atomic():
+            self._store.set_approval_request(retargeted)
+            self._record_all_or_rollback(
+                rollback=rollback,
+                records=[
+                    {
+                        "actor": principal.user_id,
+                        "action": "doc.approval.retargeted",
+                        "target": request.id,
+                        "result": "ok",
+                        "request_id": http_request_id,
+                        "metadata": metadata,
+                    }
+                ],
+            )
+        return retargeted
 
     # -- queue and review --------------------------------------------------
 

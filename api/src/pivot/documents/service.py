@@ -101,6 +101,7 @@ class DocumentService:
         classification: str = "",
         tags: tuple[str, ...] = (),
         external_llm_allowed: bool = False,
+        target_library_id: str | None = None,
     ) -> VersionRecord:
         try:
             normalize_filename(filename)
@@ -137,7 +138,14 @@ class DocumentService:
             document_id=document.id,
             content_sha256=digest,
             storage_key=f"quarantine/{document.id}/{version_id}",
-            state="uploaded",
+            # P1-3 S3: a targeted upload is born pending_approval and
+            # never enters the pipeline until approval (or the
+            # self-approval fast path) moves it to uploaded. The route
+            # validates the target before calling upload, so this
+            # service trusts the parameter; idempotent returns below
+            # return the existing version untouched, so a repeat upload
+            # never flips state and never spawns a second request.
+            state="pending_approval" if target_library_id is not None else "uploaded",
             current=False,
             idempotency_key=idempotency_key,
             external_llm_allowed=external_llm_allowed,
