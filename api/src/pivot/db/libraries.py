@@ -19,17 +19,21 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from pivot.auth.ports import (
+    ApprovalRequest,
     DocumentException,
     Folder,
     FolderMembership,
     Library,
     Membership,
+    MoveRequest,
 )
+from pivot.db.models.identity import ApprovalRequest as ApprovalRequestRow
 from pivot.db.models.identity import DocumentException as ExceptionRow
 from pivot.db.models.identity import Folder as FolderRow
 from pivot.db.models.identity import FolderMembership as FolderMembershipRow
 from pivot.db.models.identity import Library as LibraryRow
 from pivot.db.models.identity import Membership as MembershipRow
+from pivot.db.models.identity import MoveRequest as MoveRequestRow
 from pivot.db.scoped import scoped_session, write_scope
 from pivot.shared.time import utc_now
 
@@ -91,6 +95,38 @@ def _to_folder_membership(row: FolderMembershipRow) -> FolderMembership:
         granted_by=row.granted_by,
         granted_at=row.granted_at,
         expires_at=row.expires_at,
+    )
+
+
+def _to_approval_request(row: ApprovalRequestRow) -> ApprovalRequest:
+    return ApprovalRequest(
+        id=row.id,
+        document_id=row.document_id,
+        version_id=row.version_id,
+        target_library_id=row.target_library_id,
+        proposer=row.proposer,
+        status=row.status,
+        reason=row.reason,
+        created_at=row.created_at,
+        decided_at=row.decided_at,
+        decided_by=row.decided_by,
+    )
+
+
+def _to_move_request(row: MoveRequestRow) -> MoveRequest:
+    return MoveRequest(
+        id=row.id,
+        document_id=row.document_id,
+        source_library_id=row.source_library_id,
+        target_library_id=row.target_library_id,
+        proposer=row.proposer,
+        status=row.status,
+        reason=row.reason,
+        created_at=row.created_at,
+        decided_at=row.decided_at,
+        decided_by=row.decided_by,
+        reconcile_status=row.reconcile_status,
+        reconcile_attempts=row.reconcile_attempts,
     )
 
 
@@ -432,6 +468,145 @@ class SqlAlchemyLibraryCatalog:
                 session.execute(
                     delete(ExceptionRow).where(ExceptionRow.id == exception_id)
                 )
+
+    def get_approval_request(
+        self, request_id: str
+    ) -> ApprovalRequest | None:
+        with self._scope() as session:
+            row = session.get(ApprovalRequestRow, request_id)
+            return None if row is None else _to_approval_request(row)
+
+    def list_approval_requests(
+        self, document_id: str
+    ) -> tuple[ApprovalRequest, ...]:
+        with self._scope() as session:
+            rows = session.scalars(
+                select(ApprovalRequestRow)
+                .where(ApprovalRequestRow.document_id == document_id)
+                .order_by(ApprovalRequestRow.id)
+            ).all()
+            return tuple(_to_approval_request(row) for row in rows)
+
+    def add_approval_request(self, request: ApprovalRequest) -> None:
+        # One pending request per document is a partial unique index:
+        # a second pending insert fails here with IntegrityError. The
+        # S2 service pre-checks and maps that to a clean rejection;
+        # this is the race backstop, not the user-facing error.
+        with self._scope() as session:
+            with write_scope(session):
+                session.add(
+                    ApprovalRequestRow(
+                        id=request.id,
+                        document_id=request.document_id,
+                        version_id=request.version_id,
+                        target_library_id=request.target_library_id,
+                        proposer=request.proposer,
+                        status=request.status,
+                        reason=request.reason,
+                        created_at=request.created_at or utc_now(),
+                        decided_at=request.decided_at,
+                        decided_by=request.decided_by,
+                    )
+                )
+
+    def set_approval_request(self, request: ApprovalRequest) -> None:
+        with self._scope() as session:
+            with write_scope(session):
+                row = session.get(ApprovalRequestRow, request.id)
+                if row is None:
+                    session.add(
+                        ApprovalRequestRow(
+                            id=request.id,
+                            document_id=request.document_id,
+                            version_id=request.version_id,
+                            target_library_id=request.target_library_id,
+                            proposer=request.proposer,
+                            status=request.status,
+                            reason=request.reason,
+                            created_at=request.created_at or utc_now(),
+                            decided_at=request.decided_at,
+                            decided_by=request.decided_by,
+                        )
+                    )
+                else:
+                    row.document_id = request.document_id
+                    row.version_id = request.version_id
+                    row.target_library_id = request.target_library_id
+                    row.proposer = request.proposer
+                    row.status = request.status
+                    row.reason = request.reason
+                    row.decided_at = request.decided_at
+                    row.decided_by = request.decided_by
+
+    def get_move_request(self, request_id: str) -> MoveRequest | None:
+        with self._scope() as session:
+            row = session.get(MoveRequestRow, request_id)
+            return None if row is None else _to_move_request(row)
+
+    def list_move_requests(
+        self, document_id: str
+    ) -> tuple[MoveRequest, ...]:
+        with self._scope() as session:
+            rows = session.scalars(
+                select(MoveRequestRow)
+                .where(MoveRequestRow.document_id == document_id)
+                .order_by(MoveRequestRow.id)
+            ).all()
+            return tuple(_to_move_request(row) for row in rows)
+
+    def add_move_request(self, request: MoveRequest) -> None:
+        # Same pending-uniqueness backstop as approval requests.
+        with self._scope() as session:
+            with write_scope(session):
+                session.add(
+                    MoveRequestRow(
+                        id=request.id,
+                        document_id=request.document_id,
+                        source_library_id=request.source_library_id,
+                        target_library_id=request.target_library_id,
+                        proposer=request.proposer,
+                        status=request.status,
+                        reason=request.reason,
+                        created_at=request.created_at or utc_now(),
+                        decided_at=request.decided_at,
+                        decided_by=request.decided_by,
+                        reconcile_status=request.reconcile_status,
+                        reconcile_attempts=request.reconcile_attempts,
+                    )
+                )
+
+    def set_move_request(self, request: MoveRequest) -> None:
+        with self._scope() as session:
+            with write_scope(session):
+                row = session.get(MoveRequestRow, request.id)
+                if row is None:
+                    session.add(
+                        MoveRequestRow(
+                            id=request.id,
+                            document_id=request.document_id,
+                            source_library_id=request.source_library_id,
+                            target_library_id=request.target_library_id,
+                            proposer=request.proposer,
+                            status=request.status,
+                            reason=request.reason,
+                            created_at=request.created_at or utc_now(),
+                            decided_at=request.decided_at,
+                            decided_by=request.decided_by,
+                            reconcile_status=request.reconcile_status,
+                            reconcile_attempts=request.reconcile_attempts,
+                        )
+                    )
+                else:
+                    row.document_id = request.document_id
+                    row.source_library_id = request.source_library_id
+                    row.target_library_id = request.target_library_id
+                    row.proposer = request.proposer
+                    row.status = request.status
+                    row.reason = request.reason
+                    row.decided_at = request.decided_at
+                    row.decided_by = request.decided_by
+                    row.reconcile_status = request.reconcile_status
+                    row.reconcile_attempts = request.reconcile_attempts
 
     @contextmanager
     def _scope(self) -> Iterator[Session]:

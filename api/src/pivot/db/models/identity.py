@@ -10,9 +10,11 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -192,6 +194,129 @@ class DocumentException(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class ApprovalRequest(Base):
+    """A publish-approval request (ADR-019 D1, P1-3 S1).
+
+    Storage only in S1: no service, no route reads this yet. One
+    pending request per document is a partial unique index (same
+    pattern as document_versions' one-current index), so the
+    two-proposals-arrive-together race fails at the store, not just
+    at the service check. Closed rows stay as history; S5's
+    delete-cancels-requests marks them cancelled, it never deletes
+    them (documents are tombstoned, never hard-deleted, so the
+    CASCADE here only fires if a document row itself is removed).
+    """
+
+    __tablename__ = "approval_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected', 'withdrawn',"
+            " 'cancelled')",
+            name="ck_approval_requests_status",
+        ),
+        Index(
+            "uq_approval_requests_one_pending",
+            "document_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+            sqlite_where=text("status = 'pending'"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    document_id: Mapped[str] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    version_id: Mapped[str] = mapped_column(
+        ForeignKey("document_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    target_library_id: Mapped[str] = mapped_column(
+        ForeignKey("libraries.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    proposer: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str] = mapped_column(
+        String(512), nullable=False, default=""
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    decided_by: Mapped[str | None] = mapped_column(String(128))
+
+
+class MoveRequest(Base):
+    """A cross-library move request (ADR-019 D3, P1-3 S1).
+
+    Same pending-uniqueness rule as ApprovalRequest, one per document.
+    reconcile_status tracks the P1-2 D3 reconcile dispatch after
+    approval (pending while the worker has not run, ok once
+    reconciled, failed once retries are exhausted); reconcile_attempts
+    counts attempts against the P1-2 S5 discipline (3 retries, 4
+    attempts total). Both fields are S1 storage; S4 owns the semantics.
+    """
+
+    __tablename__ = "move_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected', 'withdrawn',"
+            " 'cancelled')",
+            name="ck_move_requests_status",
+        ),
+        CheckConstraint(
+            "reconcile_status IN ('pending', 'ok', 'failed')",
+            name="ck_move_requests_reconcile_status",
+        ),
+        Index(
+            "uq_move_requests_one_pending",
+            "document_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+            sqlite_where=text("status = 'pending'"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    document_id: Mapped[str] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_library_id: Mapped[str] = mapped_column(
+        ForeignKey("libraries.id", ondelete="CASCADE"), nullable=False
+    )
+    target_library_id: Mapped[str] = mapped_column(
+        ForeignKey("libraries.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    proposer: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str] = mapped_column(
+        String(512), nullable=False, default=""
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    decided_by: Mapped[str | None] = mapped_column(String(128))
+    reconcile_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending"
+    )
+    reconcile_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
     )
 
 
