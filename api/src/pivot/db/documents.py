@@ -159,7 +159,14 @@ class SqlAlchemyVersionStore(_SessionBound):
         if not version.id or not version.document_id:
             raise ValueError("versions require a non-empty id and document_id")
         with self._scope() as session:
-            with UnitOfWork(session):
+            # write_scope, not UnitOfWork: a version save inside a
+            # shared operation scope (P1-3 S2 approval) must join the
+            # scope's transaction instead of committing it halfway
+            # through -- UnitOfWork would commit every pending
+            # mutation on the ambient session, including the decision
+            # and library rewrite that the audit write has not yet
+            # covered (ADR-017 D4).
+            with write_scope(session):
                 row = session.get(DocumentVersion, version.id)
                 if row is None:
                     session.add(

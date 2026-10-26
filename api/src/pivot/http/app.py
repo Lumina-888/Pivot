@@ -43,6 +43,7 @@ def create_app(
     exports: ExportService | None = None,
     audits: AuditService | None = None,
     departments=None,
+    approvals=None,
     ingest=None,
     claim_sync=None,
     authorize_hit=None,
@@ -168,6 +169,14 @@ def create_app(
 
         app.include_router(
             build_departments_router(auth, departments, claim_sync=claim_sync),
+            prefix="/api/v1",
+        )
+
+    if auth is not None and approvals is not None:
+        from pivot.http.approvals import build_approvals_router
+
+        app.include_router(
+            build_approvals_router(auth, approvals),
             prefix="/api/v1",
         )
 

@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from pivot.auth.ports import (
+    ApprovalRequest,
     AuditEventDraft,
     ChunkAuthz,
     CitationAuthz,
@@ -19,6 +20,7 @@ from pivot.auth.ports import (
     FolderMembership,
     Library,
     Membership,
+    MoveRequest,
     RefreshSession,
     UserAccount,
 )
@@ -134,6 +136,8 @@ class InMemoryResources:
         default_factory=dict
     )
     exceptions: dict[str, DocumentException] = field(default_factory=dict)
+    approval_requests: dict[str, ApprovalRequest] = field(default_factory=dict)
+    move_requests: dict[str, MoveRequest] = field(default_factory=dict)
 
     def get_document(self, document_id: str) -> DocumentAuthz | None:
         return self.documents.get(document_id)
@@ -314,6 +318,65 @@ class InMemoryResources:
 
     def remove_exception(self, exception_id: str) -> None:
         self.exceptions.pop(exception_id, None)
+
+    def _check_pending_unique(self, store: dict, request) -> None:
+        # Mirror the production in-memory catalog (P1-3 S1): one
+        # pending request per document per kind.
+        for other in store.values():
+            if (
+                other.id != request.id
+                and other.document_id == request.document_id
+                and other.status == "pending"
+            ):
+                raise ValueError(
+                    "document already has a pending request"
+                )
+
+    def get_approval_request(
+        self, request_id: str
+    ) -> ApprovalRequest | None:
+        return self.approval_requests.get(request_id)
+
+    def list_approval_requests(
+        self, document_id: str
+    ) -> tuple[ApprovalRequest, ...]:
+        return tuple(
+            request
+            for request in sorted(
+                self.approval_requests.values(), key=lambda item: item.id
+            )
+            if request.document_id == document_id
+        )
+
+    def add_approval_request(self, request: ApprovalRequest) -> None:
+        self._check_pending_unique(self.approval_requests, request)
+        self.approval_requests[request.id] = request
+
+    def set_approval_request(self, request: ApprovalRequest) -> None:
+        self._check_pending_unique(self.approval_requests, request)
+        self.approval_requests[request.id] = request
+
+    def get_move_request(self, request_id: str) -> MoveRequest | None:
+        return self.move_requests.get(request_id)
+
+    def list_move_requests(
+        self, document_id: str
+    ) -> tuple[MoveRequest, ...]:
+        return tuple(
+            request
+            for request in sorted(
+                self.move_requests.values(), key=lambda item: item.id
+            )
+            if request.document_id == document_id
+        )
+
+    def add_move_request(self, request: MoveRequest) -> None:
+        self._check_pending_unique(self.move_requests, request)
+        self.move_requests[request.id] = request
+
+    def set_move_request(self, request: MoveRequest) -> None:
+        self._check_pending_unique(self.move_requests, request)
+        self.move_requests[request.id] = request
 
     def claim_conversation(self, conversation_id: str, owner_id: str) -> str:
         current = self.conversations.get(conversation_id)
