@@ -15,6 +15,7 @@ from pivot.audit.store import AppendOnlyAuditStore
 from pivot.auth.approvals import ApprovalService
 from pivot.auth.attempts import CacheLoginAttempts
 from pivot.auth.departments import DepartmentAdminService
+from pivot.auth.moves import MoveService
 from pivot.auth.ports import Principal, UserAccount, UserDirectory
 from pivot.auth.service import AuthService
 from pivot.auth.tokens import TokenService
@@ -1270,6 +1271,37 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         ),
         ingest=ingest_submitter,
     )
+    # The claim-sync submitter is shared by claims (P1-2 D3) and move
+    # reconcile (P1-3 S4): both dispatch the same document-scoped
+    # LibrarySet.reconcile_document entry, only the trigger differs.
+    # A move dispatch failure is marked on the move row by
+    # MoveService itself; the worker task's completion transitions
+    # (pending->ok, exhaustion->failed) are an S4 residual, because
+    # the claim task has no move-request handle.
+    claim_sync = _claim_sync_submitter(
+        sync=llama_sync,
+        reconcile=llama_reconcile,
+        audit_record=audits.record,
+        settings=resolved,
+    )
+    # Cross-library moves (P1-3 S4): same store, clock, and
+    # transaction scope as publish approvals; target validation and
+    # approver power reuse ApprovalService, reconcile reuses the
+    # claim-sync submitter above.
+    moves = MoveService(
+        store=library_admin_store,
+        documents=document_rows,
+        access=access,
+        audits=audits,
+        clock=export_clock,
+        approvals=approvals,
+        transaction=(
+            (lambda: shared_session(sessions))
+            if resolved.storage == "postgres"
+            else None
+        ),
+        reconcile=claim_sync,
+    )
     app = create_app(
         probes=probes,
         auth=auth,
@@ -1282,13 +1314,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         audits=audits,
         departments=departments,
         approvals=approvals,
+        moves=moves,
         ingest=ingest_submitter,
-        claim_sync=_claim_sync_submitter(
-            sync=llama_sync,
-            reconcile=llama_reconcile,
-            audit_record=audits.record,
-            settings=resolved,
-        ),
+        claim_sync=claim_sync,
         # Search hits are rechecked against live document facts
         # (library, folder, exception) before release: native payloads
         # are stamped at ingest and never updated by folder moves or

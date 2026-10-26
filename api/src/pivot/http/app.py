@@ -44,6 +44,7 @@ def create_app(
     audits: AuditService | None = None,
     departments=None,
     approvals=None,
+    moves=None,
     ingest=None,
     claim_sync=None,
     authorize_hit=None,
@@ -180,6 +181,14 @@ def create_app(
 
         app.include_router(
             build_approvals_router(auth, approvals),
+            prefix="/api/v1",
+        )
+
+    if auth is not None and moves is not None:
+        from pivot.http.moves import build_moves_router
+
+        app.include_router(
+            build_moves_router(auth, moves),
             prefix="/api/v1",
         )
 
