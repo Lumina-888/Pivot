@@ -448,6 +448,68 @@ class MoveService:
                 return request
         return None
 
+    def document_title(self, document_id: str) -> str | None:
+        """Todo-queue display title (P1-3 S5): the document's title,
+        or None when the document is gone. The queue views carry the
+        title so a todo item is actionable without a second lookup."""
+        document = self._documents.get(document_id)
+        return None if document is None else document.title
+
+    def cancel_pending_for_document(
+        self, document_id: str, actor_id: str, http_request_id: str
+    ) -> MoveRequest | None:
+        """Close the document's pending move request on delete
+        (ADR-019 D4, P1-3 S5, decided O4): the request closes as
+        cancelled and the cancellation is audited as
+        doc.move.cancelled, the same event the proposer withdraw path
+        already uses. Returns the cancelled request, or None when
+        there is no pending request; decided requests are untouched.
+        Called by the delete route after the tombstone lands, so a
+        cancellation failure leaves the tombstone standing and the
+        request inert (decisions on a deleted document fail
+        not_found) rather than rolling the delete back.
+        """
+        request = self.pending_request_for(document_id)
+        if request is None:
+            return None
+        # The target or source library may itself be gone; a missing
+        # library must not block closing the dead request, so fall
+        # back to stub libraries for metadata instead of not_found.
+        target = self._store.get_library(request.target_library_id)
+        if target is None:
+            target = Library(
+                id=request.target_library_id, name="", kind="unknown"
+            )
+        source = self._store.get_library(request.source_library_id)
+        if source is None:
+            source = Library(
+                id=request.source_library_id, name="", kind="unknown"
+            )
+        now = self._clock.now()
+        cancelled = replace(
+            request, status="cancelled", decided_at=now, decided_by=actor_id
+        )
+
+        def rollback() -> None:
+            self._store.set_move_request(request)
+
+        with self._atomic():
+            self._store.set_move_request(cancelled)
+            self._record_all_or_rollback(
+                rollback=rollback,
+                records=[
+                    {
+                        "actor": actor_id,
+                        "action": "doc.move.cancelled",
+                        "target": request.id,
+                        "result": "ok",
+                        "request_id": http_request_id,
+                        "metadata": self._meta(cancelled, source, target),
+                    }
+                ],
+            )
+        return cancelled
+
     # -- propose -----------------------------------------------------------
 
     def propose(

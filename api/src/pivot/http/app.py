@@ -123,7 +123,9 @@ def create_app(
         from pivot.documents.http import build_documents_router
 
         app.include_router(
-            build_documents_router(documents, auth, ingest=ingest, approvals=approvals),
+            build_documents_router(
+                documents, auth, ingest=ingest, approvals=approvals, moves=moves
+            ),
             prefix="/api/v1",
         )
 
