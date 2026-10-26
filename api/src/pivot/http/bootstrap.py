@@ -12,6 +12,7 @@ from sqlalchemy.engine import Engine
 from pivot.audit.policy import AuditWriteFailures, TieredAuditSink
 from pivot.audit.service import AuditService
 from pivot.audit.store import AppendOnlyAuditStore
+from pivot.auth.approvals import ApprovalService
 from pivot.auth.attempts import CacheLoginAttempts
 from pivot.auth.departments import DepartmentAdminService
 from pivot.auth.ports import Principal, UserAccount, UserDirectory
@@ -1250,6 +1251,25 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
             else None
         ),
     )
+    # Publish approvals (P1-3 S2): same store, clock, transaction
+    # scope, and ingest submitter shape as the department service, so
+    # approval decisions share the ADR-017 D4 atomicity boundary and
+    # S3 can reuse approve() for the self-approval fast path.
+    approvals = ApprovalService(
+        store=library_admin_store,
+        documents=document_rows,
+        versions=version_rows,
+        objects=document_objects,
+        access=access,
+        audits=audits,
+        clock=export_clock,
+        transaction=(
+            (lambda: shared_session(sessions))
+            if resolved.storage == "postgres"
+            else None
+        ),
+        ingest=ingest_submitter,
+    )
     app = create_app(
         probes=probes,
         auth=auth,
@@ -1261,6 +1281,7 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         exports=exports,
         audits=audits,
         departments=departments,
+        approvals=approvals,
         ingest=ingest_submitter,
         claim_sync=_claim_sync_submitter(
             sync=llama_sync,
