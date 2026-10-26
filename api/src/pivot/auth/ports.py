@@ -142,6 +142,49 @@ class DocumentException:
 
 
 @dataclass(frozen=True)
+class ApprovalRequest:
+    """A publish-approval request (ADR-019 D1, P1-3 S1).
+
+    One pending request per document, enforced at the store by a
+    partial unique index; the service layer in S2 pre-checks and maps
+    the store failure to a clean rejection. S1 only stores the shape.
+    """
+
+    id: str
+    document_id: str
+    version_id: str
+    target_library_id: str
+    proposer: str
+    status: str
+    reason: str = ""
+    created_at: datetime | None = None
+    decided_at: datetime | None = None
+    decided_by: str | None = None
+
+
+@dataclass(frozen=True)
+class MoveRequest:
+    """A cross-library move request (ADR-019 D3, P1-3 S1).
+
+    reconcile_status / reconcile_attempts track the P1-2 D3 reconcile
+    dispatch after approval; S4 owns their semantics, S1 only stores.
+    """
+
+    id: str
+    document_id: str
+    source_library_id: str
+    target_library_id: str
+    proposer: str
+    status: str
+    reason: str = ""
+    created_at: datetime | None = None
+    decided_at: datetime | None = None
+    decided_by: str | None = None
+    reconcile_status: str = "pending"
+    reconcile_attempts: int = 0
+
+
+@dataclass(frozen=True)
 class ChunkAuthz:
     id: str
     document_id: str
@@ -282,6 +325,28 @@ class DepartmentAdminStore(Protocol):
     def add_exception(self, exception: DocumentException) -> None: ...
 
     def remove_exception(self, exception_id: str) -> None: ...
+
+    def get_approval_request(
+        self, request_id: str
+    ) -> ApprovalRequest | None: ...
+
+    def list_approval_requests(
+        self, document_id: str
+    ) -> tuple[ApprovalRequest, ...]: ...
+
+    def add_approval_request(self, request: ApprovalRequest) -> None: ...
+
+    def set_approval_request(self, request: ApprovalRequest) -> None: ...
+
+    def get_move_request(self, request_id: str) -> MoveRequest | None: ...
+
+    def list_move_requests(
+        self, document_id: str
+    ) -> tuple[MoveRequest, ...]: ...
+
+    def add_move_request(self, request: MoveRequest) -> None: ...
+
+    def set_move_request(self, request: MoveRequest) -> None: ...
 
 
 class Clock(Protocol):
