@@ -198,6 +198,35 @@ class AccessControl:
                     folder.id
                     for folder in self._catalog.list_folders(dept_id)
                 )
+            # S4 closeout (ADR-018 D2): a department admin also sees
+            # every folder of the project libraries their department
+            # owns, without joining them. The S2 branch above only
+            # listed the department's own library; project libraries
+            # carry dept_id == owning department, not the admin's
+            # membership row, so they need this branch.
+            for library in self._catalog.list_libraries():
+                if (
+                    library.kind == "project"
+                    and library.dept_id == dept_id
+                    and library.id in visible
+                ):
+                    folder_ids.update(
+                        folder.id
+                        for folder in self._catalog.list_folders(library.id)
+                    )
+        # S4: a project lead sees every folder of the projects they
+        # lead, regardless of folder role, same bypass line as a
+        # department admin inside their own department (D2).
+        for membership in self._catalog.get_memberships(principal.user_id):
+            if (
+                membership.dept_role == "project_lead"
+                and _is_live(membership, now)
+                and membership.dept_id in visible
+            ):
+                folder_ids.update(
+                    folder.id
+                    for folder in self._catalog.list_folders(membership.dept_id)
+                )
         for membership in self._catalog.get_folder_memberships(
             principal.user_id
         ):
@@ -218,10 +247,19 @@ class AccessControl:
         other live folder member sees it, in any role. Folder
         membership alone never widens the library: callers check the
         library first, and visible_folder_ids intersects the two.
+        S4: for a project library the department is the owning
+        department (the library row's dept_id), and the project's lead
+        bypasses folder roles the same way a department admin does.
         """
         if principal.role == "admin":
             return True
-        if self.is_department_admin(principal, library_id):
+        library = self._catalog.get_library(library_id)
+        if library is not None and library.kind == "project":
+            if self.is_department_admin(principal, library.dept_id):
+                return True
+            if self.is_project_lead(principal, library_id):
+                return True
+        elif self.is_department_admin(principal, library_id):
             return True
         now = self._now()
         return any(

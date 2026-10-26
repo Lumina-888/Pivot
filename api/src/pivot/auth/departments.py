@@ -717,6 +717,26 @@ class DepartmentAdminService:
             error=not_found(request_id),
         )
 
+    def require_project_audit_view(
+        self, principal: Principal, project_id: str, request_id: str
+    ) -> None:
+        """Audit-view scope for one project (ADR-018 D6, S4).
+
+        Super admins, the owning-department admin, and the project's
+        lead may view the project's audit events; a live project
+        member without those powers gets forbidden (in scope but
+        underprivileged), anyone else gets not_found (cross-project
+        invisibility). The audit router calls this before listing;
+        the event filter itself lives in AuditService.
+        """
+        if principal.role == "admin":
+            return
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=project_id,
+            allow_lead=True,
+        )
+
     def _project_grantor_kind(
         self, principal: Principal, project: Library
     ) -> str:
@@ -1271,17 +1291,26 @@ class DepartmentAdminService:
         Callers who administer no department at all get forbidden: they
         are not managers. Dept admins outside the document's department
         get not_found: the document is not theirs to manage.
+        S4: a project document's department is its owning department
+        (the library row's dept_id), so the owning-department admin
+        manages the project's exception list (including the permanent
+        review list) while other departments' admins still get
+        not_found.
         """
         if principal.role == "admin":
             return
+        scope_dept_id = doc_library_id
+        library = self._store.get_library(doc_library_id)
+        if library is not None and library.kind == "project":
+            scope_dept_id = library.dept_id
         if not self._access.admin_departments(principal):
             self._deny(
-                principal, request_id, dept_id=doc_library_id,
+                principal, request_id, dept_id=scope_dept_id,
                 target=target, error=forbidden(request_id),
             )
-        if not self._access.is_department_admin(principal, doc_library_id):
+        if not self._access.is_department_admin(principal, scope_dept_id):
             self._deny(
-                principal, request_id, dept_id=doc_library_id,
+                principal, request_id, dept_id=scope_dept_id,
                 target=target, error=not_found(request_id),
             )
 
@@ -2054,6 +2083,550 @@ class DepartmentAdminService:
                         "from_folder": document.folder_id,
                         "to_folder": folder_id,
                     },
+                }
+            )
+        with self._atomic():
+            self._documents.save(moved)
+            self._record_all_or_rollback(
+                rollback=lambda: self._documents.save(document),
+                records=records,
+            )
+        return moved, True
+
+    # -- project folders (ADR-018 D4, D3; S4) ------------------------------
+    #
+    # Same mechanism as department folders (S2), with management moved
+    # from the department admin to the project lead:
+    # - Folder management (create, delete, member add/remove/role) is a
+    #   project-manager act: super admins anywhere, the owning
+    #   department's admins, and the project's lead. Folder members
+    #   never manage members, not even full members: full excludes
+    #   member management, same as S2.
+    # - Folder members come only from the project's live members
+    #   (cross-department is the point of a project library, so the
+    #   S2 department-membership limit does not apply here).
+    # - Folder documents (rename, move in/out) are a full-member act:
+    #   super admins, owning-department admins, and the lead bypass
+    #   folder roles entirely; full members act; editors and readers
+    #   are refused. The lead's folder-member grants are capped like
+    #   project-member grants (60 days, no permanent, ADR-017 Q1).
+    # - Audit metadata always carries dept_id (the owning department,
+    #   so the department audit view picks the event up) and
+    #   project_id (so the lead audit view can filter on it).
+    # - Cross-project attempts are answered as "not found", same as
+    #   projects above. A member refused inside a folder they belong
+    #   to gets a plain forbidden.
+
+    def _require_project_folder(
+        self, project_id: str, folder_id: str, request_id: str,
+        *, target: str,
+    ) -> Folder:
+        """A folder that exists inside this project library.
+
+        A folder from any other library (including a department
+        library) is answered as not found through this path, never
+        leaked.
+        """
+        self._require_project_library(project_id, request_id)
+        folder = self._store.get_folder(folder_id)
+        if folder is None or folder.library_id != project_id:
+            raise not_found(request_id)
+        return folder
+
+    def _require_project_folder_document_act(
+        self, principal: Principal, project: Library, folder_id: str,
+        request_id: str, *, target: str,
+    ) -> None:
+        """Gate one side of a project-folder document act.
+
+        Super admins, the owning department's admins, and the lead
+        bypass folder roles (ADR-018 D2). A live full member passes.
+        A member in another role gets forbidden (the folder is already
+        known to them); a non-member gets not_found.
+        """
+        if principal.role == "admin":
+            return
+        if self._access.is_department_admin(principal, project.dept_id):
+            return
+        if self._access.is_project_lead(principal, project.id):
+            return
+        role = self._folder_role_of(principal.user_id, folder_id)
+        if role is None:
+            self._deny(
+                principal, request_id, dept_id=project.dept_id,
+                target=target, error=not_found(request_id),
+            )
+        if role != "full":
+            self._deny(
+                principal, request_id, dept_id=project.dept_id,
+                target=target, error=forbidden(request_id),
+            )
+
+    def create_project_folder(
+        self, principal: Principal, project_id: str, folder_id: str,
+        name: str, request_id: str,
+    ) -> tuple[Folder, bool]:
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=folder_id,
+            allow_lead=True,
+        )
+        if not _DEPT_ID_PATTERN.match(folder_id):
+            raise ValueError("folder_id must match [a-z0-9][a-z0-9_-]{0,127}")
+        if folder_id in _SYSTEM_LIBRARY_IDS:
+            raise ValueError("folder_id collides with a system library id")
+        if not name or len(name) > 255:
+            raise ValueError("folder name must be 1-255 characters")
+        if self._store.get_library(folder_id) is not None:
+            raise ValueError("folder_id collides with a library id")
+        existing = self._store.get_folder(folder_id)
+        if existing is not None:
+            if existing.library_id == project_id:
+                return existing, False
+            raise resource_forbidden(request_id)
+        folder = Folder(
+            id=folder_id,
+            library_id=project_id,
+            name=name,
+            created_at=self._clock.now(),
+        )
+        with self._atomic():
+            self._store.create_folder(folder)
+            self._record_or_rollback(
+                rollback=lambda: self._store.delete_folder(folder_id),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.folder.created",
+                    "target": folder_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project, folder_id=folder_id, name=name
+                    ),
+                },
+            )
+        return folder, True
+
+    def delete_project_folder(
+        self, principal: Principal, project_id: str, folder_id: str,
+        request_id: str,
+    ) -> None:
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=folder_id,
+            allow_lead=True,
+        )
+        folder = self._require_project_folder(
+            project_id, folder_id, request_id, target=folder_id
+        )
+        members = self._store.get_folder_members(folder_id)
+        live_docs = tuple(
+            document
+            for document in self._documents.list_active()
+            if document.folder_id == folder_id and document.deleted_at is None
+        )
+        if members or live_docs:
+            raise resource_forbidden(request_id)
+        with self._atomic():
+            if self._folder_collection_drop is not None:
+                self._folder_collection_drop(project_id, folder_id)
+            self._store.delete_folder(folder_id)
+            self._record_or_rollback(
+                rollback=lambda: self._store.create_folder(folder),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.folder.deleted",
+                    "target": folder_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project,
+                        folder_id=folder_id,
+                        document_count=len(live_docs),
+                        member_count=len(members),
+                    ),
+                },
+            )
+
+    def list_project_folders(
+        self, principal: Principal, project_id: str, request_id: str
+    ) -> tuple[Folder, ...]:
+        project = self._require_project_library(project_id, request_id)
+        if principal.role == "admin":
+            return self._store.list_folders(project_id)
+        if self._access.is_department_admin(principal, project.dept_id):
+            return self._store.list_folders(project_id)
+        if self._access.is_project_lead(principal, project_id):
+            return self._store.list_folders(project_id)
+        self._require_project_visible(
+            principal, project, request_id, target=project_id
+        )
+        visible = self._access.visible_folder_ids(principal)
+        return tuple(
+            folder
+            for folder in self._store.list_folders(project_id)
+            if folder.id in visible
+        )
+
+    def get_project_folder(
+        self, principal: Principal, project_id: str, folder_id: str,
+        request_id: str,
+    ) -> Folder:
+        project = self._require_project_library(project_id, request_id)
+        if principal.role == "admin":
+            return self._require_project_folder(
+                project_id, folder_id, request_id, target=folder_id
+            )
+        if self._access.is_department_admin(principal, project.dept_id):
+            return self._require_project_folder(
+                project_id, folder_id, request_id, target=folder_id
+            )
+        if self._access.is_project_lead(principal, project_id):
+            return self._require_project_folder(
+                project_id, folder_id, request_id, target=folder_id
+            )
+        self._require_project_visible(
+            principal, project, request_id, target=folder_id
+        )
+        folder = self._require_project_folder(
+            project_id, folder_id, request_id, target=folder_id
+        )
+        if folder.id not in self._access.visible_folder_ids(principal):
+            raise not_found(request_id)
+        return folder
+
+    def rename_project_folder(
+        self, principal: Principal, project_id: str, folder_id: str,
+        name: str, request_id: str,
+    ) -> Folder:
+        if not name or len(name) > 255:
+            raise ValueError("folder name must be 1-255 characters")
+        project = self._require_project_library(project_id, request_id)
+        folder = self._require_project_folder(
+            project_id, folder_id, request_id, target=folder_id
+        )
+        self._require_project_folder_document_act(
+            principal, project, folder_id, request_id, target=folder_id
+        )
+        renamed = replace(folder, name=name)
+        with self._atomic():
+            self._store.set_folder(renamed)
+            self._record_or_rollback(
+                rollback=lambda: self._store.set_folder(folder),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.folder.renamed",
+                    "target": folder_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project, folder_id=folder_id, name=name
+                    ),
+                },
+            )
+        return renamed
+
+    def list_project_folder_members(
+        self, principal: Principal, project_id: str, folder_id: str,
+        request_id: str,
+    ) -> tuple[FolderMembership, ...]:
+        """Members of one project folder, for its managers only.
+
+        The member list reveals who else may read the folder, so
+        folder members themselves do not get it: only super admins,
+        the owning department's admins, and the lead, who manage it.
+        """
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=folder_id,
+            allow_lead=True,
+        )
+        self._require_project_folder(
+            project_id, folder_id, request_id, target=folder_id
+        )
+        return self._store.get_folder_members(folder_id)
+
+    def add_project_folder_member(
+        self, principal: Principal, project_id: str, folder_id: str,
+        user_id: str, folder_role: str, request_id: str,
+        *, expires_at: datetime | None = None,
+    ) -> tuple[FolderMembership, bool]:
+        """Add a user to a project folder, or return the existing row.
+
+        Folder members come only from the project's live members: a
+        user outside the project cannot be added, so folder visibility
+        never escapes the project. The lead's grants are capped (60
+        days, no permanent) via _project_grantor_kind; super admins
+        and owning-department admins are uncapped.
+        """
+        if folder_role not in _FOLDER_ROLES:
+            raise ValueError("folder_role must be full, editor, or reader")
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=user_id,
+            allow_lead=True,
+        )
+        self._require_project_folder(
+            project_id, folder_id, request_id, target=user_id
+        )
+        if self._users.get_by_id(user_id) is None:
+            raise not_found(request_id)
+        project_member_ids = {
+            member.user_id
+            for member in self._store.get_department_members(project_id)
+        }
+        if user_id not in project_member_ids:
+            self._deny(
+                principal, request_id, dept_id=project.dept_id,
+                target=user_id, error=forbidden(request_id),
+            )
+        for member in self._store.get_folder_members(folder_id):
+            if member.user_id == user_id:
+                return member, False
+        _check_grant_expiry(
+            self._project_grantor_kind(principal, project),
+            expires_at,
+            self._clock.now(),
+        )
+        member = FolderMembership(
+            folder_id=folder_id,
+            user_id=user_id,
+            folder_role=folder_role,
+            granted_by=principal.user_id,
+            granted_at=self._clock.now(),
+            expires_at=expires_at,
+        )
+        with self._atomic():
+            self._store.add_folder_member(member)
+            self._record_or_rollback(
+                rollback=lambda: self._store.remove_folder_member(
+                    folder_id, user_id
+                ),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.folder.member_added",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project,
+                        folder_id=folder_id,
+                        folder_role=folder_role,
+                        granted_by=principal.user_id,
+                        expires_at=_iso(expires_at),
+                    ),
+                },
+            )
+        return member, True
+
+    def remove_project_folder_member(
+        self, principal: Principal, project_id: str, folder_id: str,
+        user_id: str, request_id: str,
+    ) -> None:
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=user_id,
+            allow_lead=True,
+        )
+        self._require_project_folder(
+            project_id, folder_id, request_id, target=user_id
+        )
+        current = next(
+            (
+                member
+                for member in self._store.get_folder_members(folder_id)
+                if member.user_id == user_id
+            ),
+            None,
+        )
+        if current is None:
+            raise not_found(request_id)
+        with self._atomic():
+            self._store.remove_folder_member(folder_id, user_id)
+            self._record_or_rollback(
+                rollback=lambda: self._store.add_folder_member(current),
+                record_kwargs={
+                    "actor": principal.user_id,
+                    "action": "authz.folder.member_removed",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project,
+                        folder_id=folder_id,
+                        removed_role=current.folder_role,
+                    ),
+                },
+            )
+
+    def set_project_folder_member_role(
+        self, principal: Principal, project_id: str, folder_id: str,
+        user_id: str, folder_role: str, request_id: str,
+        *, expires_at: datetime | None | _UnsetType = _UNSET,
+    ) -> FolderMembership:
+        """Change a project folder member's role and expiry.
+
+        Same tri-state expiry rule as set_folder_member_role (ADR-017
+        D2): omitted keeps the stored value, explicit None clears it
+        to a long-term grant, and an extension before expiry writes
+        its own renewal audit event. The lead's cap binds extensions
+        to permanent the same way it binds new grants.
+        """
+        if folder_role not in _FOLDER_ROLES:
+            raise ValueError("folder_role must be full, editor, or reader")
+        project = self._require_project_library(project_id, request_id)
+        self._require_project_manage(
+            principal, project, request_id, target=user_id,
+            allow_lead=True,
+        )
+        self._require_project_folder(
+            project_id, folder_id, request_id, target=user_id
+        )
+        current = next(
+            (
+                member
+                for member in self._store.get_folder_members(folder_id)
+                if member.user_id == user_id
+            ),
+            None,
+        )
+        if current is None:
+            raise not_found(request_id)
+        explicit = not isinstance(expires_at, _UnsetType)
+        new_expires = current.expires_at if not explicit else expires_at
+        if explicit:
+            _check_grant_expiry(
+                self._project_grantor_kind(principal, project),
+                new_expires,
+                self._clock.now(),
+            )
+        updated = FolderMembership(
+            folder_id=folder_id,
+            user_id=user_id,
+            folder_role=folder_role,
+            granted_by=principal.user_id,
+            granted_at=self._clock.now(),
+            expires_at=new_expires,
+        )
+        records = [
+            {
+                "actor": principal.user_id,
+                "action": "authz.folder.member_role_changed",
+                "target": user_id,
+                "result": "ok",
+                "request_id": request_id,
+                "metadata": self._project_audit_meta(
+                    project,
+                    folder_id=folder_id,
+                    old_role=current.folder_role,
+                    new_role=folder_role,
+                    expires_at=_iso(new_expires),
+                ),
+            },
+        ]
+        if (
+            explicit
+            and new_expires != current.expires_at
+            and current.expires_at is not None
+            and (
+                new_expires is None
+                or _as_utc(new_expires) > _as_utc(current.expires_at)
+            )
+        ):
+            records.append(
+                {
+                    "actor": principal.user_id,
+                    "action": "authz.folder.member_renewed",
+                    "target": user_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project,
+                        folder_id=folder_id,
+                        old_expires_at=_iso(current.expires_at),
+                        new_expires_at=_iso(new_expires),
+                    ),
+                }
+            )
+        with self._atomic():
+            self._store.set_folder_member(updated)
+            self._record_all_or_rollback(
+                rollback=lambda: self._store.set_folder_member(current),
+                records=records,
+            )
+        return updated
+
+    def move_document_to_project_folder(
+        self, principal: Principal, project_id: str, document_id: str,
+        folder_id: str | None, request_id: str,
+    ) -> tuple[DocumentRecord, bool]:
+        """Move a project document into a project folder, or back to
+        the project's default folder (folder_id None clears it).
+
+        Same shape as move_document_to_folder: permission is checked
+        on both sides before the no-op check, so probing a document's
+        current folder through a no-op answer is impossible. The
+        retrieval reconcile after a successful move is the router's
+        job, reusing the claim-sync dispatcher; until it runs,
+        retrieval may lag, but never over-serves, because the
+        authorization hook rechecks live folder facts.
+        """
+        document = self._documents.get(document_id)
+        if document is None or document.deleted_at is not None:
+            raise not_found(request_id)
+        if document.library_id != project_id:
+            if principal.role == "admin":
+                raise resource_forbidden(request_id)
+            raise not_found(request_id)
+        project = self._require_project_library(project_id, request_id)
+        if folder_id is not None:
+            self._require_project_folder(
+                project_id, folder_id, request_id, target=document_id
+            )
+        if document.folder_id is not None:
+            self._require_project_folder_document_act(
+                principal, project, document.folder_id,
+                request_id, target=document_id,
+            )
+        if folder_id is not None:
+            self._require_project_folder_document_act(
+                principal, project, folder_id,
+                request_id, target=document_id,
+            )
+        if document.folder_id == folder_id:
+            return document, False
+        moved = replace(document, folder_id=folder_id)
+        records = []
+        if document.folder_id is not None:
+            records.append(
+                {
+                    "actor": principal.user_id,
+                    "action": "authz.folder.document_removed",
+                    "target": document_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project,
+                        folder_id=document.folder_id,
+                        from_folder=document.folder_id,
+                        to_folder=folder_id,
+                    ),
+                }
+            )
+        if folder_id is not None:
+            records.append(
+                {
+                    "actor": principal.user_id,
+                    "action": "authz.folder.document_added",
+                    "target": document_id,
+                    "result": "ok",
+                    "request_id": request_id,
+                    "metadata": self._project_audit_meta(
+                        project,
+                        folder_id=folder_id,
+                        from_folder=document.folder_id,
+                        to_folder=folder_id,
+                    ),
                 }
             )
         with self._atomic():

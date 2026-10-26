@@ -55,11 +55,16 @@ def build_audit_router(
     audits: AuditService,
     auth: AuthService,
     department_admins: Callable[[Principal], frozenset[str]] | None = None,
+    require_project_audit_view: Callable[[Principal, str, str], None]
+    | None = None,
 ) -> APIRouter:
     """Audit routes. Super admins list everything; department admins list
     only their own departments' events (ADR-016 D10). The resolver maps a
     principal to the departments they administer; without it, the route
-    keeps its previous super-admin-only behavior.
+    keeps its previous super-admin-only behavior. Project leads list
+    only their own projects' events through the project route (ADR-018
+    D6, S4); the scope callable raises not_found/forbidden for anyone
+    else, mirroring the project scope rules.
     """
     router = APIRouter()
 
@@ -88,6 +93,28 @@ def build_audit_router(
         _ = (page, page_size)
         listed = audits.list_events(
             _actor(principal),
+            request_id,
+            filter_actor=actor,
+            filter_action=action,
+        )
+        listed["pagination"] = None
+        return listed
+
+    @router.get("/admin/projects/{project_id}/audit-events")
+    def list_project_audit_events(
+        project_id: str,
+        request: Request,
+        actor: str | None = None,
+        action: str | None = None,
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        if principal.role != "admin" and require_project_audit_view is not None:
+            require_project_audit_view(principal, project_id, request_id)
+        elif principal.role != "admin":
+            auth.require_admin(principal, request.url.path, request_id)
+        listed = audits.list_project_events(
+            _actor(principal),
+            project_id,
             request_id,
             filter_actor=actor,
             filter_action=action,
