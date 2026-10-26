@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<!--
+  问枢 Pivot 前端原型 v17 · 最终前端参考版（以 v16 为底，删除页面解释性文案；其余同 v16）
+  导航切换关系：顶栏六项（主页 / 问答 / 文档库 / 审批队列 / 移动请求 / 审计）切换下方整屏内容，
+  当前项底部蓝线 + 蓝字；默认打开主页。主页提问后直接跳问答区并在历史顶部建新会话；主页的快捷入口会真的切到对应区：
+  去审批队列 → 审批队列区，去认领 → 文档库区认领条目，去建项目库 → 文档库区项目库卡，
+  去看审计 → 审计区；审批队列区点队列表行会切中栏任务详情与右栏泳道。
+  打磨方式：借鉴 Linear DESIGN.md 的 token 组织手法——画布/面板/卡片梯度、发丝线三档、
+  文字三档、标题负字距、4px 间距档位、统一焦点环、层级靠梯度不用阴影；
+  不借品牌色（不用近黑画布 #010102、薰衣草主色 #5e6ad2）与大展示字号；
+  视觉语言与 v10/v11 同一套：浅色底、高密度、小字号、颜色克制，状态只靠圆点、
+  细线与小胶囊区分，主操作只留一个深蓝强调色；字号只许 11/12/13px 三档、圆角 6px 为主。
+  适用人群：全员（尤其总管理员、部门管理员、项目负责人）——首页总览分流，
+  二级区处理审批、移动、审计等重活。
+  注意：本页为静态高保真原型，数据按 Pivot 真实功能口径编造；按钮为前端示意，不接通后端。
+  覆盖区：主页 / 问答 / 文档库 / 审批队列 / 移动请求 / 审计。
+  问答区为 v13 三栏并入版：左历史 / 中对话 / 右 Agent 状态；视觉按 huashu-design 方法论重做（行距与留白舒展、选中态为左侧细线 + 浅底 + 字重、层级靠字重与细线而非色块）。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>问枢 Pivot · 六区合一 v12</title>
+<style>
+  /* Token（借鉴 Linear 的组织方式，不借品牌色）：
+     画布梯：canvas #f4f4f2 / panel #fff / inset #fbfbf9 / selected #f0f0ec
+     发丝线梯：hairline #e2e2de / hairline-strong #d8d8d2 / hairline-tertiary #f0f0ec
+     文字梯：ink #1a1a1a / ink-muted #555 / ink-subtle #888 / ink-tertiary #999
+     强调色：accent #555（只用于主操作与选中态）/ accent-hover #444
+     间距 4px 档位：4/8/12/16/20/24；标题字距 -0.2px；焦点环 2px 淡蓝晕；层级靠梯度与发丝线，不用阴影 */
+
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#f4f4f2;color:#1a1a1a;font-size:13px;line-height:1.5}
+  button{font:inherit;cursor:pointer}
+  input,select{font:inherit;font-size:13px}
+  input:focus,select:focus,textarea:focus{border-color:#555;outline:none;box-shadow:0 0 0 2px rgba(0,0,0,.12)}
+  /* ---------- 左侧导航栏 ---------- */
+  .shell{display:flex;min-height:100vh;padding:0 50px}
+  .sidebar{flex:0 0 16%;max-width:200px;background:#fff;border-right:1px solid #e2e2de;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .logo{font-weight:700;font-size:15px;letter-spacing:.02em;white-space:nowrap;padding:16px 16px 12px}
+  .logo span{color:#1d4ed8}
+  .nav{display:flex;flex-direction:column;gap:4px;padding:0 12px}
+  .nav button.learn-more{position:relative;display:inline-block;cursor:pointer;outline:none;border:0;vertical-align:middle;text-decoration:none;background:transparent;padding:0;font-size:15px;font-family:inherit;width:100%;height:auto;text-align:left;user-select:none}
+  .nav button.learn-more .button-text{cursor:pointer}
+  .nav button.learn-more .circle{transition:all .45s cubic-bezier(.65,0,.076,1);position:relative;display:block;margin:0;width:36px;height:36px;background:#4a4b5c;border-radius:18px}
+  .nav button.learn-more .circle .icon{transition:all .45s cubic-bezier(.65,0,.076,1);position:absolute;top:0;bottom:0;margin:auto;background:#fff}
+  .nav button.learn-more .circle .icon.arrow{transition:all .45s cubic-bezier(.65,0,.076,1);left:8px;width:14px;height:2px;background:none}
+  .nav button.learn-more .circle .icon.arrow::before{position:absolute;content:"";top:-3px;right:1px;width:8px;height:8px;border-top:2px solid #fff;border-right:2px solid #fff;transform:rotate(45deg)}
+  .nav button.learn-more .button-text{transition:all .45s cubic-bezier(.65,0,.076,1);position:absolute;top:0;left:0;right:0;bottom:0;padding:0;margin:0 0 0 24px;color:#4a4b5c;font-weight:700;line-height:1.6;text-align:center;display:flex;align-items:center;justify-content:center}
+  .nav button.learn-more:hover .circle,.nav button.learn-more.active .circle{width:100%}
+  .nav button.learn-more:hover .circle .icon.arrow,.nav button.learn-more.active .circle .icon.arrow{background:#fff;transform:translate(12px,0)}
+  .nav button.learn-more:hover .button-text,.nav button.learn-more.active .button-text{color:#fff}
+  .side-actions{display:flex;flex-direction:column;gap:8px;padding:12px;border-top:1px solid #e2e2de;margin-top:12px}
+  .side-actions .btn{text-align:center}
+  .side-actions .upload-btn{height:38px;width:calc(100% - 24px);margin:0 12px;position:relative;background-color:transparent;cursor:pointer;border:2px solid #4a4b5c;overflow:hidden;border-radius:30px;color:#4a4b5c;transition:all .5s ease-in-out;font-size:13px}
+  .side-actions .upload-btn .btn-txt{position:relative;z-index:1;font-weight:800;letter-spacing:4px}
+  .side-actions .upload-btn.type1::after{content:"";position:absolute;left:0;top:0;transition:all .5s ease-in-out;background-color:#4a4b5c;border-radius:30px;visibility:hidden;height:10px;width:10px;z-index:-1}
+  .side-actions .upload-btn:hover{color:#fff;border:none}
+  .side-actions .upload-btn.type1:hover::after{visibility:visible;transform:scale(100) translateX(2px)}
+  .side-hist{flex:1;overflow-y:auto;padding:12px;border-top:1px solid #e2e2de}
+  .side-bottom{margin-top:auto;border-top:1px solid #e2e2de}
+  .side-settings{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:none;padding:8px 16px;font-size:13px;color:#333}
+  .side-settings:hover{background:#f4f4f2}
+  .side-account{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:none;padding:12px 16px;font-size:12px;color:#666;border-top:1px solid #e2e2de}
+  .side-account:hover{background:#f4f4f2}
+  .side-account .acct{margin-left:auto;font-size:11px;color:#888;white-space:nowrap}
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 16px;background:#4a4b5c;color:#fff;border:none;border-radius:3px;letter-spacing:1px;transition:all .2s linear;cursor:pointer;font-size:12px}
+  .btn:hover{transform:translateY(-2px)}
+  .btn.primary{background:#4a4b5c;border-color:#4a4b5c;color:#fff}
+  .btn.primary:hover{transform:translateY(-2px)}
+  .btn.danger{background:#4a4b5c;border-color:#4a4b5c;color:#fff}
+  .btn.danger:hover{transform:translateY(-2px)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn:disabled:hover{box-shadow:none;transform:none}
+  #sec-moves .tbl .btn,#sec-approvals .actions .btn{background:#fff;color:#1a1a1a;border:1px solid #e2e2de}
+  #sec-moves .tbl .btn.danger,#sec-approvals .actions .btn.danger{background:#fff;color:#dc2626;border:1px solid #e2e2de}
+  #sec-moves .tbl .btn.primary,#sec-approvals .actions .btn.primary{background:#4a4b5c;color:#fff;border:1px solid #4a4b5c}
+  #sec-moves .tbl .btn:disabled{opacity:.5;cursor:default}
+  #sec-moves .tbl .btn:disabled:hover{transform:none}
+  .user{display:flex;align-items:center;gap:8px;font-size:12px;color:#666;white-space:nowrap}
+  .avatar{width:26px;height:26px;border-radius:50%;background:#555;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px}
+  .pill{display:inline-block;font-size:11px;border-radius:99px;padding:2px 8px;border:1px solid #e2e2de;background:#f4f4f2;color:#555;white-space:nowrap}
+  .pill.amber{color:#92400e;border-color:#f0d9a8;background:#fdf6e3}
+  .pill.green{color:#166534;border-color:#bbdfc4;background:#f0fdf4}
+  .pill.red{color:#991b1b;border-color:#f0c9c0;background:#fef2f2}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .dot.amber{background:#d97706}.dot.green{background:#16a34a}.dot.red{background:#dc2626}.dot.blue{background:#1d4ed8}.dot.gray{background:#9ca3af}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+  /* ---------- 通用 ---------- */
+  .page{flex:1;min-width:0;padding:16px}
+  .section{display:none}
+  .section.active{display:block}
+  .section-title{font-size:13px;font-weight:700;letter-spacing:-0.2px;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+  .section-title .sub{font-size:12px;color:#888;font-weight:400}
+  .panel{background:#fff;border:1px solid #e2e2de;border-radius:6px;padding:12px 16px}
+  .panel h3{font-size:13px;font-weight:700;letter-spacing:-0.2px;margin-bottom:8px}
+  .panel p{font-size:13px;color:#333}
+  .panel .small{font-size:12px;color:#888;margin-top:6px}
+  table.tbl{width:100%;border-collapse:collapse;font-size:13px}
+  table.tbl th{text-align:left;color:#888;font-weight:400;border-bottom:1px solid #e2e2de;padding:8px}
+  table.tbl td{border-bottom:1px solid #f0f0ec;padding:8px;vertical-align:middle}
+  table.tbl th{vertical-align:middle}
+  table.tbl tr.sel{background:#f0f0ec}
+  table.tbl tr{cursor:pointer}
+  table.tbl tr:hover{background:#fbfbf9}
+  table.tbl tr.sel:hover{background:#f0f0ec}
+  .statusbar{margin-top:16px;background:#fff;border:1px solid #e2e2de;border-radius:6px;display:flex;align-items:center;gap:16px;padding:8px 14px;font-size:12px;color:#666;flex-wrap:wrap}
+  .statusbar b{color:#333}
+  .toast{display:none;position:fixed;left:50%;bottom:48px;transform:translateX(-50%);background:#1a1a1a;color:#fff;font-size:12px;padding:8px 16px;border-radius:99px;z-index:20}
+  .toast.show{display:block}
+  /* ---------- 主页 ---------- */
+  .hero{background:#fff;border:1px solid #e2e2de;border-radius:6px;padding:16px}
+  .hero h1{font-size:13px;font-weight:700;letter-spacing:-0.2px}
+  .hero p{font-size:12px;color:#888;margin-top:6px}
+  .qa-box{display:flex;gap:10px;margin-top:12px}
+  .qa-box input{flex:1;width:100%;height:45px;padding:12px 16px;border-radius:12px;border:1.5px solid lightgrey;outline:none;transition:all .3s cubic-bezier(.19,1,.22,1);box-shadow:0 0 20px -18px}
+  .qa-box input:hover{border:2px solid lightgrey;box-shadow:0 0 20px -17px}
+  .qa-box input:active{transform:scale(.95)}
+  .qa-box input:focus{border:2px solid grey;box-shadow:none}
+  .qa-box button{display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 20px;background:#4a4b5c;border:none;color:#fff;border-radius:3px;letter-spacing:1px;transition:all .2s linear;cursor:pointer;font-size:13px}
+  .qa-box button:hover{transform:translateY(-2px)}
+  .hero .qa-box input{padding:12px 16px}
+  .qa-samples{margin-top:10px;font-size:12px;color:#888}
+  .qa-samples span{cursor:pointer;color:#666;margin-right:14px}
+  .qa-samples span:hover{text-decoration:underline}
+  .answer{display:none;margin-top:12px;border:1px solid #e2e2de;border-radius:6px;padding:12px 16px;background:#fbfbf9}
+  .answer.open{display:block}
+  .ev{border:1px solid #e2e2de;border-radius:6px;padding:8px 12px;margin-top:8px;background:#fff}
+  .ev .ev-title{font-weight:600;font-size:13px}
+  .ev .ev-text{font-size:12px;color:#666;margin-top:2px}
+  .todo-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+  .todo-card{background:#fff;border:1px solid #e2e2de;border-radius:6px;padding:12px 16px;cursor:pointer;text-align:left}
+  .todo-card:hover{border-color:#d8d8d2}
+  .todo-card.active{border-color:#555;box-shadow:0 0 0 1px #555}
+  .todo-card .num{font-size:13px;font-weight:700;line-height:1.5}
+  .todo-card .label{font-size:12px;color:#666;margin-top:2px}
+  .lib-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .lib-card{background:#fff;border:1px solid #e2e2de;border-radius:6px;padding:12px 16px;cursor:pointer;text-align:left}
+  .lib-card:hover{border-color:#d8d8d2}
+  .lib-card.active{border-color:#555;box-shadow:0 0 0 1px #555}
+  .lib-card .lib-name{font-size:13px;font-weight:700;letter-spacing:-0.2px;display:flex;align-items:center;gap:8px}
+  .lib-card .lib-meta{font-size:12px;color:#666;margin-top:6px;line-height:1.5}
+  .lib-card .lib-meta b{color:#333}
+  .lib-detail{background:#fff;border:1px solid #e2e2de;border-radius:6px;padding:12px 16px;margin-top:12px}
+  .lib-detail .row{display:flex;gap:12px;font-size:12px;color:#666;flex-wrap:wrap;margin-top:6px}
+  .lib-detail .row b{color:#333}
+  .two-col{display:grid;grid-template-columns:1.6fr 1fr;gap:10px;margin-top:4px}
+  .feed{list-style:none}
+  .feed li{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0ec;align-items:center}
+  .feed li:last-child{border-bottom:none}
+  .feed .dot{margin-top:0}
+  .feed .f-title{font-size:13px}
+  .feed .f-sub{font-size:11px;color:#888}
+  .quick{list-style:none}
+  .quick li{border-bottom:1px solid #f0f0ec}
+  .quick li:last-child{border-bottom:none}
+  .quick button{width:100%;text-align:left;border:none;background:none;padding:8px 0;font-size:13px;color:#1a1a1a;display:flex;justify-content:space-between;align-items:center}
+  .quick button .arr{color:#555;font-weight:700}
+  .quick .q-sub{font-size:11px;color:#888}
+  /* ---------- 文档库区 ---------- */
+  .lib-layout{display:grid;grid-template-columns:240px 1fr;gap:10px;margin-top:12px}
+  .tree{font-size:13px;line-height:2}
+  .tree .folder{font-weight:600;cursor:pointer}
+  .tree .indent{padding-left:20px}
+  .tree .file{color:#444;cursor:pointer}
+  .tree .file.sel{color:#555;font-weight:600}
+  .form-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .form-row input,.form-row select{border:1px solid #d8d8d2;border-radius:6px;padding:8px 12px}
+  .form-row input:focus,.form-row select:focus{border-color:#555;outline:none}
+  /* ---------- 审批队列区 ---------- */
+  .appr-layout{display:grid;grid-template-columns:1.5fr 1fr;gap:10px;margin-top:12px}
+  .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .lane{padding:4px 0}
+  .node{display:flex;gap:10px;padding:8px 0;cursor:pointer}
+  .node:hover .node-title{color:#555}
+  .node-rail{width:14px;flex:none;display:flex;flex-direction:column;align-items:center}
+  .node-dot{width:10px;height:10px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #d8d8d2;flex:none;z-index:1}
+  .node-line{width:2px;flex:1;background:#e2e2de;margin:2px 0 -2px}
+  .node:last-child .node-line{display:none}
+  .node-title{font-size:13px;font-weight:600;letter-spacing:-0.2px}
+  .node-sub{font-size:11px;color:#888}
+  .node.failed .node-title{color:#b91c1c}
+  .branch{margin:2px 0 2px 7px;padding:8px 0 8px 20px;border-left:2px dashed #d97706}
+  .branch-label{font-size:11px;color:#92400e;margin-bottom:4px}
+  .legend{padding:10px 0 0;border-top:1px solid #e2e2de;display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:#666}
+  .legend i{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
+  /* ---------- 审计区 ---------- */
+  .filter-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .filter-row select{border:1px solid #d8d8d2;border-radius:6px;padding:8px 12px}
+  .filter-row select:focus{border-color:#555;outline:none}
+  /* ---------- 弹窗 ---------- */
+  .modal-back{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);align-items:center;justify-content:center;z-index:10}
+  .modal-back.open{display:flex}
+  .modal{background:#fff;border-radius:6px;width:420px;padding:16px}
+  .modal h3{font-size:13px;margin-bottom:8px}
+  .modal label{display:block;font-size:12px;color:#666;margin:10px 0 4px}
+  .modal select{width:100%;padding:8px 12px;border:1px solid #d8d8d2;border-radius:6px}
+  .modal .row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+  .exp-status{font-size:12px;color:#666;margin-top:12px;line-height:1.7}
+  .exp-link{font-size:11px;color:#888;word-break:break-all;background:#f4f4f2;border:1px solid #e2e2de;border-radius:6px;padding:8px;margin-top:8px}
+  .tooltip-container{position:relative;display:inline-flex;align-items:center}
+  .tooltip-container svg{color:#666;transition:color .2s}
+  .tooltip-container:hover svg{color:#1a1a1a}
+  .tooltip-text{position:absolute;pointer-events:none;opacity:0;padding:8px 16px;font-size:14px;font-weight:500;color:#fff;background:#1a1f2c;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.2);border:1px solid rgba(0,0,0,.1);transition:opacity .2s,transform .2s;white-space:nowrap;z-index:50;bottom:calc(100% + 16px);left:50%;transform:translateX(-50%)}
+  .tooltip-container:hover .tooltip-text{opacity:1}
+  .tooltip-arrow{position:absolute;width:8px;height:8px;background:#1a1f2c;transform:rotate(45deg);bottom:-4px;left:50%;margin-left:-4px}
+  .qa3-export{border:1px solid #e2e2de;background:#fff;border-radius:6px;padding:4px 12px;font-size:12px;color:#555;cursor:pointer;margin-top:10px}
+  .qa3-export:hover{border-color:#555;color:#555}
+  /* ---------- 问答三栏（v13 并入，huashu-design 手法：行距留白舒展、层级靠字重与细线） ---------- */
+  .qa3-wrap{display:flex;height:calc(100vh - 32px);min-height:560px;background:#fff;border:1px solid #e2e2de;border-radius:6px;overflow:hidden}
+  .qa3-left{flex:0 0 17%;border-right:1px solid #e2e2de;padding:16px 12px;overflow-y:auto;background:#fff}
+  .qa3-left button.learn-more{position:relative;display:inline-block;cursor:pointer;outline:none;border:0;vertical-align:middle;text-decoration:none;background:transparent;padding:0;font-size:inherit;font-family:inherit;width:100%;height:auto;user-select:none}
+  .qa3-left button.learn-more .button-text{cursor:pointer}
+  .qa3-left button.learn-more .circle{transition:all .45s cubic-bezier(.65,0,.076,1);position:relative;display:block;margin:0;width:36px;height:36px;background:#3a3b4a;border-radius:18px}
+  .qa3-left button.learn-more .circle .icon{transition:all .45s cubic-bezier(.65,0,.076,1);position:absolute;top:0;bottom:0;margin:auto;background:#fff}
+  .qa3-left button.learn-more .circle .icon.arrow{transition:all .45s cubic-bezier(.65,0,.076,1);left:8px;width:14px;height:2px;background:none}
+  .qa3-left button.learn-more .circle .icon.arrow::before{position:absolute;content:"";top:-3px;right:1px;width:8px;height:8px;border-top:2px solid #fff;border-right:2px solid #fff;transform:rotate(45deg)}
+  .qa3-left button.learn-more .button-text{transition:all .45s cubic-bezier(.65,0,.076,1);position:absolute;top:0;left:0;right:0;bottom:0;padding:0;margin:0 0 0 24px;color:#3a3b4a;font-weight:700;line-height:1.6;text-align:center;display:flex;align-items:center;justify-content:center}
+  .qa3-left button:hover .circle{width:100%}
+  .qa3-left button:hover .circle .icon.arrow{background:#fff;transform:translate(12px,0)}
+  .qa3-left button:hover .button-text{color:#fff}
+  .qa3-search{margin-top:14px}
+  .qa3-search .form{--input-bg:#fff;--padding:1.5em;--rotate:80deg;--gap:2em;--icon-change-color:#3a3b4a;--height:36px;width:100%;padding-inline-end:1em;background:var(--input-bg);position:relative;border-radius:6px;border:1px solid #e2e2de}
+  .qa3-search .form:focus-within{border-color:#555}
+  .qa3-search .form label{display:flex;align-items:center;width:100%;height:var(--height)}
+  .qa3-search .form input{width:100%;padding-inline-start:calc(var(--padding) + var(--gap));outline:none;background:none;border:0;font-size:12px;color:#333}
+  .qa3-search .form input:focus{box-shadow:none}
+  .qa3-search .form svg{color:#111;transition:.3s cubic-bezier(.4,0,.2,1)}
+  .qa3-search .icon{position:absolute;left:var(--padding);transition:.3s cubic-bezier(.4,0,.2,1);display:flex;justify-content:center;align-items:center}
+  .qa3-search .icon svg{position:absolute;height:15px}
+  .qa3-search .swap-off{transform:rotate(-80deg);opacity:0;visibility:hidden}
+  .qa3-search .close-btn{background:none;border:none;box-sizing:border-box;display:flex;align-items:center;justify-content:center;color:#111;padding:.1em;width:20px;height:20px;border-radius:50%;transition:.3s;opacity:0;transform:scale(0);visibility:hidden;cursor:pointer;flex:none}
+  .qa3-search .close-btn svg{width:20px;height:20px;flex:none}
+  .qa3-search .form input:focus ~ .icon{transform:rotate(var(--rotate)) scale(1.3)}
+  .qa3-search .form input:focus ~ .icon .swap-off{opacity:1;transform:rotate(-80deg);visibility:visible;color:var(--icon-change-color)}
+  .qa3-search .form input:focus ~ .icon .swap-on{opacity:0;visibility:visible}
+  .qa3-search .form input:valid ~ .icon{transform:scale(1.3) rotate(var(--rotate))}
+  .qa3-search .form input:valid ~ .icon .swap-off{opacity:1;visibility:visible;color:var(--icon-change-color)}
+  .qa3-search .form input:valid ~ .icon .swap-on{opacity:0;visibility:visible}
+  .qa3-search .form input:valid ~ .close-btn{opacity:1;visibility:visible;transform:scale(1);transition:0s}
+  .qa3-grp{margin:20px 0 6px;font-size:11px;color:#999;letter-spacing:.04em;padding:0 10px}
+  .qa3-hist{position:relative;padding:12px 12px 12px 16px;border-radius:6px;font-size:12px;line-height:1.7;cursor:pointer;color:#444}
+  .qa3-hist:hover{background:#f4f4f2}
+  .qa3-hist.on{background:#f0f0ec;font-weight:600;color:#1a1a1a}
+  .qa3-hist.on::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;background:#555;border-radius:2px}
+  .qa3-hist small{display:block;font-size:11px;color:#999;font-weight:400;margin-top:2px}
+  .qa3-mid{flex:1;display:flex;flex-direction:column;min-width:0;background:#fbfbf9}
+  .qa3-midhead{padding:16px 20px;border-bottom:1px solid #e2e2de;font-size:12px;color:#888;display:flex;justify-content:space-between;gap:12px}
+  .qa3-midhead b{color:#1a1a1a;font-weight:600}
+  .qa3-msgs{flex:1;overflow-y:auto;padding:24px 16px}
+  .qa3-msg{margin:0 0 22px}
+  .qa3-msg.user{display:flex;flex-direction:column;align-items:flex-end}
+  .qa3-msg.user .qa3-bubble{max-width:85%}
+  .qa3-who{font-size:11px;color:#999;margin-bottom:6px}
+  .qa3-bubble{background:#fff;border:1px solid #e2e2de;border-radius:6px;padding:12px 16px;font-size:13px;line-height:1.8}
+  .qa3-bubble.user{background:#f4f4f2}
+  .qa3-ev{margin-top:12px;border-top:1px dashed #e2e2de;padding-top:10px;font-size:12px;color:#555;line-height:1.7}
+  .qa3-tag{display:inline-block;background:#f0f0ec;color:#555;border-radius:99px;padding:2px 8px;font-size:11px;margin-right:6px}
+  .qa3-score{margin-top:8px;font-size:11px;color:#999}
+  .qa3-refuse{border-color:#f0c9c0}
+  .qa3-inputbar{border-top:1px solid #e2e2de;padding:16px;background:#fff}
+  .pi3-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .pi3-chip{background:#fff;border:1px solid #e2e2de;border-radius:6px;padding:6px 12px;font-size:12px;color:#333;cursor:pointer;transition:border-color .2s,background-color .2s}
+  .pi3-chip:hover{border-color:#555;color:#555;background:#f0f0ec}
+  .pi3-box{background:#fff;border:1px solid #e2e2de;border-radius:6px;padding:12px}
+  .pi3-box:focus-within{border-color:#555;box-shadow:0 0 0 2px rgba(0,0,0,.12)}
+  .pi3-box textarea{width:100%;border:none;outline:none;resize:none;font-size:15px;line-height:1.6;font-family:inherit;background:#fff;min-height:72px;max-height:192px}
+  .pi3-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .pi3-attach{flex:none;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #e2e2de;border-radius:6px;cursor:pointer;color:#666}
+  .pi3-attach:hover{border-color:#555;color:#555}
+  .pi3-attach svg{width:16px;height:16px}
+  .pi3-libs{flex:1;font-size:11px;color:#999}
+  .pi3-send{flex:none;display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;background:#4a4b5c;color:#fff;border:none;border-radius:3px;letter-spacing:1px;transition:all .2s linear;cursor:pointer;font-size:13px}
+  .pi3-send:hover{transform:translateY(-2px)}
+  .qa3-inputwrap{margin:0}
+  .qa3-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .qa3-chips:empty{display:none}
+  .qa3-chip{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e2e2de;border-radius:6px;padding:4px 8px;font-size:11px;color:#333;max-width:100%}
+  .qa3-chip .fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .qa3-chip .fsize{color:#888;flex:none}
+  .qa3-chip button{border:none;background:none;color:#888;cursor:pointer;font-size:12px;line-height:1;padding:0 2px}
+  .qa3-chip button:hover{color:#b3261e}
+  .qa3-send:hover{background:#444}
+  .qa3-hint{margin-top:8px;font-size:11px;color:#999;line-height:1.7}
+  .qa3-right{flex:0 0 20%;background:#f4f4f2;border-left:1px solid #e2e2de;padding:16px 12px;overflow-y:auto}
+  .qa3-right h3{font-size:12px;font-weight:600;margin-bottom:10px}
+  .qa3-card{background:#fff;border:1px solid #e2e2de;border-radius:6px;padding:12px;margin-bottom:12px}
+  .qa3-card h4{font-size:12px;font-weight:600;margin-bottom:8px}
+  .qa3-card p,.qa3-card li{font-size:12px;color:#555;line-height:1.8}
+  .qa3-card ul{padding-left:16px}
+  .qa3-step{display:flex;gap:8px;font-size:12px;color:#555;padding:4px 0;line-height:1.7}
+  .qa3-dot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none}
+  .qa3-dot.done{background:#16a34a}.qa3-dot.now{background:#d97706}.qa3-dot.todo{background:#d8d8d2}
+  .qa3-step b{color:#1a1a1a;font-weight:600}
+  .qa3-step .now{color:#92400e}
+  .qa3-bar{height:6px;background:#e2e2de;border-radius:99px;overflow:hidden;margin:8px 0}
+  .qa3-bar.small{height:4px}
+  .qa3-bar i{display:block;height:100%;background:#555;border-radius:99px}
+  .qa3-right details{font-size:12px;color:#555}
+  .qa3-right details summary{cursor:pointer;color:#1a1a1a;padding:2px 0}
+  .qa3-right details p{padding:4px 0 4px 12px}
+</style>
+</head>
+<body>
+  <div class="shell">
+  <!-- 左侧导航栏：导航 + 快捷入口 + 问答会话历史（仅问答区显示） -->
+  <div class="sidebar">
+    <div class="logo">问枢 <span>Pivot</span></div>
+    <nav class="nav">
+      <button class="learn-more active" data-nav="home">
+        <span class="circle" aria-hidden="true"><span class="icon arrow"></span></span>
+        <span class="button-text">主页</span>
+      </button>
+      <button class="learn-more" data-nav="qa">
+        <span class="circle" aria-hidden="true"><span class="icon arrow"></span></span>
+        <span class="button-text">问答</span>
+      </button>
+      <button class="learn-more" data-nav="library">
+        <span class="circle" aria-hidden="true"><span class="icon arrow"></span></span>
+        <span class="button-text">文档库</span>
+      </button>
+      <button class="learn-more" data-nav="approvals">
+        <span class="circle" aria-hidden="true"><span class="icon arrow"></span></span>
+        <span class="button-text">审批队列</span>
+      </button>
+      <button class="learn-more" data-nav="moves">
+        <span class="circle" aria-hidden="true"><span class="icon arrow"></span></span>
+        <span class="button-text">移动请求</span>
+      </button>
+      <button class="learn-more" data-nav="audit">
+        <span class="circle" aria-hidden="true"><span class="icon arrow"></span></span>
+        <span class="button-text">审计</span>
+      </button>
+    </nav>
+    <div class="side-actions">
+      <button class="upload-btn type1" onclick="goSection('library','claim')"><span class="btn-txt">待认领 <b>12</b></span></button>
+      <button class="upload-btn type1" onclick="goSection('library','upload')"><span class="btn-txt">＋ 新建上传</span></button>
+    </div>
+    <div class="side-bottom">
+      <button class="side-settings" onclick="toast('设置：原型示意，正式版接系统设置页')">
+        <span class="tooltip-container">
+          <svg stroke-linejoin="round" stroke-linecap="round" stroke-width="2" stroke="currentColor" fill="none" viewBox="0 0 24 24" height="18" width="18" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle r="3" cy="12" cx="12" />
+          </svg>
+          <span class="tooltip-text">Settings configuration<span class="tooltip-arrow"></span></span>
+        </span>
+        <span>设置</span>
+      </button>
+      <button class="side-account" onclick="toast('账号设置：原型示意，正式版接账号设置页')"><div class="avatar">管</div><span>总管理员</span><span class="acct">账号设置</span></button>
+    </div>
+  </div>
+
+  <div class="page">
+    <!-- ================= 主页 ================= -->
+    <div class="section active" id="sec-home">
+      <div class="hero">
+        <h1>有什么想查的？直接问。</h1>
+        <div class="qa-box">
+          <input id="homeQaInput" type="text" placeholder="有什么想查的？直接问">
+          <button onclick="homeAsk()">提问</button>
+        </div>
+        <div class="qa-samples">试试问：
+          <span onclick="homeSample('Q3 客户成功专项的交付标准是什么')">Q3 客户成功专项的交付标准是什么</span>
+          <span onclick="homeSample('技术部文档的审批流程怎么走')">技术部文档的审批流程怎么走</span>
+          <span onclick="homeSample('公共库里有没有考勤制度')">公共库里有没有考勤制度</span>
+          <span onclick="homeSample('9 月底召回漂移的根因是什么')">9 月底召回漂移的根因是什么</span>
+        </div>
+      </div>
+
+      <div class="todo-row">
+        <button class="todo-card" onclick="pickTodo(this,'审批队列：5 条待审批，去审批队列屏处理（批准 / 拒绝 / 改目标）')">
+          <div class="num" style="color:#b45309">5</div><div class="label">待审批</div>
+        </button>
+        <button class="todo-card" onclick="pickTodo(this,'移动请求：3 条待决，单边审批，只由目标库管理员决定')">
+          <div class="num" style="color:#555">3</div><div class="label">待决移动</div>
+        </button>
+        <button class="todo-card" onclick="pickTodo(this,'认领：12 篇待认领文档，先落 unassigned，再由管理员认领进目标库')">
+          <div class="num" style="color:#166534">12</div><div class="label">待认领</div>
+        </button>
+        <button class="todo-card" onclick="pickTodo(this,'永久授权复核：2 条永久例外授权待复核，复核清单只列永久项')">
+          <div class="num" style="color:#991b1b">2</div><div class="label">永久授权待复核</div>
+        </button>
+      </div>
+      <div class="lib-detail" id="todoDetail" style="display:none"><p id="todoDetailText"></p></div>
+
+      <div class="section-title">库总览</div>
+      <div class="lib-row">
+        <button class="lib-card active" data-lib="pub">
+          <div class="lib-name"><span class="dot green"></span>公共库</div>
+          <div class="lib-meta">文档 <b>86</b> 篇<br>待审批 <b>2</b> 条<br>负责人：<b>总管理员</b></div>
+        </button>
+        <button class="lib-card" data-lib="tech">
+          <div class="lib-name"><span class="dot blue"></span>技术部</div>
+          <div class="lib-meta">文档 <b>142</b> 篇<br>待审批 <b>2</b> 条<br>负责人：<b>部门管理员 · 李静</b></div>
+        </button>
+        <button class="lib-card" data-lib="market">
+          <div class="lib-name"><span class="dot amber"></span>市场部</div>
+          <div class="lib-meta">文档 <b>58</b> 篇<br>待审批 <b>1</b> 条<br>负责人：<b>部门管理员 · 陈晨</b></div>
+        </button>
+        <button class="lib-card" data-lib="proj">
+          <div class="lib-name"><span class="dot green"></span>Q3 客户成功专项 <span class="pill">项目库</span></div>
+          <div class="lib-meta">文档 <b>31</b> 篇<br>待决移动 <b>1</b> 条<br>负责人：<b>项目负责人 · 王磊</b></div>
+        </button>
+      </div>
+      <div class="lib-detail" id="libDetail">
+        <p id="libDetailTitle"><b>公共库</b> · 全员可见，上传目标可选，总管理员审批队列</p>
+        <div class="row">
+          <span>文件夹：<b>默认文件夹 / 制度 / 公告</b></span>
+          <span>本月新增：<b>9 篇</b></span>
+          <span>待复核读：<b>2 篇</b></span>
+          <span>例外授权：<b>0 条</b></span>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h3>最近动态</h3>
+          <ul class="feed">
+            <li><span class="dot green"></span><div><div class="f-title">审批通过：考勤制度补充说明 → 公共库 <span class="pill green">authz.approval.approved</span></div><div class="f-sub">10-26 11:20 · 总管理员 · 已触发 ingest</div></div></li>
+            <li><span class="dot green"></span><div><div class="f-title">审批通过：Q3 故障复盘：检索召回漂移 → 技术部 <span class="pill green">authz.approval.approved</span></div><div class="f-sub">10-26 10:47 · 部门管理员 · 李静</div></div></li>
+            <li><span class="dot blue"></span><div><div class="f-title">移动完成：客户 A 交付总结 技术部 → Q3 客户成功专项 <span class="pill">authz.library.move</span></div><div class="f-sub">10-26 10:12 · 项目负责人 · 王磊 · 文件夹已置空落默认文件夹</div></div></li>
+            <li><span class="dot green"></span><div><div class="f-title">认领成功：新员工入职技术清单 → 技术部新人入职文件夹</div><div class="f-sub">10-26 09:31 · 部门管理员 · 李静 · 向量同步完成</div></div></li>
+            <li><span class="dot amber"></span><div><div class="f-title">例外授权：向量库迁移方案 授予市场部（部门目标）<span class="mono"> · 永久</span></div><div class="f-sub">10-25 18:40 · 总管理员 · 已进永久复核清单</div></div></li>
+            <li><span class="dot amber"></span><div><div class="f-title">例外授权：客户 A 交付总结 授予陈晨（个人目标）<span class="mono"> · 30 天</span></div><div class="f-sub">10-25 17:12 · 部门管理员 · 李静 · 到期前可续期</div></div></li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>快捷入口</h3>
+          <ul class="quick">
+            <li><button onclick="goSection('approvals')">去审批队列 <span class="q-sub">5 条待办</span><span class="arr">→</span></button></li>
+            <li><button onclick="goSection('library','claim')">去认领 <span class="q-sub">12 篇待认领</span><span class="arr">→</span></button></li>
+            <li><button onclick="goSection('library','proj')">去建项目库 <span class="q-sub">部门管理员操作</span><span class="arr">→</span></button></li>
+            <li><button onclick="goSection('audit')">去看审计 <span class="q-sub">三档视图</span><span class="arr">→</span></button></li>
+          </ul>
+          <div style="border-top:1px solid #f0f0ec;margin-top:10px;padding-top:10px;font-size:12px;color:#888">
+            主页只负责总览与分流；审批、移动、泳道这些重活都在对应区里。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 问答（三栏：左历史 / 中对话 / 右 Agent 状态，v13 并入版） ================= -->
+    <div class="section" id="sec-qa">
+      <div class="qa3-wrap">
+        <aside class="qa3-left">
+          <button class="learn-more" onclick="qa3NewChat()">
+            <span class="circle" aria-hidden="true"><span class="icon arrow"></span></span>
+            <span class="button-text">开启新对话</span>
+          </button>
+          <div class="qa3-search">
+            <form class="form" onsubmit="return false">
+              <label for="qa3Search">
+                <input required autocomplete="off" placeholder="搜索会话" id="qa3Search" type="text" oninput="qa3Filter(this.value)">
+                <div class="icon">
+                  <svg stroke-width="2" stroke="currentColor" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="swap-on">
+                    <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linejoin="round" stroke-linecap="round" />
+                  </svg>
+                  <svg stroke-width="2" stroke="currentColor" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="swap-off">
+                    <path d="M10 19l-7-7m0 0l7-7m-7 7h18" stroke-linejoin="round" stroke-linecap="round" />
+                  </svg>
+                </div>
+                <button type="button" class="close-btn" onclick="document.getElementById('qa3Search').value='';qa3Filter('')">
+                  <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path clip-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" fill-rule="evenodd" />
+                  </svg>
+                </button>
+              </label>
+            </form>
+          </div>
+          <div class="qa3-grp">今天</div>
+          <div id="qa3HistToday"></div>
+          <div class="qa3-grp">7 天内</div>
+          <div id="qa3HistWeek"></div>
+          <div class="qa3-grp">30 天内</div>
+          <div id="qa3HistMonth"></div>
+        </aside>
+        <main class="qa3-mid">
+          <div class="qa3-midhead"><span>会话：<b id="qa3SessTitle"></b></span><span id="qa3SessMeta"></span></div>
+          <div class="qa3-msgs" id="qa3Msgs"></div>
+          <div class="qa3-inputbar">
+            <div class="qa3-inputwrap">
+              <div class="pi3-chips">
+                <button class="pi3-chip" onclick="qa3UseChip(this.textContent)">Q3 客户成功专项的交付标准是什么</button>
+                <button class="pi3-chip" onclick="qa3UseChip(this.textContent)">技术部文档的审批流程怎么走</button>
+                <button class="pi3-chip" onclick="qa3UseChip(this.textContent)">公共库里有没有考勤制度</button>
+                <button class="pi3-chip" onclick="qa3UseChip(this.textContent)">9 月底召回漂移的根因是什么</button>
+              </div>
+              <div class="qa3-chips" id="qa3Chips"></div>
+              <div class="pi3-box">
+                <textarea id="qa3Input" rows="3" placeholder="输入问题，答案来自你的可见库并附证据出处…" oninput="qa3AutoGrow(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();qa3Send()}"></textarea>
+                <div class="pi3-row">
+                  <button class="pi3-attach" title="添加本地文件" onclick="document.getElementById('qa3FileInput').click()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+                  <span class="pi3-libs">可见库：公共库 + 技术部</span>
+                  <button class="pi3-send" onclick="qa3Send()">发送</button>
+                </div>
+              </div>
+            </div>
+            <input type="file" id="qa3FileInput" hidden multiple accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.md,.txt" onchange="qa3AddFiles(this.files)">
+          </div>
+        </main>
+        <aside class="qa3-right" id="qa3Agent"></aside>
+      </div>
+    </div>
+
+    <!-- ================= 文档库 ================= -->
+    <div class="section" id="sec-library">
+      <div class="panel" id="uploadPanel">
+        <h3>新建上传 · 上传时选库</h3>
+        <div class="form-row">
+          <input type="text" placeholder="文档标题" value="Q4 故障复盘初稿">
+          <select id="uploadTarget">
+            <option value="">不选库 → unassigned（走认领）</option>
+            <option value="pub">公共库（总管理员队列）</option>
+            <option value="tech" selected>技术部（本部门管理员队列）</option>
+            <option value="market">市场部（本部门管理员队列）</option>
+            <option value="proj">Q3 客户成功专项 · 项目库（项目负责人队列）</option>
+          </select>
+          <button class="btn primary" onclick="doUpload()">上传并创建审批请求</button>
+        </div>
+      </div>
+
+      <div class="lib-layout">
+        <div class="panel">
+          <h3>库 → 文件夹树</h3>
+          <div class="tree" id="libTree">
+            <div class="folder" data-lib="pub">▾ 公共库</div>
+            <div class="indent"><span class="folder">▸ 默认文件夹</span><br><span class="folder">▸ 制度</span><br><span class="folder">▸ 公告</span></div>
+            <div class="folder" data-lib="tech">▾ 技术部</div>
+            <div class="indent"><span class="folder">▾ 默认文件夹</span><br>
+              <span class="file sel">Q3 故障复盘：检索召回漂移（待审批）</span><br>
+              <span class="file">向量库迁移方案（已拒绝 · 可重提）</span></div>
+            <div class="indent"><span class="folder">▸ 故障复盘</span></div>
+            <div class="indent"><span class="folder">▸ 新人入职</span></div>
+            <div class="folder" data-lib="market">▾ 市场部</div>
+            <div class="indent"><span class="folder">▸ 默认文件夹</span><br><span class="folder">▸ 案例集</span></div>
+            <div class="folder" data-lib="proj">▾ Q3 客户成功专项 · 项目库</div>
+            <div class="indent"><span class="folder">▸ 默认文件夹</span><br><span class="folder">▸ 交付</span><br><span class="folder">▸ 周报</span></div>
+            <div class="folder" data-lib="unassigned">▾ 未分配 unassigned</div>
+            <div class="indent"><span class="file">待认领文档 12 篇（点认领表认领）</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <h3>文档表 · 技术部</h3>
+            <table class="tbl">
+              <tr><th>文档</th><th>文件夹</th><th>状态</th><th>可见范围</th><th>操作</th></tr>
+              <tr><td>Q3 故障复盘：检索召回漂移</td><td>默认文件夹</td><td><span class="pill amber">待审批</span></td><td>技术部成员</td><td><button class="btn" onclick="openExport('document','Q3 故障复盘：检索召回漂移')">导出</button></td></tr>
+              <tr><td>向量库迁移方案</td><td>默认文件夹</td><td><span class="pill red">已拒绝</span></td><td>仅申请人与审批人</td><td><button class="btn" onclick="openExport('document','向量库迁移方案')">导出</button></td></tr>
+              <tr><td>新员工入职技术清单</td><td>新人入职</td><td><span class="pill">已发布</span></td><td>技术部成员</td><td><button class="btn" onclick="openExport('document','新员工入职技术清单')">导出</button></td></tr>
+            </table>
+          </div>
+          <div class="panel" id="claimPanel" style="margin-top:10px">
+            <h3>认领 · unassigned → 目标库</h3>
+            <table class="tbl" id="claimTable">
+              <tr><th>文档</th><th>未决请求</th><th>目标库</th><th>操作</th></tr>
+              <tr data-claim="ok"><td>新员工入职技术清单 v2</td><td><span class="pill green">无</span></td><td><select><option>技术部</option><option>公共库</option><option>Q3 客户成功专项</option></select></td><td><button class="btn primary" onclick="doClaim(this)">认领</button></td></tr>
+              <tr data-claim="blocked"><td>向量库迁移方案</td><td><span class="pill amber">未决发布请求</span></td><td><select><option>技术部</option></select></td><td><button class="btn" onclick="toast('认领被拒绝：该文档带有未决发布请求，先等审批关闭')">认领</button></td></tr>
+              <tr data-claim="blocked"><td>客户 A 交付总结</td><td><span class="pill amber">未决移动请求</span></td><td><select><option>Q3 客户成功专项</option></select></td><td><button class="btn" onclick="toast('认领被拒绝：该文档带有未决移动请求，先等移动关闭')">认领</button></td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 审批队列 ================= -->
+    <div class="section" id="sec-approvals">
+      <div class="panel">
+        <h3>审批队列 · 目标库审批人视图</h3>
+        <table class="tbl" id="apprTable">
+          <tr><th>文档</th><th>目标库</th><th>申请人</th><th>状态</th><th>决策</th></tr>
+          <tr data-appr="t2" class="sel"><td>Q3 故障复盘：检索召回漂移</td><td>技术部</td><td>李静</td><td><span class="pill amber">pending_approval</span></td><td>待决策</td></tr>
+          <tr data-appr="t1"><td>员工手册 2026 修订版</td><td>公共库</td><td>张伟</td><td><span class="pill amber">pending_approval</span></td><td>待决策</td></tr>
+          <tr data-appr="t5"><td>向量库迁移方案</td><td>技术部</td><td>王磊</td><td><span class="pill red">已拒绝 · 已重提</span></td><td>待决策</td></tr>
+          <tr data-appr="t7"><td>Q3 客户成功案例集</td><td>市场部</td><td>陈晨</td><td><span class="pill amber">pending_approval</span></td><td>待决策（非本部门队列，仅可见）</td></tr>
+          <tr data-appr="t4"><td>考勤制度补充说明</td><td>公共库</td><td>张伟</td><td><span class="pill green">已批准</span></td><td>已关闭</td></tr>
+        </table>
+      </div>
+      <div class="appr-layout">
+        <div class="panel">
+          <h3>任务详情</h3>
+          <p><b id="apprTitle">Q3 故障复盘：检索召回漂移</b> <span class="pill amber" id="apprPill">pending_approval</span></p>
+          <p class="small" id="apprRoute">技术部文档库 ← 待发布 → 技术部 · 申请人：李静（技术部编辑）· 版本 v3 · 当前库 unassigned</p>
+          <p style="margin-top:8px" id="apprReason">申请理由：复盘了 9 月底一次召回漂移：新文档入库后旧问答的证据排序发生变化，根因是 dense 腿权重与 rerank 阈值未随语料更新。希望进入技术部库，供全组查阅。</p>
+          <p class="small" style="margin-top:8px">复核读摘要：正文 4,200 字，含 3 处故障时间线与 2 张对比表；未发现敏感信息；复核读走隔离路径 quarantine/文档/版本，不进入检索索引。已留痕 doc.approval.review。</p>
+          <div class="actions">
+            <button class="btn primary" onclick="apprDecide('批准')">批准</button>
+            <button class="btn danger" onclick="apprDecide('拒绝')">拒绝</button>
+            <button class="btn" onclick="openRetarget()">改目标</button>
+            <button class="btn" onclick="toast('复核读：隔离路径 quarantine/文档/版本，已留痕 doc.approval.review')">复核读</button>
+          </div>
+          <p class="small mono" style="margin-top:10px" id="apprAudit">doc.approval.requested · 10-26 09:14 · 李静<br>doc.approval.review · 10-26 10:02 · 部门管理员<br>（待决策）</p>
+        </div>
+        <div class="panel">
+          <h3>全过程泳道 · <span style="font-weight:400;color:#888" id="laneDoc">Q3 故障复盘：检索召回漂移 · 技术部目标队列</span></h3>
+          <div class="lane" id="lane">
+            <div class="node" data-detail="上传完成：文档进入 unassigned，版本 v3 创建，等待审批。">
+              <div class="node-rail"><span class="node-dot" style="background:#16a34a"></span><span class="node-line"></span></div>
+              <div><div class="node-title">上传</div><div class="node-sub">10-26 09:14 · 李静 · v3 已创建</div></div>
+            </div>
+            <div class="node" data-detail="待审批：目标库为技术部，审批人为本部门管理员；待批文档不进入检索索引。">
+              <div class="node-rail"><span class="node-dot" style="background:#d97706"></span><span class="node-line"></span></div>
+              <div><div class="node-title">待审批</div><div class="node-sub">pending_approval · 队列：技术部</div></div>
+            </div>
+            <div class="node" data-detail="点击批准后：先关闭请求、再改写库、最后触发 ingest，顺序不可颠倒，否则索引会落到旧库集合。">
+              <div class="node-rail"><span class="node-dot" style="background:#9ca3af"></span><span class="node-line"></span></div>
+              <div><div class="node-title">批准后 ingest（待决策）</div><div class="node-sub">authz.approval.approved → 进入 pipeline</div></div>
+            </div>
+            <div class="node" data-detail="移动审批是单边：只由目标库管理员决定，源库管理员不参与；一文档一未决。">
+              <div class="node-rail"><span class="node-dot" style="background:#9ca3af"></span><span class="node-line"></span></div>
+              <div><div class="node-title">移动请求（示例线）</div><div class="node-sub">技术部 → Q3 客户成功专项 · 待决</div></div>
+            </div>
+            <div class="node" data-detail="发布后文档进入目标库集合，可见范围 = 公共库 ∪ 所属部门库 ∪ 已加入的项目库。">
+              <div class="node-rail"><span class="node-dot" style="background:#9ca3af"></span></div>
+              <div><div class="node-title">已发布</div><div class="node-sub">进入检索 · 可引用 · 可导出</div></div>
+            </div>
+            <div class="branch">
+              <div class="branch-label">分支示例：同一文档的另一条线（向量库迁移方案）</div>
+              <div class="node failed" data-detail="被拒绝：审批人认为目标库选错，理由选填；文档仍在 unassigned，版本态 rejected，可重提。">
+                <div class="node-rail"><span class="node-dot" style="background:#dc2626"></span><span class="node-line"></span></div>
+                <div><div class="node-title">审批被拒绝</div><div class="node-sub">10-25 17:40 · 目标库不符</div></div>
+              </div>
+              <div class="node" data-detail="重提：仅申请人可重提，可改目标；重提清空原决策字段，重新记 doc.approval.requested。">
+                <div class="node-rail"><span class="node-dot" style="background:#2563eb"></span><span class="node-line"></span></div>
+                <div><div class="node-title">重提（重试节点）</div><div class="node-sub">10-26 08:05 · 申请人重提</div></div>
+              </div>
+              <div class="node" data-detail="改目标：事件 doc.approval.retargeted，只进新目标库的审计视图；不新建请求、不改版本态、不触发 ingest。">
+                <div class="node-rail"><span class="node-dot" style="background:#2563eb"></span><span class="node-line"></span></div>
+                <div><div class="node-title">改目标</div><div class="node-sub">doc.approval.retargeted · 技术部 → 公共库</div></div>
+              </div>
+              <div class="node" data-detail="批准：总管理员批公共库队列算普通批准；批部门或项目队列则另记 authz.approval.delegated（代批）。">
+                <div class="node-rail"><span class="node-dot" style="background:#16a34a"></span></div>
+                <div><div class="node-title">批准</div><div class="node-sub">10-26 09:50 · authz.approval.approved</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel" id="nodeDetail" style="margin-top:10px;background:#fbfbf9">
+            <p style="font-size:12px;color:#555">点泳道任意节点查看说明；悬停节点标题可看一句话摘要。</p>
+          </div>
+          <div class="legend">
+            <span><i style="background:#16a34a"></i>提交 / 通过</span>
+            <span><i style="background:#d97706"></i>待审批</span>
+            <span><i style="background:#dc2626"></i>拒绝 / 错误</span>
+            <span><i style="background:#2563eb"></i>重提 / 改目标</span>
+            <span><i style="background:#9ca3af"></i>待执行</span>
+            <span><i style="background:#1d4ed8"></i>合并 / 发布</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 移动请求 ================= -->
+    <div class="section" id="sec-moves">
+      <div class="panel">
+        <h3>移动请求 · 单边目标库审批</h3>
+        <table class="tbl" id="moveTable">
+          <tr><th>文档</th><th>源库 → 目标库</th><th>提议人</th><th>状态</th><th>文件夹 / reconcile</th><th>操作</th></tr>
+          <tr data-move="pending">
+            <td>客户 A 交付总结</td><td>技术部 → Q3 客户成功专项</td><td>王磊</td>
+            <td><span class="pill amber">待决</span></td><td>批准后置空 → 默认文件夹 · reconcile 待执行</td>
+            <td><button class="btn primary" onclick="moveDecide(this,'批准')">批准</button> <button class="btn danger" onclick="moveDecide(this,'拒绝')">拒绝</button> <button class="btn" onclick="moveWithdraw(this)">撤回</button></td>
+          </tr>
+          <tr data-move="pending">
+            <td>项目周报合集</td><td>市场部 → Q3 客户成功专项</td><td>陈晨</td>
+            <td><span class="pill amber">待决</span></td><td>批准后置空 → 默认文件夹 · reconcile 待执行</td>
+            <td><button class="btn primary" onclick="moveDecide(this,'批准')">批准</button> <button class="btn danger" onclick="moveDecide(this,'拒绝')">拒绝</button> <button class="btn" onclick="moveWithdraw(this)">撤回</button></td>
+          </tr>
+          <tr data-move="pending">
+            <td>Q3 客户成功案例集</td><td>市场部 → 公共库</td><td>陈晨</td>
+            <td><span class="pill amber">待决</span></td><td>批准后置空 → 默认文件夹 · reconcile 待执行</td>
+            <td><button class="btn primary" onclick="moveDecide(this,'批准')">批准</button> <button class="btn danger" onclick="moveDecide(this,'拒绝')">拒绝</button> <button class="btn" onclick="moveWithdraw(this)">撤回</button></td>
+          </tr>
+          <tr data-move="done">
+            <td>客户 A 交付总结（旧单）</td><td>技术部 → Q3 客户成功专项</td><td>王磊</td>
+            <td><span class="pill green">已批准 · 已移动</span></td><td>文件夹已置空 → 默认文件夹 · reconcile ok</td>
+            <td><button class="btn" disabled>已关闭</button></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ================= 审计 ================= -->
+    <div class="section" id="sec-audit">
+      <div class="panel">
+        <h3>审计 · 追加式留痕</h3>
+        <div class="filter-row">
+          <label style="font-size:12px;color:#666">操作人</label>
+          <select id="auditActor" onchange="filterAudit()"><option value="">全部</option><option>总管理员</option><option>李静</option><option>王磊</option><option>陈晨</option><option>张伟</option></select>
+          <label style="font-size:12px;color:#666">事件</label>
+          <select id="auditEvent" onchange="filterAudit()"><option value="">全部</option><option>doc.approval.requested</option><option>authz.approval.approved</option><option>authz.approval.rejected</option><option>doc.approval.retargeted</option><option>authz.approval.delegated</option><option>authz.library.move</option><option>doc.move.proposed</option><option>doc.move.cancelled</option><option>doc.approval.cancelled</option><option>doc.approval.review</option></select>
+          <label style="font-size:12px;color:#666">库</label>
+          <select id="auditLib" onchange="filterAudit()"><option value="">全部</option><option>公共库</option><option>技术部</option><option>市场部</option><option>Q3 客户成功专项</option></select>
+          <button class="btn" onclick="resetAudit()">重置筛选</button>
+        </div>
+        <table class="tbl" id="auditTable">
+          <tr><th>时间</th><th>事件</th><th>文档</th><th>操作人</th><th>库 / 目标</th></tr>
+          <tr data-actor="总管理员" data-event="authz.approval.approved" data-lib="公共库"><td>10-26 11:20</td><td class="mono">authz.approval.approved</td><td>考勤制度补充说明</td><td>总管理员</td><td>公共库（普通批准）</td></tr>
+          <tr data-actor="李静" data-event="authz.approval.approved" data-lib="技术部"><td>10-26 10:47</td><td class="mono">authz.approval.approved</td><td>Q3 故障复盘：检索召回漂移</td><td>李静</td><td>技术部</td></tr>
+          <tr data-actor="王磊" data-event="authz.library.move" data-lib="Q3 客户成功专项"><td>10-26 10:12</td><td class="mono">authz.library.move</td><td>客户 A 交付总结</td><td>王磊</td><td>技术部 → Q3 客户成功专项 · 文件夹已置空</td></tr>
+          <tr data-actor="李静" data-event="doc.approval.review" data-lib="技术部"><td>10-26 10:02</td><td class="mono">doc.approval.review</td><td>Q3 故障复盘：检索召回漂移</td><td>李静</td><td>技术部 · 隔离路径复核读</td></tr>
+          <tr data-actor="李静" data-event="doc.approval.requested" data-lib="技术部"><td>10-26 09:14</td><td class="mono">doc.approval.requested</td><td>Q3 故障复盘：检索召回漂移</td><td>李静</td><td>目标：技术部</td></tr>
+          <tr data-actor="王磊" data-event="doc.approval.retargeted" data-lib="公共库"><td>10-26 08:05</td><td class="mono">doc.approval.retargeted</td><td>向量库迁移方案</td><td>王磊</td><td>旧目标：技术部 → 新目标：公共库（只进新目标视图）</td></tr>
+          <tr data-actor="总管理员" data-event="authz.approval.delegated" data-lib="技术部"><td>10-26 09:50</td><td class="mono">authz.approval.delegated</td><td>向量库迁移方案</td><td>总管理员</td><td>技术部队列 · 代批（另记决策事件）</td></tr>
+          <tr data-actor="陈晨" data-event="doc.move.proposed" data-lib="Q3 客户成功专项"><td>10-26 08:40</td><td class="mono">doc.move.proposed</td><td>项目周报合集</td><td>陈晨</td><td>市场部 → Q3 客户成功专项</td></tr>
+          <tr data-actor="陈晨" data-event="doc.move.cancelled" data-lib="Q3 客户成功专项"><td>10-25 20:10</td><td class="mono">doc.move.cancelled</td><td>项目周报合集（旧单）</td><td>陈晨</td><td>提议人撤回</td></tr>
+          <tr data-actor="总管理员" data-event="doc.approval.cancelled" data-lib="技术部"><td>10-25 19:02</td><td class="mono">doc.approval.cancelled</td><td>旧文档（已删除）</td><td>总管理员</td><td>删除打墓碑后取消未决请求 · 版本态不动</td></tr>
+          <tr data-actor="张伟" data-event="authz.approval.rejected" data-lib="公共库"><td>10-25 17:40</td><td class="mono">authz.approval.rejected</td><td>向量库迁移方案（首版）</td><td>张伟</td><td>公共库队列 · 理由选填：目标库不符</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- 底部状态条 -->
+    <div class="statusbar">
+      <span><b>4 条任务并行</b></span>
+      <span>待审批 <b>5</b></span>
+      <span>待决移动 <b>3</b></span>
+      <span>待认领 <b>12</b></span>
+      <span>永久授权待复核 <b>2</b></span>
+      <span>索引状态：正常 · 最后同步 10-26 11:20</span>
+    </div>
+  </div>
+  </div>
+
+  <!-- 改目标弹窗 -->
+  <div class="modal-back" id="retargetModal">
+    <div class="modal">
+      <h3>改目标库</h3>
+      <label>新目标库</label>
+      <select id="retargetSelect">
+        <option value="公共库">公共库（总管理员队列）</option>
+        <option value="技术部" selected>技术部（本部门管理员队列）</option>
+        <option value="市场部">市场部（本部门管理员队列）</option>
+        <option value="Q3 客户成功专项">Q3 客户成功专项 · 项目库（项目负责人队列）</option>
+      </select>
+      <div class="row">
+        <button class="btn" onclick="closeRetarget()">取消</button>
+        <button class="btn primary" onclick="confirmRetarget()">确认改目标</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导出弹窗 -->
+  <div class="modal-back" id="exportModal">
+    <div class="modal">
+      <h3>导出</h3>
+      <p id="expSrc" style="font-size:12px;color:#666"></p>
+      <label>格式</label>
+      <select id="expFormat">
+        <option value="markdown">Markdown（.md）</option>
+        <option value="docx">Word（.docx）</option>
+      </select>
+      <div class="exp-status" id="expStatus"></div>
+      <div id="expDone" style="display:none">
+        <div class="exp-link" id="expLink"></div>
+      </div>
+      <div class="row">
+        <button class="btn" onclick="closeExport()">取消</button>
+        <button class="btn primary" id="expGo" onclick="confirmExport()">开始导出</button>
+        <button class="btn primary" id="expDl" style="display:none" onclick="downloadExport()">下载文件</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+  // ---------- 导航切换 ----------
+  function goSection(name, focus) {
+    document.querySelectorAll('.nav button').forEach(x => x.classList.toggle('active', x.dataset.nav === name));
+    document.querySelectorAll('.section').forEach(x => x.classList.toggle('active', x.id === 'sec-' + name));
+    window.scrollTo({top: 0});
+    if (focus === 'claim') {
+      const p = document.getElementById('claimPanel');
+      if (p) { p.style.borderColor = '#555'; p.scrollIntoView({behavior: 'smooth', block: 'center'}); setTimeout(() => p.style.borderColor = '#e2e2de', 2000); }
+    }
+    if (focus === 'upload') {
+      const p = document.getElementById('uploadPanel');
+      if (p) { p.style.borderColor = '#555'; p.scrollIntoView({behavior: 'smooth', block: 'center'}); setTimeout(() => p.style.borderColor = '#e2e2de', 2000); }
+    }
+    if (focus === 'proj') {
+      const p = document.getElementById('projNote');
+      if (p) { p.scrollIntoView({behavior: 'smooth', block: 'center'}); toast('建项目库：部门管理员建库并任命负责人，负责人任期临时授权最长 60 天'); }
+    }
+  }
+  document.querySelectorAll('.nav button').forEach(el => el.addEventListener('click', () => goSection(el.dataset.nav)));
+
+  // ---------- 问答数据（主页与问答区共用） ----------
+  const answers = {
+    'Q3 客户成功专项的交付标准是什么': {
+      text: '交付标准有三条：客户侧验收签字、交付总结归档进项目库、例外授权随文档走且到期复核。项目负责人对交付文档的可见范围负责，所属部门管理员可见全部项目文档。',
+      ev1: ['ev_1 · Q3 客户成功专项交付总结（项目库）', '第 1 节“验收标准”：客户签字 + 归档 + 授权复核 · 当前版本 · 未过期'],
+      ev2: ['ev_2 · 项目库管理办法（公共库）', '项目负责人任期与权限：负责人由部门管理员任命，临时授权最长 60 天 · 当前版本']
+    },
+    '9 月底召回漂移的根因是什么': {
+      text: '根因是 dense 腿权重与 rerank 阈值未随新语料更新，导致新文档入库后旧问答的证据排序发生变化。复盘建议：入库后跑一轮回归评测，再冻结阈值。',
+      ev1: ['ev_1 · Q3 故障复盘：检索召回漂移（技术部）', '第 2 节“根因”：dense 腿权重未随语料更新 · 当前版本 · 未过期'],
+      ev2: ['ev_2 · 检索阈值标定记录（技术部）', 'rerank_floor 0.3 / dense_floor 0.65 候选值 · DR-010 未冻结']
+    },
+    '新员工入职需要准备哪些技术文档': {
+      text: '需要三类：入职技术清单（环境、账号、工具）、故障复盘合集（近两个季度）、项目库周报（了解在研项目）。三类均在技术部库内，入职后按部门成员身份可见。',
+      ev1: ['ev_1 · 新员工入职技术清单（技术部）', '已发布 · 新人入职文件夹 · 技术部成员可见'],
+      ev2: ['ev_2 · Q3 故障复盘合集（技术部）', '已发布 · 故障复盘文件夹 · 技术部成员可见']
+    },
+    '向量库迁移方案现在是什么状态': {
+      text: '当前状态：首版因目标库选错被拒绝，现已重提并改目标，等待技术部队列审批。版本态为 pending_approval，待批期间不进入检索索引。',
+      ev1: ['ev_1 · 向量库迁移方案（技术部）', 'pending_approval · 申请人：王磊 · 目标库：技术部'],
+      ev2: ['ev_2 · 审批审计（技术部队列）', 'doc.approval.retargeted · 10-26 08:05 · 只进新目标库审计视图']
+    },
+    '技术部文档的审批流程怎么走': {
+      text: '技术部文档发布前须走发布审批：上传时选目标库为技术部，审批人是本部门管理员；批准后文档进入目标库并触发索引，拒绝后可重提或改目标。跨库移动则另走移动审批，由目标库管理员单边审批。',
+      ev1: ['ev_1 · 部门库发布审批说明（技术部）', '第 1 节：上传选库 → 本部门管理员审批 → 批准后触发索引 · 当前版本'],
+      ev2: ['ev_2 · 跨库移动审批说明（公共库）', '第 2 节：移动审批单边，目标库管理员决定 · 当前版本']
+    }
+  };
+  function escHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function homeSample(q) { document.getElementById('homeQaInput').value = q; document.getElementById('homeQaInput').focus(); }
+  function homeAsk() {
+    const q = document.getElementById('homeQaInput').value.trim();
+    if (!q) return;
+    goSection('qa');
+    qa3AskFromHome(q);
+  }
+  // ---------- 主页：待办卡与库卡 ----------
+  function pickTodo(el, text) {
+    document.querySelectorAll('.todo-card').forEach(x => x.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('todoDetailText').textContent = text;
+    document.getElementById('todoDetail').style.display = 'block';
+  }
+  const libDetails = {
+    pub: '<b>公共库</b> · 全员可见，上传目标可选，总管理员审批队列',
+    tech: '<b>技术部</b> · 本部门成员可见，部门管理员审批队列，文件夹：默认文件夹 / 故障复盘 / 新人入职',
+    market: '<b>市场部</b> · 本部门成员可见，部门管理员审批队列，文件夹：默认文件夹 / 案例集',
+    proj: '<b>Q3 客户成功专项 · 项目库</b> · 项目成员与所属部门管理员可见，项目负责人审批队列，负责人任期临时授权最长 60 天'
+  };
+  const libRows = {
+    pub: '<span>文件夹：<b>默认文件夹 / 制度 / 公告</b></span><span>本月新增：<b>9 篇</b></span><span>待复核读：<b>2 篇</b></span><span>例外授权：<b>0 条</b></span>',
+    tech: '<span>文件夹：<b>默认文件夹 / 故障复盘 / 新人入职</b></span><span>本月新增：<b>14 篇</b></span><span>待复核读：<b>2 篇</b></span><span>例外授权：<b>1 条（永久待复核）</b></span>',
+    market: '<span>文件夹：<b>默认文件夹 / 案例集</b></span><span>本月新增：<b>5 篇</b></span><span>待复核读：<b>1 篇</b></span><span>例外授权：<b>1 条（30 天）</b></span>',
+    proj: '<span>文件夹：<b>默认文件夹 / 交付 / 周报</b></span><span>本月新增：<b>7 篇</b></span><span>待决移动：<b>1 条</b></span><span>成员：<b>9 人（含跨部门 3 人）</b></span>'
+  };
+  document.querySelectorAll('.lib-card').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.lib-card').forEach(x => x.classList.remove('active'));
+      el.classList.add('active');
+      const k = el.dataset.lib;
+      document.getElementById('libDetailTitle').innerHTML = libDetails[k];
+      document.querySelector('#libDetail .row').innerHTML = libRows[k];
+    });
+  });
+
+  // ---------- 文档库：上传与认领 ----------
+  function doUpload() {
+    const t = document.getElementById('uploadTarget').value;
+    if (t === 'market') { toast('上传被拒绝：目标库不可见，按不存在处理'); return; }
+    toast(t === '' ? '已上传 → unassigned，待认领（版本态 uploaded）' : '已上传：版本态 pending_approval，审批请求已创建，不触发 ingest');
+  }
+  function doClaim(btn) {
+    const row = btn.closest('tr');
+    row.querySelector('td:nth-child(2)').innerHTML = '<span class="pill green">已认领</span>';
+    btn.disabled = true; btn.textContent = '已认领';
+    toast('认领成功：已落目标库默认文件夹，向量同步已触发');
+  }
+
+  // ---------- 审批队列 ----------
+  const apprData = {
+    t2: {title: 'Q3 故障复盘：检索召回漂移', pill: 'pending_approval', pillCls: 'amber', route: '技术部文档库 ← 待发布 → 技术部 · 申请人：李静（技术部编辑）· 版本 v3 · 当前库 unassigned', reason: '申请理由：复盘了 9 月底一次召回漂移：新文档入库后旧问答的证据排序发生变化，根因是 dense 腿权重与 rerank 阈值未随语料更新。希望进入技术部库，供全组查阅。', lane: 'Q3 故障复盘：检索召回漂移 · 技术部目标队列', audit: 'doc.approval.requested · 10-26 09:14 · 李静<br>doc.approval.review · 10-26 10:02 · 部门管理员<br>（待决策）'},
+    t1: {title: '员工手册 2026 修订版', pill: 'pending_approval', pillCls: 'amber', route: '公共库 ← 待发布 → 公共库 · 申请人：张伟（人事部编辑）· 版本 v2 · 当前库 unassigned', reason: '申请理由：手册年度修订，新增远程办公章节，希望进入公共库供全员查阅。', lane: '员工手册 2026 修订版 · 公共库目标队列（总管理员审批）', audit: 'doc.approval.requested · 10-26 08:30 · 张伟<br>（待决策）'},
+    t5: {title: '向量库迁移方案', pill: 'rejected', pillCls: 'red', route: '技术部 ← 已拒绝 · 已重提 → 技术部 · 申请人：王磊（技术部编辑）· 版本 v2 · 当前库 unassigned', reason: '申请理由：首版因目标库选错被拒绝，现已重提并改目标，见右栏分支示例线。', lane: '向量库迁移方案 · 拒绝 → 重提 → 改目标 → 批准分支', audit: 'doc.approval.requested · 10-26 08:05 · 王磊（重提）<br>doc.approval.retargeted · 10-26 08:05 · 王磊<br>（待决策）'},
+    t7: {title: 'Q3 客户成功案例集', pill: 'pending_approval', pillCls: 'amber', route: '市场部 ← 待发布 → 市场部 · 申请人：陈晨（市场部编辑）· 版本 v1 · 当前库 unassigned', reason: '申请理由：Q3 三个客户成功案例合集，申请进入市场部库。注意：当前登录为总管理员，在队列里看得到市场部队列，但决策权归本部门管理员。', lane: 'Q3 客户成功案例集 · 市场部目标队列', audit: 'doc.approval.requested · 10-26 07:58 · 陈晨<br>（待决策）'},
+    t4: {title: '考勤制度补充说明', pill: 'approved', pillCls: 'green', route: '公共库 ← 已发布 → 公共库 · 申请人：张伟（人事部编辑）· 版本 v1 · 当前库 公共库', reason: '已批准并发布，供全员查阅。', lane: '考勤制度补充说明 · 已发布', audit: 'doc.approval.requested · 10-26 07:10 · 张伟<br>authz.approval.approved · 10-26 11:20 · 总管理员 · 已触发 ingest'}
+  };
+  document.querySelectorAll('#apprTable tr[data-appr]').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('#apprTable tr[data-appr]').forEach(x => x.classList.remove('sel'));
+      el.classList.add('sel');
+      const d = apprData[el.dataset.appr];
+      document.getElementById('apprTitle').textContent = d.title;
+      const pill = document.getElementById('apprPill');
+      pill.textContent = d.pill; pill.className = 'pill ' + d.pillCls;
+      document.getElementById('apprRoute').textContent = d.route;
+      document.getElementById('apprReason').textContent = d.reason;
+      document.getElementById('laneDoc').textContent = d.lane;
+      document.getElementById('apprAudit').innerHTML = d.audit;
+    });
+  });
+  function apprDecide(action) {
+    const pill = document.getElementById('apprPill');
+    if (action === '批准') {
+      pill.textContent = 'approved'; pill.className = 'pill green';
+      document.getElementById('apprAudit').innerHTML += '<br>authz.approval.approved · 刚刚 · 部门管理员 → 库已改写 → ingest 已触发';
+      toast('已批准：请求关闭 → 库改写 → ingest 触发，顺序不可颠倒');
+    } else {
+      pill.textContent = 'rejected'; pill.className = 'pill red';
+      document.getElementById('apprAudit').innerHTML += '<br>authz.approval.rejected · 刚刚 · 部门管理员 · 文档仍在 unassigned，可重提';
+      toast('已拒绝：文档仍在 unassigned，版本态 rejected，申请人可重提');
+    }
+  }
+  function openRetarget() { document.getElementById('retargetModal').classList.add('open'); }
+
+  // ---------- 导出（原型模拟：POST /exports → 轮询 → 签名链接下载） ----------
+  let expState = null;
+  function openExport(type, title) {
+    expState = {type: type, title: title, format: 'markdown', ready: false};
+    document.getElementById('expSrc').textContent = (type === 'document' ? '文档：' : '会话：') + title;
+    document.getElementById('expFormat').value = 'markdown';
+    document.getElementById('expStatus').textContent = '';
+    document.getElementById('expDone').style.display = 'none';
+    document.getElementById('expGo').style.display = '';
+    document.getElementById('expDl').style.display = 'none';
+    document.getElementById('exportModal').classList.add('open');
+  }
+  function closeExport() { document.getElementById('exportModal').classList.remove('open'); }
+  function confirmExport() {
+    const fmt = document.getElementById('expFormat').value;
+    expState.format = fmt;
+    const st = document.getElementById('expStatus');
+    st.textContent = '生成中…（原型模拟：requested → queued → generating → ready）';
+    document.getElementById('expGo').style.display = 'none';
+    setTimeout(() => {
+      expState.ready = true;
+      const ext = fmt === 'markdown' ? 'md' : 'docx';
+      const expId = 'exp_' + Math.random().toString(36).slice(2, 10);
+      const e = Math.floor(Date.now() / 1000) + 3600;
+      expState.filename = expState.title + '.' + ext;
+      expState.link = '/d/' + expId + '?e=' + e + '&s=示例签名';
+      st.textContent = '已就绪：' + expState.filename + '（签名链接 1 小时内有效，原型示意）';
+      document.getElementById('expLink').textContent = expState.link;
+      document.getElementById('expDone').style.display = '';
+      document.getElementById('expDl').style.display = '';
+    }, 1200);
+  }
+  function downloadExport() {
+    if (!expState || !expState.ready) return;
+    if (expState.format === 'markdown') {
+      const body = '# ' + expState.title + '\n\n原型示意：正式版这里是服务端渲染的导出正文（文档内容或会话问答与证据）。\n';
+      const url = URL.createObjectURL(new Blob([body], {type: 'text/markdown'}));
+      const a = document.createElement('a');
+      a.href = url; a.download = expState.filename; a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      toast('原型示意：正式版这里返回 .docx 文件下载');
+    }
+    closeExport();
+  }
+  function closeRetarget() { document.getElementById('retargetModal').classList.remove('open'); }
+  function confirmRetarget() {
+    const v = document.getElementById('retargetSelect').value;
+    document.getElementById('apprAudit').innerHTML += '<br>doc.approval.retargeted · 刚刚 · 新目标：' + v + '（只进新目标库审计视图）';
+    closeRetarget();
+    toast('已改目标到' + v + '：不新建请求、不改版本态、不触发 ingest');
+  }
+  document.querySelectorAll('#lane .node').forEach(el => {
+    el.title = el.dataset.detail;
+    el.addEventListener('click', () => {
+      document.getElementById('nodeDetail').innerHTML =
+        '<p style="font-size:12px;color:#555"><b style="color:#333">' + el.querySelector('.node-title').textContent + '</b> · ' + el.dataset.detail + '</p>';
+    });
+  });
+
+  // ---------- 移动请求 ----------
+  function moveDecide(btn, action) {
+    const row = btn.closest('tr');
+    const statusCell = row.querySelector('td:nth-child(4)');
+    const recCell = row.querySelector('td:nth-child(5)');
+    const opsCell = row.querySelector('td:nth-child(6)');
+    if (action === '批准') {
+      statusCell.innerHTML = '<span class="pill green">已批准 · 已移动</span>';
+      recCell.textContent = '文件夹已置空 → 默认文件夹 · reconcile ok';
+      toast('已批准移动：库改写 → 文件夹置空 → reconcile 已触发');
+    } else {
+      statusCell.innerHTML = '<span class="pill red">已拒绝</span>';
+      recCell.textContent = '未移动 · 源库仍可见 · 可再提';
+      toast('已拒绝移动：文档留在源库，可再提');
+    }
+    opsCell.innerHTML = '<button class="btn" disabled>已关闭</button>';
+  }
+  function moveWithdraw(btn) {
+    const row = btn.closest('tr');
+    row.querySelector('td:nth-child(4)').innerHTML = '<span class="pill">已撤回</span>';
+    row.querySelector('td:nth-child(5)').textContent = 'doc.move.cancelled 已留痕 · 未移动 · 可再提';
+    btn.closest('td').innerHTML = '<button class="btn" disabled>已关闭</button>';
+    toast('已撤回移动请求：doc.move.cancelled');
+  }
+
+  // ---------- 审计筛选 ----------
+  function filterAudit() {
+    const a = document.getElementById('auditActor').value;
+    const e = document.getElementById('auditEvent').value;
+    const l = document.getElementById('auditLib').value;
+    document.querySelectorAll('#auditTable tr[data-actor]').forEach(row => {
+      const ok = (!a || row.dataset.actor === a) && (!e || row.dataset.event === e) && (!l || row.dataset.lib === l);
+      row.style.display = ok ? '' : 'none';
+    });
+  }
+  function resetAudit() {
+    document.getElementById('auditActor').value = '';
+    document.getElementById('auditEvent').value = '';
+    document.getElementById('auditLib').value = '';
+    filterAudit();
+  }
+
+  // ---------- 提示条 ----------
+  let toastTimer;
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+  }
+  // ---------- 问答三栏（v13 并入，qa3 命名空间，不与 v12 旧问答函数重名） ----------
+  const qa3Sessions = {
+    s1: {title:"Q3 客户成功专项的交付标准是什么", group:"today", meta:"2026-10-26 15:02 · 已完成",
+      msgs:[
+        {who:"你", text:"Q3 客户成功专项的交付标准是什么？", user:true},
+        {who:"问枢", text:"Q3 客户成功专项的交付标准共三条：一是交付物须经项目负责人复核签字；二是客户验收单须在交付后 5 个工作日内回传；三是全部过程文档须归档进项目库，缺失任一项视为未交付。", ev:[
+          {id:"ev_1", src:"《Q3 客户成功专项交付规范》第 2.1 节"},
+          {id:"ev_2", src:"《项目库归档要求》第 3 条"}], score:"支持度 0.92 · 证据 2 条"},
+      ],
+      agent:{step:3, steps:["思考：解析问题，确认问的是交付标准","检索：可见库内混合检索","判定：证据与问题相关，通过","生成：仅依据已登记证据成文"],
+        tools:[{name:"search_knowledge", n:2, detail:"第 1 次返回 14 条候选，第 2 次精排后保留 6 条"},{name:"read_evidence", n:2, detail:"读取 ev_1、ev_2 全文片段"}],
+        budget:{calls:4, tokens:"约 3,214"},
+        context:{used:18400, limit:128000, sys:6200, hist:4800, ev:[{id:"ev_1", tokens:4100},{id:"ev_2", tokens:3300}]},
+        retrieval:{libs:"公共库 + 技术部", hits:14, kept:6, note:"rerank 后保留 6 条，取前 2 条登记为证据"},
+        evidence:[{id:"ev_1", src:"《Q3 客户成功专项交付规范》第 2.1 节"},{id:"ev_2", src:"《项目库归档要求》第 3 条"}],
+        model:"deepseek-flash", time:"1.8 秒"}},
+    s2: {title:"技术部文档的审批流程怎么走", group:"week", meta:"2026-10-22 10:41 · 已完成",
+      msgs:[
+        {who:"你", text:"技术部文档的审批流程怎么走？", user:true},
+        {who:"问枢", text:"技术部文档发布前须走发布审批：上传时选目标库为技术部，审批人是本部门管理员；批准后文档进入目标库并触发索引，拒绝后可重提或改目标。跨库移动则另走移动审批，由目标库管理员单边审批。", ev:[
+          {id:"ev_1", src:"《部门库发布审批说明》第 1 节"},
+          {id:"ev_2", src:"《跨库移动审批说明》第 2 节"}], score:"支持度 0.88 · 证据 2 条"},
+      ],
+      agent:{step:3, steps:["思考：区分发布审批与移动审批两条流程","检索：可见库内混合检索","判定：证据与问题相关，通过","生成：仅依据已登记证据成文"],
+        tools:[{name:"search_knowledge", n:3, detail:"第 1 次返回 21 条候选，第 2 次精排后保留 8 条，第 3 次补查 1 条"},{name:"read_evidence", n:2, detail:"读取 ev_1、ev_2 全文片段"}],
+        budget:{calls:6, tokens:"约 4,870"},
+        context:{used:24600, limit:128000, sys:6200, hist:8900, ev:[{id:"ev_1", tokens:5600},{id:"ev_2", tokens:3900}]},
+        retrieval:{libs:"公共库 + 技术部", hits:21, kept:8, note:"rerank 后保留 8 条，取前 2 条登记为证据"},
+        evidence:[{id:"ev_1", src:"《部门库发布审批说明》第 1 节"},{id:"ev_2", src:"《跨库移动审批说明》第 2 节"}],
+        model:"deepseek-flash", time:"2.4 秒"}},
+    s3: {title:"公共库里有没有考勤制度", group:"month", meta:"2026-10-08 09:15 · 已拒答",
+      msgs:[
+        {who:"你", text:"公共库里有没有考勤制度？", user:true},
+        {who:"问枢", refused:true, text:"现有证据不足，无法回答。可见库（公共库 + 技术部）中未检索到与考勤制度相关的文档，无法依据证据作答；建议向部门管理员确认该文档是否已归档，或换一个问法重试。", score:"判定：证据与问题不相关 · insufficient_evidence"},
+      ],
+      agent:{step:2, steps:["思考：解析问题，确认问的是考勤制度是否存在","检索：可见库内混合检索","判定：证据与问题不相关，拒答","生成：未执行（已拒答）"],
+        tools:[{name:"search_knowledge", n:1, detail:"返回 3 条候选，rerank 最高分低于阈值，全部丢弃"},{name:"read_evidence", n:0, detail:"无证据登记，未调用"}],
+        budget:{calls:3, tokens:"约 1,102"},
+        context:{used:9800, limit:128000, sys:6200, hist:3600, ev:[]},
+        retrieval:{libs:"公共库 + 技术部", hits:3, kept:0, note:"rerank 后 0 条保留，未登记任何证据"},
+        evidence:[],
+        model:"deepseek-flash", time:"0.9 秒"}},
+  };
+  let qa3Current = "s1";
+  function qa3HistGroup(g) {
+    const list = Object.entries(qa3Sessions).filter(([k, v]) => v.group === g);
+    list.sort((a, b) => (b[1].home ? 1 : 0) - (a[1].home ? 1 : 0));
+    return list.map(([k, v]) => '<div class="qa3-hist ' + (k === qa3Current ? "on" : "") + '" onclick="qa3Switch(\'' + k + '\')">' + escHtml(v.title) + '<small>' + escHtml(v.meta) + '</small></div>').join("");
+  }
+  function qa3RenderHist() {
+    document.getElementById("qa3HistToday").innerHTML = qa3HistGroup("today");
+    document.getElementById("qa3HistWeek").innerHTML = qa3HistGroup("week");
+    document.getElementById("qa3HistMonth").innerHTML = qa3HistGroup("month");
+  }
+  function qa3RenderMsgs() {
+    const s = qa3Sessions[qa3Current];
+    document.getElementById("qa3SessTitle").textContent = s.title;
+    document.getElementById("qa3SessMeta").textContent = s.meta;
+    document.getElementById("qa3Msgs").innerHTML = s.msgs.map(m => {
+      if (m.user) return '<div class="qa3-msg user"><div class="qa3-who">你</div><div class="qa3-bubble user">' + escHtml(m.text) + '</div></div>';
+      const ev = m.ev ? '<div class="qa3-ev">' + m.ev.map(e => '<span class="qa3-tag">' + e.id + '</span>' + escHtml(e.src)).join("<br>") + '</div>' : "";
+      return '<div class="qa3-msg"><div class="qa3-who">问枢</div><div class="qa3-bubble ' + (m.refused ? "qa3-refuse" : "") + '">' + escHtml(m.text) + ev + '<div class="qa3-score">' + escHtml(m.score) + '</div><div><button class="qa3-export" onclick="openExport(\'conversation\', document.getElementById(\'qa3SessTitle\').textContent)">导出回答</button></div></div></div>';
+    }).join("");
+  }
+  function qa3RenderAgent() {
+    const s = qa3Sessions[qa3Current];
+    const a = s.agent;
+    const refused = s.msgs.some(m => m.refused);
+    const steps = a.steps.map((t, i) => {
+      const cls = i < a.step ? "done" : (i === a.step ? "now" : "todo");
+      const label = i < a.step ? "已完成" : (i === a.step ? "当前" : "未执行");
+      return '<div class="qa3-step"><span class="qa3-dot ' + cls + '"></span><span><b>' + escHtml(t.split("：")[0]) + '</b>：' + escHtml(t.split("：")[1] || "") + '<span class="now">（' + label + '）</span></span></div>';
+    }).join("");
+    const tools = a.tools.map(t => '<li><b>' + t.name + '</b> × ' + t.n + ' 次<details><summary>查看明细</summary><p>' + escHtml(t.detail) + '</p></details></li>').join("");
+    const evs = a.evidence.length ? a.evidence.map(e => '<li><span class="qa3-tag">' + e.id + '</span> ' + escHtml(e.src) + '</li>').join("") : "<li>本次未登记证据（已拒答）</li>";
+    const ctx = a.context;
+    document.getElementById("qa3Agent").innerHTML =
+      '<h3>Agent 状态 · <span class="pill ' + (refused ? "amber" : "green") + '">' + (refused ? "已拒答" : "已完成") + '</span></h3>'
+      + '<div class="qa3-card"><h4>当前步骤</h4>' + steps + '</div>'
+      + '<div class="qa3-card"><h4>工具调用记录</h4><ul>' + tools + '</ul></div>'
+      + '<div class="qa3-card"><h4>预算使用</h4><p>本 Run 模型调用 <b>' + a.budget.calls + ' / 10</b> 次</p><div class="qa3-bar"><i style="width:' + (a.budget.calls * 10) + '%"></i></div><p>Token 记账：' + a.budget.tokens + '</p></div>'
+      + '<div class="qa3-card"><h4>上下文使用量</h4><p>已用 <b>' + ctx.used.toLocaleString() + ' / ' + ctx.limit.toLocaleString() + '</b> token（约 ' + Math.round(ctx.used / ctx.limit * 100) + '%）</p><div class="qa3-bar"><i style="width:' + Math.round(ctx.used / ctx.limit * 100) + '%"></i></div></div>'
+      + '<div class="qa3-card"><h4>检索概况</h4><p>可见库：' + escHtml(a.retrieval.libs) + '</p><p>命中 ' + a.retrieval.hits + ' 条 · rerank 后保留 ' + a.retrieval.kept + ' 条</p><p>' + escHtml(a.retrieval.note) + '</p></div>'
+      + '<div class="qa3-card"><h4>证据登记</h4><ul>' + evs + '</ul></div>'
+      + '<div class="qa3-card"><h4>本次模型与耗时</h4><p>模型：' + a.model + ' · 耗时 ' + a.time + '</p></div>';
+  }
+  function qa3Switch(id) { qa3Current = id; qa3RenderHist(); qa3RenderMsgs(); qa3RenderAgent(); }
+  function qa3Filter(q) {
+    document.querySelectorAll(".qa3-hist").forEach(el => {
+      el.style.display = el.textContent.includes(q) ? "" : "none";
+    });
+  }
+  function qa3NewChat() {
+    qa3ClearFiles();
+    document.getElementById("qa3SessTitle").textContent = "新对话";
+    document.getElementById("qa3SessMeta").textContent = "进行中 · 尚未提问";
+    document.getElementById("qa3Msgs").innerHTML = '<div class="qa3-msg"><div class="qa3-who">问枢</div><div class="qa3-bubble">你好，我是问枢。问题会先在你的可见库（公共库 + 技术部）里检索，只依据证据回答，证据不足时会明确拒答。</div></div>';
+    document.getElementById("qa3Agent").innerHTML = '<h3>Agent 状态 · <span class="pill">待启动</span></h3><div class="qa3-card"><h4>当前步骤</h4><p>尚未开始一次 Run，提问后这里会显示步骤、工具调用、预算与上下文使用量。</p></div><div class="qa3-card"><h4>上下文使用量</h4><p>尚未开始，0 / 128,000 token</p><div class="qa3-bar"><i style="width:0%"></i></div></div>';
+    document.querySelectorAll(".qa3-hist").forEach(el => el.classList.remove("on"));
+  }
+  function qa3UseChip(q) {
+    const inp = document.getElementById("qa3Input");
+    inp.value = q.trim();
+    qa3AutoGrow(inp);
+    inp.focus();
+  }
+  function qa3Send() {
+    const inp = document.getElementById("qa3Input");
+    const q = inp.value.trim();
+    if (!q && !qa3Attached.length) return;
+    const box = document.getElementById("qa3Msgs");
+    const attachLine = qa3Attached.length
+      ? '<div class="qa3-msg"><div class="qa3-who">附加文件</div><div class="qa3-bubble">已附加本地文件：' + qa3Attached.map(f => escHtml(f.name)).join("、") + '（提问补充材料）</div></div>'
+      : "";
+    box.innerHTML += (q ? '<div class="qa3-msg user"><div class="qa3-who">你</div><div class="qa3-bubble user">' + escHtml(q) + '</div></div>' : "")
+      + attachLine
+      + '<div class="qa3-msg"><div class="qa3-who">问枢</div><div class="qa3-bubble">这是示例回答：与“' + escHtml(q || "所附文件") + '”相关的制度条文已在可见库中检索到，完整结论请以证据原文为准。<div class="qa3-ev"><span class="qa3-tag">ev_1</span>《示例制度文档》第 1 节</div><div class="qa3-score">支持度 0.85 · 证据 1 条（示例）</div><div><button class="qa3-export" onclick="openExport(\'conversation\', document.getElementById(\'qa3SessTitle\').textContent)">导出回答</button></div></div></div>';
+    inp.value = "";
+    qa3AutoGrow(inp);
+    qa3ClearFiles();
+    box.scrollTop = box.scrollHeight;
+  }
+  function qa3AutoGrow(el) {
+    el.style.height = "auto";
+    el.style.height = Math.max(72, Math.min(el.scrollHeight, 192)) + "px";
+  }
+  let qa3Attached = [];
+  function qa3FmtSize(n) {
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+    return (n / 1024 / 1024).toFixed(1) + " MB";
+  }
+  function qa3AddFiles(list) {
+    Array.from(list || []).forEach(f => qa3Attached.push({name: f.name, size: f.size}));
+    document.getElementById("qa3FileInput").value = "";
+    qa3RenderChips();
+  }
+  function qa3RenderChips() {
+    document.getElementById("qa3Chips").innerHTML = qa3Attached.map((f, i) =>
+      '<span class="qa3-chip"><span class="fname">' + escHtml(f.name) + '</span><span class="fsize">' + qa3FmtSize(f.size) + '</span><button title="删除该文件" onclick="qa3RemoveFile(' + i + ')">×</button></span>').join("");
+  }
+  function qa3RemoveFile(i) { qa3Attached.splice(i, 1); qa3RenderChips(); }
+  function qa3ClearFiles() {
+    qa3Attached = [];
+    const chips = document.getElementById("qa3Chips");
+    if (chips) chips.innerHTML = "";
+  }
+  function qa3AskFromHome(q) {
+    const a = answers[q];
+    const refused = !a;
+    const msgs = [{who:"你", text:q, user:true}];
+    if (refused) {
+      msgs.push({who:"问枢", refused:true, text:"证据不足，无法回答：可见库中没有与该问题相关的已发布文档。换个问法，或先确认文档是否已发布到你可见的库。", score:"判定：证据与问题不相关 · insufficient_evidence"});
+    } else {
+      msgs.push({who:"问枢", text:a.text, ev:[
+        {id:"ev_1", src:a.ev1[0].replace(/^ev_1 · /, "")},
+        {id:"ev_2", src:a.ev2[0].replace(/^ev_2 · /, "")}], score:"支持度 · 证据 2 条"});
+    }
+    const agent = {step:3, steps:["思考：解析问题","检索：可见库内混合检索","判定：证据与问题" + (refused ? "不相关，拒答" : "相关，通过"),"生成：仅依据已登记证据成文"],
+      tools: refused
+        ? [{name:"search_knowledge", n:1, detail:"返回 3 条候选，rerank 最高分低于阈值，全部丢弃"}]
+        : [{name:"search_knowledge", n:2, detail:"第 1 次返回 14 条候选，第 2 次精排后保留 6 条"},{name:"read_evidence", n:2, detail:"读取 ev_1、ev_2 全文片段"}],
+      budget:{calls: refused ? 3 : 4, tokens: refused ? "约 1,102" : "约 3,214"},
+      context:{used: refused ? 9800 : 16400, limit:128000, sys:6200, hist: refused ? 3600 : 4200, ev: refused ? [] : [{id:"ev_1", tokens:4100},{id:"ev_2", tokens:3300}]},
+      retrieval:{libs:"公共库 + 技术部", hits: refused ? 3 : 14, kept: refused ? 0 : 6, note: refused ? "rerank 后 0 条保留，未登记任何证据" : "rerank 后保留 6 条，取前 2 条登记为证据"},
+      evidence: refused ? [] : [{id:"ev_1", src:a.ev1[0].replace(/^ev_1 · /, "")},{id:"ev_2", src:a.ev2[0].replace(/^ev_2 · /, "")}],
+      model:"deepseek-flash", time: refused ? "0.9 秒" : "1.8 秒"};
+    const id = "home_" + Date.now();
+    qa3Sessions[id] = {title:q, group:"today", meta:"今天 · 刚刚提问", msgs:msgs, agent:agent, home:true};
+    qa3Current = id;
+    qa3RenderHist(); qa3RenderMsgs(); qa3RenderAgent();
+    document.getElementById("qa3Input").value = "";
+  }
+  qa3RenderHist(); qa3RenderMsgs(); qa3RenderAgent();
+
+</script>
+</body>
+</html>
