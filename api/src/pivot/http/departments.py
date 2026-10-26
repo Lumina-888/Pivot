@@ -415,6 +415,179 @@ def build_departments_router(
             _member_view(member), status_code=201 if created else 200
         )
 
+    # -- project folders (ADR-018 D4, D3; S4) ------------------------------
+    #
+    # Same route shapes as department folders, scoped to a project
+    # library: management sits with the lead (plus super admins and
+    # the owning department's admins), folder members come only from
+    # project members, and the lead's folder-member grants carry the
+    # same 422 cap mapping as the project-member routes above.
+
+    @router.post("/admin/projects/{project_id}/folders")
+    def create_project_folder(
+        project_id: str, body: CreateFolderBody, request: Request
+    ):
+        request_id, principal = _principal(request, auth)
+        folder, created = departments.create_project_folder(
+            principal, project_id, body.folder_id, body.name, request_id
+        )
+        return JSONResponse(
+            _folder_view(folder), status_code=201 if created else 200
+        )
+
+    @router.get("/admin/projects/{project_id}/folders")
+    def list_project_folders(
+        project_id: str, request: Request
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        items = departments.list_project_folders(
+            principal, project_id, request_id
+        )
+        return {
+            "items": [_folder_view(item) for item in items],
+            "pagination": None,
+        }
+
+    @router.get("/admin/projects/{project_id}/folders/{folder_id}")
+    def get_project_folder(
+        project_id: str, folder_id: str, request: Request
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        return _folder_view(
+            departments.get_project_folder(
+                principal, project_id, folder_id, request_id
+            )
+        )
+
+    @router.patch("/admin/projects/{project_id}/folders/{folder_id}")
+    def rename_project_folder(
+        project_id: str, folder_id: str, body: RenameFolderBody,
+        request: Request,
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        folder = departments.rename_project_folder(
+            principal, project_id, folder_id, body.name, request_id
+        )
+        return _folder_view(folder)
+
+    @router.delete(
+        "/admin/projects/{project_id}/folders/{folder_id}", status_code=204
+    )
+    def delete_project_folder(
+        project_id: str, folder_id: str, request: Request
+    ) -> JSONResponse:
+        request_id, principal = _principal(request, auth)
+        departments.delete_project_folder(
+            principal, project_id, folder_id, request_id
+        )
+        return JSONResponse(None, status_code=204)
+
+    @router.get(
+        "/admin/projects/{project_id}/folders/{folder_id}/members"
+    )
+    def list_project_folder_members(
+        project_id: str, folder_id: str, request: Request
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        items = departments.list_project_folder_members(
+            principal, project_id, folder_id, request_id
+        )
+        return {
+            "items": [_folder_member_view(item) for item in items],
+            "pagination": None,
+        }
+
+    @router.post(
+        "/admin/projects/{project_id}/folders/{folder_id}/members"
+    )
+    def add_project_folder_member(
+        project_id: str, folder_id: str, body: AddFolderMemberBody,
+        request: Request,
+    ):
+        request_id, principal = _principal(request, auth)
+        try:
+            member, created = departments.add_project_folder_member(
+                principal, project_id, folder_id, body.user_id,
+                body.folder_role, request_id, expires_at=body.expires_at,
+            )
+        except ValueError as exc:
+            # Same lead grant cap as the project-member routes: the
+            # body pattern already constrains folder_role, so the only
+            # ValueError reachable here is the cap (ADR-017 Q1).
+            return JSONResponse(
+                {
+                    "code": "GRANT_EXPIRY_INVALID",
+                    "message": str(exc),
+                    "request_id": request_id,
+                    "retryable": False,
+                },
+                status_code=422,
+            )
+        return JSONResponse(
+            _folder_member_view(member), status_code=201 if created else 200
+        )
+
+    @router.patch(
+        "/admin/projects/{project_id}/folders/{folder_id}/members/{user_id}"
+    )
+    def set_project_folder_member_role(
+        project_id: str, folder_id: str, user_id: str,
+        body: SetFolderRoleBody, request: Request,
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        kwargs: dict[str, object] = {}
+        if "expires_at" in body.model_fields_set:
+            kwargs["expires_at"] = body.expires_at
+        try:
+            member = departments.set_project_folder_member_role(
+                principal, project_id, folder_id, user_id,
+                body.folder_role, request_id, **kwargs,
+            )
+        except ValueError as exc:
+            return JSONResponse(
+                {
+                    "code": "GRANT_EXPIRY_INVALID",
+                    "message": str(exc),
+                    "request_id": request_id,
+                    "retryable": False,
+                },
+                status_code=422,
+            )
+        return _folder_member_view(member)
+
+    @router.delete(
+        "/admin/projects/{project_id}/folders/{folder_id}/members/{user_id}",
+        status_code=204,
+    )
+    def remove_project_folder_member(
+        project_id: str, folder_id: str, user_id: str, request: Request
+    ) -> JSONResponse:
+        request_id, principal = _principal(request, auth)
+        departments.remove_project_folder_member(
+            principal, project_id, folder_id, user_id, request_id
+        )
+        return JSONResponse(None, status_code=204)
+
+    @router.post(
+        "/admin/projects/{project_id}/documents/{document_id}/folder"
+    )
+    def move_document_to_project_folder(
+        project_id: str, document_id: str, body: MoveDocumentBody,
+        request: Request,
+    ) -> dict[str, object]:
+        request_id, principal = _principal(request, auth)
+        moved, changed = departments.move_document_to_project_folder(
+            principal, project_id, document_id, body.folder_id, request_id
+        )
+        if changed and claim_sync is not None:
+            claim_sync(moved.id, project_id, request_id, principal.user_id)
+        return {
+            "document_id": moved.id,
+            "library_id": moved.library_id,
+            "folder_id": moved.folder_id,
+            "moved": changed,
+        }
+
     # -- folders (ADR-018 D3) ------------------------------------------
     #
     # Folder management is a department admin act; folder documents

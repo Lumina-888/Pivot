@@ -151,8 +151,15 @@ def create_app(
         department_admins = (
             departments.admin_departments if departments is not None else None
         )
+        require_project_audit_view = (
+            departments.require_project_audit_view
+            if departments is not None
+            else None
+        )
         app.include_router(
-            build_audit_router(audits, auth, department_admins),
+            build_audit_router(
+                audits, auth, department_admins, require_project_audit_view
+            ),
             prefix="/api/v1",
         )
 
