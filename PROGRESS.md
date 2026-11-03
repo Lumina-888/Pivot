@@ -18,7 +18,7 @@ dev-staging 的 Compose overlay 已经入库。ECS apply 仍等待 Owner 提供 
 
 工作区只使用 `Pivot/` 的 `main`。`wave-3-integrated` 只表示夹具收口，不等于 P0 通过。该标签覆盖 HTTP、composition root、Next 反代、存储客户端、Golden Set、Compose 和 opt-in 夹具。GATE-P0 全部 unverified。
 
-2026-11-03 本机真实依赖联调缺陷修复（待审批 PR，未合并）：按 evidence/local-real-deps-20261103.md 修复缺陷 1 至 6 与观测 3——/search dense 腿记录构建时按实时事实回填库归属、/search BM25 腿装配时从基础集合滚动加载、文档读取入口并入文件夹与例外通道、内容去重跨库命中时分叉新文档走审批、两示例文件补 BM25 参数、compose 示例公开下载地址改为 https://files.pivot.test；缺陷 7（MinIO 官方镜像下架）未采用替代 S3，列为待 Owner 决策项；GATE-P0 全部仍未验证，无新迁移。详见 progress/modules/M01.md 新增一节。
+2026-11-03 本机真实依赖联调缺陷修复（待审批 PR，未合并）：按 evidence/local-real-deps-20261103.md 修复缺陷 1 至 6 与观测 3——/search dense 腿记录构建时按实时事实回填库归属、/search BM25 腿装配时从基础集合滚动加载、文档读取入口并入文件夹与例外通道、内容去重跨库命中时分叉新文档走审批、两示例文件补 BM25 参数、compose 示例公开下载地址改为 https://files.pivot.test；缺陷 7（MinIO 官方镜像下架）已由 PR #73 以 pgsty/silo 本地 fixture 镜像替换解决（见下文缺陷 7 登记），本 PR 不再列为待决策项；GATE-P0 全部仍未验证，无新迁移。详见 progress/modules/M01.md 新增一节。
 
 ## 1. 新会话恢复入口
 

@@ -104,12 +104,19 @@ def build_documents_router(
         # safe repeat only when its pending request already targets
         # the library just requested; a different target forks a
         # fresh pending document instead of reusing the old request
-        # while echoing the new target.
+        # while echoing the new target. An orphan pending version
+        # (pending_approval but no pending request at all) has no
+        # conflicting target, so it also matches: returning it lets
+        # the code below create the missing request for the
+        # requested target (the FR-RBAC-004-P1-3 heal path), instead
+        # of forking a second document and stranding the orphan.
         def _pending_target_matches(document_id: str) -> bool:
             if approvals is None:
                 return False
             pending = approvals.pending_request_for(document_id)
-            return pending is not None and pending.target_library_id == target_library_id
+            if pending is None:
+                return True
+            return pending.target_library_id == target_library_id
 
         version = service.upload(
             filename=file.filename or "",

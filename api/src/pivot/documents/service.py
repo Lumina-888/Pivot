@@ -135,7 +135,11 @@ class DocumentService:
             # second request") is kept exactly where it is safe:
             #   * targeted upload, old version still pending_approval
             #     for the SAME target (pending_target_matches, when
-            #     the caller can say) -> return it;
+            #     the caller can say) -> return it; a pending version
+            #     with NO pending request at all (orphan) also
+            #     returns, because there is no conflicting target
+            #     and the HTTP layer creates the missing request
+            #     for the requested target (heal path);
             #   * targeted upload, old version already decided
             #     (uploaded/ready/...) -> fork a fresh pending_approval
             #     document, routed by the caller through ADR-019;
