@@ -303,3 +303,8 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 ## 6. 轮次日志
 
 轮次日志已经拆出，见 [progress/history/progress-log.md](progress/history/progress-log.md)。本文件只维护现行状态。后续轮次记录直接写入轮次日志文件。P1-3 S4 跨库移动审批已经完成（ADR-019 D3、D6）：新增 MoveService 与 /api/v1/moves 路由（提议、批准、拒绝、撤回、队列查询）；提议人按源库范围定（部门管理员提本部门库、项目负责人提本项目库、总管理员提任意），审批仅目标库管理员单边（Q3），决策先查权限后查状态；一文档一未决移动请求（服务预检加 S1 部分唯一索引双保险）；批准顺序为请求关闭→库改写→文件夹置空落默认文件夹（O7）→作用域外触发 reconcile（复用认领同步入口）；事件名按 ADR-019 D6（提议 doc.move.proposed、批准 authz.library.move、拒绝 authz.approval.rejected、撤回 doc.move.cancelled，代批按 O2）；例外随文档走、PG 路径决策与库改写同事务；服务、SQLite 目录与 HTTP 新测全过，真实 PG 2 项留 CI（本机无 PG 服务）；无新迁移，alembic 单头仍为 c8842fce3b98；残留：成功派发后 reconcile_status 仍为 pending（broker 模式完成态与耗尽态须 worker 侧更新，现有认领任务无 move 行句柄，见 M01.md S4 一节）。P1-3 S5 认领衔接与审计收口已经完成（ADR-019 D4、D6）：认领拒绝带未决发布或移动请求的文档（全员含总管理员，scope-first 不变），认领成功落目标库默认文件夹；删除墓碑后取消两类未决请求（发布取消记新增事件 doc.approval.cancelled，移动取消复用 doc.move.cancelled），版本态不强制转移；8+1 事件集逐项核对全已发射、公共目标 dept_id 记 "pub" 口径确认；待办队列复用 S2/S4 队列语义、视图项补 document_title；S3 孤儿 pending 版本重复上传自愈经核实真实存在并补测试锚定；新版本换库走移动审批的判定规则已落字，但现行代码无新版本上传生产入口、触发点缺口待定（见 M01.md S5 一节）；服务、删除取消、HTTP 新测全过，真实 PG 2 项留 CI（本机无 PG 服务）；无新迁移，alembic 单头仍为 c8842fce3b98。至此 P1-3 五片全部完成。
+
+
+## 缺陷 7 登记（2026-11-03 本机真实依赖联调，待审批 PR，未合并）
+
+MinIO 官方镜像下架的本地 fixture 供应链变更：docker-compose.yml 的 minio 服务镜像改为 docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z（Pigsty 社区 MinIO fork，AGPLv3），服务名、命令、环境变量、端口、健康检查、数据卷名不变；staging overlay 无独立镜像，继承主 compose 镜像；compose 断言测试的钉死镜像同步更新；ops/compose-intent.md 与 progress/modules/M11.md 已登记决策理由、被否决项与残留风险。范围只限本地 compose fixture，不代表正式生产对象存储选型，正式生产走云 S3，待正式验收环境指定时再定；GATE-P0-001~008 状态不变，无新迁移，未改 api 代码与 api/pyproject.toml。
