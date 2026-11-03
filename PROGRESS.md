@@ -308,3 +308,7 @@ FR-AGENT-001~010 仍为 accepted、未完整实现/验收；FR-AGENT-005 的迁�
 ## 缺陷 7 登记（2026-11-03 本机真实依赖联调，待审批 PR，未合并）
 
 MinIO 官方镜像下架的本地 fixture 供应链变更：docker-compose.yml 的 minio 服务镜像改为 docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z（Pigsty 社区 MinIO fork，AGPLv3），服务名、命令、环境变量、端口、健康检查、数据卷名不变；staging overlay 无独立镜像，继承主 compose 镜像；compose 断言测试的钉死镜像同步更新；ops/compose-intent.md 与 progress/modules/M11.md 已登记决策理由、被否决项与残留风险。范围只限本地 compose fixture，不代表正式生产对象存储选型，正式生产走云 S3，待正式验收环境指定时再定；GATE-P0-001~008 状态不变，无新迁移，未改 api 代码与 api/pyproject.toml。
+
+## 缺陷 2 残留已解决：/search BM25 腿查询时重建（待审批 PR，未合并）
+
+PR #72 的启动快照残留（启动后新增文档须重启才进 /search BM25 腿）已由本 PR 解决：`LiveBm25Retriever` 每次查询时从基础集合 `scroll_payloads` 重建 BM25 索引并以实时库/文件夹事实回填，按 live 版本事实过滤已删除/非 current 版本的旧点（基础集合在删除/取代后仍含旧点，核查见 progress/modules/M04.md 新增一节）；不建持久稀疏索引，不做进程内增量 add，QA 腿与 dense 腿不动；性能实测 16/100/1000 chunk 查询中位约 0.3/1.9/15.3ms；新回归测试 9 项，相关既有套件与 ruff 通过；未改 Celery worker、pyproject、迁移与 GATE-P0-001~008 状态；真实依赖联调复测仍待 Owner 在本机真实依赖环境做。

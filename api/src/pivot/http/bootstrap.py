@@ -71,7 +71,7 @@ from pivot.parsing import (
 )
 from pivot.qa.orchestrator import QaOrchestrator
 from pivot.qa.writer import EvidenceJoinWriter, FailoverDraftWriter, HttpDraftWriter
-from pivot.retrieval.bm25 import Bm25Reranker, Bm25Retriever
+from pivot.retrieval.bm25 import Bm25Reranker, Bm25Retriever, LiveBm25Retriever
 from pivot.retrieval.fakes import HashingQueryEmbedder, KeywordRetriever, OverlapReranker
 from pivot.retrieval.policy import RetrievalPolicy
 from pivot.retrieval.providers import HttpBgeReranker, HttpQueryEmbedder, StdlibJsonHttpClient
@@ -1161,6 +1161,24 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         except Exception:
             return None
 
+    def _search_version_is_live(version_id: str) -> bool:
+        # Live filter for the /search BM25 leg: the base collection
+        # is never cleaned on delete or supersede (IndexPublisher
+        # has no delete; request_delete only flips DB flags), so a
+        # rebuilt leg must drop points whose version is no longer
+        # current or whose document is deleted, or passes_filters
+        # would keep serving them from stale payload flags.
+        try:
+            version = version_rows.get(version_id)
+            if version is None or not version.current:
+                return False
+            document = document_rows.get(version.document_id)
+            if document is None or document.deleted_at is not None:
+                return False
+            return True
+        except Exception:
+            return False
+
     if qdrant_store is not None and query_embedder is not None:
         dense_retriever: object = VectorStoreRetriever(
             qdrant_store,
@@ -1173,45 +1191,40 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         dense_retriever = KeywordRetriever(empty_corpus, "dense")
     tokenizer = SimpleLexTokenizer()
     if resolved.bm25_k1 is not None and resolved.bm25_b is not None:
-        bm25_retriever: object = Bm25Retriever(
-            tokenizer, k1=resolved.bm25_k1, b=resolved.bm25_b, source="bm25"
-        )
-        # /search BM25 leg ownership (2026-11-03 local-real-deps
-        # defect 2): the QA leg builds its BM25 index per query
-        # from eligible nodes; the /search leg has no corpus at
-        # assembly, so it is populated here from the base
-        # collection's payloads, backfilled with the same live
-        # facts as the dense leg. This is a startup snapshot:
-        # documents ingested after startup do not enter the
-        # /search BM25 leg until the next restart (the dense leg
-        # is query-time and is unaffected). A persistent sparse
-        # index with an ingest refresh is out of scope here and
-        # is recorded as a residual in the PR description.
+        # /search BM25 leg (2026-11-03 local-real-deps defect 2
+        # residual, fixed here): the leg is rebuilt from the base
+        # collection on every query, not snapshotted at startup,
+        # so documents ingested after startup (sync or Celery),
+        # claims and moves are visible without a restart, in any
+        # process. The QA leg is untouched (it already builds its
+        # BM25 index per query from eligible nodes). A persistent
+        # sparse index is deliberately not built: the base
+        # collection payload is already the persistent source, and
+        # there is no measured corpus scale justifying extra
+        # storage, versions and migrations. A scroll/rebuild
+        # failure degrades to an empty BM25 leg for that query;
+        # the dense leg still serves.
         if qdrant_store is not None:
-            try:
-                from dataclasses import replace as _replace_chunk
 
+            def _load_search_payloads(_store=qdrant_store):
                 from pivot.retrieval.llama_index_builder import scroll_payloads
-                from pivot.retrieval.vector import chunk_record_from_payload
 
-                _bm25_records = []
-                for _payload in scroll_payloads(qdrant_store):
-                    _record = chunk_record_from_payload(_payload)
-                    if _record is None:
-                        continue
-                    _lib = _search_library_id_for(_record.version_id)
-                    if isinstance(_lib, str) and _lib.strip():
-                        _record = _replace_chunk(_record, library_id=_lib)
-                    _folder = _search_folder_id_for(_record.version_id)
-                    _record = _replace_chunk(_record, folder_id=_folder)
-                    _bm25_records.append(_record)
-                if _bm25_records:
-                    bm25_retriever.add(_bm25_records)  # type: ignore[attr-defined]
-            except Exception:
-                logging.getLogger(__name__).exception(
-                    "failed to populate /search BM25 index from base collection; "
-                    "dense leg still serves, BM25 leg stays empty for this process"
-                )
+                return scroll_payloads(_store)
+
+            bm25_retriever: object = LiveBm25Retriever(
+                _load_search_payloads,
+                tokenizer,
+                k1=resolved.bm25_k1,
+                b=resolved.bm25_b,
+                library_id_for=_search_library_id_for,
+                folder_id_for=_search_folder_id_for,
+                version_is_live=_search_version_is_live,
+                source="bm25",
+            )
+        else:
+            bm25_retriever = Bm25Retriever(
+                tokenizer, k1=resolved.bm25_k1, b=resolved.bm25_b, source="bm25"
+            )
     else:
         bm25_retriever = KeywordRetriever(empty_corpus, "bm25")
     reranker = None
