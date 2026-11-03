@@ -16,7 +16,7 @@ _LIMITS = _ROOT / "evidence" / "wave2-m11" / "limits.md"
 _REQUIRED_SERVICES = ("postgres", "minio", "qdrant", "redis")
 _PINNED_IMAGES = {
     "postgres": "postgres:16.4",
-    "minio": "minio/minio:RELEASE.2024-10-02T17-50-41Z",
+    "minio": "docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z",
     "qdrant": "qdrant/qdrant:v1.12.4",
     "redis": "redis:7.4.1",
 }
