@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from datetime import datetime
 
 from pivot.documents.errors import (
@@ -102,6 +103,11 @@ class DocumentService:
         tags: tuple[str, ...] = (),
         external_llm_allowed: bool = False,
         target_library_id: str | None = None,
+        viewer_role: str | None = None,
+        visible_libraries: frozenset[str] | None = None,
+        visible_folder_ids: frozenset[str] | None = None,
+        exception_document_ids: frozenset[str] | None = None,
+        pending_target_matches: Callable[[str], bool] | None = None,
     ) -> VersionRecord:
         try:
             normalize_filename(filename)
@@ -121,8 +127,64 @@ class DocumentService:
                 return existing
         duplicate = self._versions.find_by_sha(digest)
         if duplicate is not None:
-            self._audit(actor_id, "doc.upload_idempotent", duplicate.id, "ok", request_id)
-            return duplicate
+            # Content dedup (2026-11-03 local-real-deps defect 4):
+            # a sha hit must never silently drop a requested target
+            # library, never bypass publish approval, and never hand
+            # back an id the uploader cannot read. The S3 repeat
+            # rule ("same document returns the existing version, no
+            # second request") is kept exactly where it is safe:
+            #   * targeted upload, old version still pending_approval
+            #     for the SAME target (pending_target_matches, when
+            #     the caller can say) -> return it; a pending version
+            #     with NO pending request at all (orphan) also
+            #     returns, because there is no conflicting target
+            #     and the HTTP layer creates the missing request
+            #     for the requested target (heal path);
+            #   * targeted upload, old version already decided
+            #     (uploaded/ready/...) -> fork a fresh pending_approval
+            #     document, routed by the caller through ADR-019;
+            #   * targeted upload, old version pending but for a
+            #     different target (callback says so) -> fork;
+            #   * untargeted upload, old document unreadable to the
+            #     caller under the same library/folder/exception
+            #     channels as _visible_document -> fork. Readability
+            #     is computed here from the caller's visible sets,
+            #     NOT via AccessControl.authorize_document, whose
+            #     catalog is a separate store from this service's
+            #     document rows (in the pipeline harness they diverge,
+            #     and authorize_document would wrongly deny even an
+            #     admin's own upload);
+            #   * otherwise (no target and readable, or no viewer
+            #     info supplied, i.e. legacy callers) -> return it.
+            # The old version is left untouched in every branch;
+            # nothing is moved. A legacy caller without the target
+            # callback that re-uploads a pending document to a
+            # different target still returns the old version — that
+            # residual is documented in the PR; production routing
+            # always supplies the callback.
+            fork = False
+            if target_library_id is not None:
+                if duplicate.state != "pending_approval":
+                    fork = True
+                elif pending_target_matches is not None:
+                    try:
+                        fork = not pending_target_matches(duplicate.document_id)
+                    except Exception:
+                        fork = True
+            elif viewer_role is not None:
+                if viewer_role != "admin":
+                    old_document = self._documents.get(duplicate.document_id)
+                    readable = old_document is not None and self._is_visible(
+                        old_document,
+                        visible_libraries or frozenset(),
+                        visible_folder_ids,
+                        exception_document_ids,
+                    )
+                    fork = not readable
+            if not fork:
+                self._audit(actor_id, "doc.upload_idempotent", duplicate.id, "ok", request_id)
+                return duplicate
+            self._audit(actor_id, "doc.upload_fork", duplicate.id, "ok", request_id)
         document = DocumentRecord(
             id=new_id("document"),
             title=title,
@@ -309,11 +371,18 @@ class DocumentService:
         request_id: str,
         purpose: str,
         actor_id: str,
+        visible_folder_ids: frozenset[str] | None = None,
+        exception_document_ids: frozenset[str] | None = None,
     ) -> FileContent:
         if purpose not in {"preview", "download"}:
             raise DocumentError("RESOURCE_FORBIDDEN", "非法用途", request_id)
         document = self._visible_document(
-            document_id, viewer_role, visible_libraries, request_id
+            document_id,
+            viewer_role,
+            visible_libraries,
+            request_id,
+            visible_folder_ids=visible_folder_ids,
+            exception_document_ids=exception_document_ids,
         )
         body = self._object_bytes(document.id, request_id)
         kind = sniff_kind(body)
@@ -334,9 +403,16 @@ class DocumentService:
         viewer_role: str,
         visible_libraries: frozenset[str],
         request_id: str,
+        visible_folder_ids: frozenset[str] | None = None,
+        exception_document_ids: frozenset[str] | None = None,
     ) -> dict[str, object]:
         document = self._visible_document(
-            document_id, viewer_role, visible_libraries, request_id
+            document_id,
+            viewer_role,
+            visible_libraries,
+            request_id,
+            visible_folder_ids=visible_folder_ids,
+            exception_document_ids=exception_document_ids,
         )
         created = document.created_at or self._now()
         return {
@@ -361,12 +437,16 @@ class DocumentService:
         viewer_role: str,
         visible_libraries: frozenset[str],
         request_id: str,
+        visible_folder_ids: frozenset[str] | None = None,
+        exception_document_ids: frozenset[str] | None = None,
     ) -> tuple[dict[str, object], ...]:
         detail = self.get_detail(
             document_id,
             viewer_role=viewer_role,
             visible_libraries=visible_libraries,
             request_id=request_id,
+            visible_folder_ids=visible_folder_ids,
+            exception_document_ids=exception_document_ids,
         )
         return tuple(detail["versions"])  # type: ignore[arg-type]
 
@@ -421,16 +501,28 @@ class DocumentService:
         visible_libraries: frozenset[str],
         space: str | None = None,
         tags: tuple[str, ...] = (),
+        visible_folder_ids: frozenset[str] | None = None,
+        exception_document_ids: frozenset[str] | None = None,
     ) -> tuple[dict[str, object], ...]:
         items: list[dict[str, object]] = []
         for document in self._documents.list_active():
             if document.deleted_at is not None:
                 continue
-            # Library membership is the authorization basis (ADR-016 D2,
-            # S2): the legacy space flag authorizes nothing on its own.
-            # A document in "shared" space but in the unassigned library
-            # is admin-only, exactly like any other unassigned document.
-            if viewer_role != "admin" and document.library_id not in visible_libraries:
+            # Authorization basis (ADR-016 D2, ADR-017 D1, ADR-018
+            # D3), same channels as AccessControl.authorize_document:
+            # admin sees everything; otherwise an exception grant
+            # opens exactly that document; otherwise the library must
+            # be visible and, when a folder set is supplied, a
+            # restricted folder must be visible too (None = default
+            # folder, i.e. the library itself). When no folder set
+            # is supplied (legacy callers), the previous
+            # library-only behaviour is kept.
+            if viewer_role != "admin" and not self._is_visible(
+                document,
+                visible_libraries,
+                visible_folder_ids,
+                exception_document_ids,
+            ):
                 continue
             if space is not None and document.space != space:
                 continue
@@ -505,21 +597,49 @@ class DocumentService:
         self._versions.save(version)
         return version
 
+    def _is_visible(
+        self,
+        document: DocumentRecord,
+        visible_libraries: frozenset[str],
+        visible_folder_ids: frozenset[str] | None,
+        exception_document_ids: frozenset[str] | None,
+    ) -> bool:
+        """Library + folder + exception visibility, mirroring
+        AccessControl.authorize_document (ADR-016 D2, ADR-017 D1,
+        ADR-018 D3). Exceptions open exactly the granted document,
+        even inside an invisible folder; folders never replace
+        exceptions. Deleted documents are never visible here (admin
+        handling is the caller's branch, see _visible_document).
+        """
+        if document.deleted_at is not None:
+            return False
+        if exception_document_ids is not None and document.id in exception_document_ids:
+            return True
+        if document.library_id not in visible_libraries:
+            return False
+        if visible_folder_ids is None:
+            return True
+        if document.folder_id is None:
+            return True
+        return document.folder_id in visible_folder_ids
+
     def _visible_document(
         self,
         document_id: str,
         viewer_role: str,
         visible_libraries: frozenset[str],
         request_id: str,
+        visible_folder_ids: frozenset[str] | None = None,
+        exception_document_ids: frozenset[str] | None = None,
     ) -> DocumentRecord:
         document = self._require_document(document_id, request_id)
         # Super admins keep full access (ADR-016 D3), including deleted
-        # documents, as before. Everyone else sees a document only when
-        # it is not deleted and its library is in their visible set.
-        # Anything else is RESOURCE_NOT_FOUND: no existence leak.
-        if viewer_role != "admin" and (
-            document.deleted_at is not None
-            or document.library_id not in visible_libraries
+        # documents, as before. Everyone else sees a document only
+        # through the library/folder/exception channels in
+        # _is_visible. Anything else is RESOURCE_NOT_FOUND: no
+        # existence leak.
+        if viewer_role != "admin" and not self._is_visible(
+            document, visible_libraries, visible_folder_ids, exception_document_ids
         ):
             raise DocumentError("RESOURCE_NOT_FOUND", "资源不存在", request_id)
         return document
