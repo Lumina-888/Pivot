@@ -42,6 +42,13 @@ uploads/
 exported/
 *.log
 logs/
+# 本地 SQLite 运行时库（如 api/pivot.db），勿入库
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
 
 # ===== 工具工作痕迹（不入库）=====
 .zcode/
