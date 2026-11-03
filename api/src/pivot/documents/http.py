@@ -69,6 +69,8 @@ def build_documents_router(
             visible_libraries=auth.visible_libraries(principal),
             space=space,
             tags=tuple(tags or ()),
+            visible_folder_ids=auth.visible_folder_ids(principal),
+            exception_document_ids=auth.exception_document_ids(principal),
         )
         return {"items": list(items), "pagination": None}
 
@@ -98,6 +100,17 @@ def build_documents_router(
                 principal, target_library_id, request_id
             )
         content = file.file.read()
+        # Defect 4 same-target repeat gate: a pending duplicate is a
+        # safe repeat only when its pending request already targets
+        # the library just requested; a different target forks a
+        # fresh pending document instead of reusing the old request
+        # while echoing the new target.
+        def _pending_target_matches(document_id: str) -> bool:
+            if approvals is None:
+                return False
+            pending = approvals.pending_request_for(document_id)
+            return pending is not None and pending.target_library_id == target_library_id
+
         version = service.upload(
             filename=file.filename or "",
             declared_mime=file.content_type or "",
@@ -110,6 +123,15 @@ def build_documents_router(
             classification=classification,
             external_llm_allowed=external_llm_allowed,
             target_library_id=target_library_id,
+            # Defect 4 readability gate, same channels as the read
+            # endpoints: an untargeted repeat forks a fresh document
+            # when the old one is invisible to this uploader, instead
+            # of handing back an unreadable document id.
+            viewer_role=principal.role,
+            visible_libraries=auth.visible_libraries(principal),
+            visible_folder_ids=auth.visible_folder_ids(principal),
+            exception_document_ids=auth.exception_document_ids(principal),
+            pending_target_matches=_pending_target_matches,
         )
         approval_request_id = None
         self_approved = False
@@ -156,6 +178,8 @@ def build_documents_router(
             viewer_role=principal.role,
             visible_libraries=auth.visible_libraries(principal),
             request_id=request_id,
+            visible_folder_ids=auth.visible_folder_ids(principal),
+            exception_document_ids=auth.exception_document_ids(principal),
         )
 
     @router.get("/documents/{id}/versions")
@@ -166,6 +190,8 @@ def build_documents_router(
             viewer_role=principal.role,
             visible_libraries=auth.visible_libraries(principal),
             request_id=request_id,
+            visible_folder_ids=auth.visible_folder_ids(principal),
+            exception_document_ids=auth.exception_document_ids(principal),
         )
         return {"items": list(items), "pagination": None}
 
@@ -227,6 +253,8 @@ def _open(
         request_id=request_id,
         purpose=purpose,
         actor_id=principal.user_id,
+        visible_folder_ids=auth.visible_folder_ids(principal),
+        exception_document_ids=auth.exception_document_ids(principal),
     )
 
 

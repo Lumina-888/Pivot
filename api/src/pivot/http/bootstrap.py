@@ -1129,8 +1129,46 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         evidence_limit=resolved.retrieval_k,
     )
     empty_corpus: tuple = ()
+    # Live-fact resolvers for the /search dense leg (2026-11-03
+    # local-real-deps defect 1): the base collection payload is
+    # stamped at ingest and never rewritten by claim/move
+    # reconcile, so records are backfilled here, not by a second
+    # write to the base collection. Same shape as _llama_backend's
+    # resolvers, over the same document/version rows.
+    def _search_library_id_for(version_id: str) -> str | None:
+        try:
+            version = version_rows.get(version_id)
+            if version is None:
+                return None
+            document = document_rows.get(version.document_id)
+            if document is None:
+                return None
+            library_id = document.library_id
+            return library_id if isinstance(library_id, str) and library_id.strip() else None
+        except Exception:
+            return None
+
+    def _search_folder_id_for(version_id: str) -> str | None:
+        try:
+            version = version_rows.get(version_id)
+            if version is None:
+                return None
+            document = document_rows.get(version.document_id)
+            if document is None:
+                return None
+            folder_id = document.folder_id
+            return folder_id if isinstance(folder_id, str) and folder_id.strip() else None
+        except Exception:
+            return None
+
     if qdrant_store is not None and query_embedder is not None:
-        dense_retriever: object = VectorStoreRetriever(qdrant_store, query_embedder, source="dense")
+        dense_retriever: object = VectorStoreRetriever(
+            qdrant_store,
+            query_embedder,
+            source="dense",
+            library_id_for=_search_library_id_for,
+            folder_id_for=_search_folder_id_for,
+        )
     else:
         dense_retriever = KeywordRetriever(empty_corpus, "dense")
     tokenizer = SimpleLexTokenizer()
@@ -1138,6 +1176,42 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
         bm25_retriever: object = Bm25Retriever(
             tokenizer, k1=resolved.bm25_k1, b=resolved.bm25_b, source="bm25"
         )
+        # /search BM25 leg ownership (2026-11-03 local-real-deps
+        # defect 2): the QA leg builds its BM25 index per query
+        # from eligible nodes; the /search leg has no corpus at
+        # assembly, so it is populated here from the base
+        # collection's payloads, backfilled with the same live
+        # facts as the dense leg. This is a startup snapshot:
+        # documents ingested after startup do not enter the
+        # /search BM25 leg until the next restart (the dense leg
+        # is query-time and is unaffected). A persistent sparse
+        # index with an ingest refresh is out of scope here and
+        # is recorded as a residual in the PR description.
+        if qdrant_store is not None:
+            try:
+                from dataclasses import replace as _replace_chunk
+
+                from pivot.retrieval.llama_index_builder import scroll_payloads
+                from pivot.retrieval.vector import chunk_record_from_payload
+
+                _bm25_records = []
+                for _payload in scroll_payloads(qdrant_store):
+                    _record = chunk_record_from_payload(_payload)
+                    if _record is None:
+                        continue
+                    _lib = _search_library_id_for(_record.version_id)
+                    if isinstance(_lib, str) and _lib.strip():
+                        _record = _replace_chunk(_record, library_id=_lib)
+                    _folder = _search_folder_id_for(_record.version_id)
+                    _record = _replace_chunk(_record, folder_id=_folder)
+                    _bm25_records.append(_record)
+                if _bm25_records:
+                    bm25_retriever.add(_bm25_records)  # type: ignore[attr-defined]
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "failed to populate /search BM25 index from base collection; "
+                    "dense leg still serves, BM25 leg stays empty for this process"
+                )
     else:
         bm25_retriever = KeywordRetriever(empty_corpus, "bm25")
     reranker = None
