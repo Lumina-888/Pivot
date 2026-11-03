@@ -35,7 +35,8 @@ services:
       - pivot_pg_data:/var/lib/postgresql/data
 
   minio:
-    image: minio/minio:RELEASE.2024-10-02T17-50-41Z
+    # MinIO 官方镜像已下架（缺陷 7）；本地 fixture 改用 pgsty/silo 社区 fork，S3 API/环境变量/健康检查不变，仅本地 fixture，不代表正式生产选型。
+    image: docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pivotminio}
