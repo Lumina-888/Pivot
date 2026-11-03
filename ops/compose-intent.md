@@ -8,7 +8,7 @@
 | 服务 | 用途 | 健康检查 | 本切片 |
 |---|---|---|---|
 | postgres | 业务事实源 | `pg_isready` | fixture 已钉镜像 |
-| minio | 对象存储 | HTTP `/minio/health/live` | fixture 已钉镜像 |
+| minio | 对象存储 | HTTP `/minio/health/live` | fixture 已钉镜像 docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z（MinIO 官方镜像下架后的社区 fork 替换，仅本地 fixture；服务名、端口、健康检查、环境变量不变） |
 | qdrant | 向量索引 | HTTP `/readyz` | fixture 已钉镜像 |
 | redis | 缓存/队列辅助，**不是**业务事实源 | `redis-cli ping` | fixture 已钉镜像 |
 | api | FastAPI composition root `/healthz` `/readyz` `/api/v1`；注入共享 PG/MinIO/Qdrant/Redis、celery ingest、登录限流阈值/窗口、HTTP Embedding、Draft Writer 与解析器 | HTTP `/healthz` | Dockerfile + profile `app`（`worker[celery,parse]`）；存储/向量/缓存/ingest/限流/Embedding/LLM/Parser 注入；CI 不 build/up |
