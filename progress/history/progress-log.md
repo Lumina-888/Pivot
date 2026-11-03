@@ -7,9 +7,9 @@
 ## 2026-11-03 — 本机真实依赖联调
 
 - **范围 / 基线**：main `0587a73`（= origin/main）；Owner 要求在本机做真实依赖联调，不租云主机。M11 记录证据，M04 与 M01 登记残留。未改业务源码、公开契约、迁移、依赖锁与 `TBD-P0`。证据见 [本机真实依赖联调](../evidence/local-real-deps-20261103.md)。
-- **结果**：真实 PG 上 12 个迁移全过，单头 `c8842fce3b98`，31 张表；PG 16.4 / Qdrant 1.12.4 / Redis 7.4.1 容器运行，`/readyz` 三项 true、`minio` false（对象存储临时走 memory）。登录、建用户与首次改密强制、建部门、成员授权、上传、解析与入库、认领、文档可见性均通过。发现五个问题：认领后库成员检索不到文档；`/search` 的 BM25 腿一直是空索引；两个示例配置缺陷导致 app profile 启动失败；MinIO 官方镜像已下架。
+- **结果**：真实 PG 上 12 个迁移全过，单头 `c8842fce3b98`，31 张表；PG 16.4 / Qdrant 1.12.4 / Redis 7.4.1 容器运行，`/readyz` 三项 true、`minio` false（对象存储临时走 memory）。跑通约 60 个场景：基础链路、发布审批（待批/批准/拒绝/撤回/重提/改目标/自批）、跨库移动、文档例外、文件夹、项目库与 60 天上限、删除取消、并发上传与检索、重启保持。发现七个缺陷：认领与移动后目标库成员检索不到文档；`/search` 的 BM25 腿恒为空索引；文档读取入口只用库可见性（文件夹限制与文档例外均不生效）；内容去重跨库命中时目标库被静默忽略并回显；两个示例配置缺陷导致 app profile 启动失败；MinIO 官方镜像下架。另记六项观测，其中三项为既有残留或需对齐口径。
 - **验证**：`tests/unit/auth`+`tests/security/auth` 271 passed；`tests/integration/pipeline` 380 passed / 20 skipped；`npm --prefix web test` 18 passed。Docker daemon 加代理 drop-in 后镜像可拉取。
-- **命令 / 限制**：`PIVOT_INGEST=sync`、`PIVOT_OBJECT_STORE=memory`、`PIVOT_LLM=local`、`PIVOT_EMBEDDING=hash`；未起 worker，审批与移动全链、例外与文件夹隔离、并发、重启保持均未验证；`GATE-P0-001~008` 仍全部 unverified。
+- **命令 / 限制**：`PIVOT_INGEST=sync`、`PIVOT_OBJECT_STORE=memory`、`PIVOT_LLM=local`、`PIVOT_EMBEDDING=hash`；未起 worker，Celery 路径、真实对象存储、QA 与 Agent 链路、容量压测、备份恢复、前端浏览器验证均未覆盖；`GATE-P0-001~008` 仍全部 unverified。
 
 ## 2026-10-06 — 02-A/B/C 审批与恢复入口同步
 
