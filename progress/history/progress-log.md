@@ -4,6 +4,13 @@
 
 现行状态见 [PROGRESS.md](../../PROGRESS.md)。新轮次记录追加到本文件，不再写回 PROGRESS.md。
 
+## 2026-11-03 — 本机真实依赖联调
+
+- **范围 / 基线**：main `0587a73`（= origin/main）；Owner 要求在本机做真实依赖联调，不租云主机。M11 记录证据，M04 与 M01 登记残留。未改业务源码、公开契约、迁移、依赖锁与 `TBD-P0`。证据见 [本机真实依赖联调](../evidence/local-real-deps-20261103.md)。
+- **结果**：真实 PG 上 12 个迁移全过，单头 `c8842fce3b98`，31 张表；PG 16.4 / Qdrant 1.12.4 / Redis 7.4.1 容器运行，`/readyz` 三项 true、`minio` false（对象存储临时走 memory）。登录、建用户与首次改密强制、建部门、成员授权、上传、解析与入库、认领、文档可见性均通过。发现五个问题：认领后库成员检索不到文档；`/search` 的 BM25 腿一直是空索引；两个示例配置缺陷导致 app profile 启动失败；MinIO 官方镜像已下架。
+- **验证**：`tests/unit/auth`+`tests/security/auth` 271 passed；`tests/integration/pipeline` 380 passed / 20 skipped；`npm --prefix web test` 18 passed。Docker daemon 加代理 drop-in 后镜像可拉取。
+- **命令 / 限制**：`PIVOT_INGEST=sync`、`PIVOT_OBJECT_STORE=memory`、`PIVOT_LLM=local`、`PIVOT_EMBEDDING=hash`；未起 worker，审批与移动全链、例外与文件夹隔离、并发、重启保持均未验证；`GATE-P0-001~008` 仍全部 unverified。
+
 ## 2026-10-06 — 02-A/B/C 审批与恢复入口同步
 
 - **范围 / 基线**：main `8a81946` 开场 clean；M00 工单/交接/根进度与审核入口、M03 依赖申请/模块进度同步。只修改文档，不改业务、公开 Contract、依赖/锁、CI/镜像、迁移或用户配置。
