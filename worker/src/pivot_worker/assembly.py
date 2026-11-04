@@ -28,7 +28,11 @@ from pivot.parsing import (
 from pivot.retrieval.fakes import HashingQueryEmbedder
 from pivot.retrieval.providers import HttpQueryEmbedder, StdlibJsonHttpClient
 from pivot.storage.adapters.minio import MinioObjectStore, connect_minio_client
-from pivot.storage.adapters.qdrant import QdrantVectorStore, connect_qdrant_client
+from pivot.storage.adapters.qdrant import (
+    DEFAULT_QDRANT_DISTANCE,
+    QdrantVectorStore,
+    connect_qdrant_client,
+)
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
@@ -312,12 +316,15 @@ def _llama_document_sync(
         if settings.qdrant_api_key:
             client_kwargs["api_key"] = settings.qdrant_api_key
         client = SdkQdrantClient(**client_kwargs)
-    if not settings.qdrant_distance:
-        raise RuntimeError(
-            "PIVOT_QDRANT_DISTANCE is required when "
-            "PIVOT_RETRIEVAL_BACKEND=llama so the worker can sync the "
-            "LlamaIndex collections"
-        )
+    # D8-18 (Q2): mirror the api side (api/src/pivot/http/bootstrap.py
+    # passes the same default to LlamaLibraryIndexSet.open). The worker
+    # must not hard-fail on an unset distance while the api silently
+    # defaults; both sides now resolve to the same shared default. The
+    # ensure-collection guard in IngestAssemblySettings.__post_init__
+    # still requires an explicit distance when
+    # PIVOT_QDRANT_ENSURE_COLLECTION=1, so collection creation never
+    # silently picks a distance.
+    distance = settings.qdrant_distance or DEFAULT_QDRANT_DISTANCE
     holders = LlamaLibraryIndexSet.open(
         client=client,
         native_collection=settings.qdrant_collection or "",
@@ -327,7 +334,7 @@ def _llama_document_sync(
             dimension=settings.qdrant_vector_size,
         ),
         vector_size=settings.qdrant_vector_size,
-        distance=settings.qdrant_distance,
+        distance=distance,
         native_payloads=scroll_payloads(store),
         external_llm_allowed=external_llm_allowed,
         library_id_for=library_id_for,
@@ -431,6 +438,15 @@ def _open_minio_store(settings: IngestAssemblySettings) -> MinioObjectStore:
         ensure_bucket=settings.minio_ensure_bucket,
     )
     if not store.healthy():
+        # D8-05: a missing bucket is not an unreachable service. Name it
+        # so a fresh environment is not misdiagnosed, and point at the
+        # ensure flag that fixes it.
+        if store.bucket_exists() is False:
+            raise RuntimeError(
+                f"minio bucket {settings.minio_bucket} is missing "
+                "(bucket missing, not unreachable); set "
+                "PIVOT_MINIO_ENSURE_BUCKET=1 or create the bucket"
+            )
         raise RuntimeError("minio is not reachable")
     return store
 
@@ -462,6 +478,13 @@ def _open_qdrant_store(settings: IngestAssemblySettings) -> QdrantVectorStore:
         distance=settings.qdrant_distance,
     )
     if not store.healthy():
+        # D8-05: a missing collection is not an unreachable service.
+        if store.collection_exists() is False:
+            raise RuntimeError(
+                f"qdrant collection {settings.qdrant_collection} is missing "
+                "(collection missing, not unreachable); set "
+                "PIVOT_QDRANT_ENSURE_COLLECTION=1 or create the collection"
+            )
         raise RuntimeError("qdrant is not reachable")
     return store
 

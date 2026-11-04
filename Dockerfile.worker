@@ -15,7 +15,11 @@ COPY api/src /app/api/src
 COPY worker/pyproject.toml /app/worker/pyproject.toml
 COPY worker/src /app/worker/src
 
-RUN pip install "./api[postgres,minio,qdrant,redis]" "./worker[celery,parse]"
+# D8-17: the worker image must include the api "http" extra. pivot/http
+# eagerly imports create_app at package level, so even the worker-only
+# "from pivot.http.memory import UtcClock" pulls fastapi; without this
+# extra the worker container dies with ModuleNotFoundError: fastapi.
+RUN pip install "./api[postgres,minio,qdrant,redis,http]" "./worker[celery,parse]"
 
 EXPOSE 8001
 

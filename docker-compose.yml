@@ -76,7 +76,13 @@ services:
         ]
       interval: 5s
       timeout: 3s
-      retries: 10
+      # D8-03 follow-up, Q5 (2026-11-04): qdrant needs ~25 s to turn
+      # healthy on a host with a large recovered history set, against a
+      # 5s x 10 = 50 s budget. retries=20 gives ~100 s so a slow recovery
+      # does not flap api/worker through depends_on: service_healthy.
+      # Do NOT write the probe variable as $line here: Compose
+      # interpolates it to the empty string; it must stay $$line.
+      retries: 20
     volumes:
       - pivot_qdrant_data:/qdrant/storage
 

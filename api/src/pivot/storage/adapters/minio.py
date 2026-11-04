@@ -91,6 +91,16 @@ class MinioObjectStore:
         except Exception:
             return False
 
+    def bucket_exists(self) -> bool | None:
+        """Tri-state probe for D8-05: True = present, False = the service
+        answered and the bucket is missing, None = the service itself
+        could not be reached. healthy() conflates the last two, which
+        made a missing bucket misreport as "minio is not reachable"."""
+        try:
+            return bool(self._client.bucket_exists(self._bucket))
+        except Exception:
+            return None
+
     def put(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
         self._require_key(key)
         payload = data if isinstance(data, (bytes, bytearray)) else bytes(data)

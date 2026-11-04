@@ -189,3 +189,16 @@ def test_D8_03_qdrant_probe_survives_compose_interpolation():
     # Every $-reference in the probe command must be escaped; only env-file
     # placeholders (${VAR}) may stay unescaped elsewhere in the file.
     assert "$$" in command
+
+
+def test_D8_03_Q5_qdrant_probe_budget_is_100s():
+    """Q5 (2026-11-04 retest v1.2): qdrant needs ~25 s to turn healthy
+    on a host with a large recovered history set, against a 5s x 10 =
+    50 s budget. retries=20 gives ~100 s so a slow recovery does not
+    flap api/worker through depends_on: service_healthy."""
+    text = _COMPOSE.read_text(encoding="utf-8")
+    body = _service_blocks(text)["qdrant"]
+    assert "interval: 5s" in body
+    assert "retries: 20" in body
+    # The budget change must not regress the $$line escape (D8-03).
+    assert "$$line" in body
