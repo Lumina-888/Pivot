@@ -86,6 +86,7 @@ from pivot.security.rbac import AccessControl
 from pivot.shared.ids import new_id
 from pivot.storage.adapters.minio import MinioObjectStore, connect_minio_client
 from pivot.storage.adapters.qdrant import (
+    DEFAULT_QDRANT_DISTANCE,
     QdrantVectorStore,
     _normalize_endpoint,
     connect_qdrant_client,
@@ -320,6 +321,15 @@ def _open_minio_store(settings: RuntimeSettings) -> MinioObjectStore:
         ensure_bucket=settings.minio_ensure_bucket,
     )
     if not store.healthy():
+        # D8-05: a missing bucket is not an unreachable service. Name it
+        # so a fresh environment is not misdiagnosed, and point at the
+        # ensure flag that fixes it.
+        if store.bucket_exists() is False:
+            raise RuntimeError(
+                f"minio bucket {settings.minio_bucket} is missing "
+                "(bucket missing, not unreachable); set "
+                "PIVOT_MINIO_ENSURE_BUCKET=1 or create the bucket"
+            )
         raise RuntimeError("minio is not reachable")
     return store
 
@@ -351,6 +361,13 @@ def _open_qdrant_store(settings: RuntimeSettings) -> QdrantVectorStore:
         distance=settings.qdrant_distance,
     )
     if not store.healthy():
+        # D8-05: a missing collection is not an unreachable service.
+        if store.collection_exists() is False:
+            raise RuntimeError(
+                f"qdrant collection {settings.qdrant_collection} is missing "
+                "(collection missing, not unreachable); set "
+                "PIVOT_QDRANT_ENSURE_COLLECTION=1 or create the collection"
+            )
         raise RuntimeError("qdrant is not reachable")
     return store
 
@@ -708,7 +725,7 @@ def _llama_backend(
             dimension=settings.qdrant_vector_size,
         ),
         vector_size=settings.qdrant_vector_size,
-        distance=settings.qdrant_distance or "Cosine",
+        distance=settings.qdrant_distance or DEFAULT_QDRANT_DISTANCE,
         native_payloads=scroll_payloads(qdrant_store),
         external_llm_allowed=external_llm_allowed,
         library_id_for=library_id_for,
