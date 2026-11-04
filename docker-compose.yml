@@ -61,13 +61,18 @@ services:
     # could never start. CMD-SHELL runs dash here, which cannot do
     # /dev/tcp redirection, so the probe must invoke bash explicitly and
     # require a 200 status line from GET /readyz (not just a TCP connect).
+    # D8-03 follow-up (2026-11-04): a bare $line is interpolated by Compose
+    # at parse time ("The \"line\" variable is not set") and renders as the
+    # empty string, so `case "" in *200*)` never matched and the container
+    # stayed unhealthy anyway. The shell variable must be written $$line;
+    # tests/integration/pipeline/test_NFR_OBS_compose_deps.py guards this.
     healthcheck:
       test:
         [
           "CMD",
           "bash",
           "-c",
-          "exec 3<>/dev/tcp/127.0.0.1/6333; printf 'GET /readyz HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n' >&3; IFS= read -r line <&3; case \"$line\" in *200*) exit 0;; *) exit 1;; esac",
+          "exec 3<>/dev/tcp/127.0.0.1/6333; printf 'GET /readyz HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n' >&3; IFS= read -r line <&3; case \"$$line\" in *200*) exit 0;; *) exit 1;; esac",
         ]
       interval: 5s
       timeout: 3s
