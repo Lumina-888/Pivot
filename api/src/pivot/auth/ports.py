@@ -204,6 +204,16 @@ class ExportAuthz:
     owner_id: str
 
 
+class DuplicateUsernameError(Exception):
+    """Raised by a UserDirectory when a username unique constraint fires.
+
+    Carries no SQL text and no password hash: the service layer turns it
+    into the AUTH_USERNAME_TAKEN envelope, so a duplicate never reaches
+    the default 500 handler (whose traceback would print the failed
+    statement and its parameters, including the password hash).
+    """
+
+
 class UserDirectory(Protocol):
     def get_by_id(self, user_id: str) -> UserAccount | None: ...
 
@@ -295,6 +305,11 @@ class DepartmentAdminStore(Protocol):
     def delete_library(self, library_id: str) -> None: ...
 
     def get_department_members(self, dept_id: str) -> tuple[Membership, ...]: ...
+
+    # Non-purging per-user read (D8-16): get_department_members lazily
+    # purges expired rows, so renewal must not look members up through
+    # it. Both concrete stores implement this already.
+    def get_memberships(self, user_id: str) -> tuple[Membership, ...]: ...
 
     def add_membership(self, membership: Membership) -> None: ...
 

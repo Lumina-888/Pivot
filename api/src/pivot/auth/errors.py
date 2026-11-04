@@ -45,6 +45,10 @@ def password_change_required(request_id: str) -> AuthError:
     )
 
 
+def username_taken(request_id: str) -> AuthError:
+    return AuthError("AUTH_USERNAME_TAKEN", "用户名已存在", request_id)
+
+
 def not_found(request_id: str) -> AuthError:
     return AuthError("RESOURCE_NOT_FOUND", NOT_FOUND_MESSAGE, request_id)
 

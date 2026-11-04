@@ -3,10 +3,12 @@
 Read-time expiry: visible_libraries and admin_departments exclude
 expired memberships, effective on the next request with no sweeper.
 Renewal goes through the role-change path and writes a renewal audit
-event; after expiry a row is purged on department-member reads, so
-renewal is refused and only a fresh grant works. The 60-day cap binds
-only the project-lead level (Q1): it does not exist until P1-4, so
-department admins granting long-term memberships must stay unlimited.
+event. D8-16: a department renewal may extend an already-expired row
+(the row is restored, not re-granted); the row is still purged on
+department-member reads, and an expired row with no extension still
+404s. The 60-day cap binds only the project-lead level (Q1): it does
+not exist until P1-4, so department admins granting long-term
+memberships must stay unlimited.
 """
 
 from __future__ import annotations
@@ -229,19 +231,65 @@ def test_FR_RBAC_004_expiry_shortening_and_restriction_are_not_renewal() -> None
     assert len([e for e in _actions(audits) if e["action"] == "authz.permission_renewed"]) == 1
 
 
-def test_FR_RBAC_004_expiry_renewal_after_expiry_refused_regrant_works() -> None:
+def test_D8_16_renewal_after_expiry_restores_row_and_visibility() -> None:
+    """D8-16 retest path: grant -> expire -> renew must succeed.
+
+    The retest reproduced: frank joined d-tech as reader, expiry moved
+    to a future time, then to a past time, then renewal (expires_at
+    null) 404'd and the row was gone from the DB. Renewal must restore
+    the row and visibility; an expired row with no extension still
+    404s, and a fresh re-grant still works after that.
+    """
     clock = FakeClock(T0)
-    service, resources, _, _, _ = _seed(clock)
+    service, resources, _, _, audits = _seed(clock)
+    access = AccessControl(resources, clock=clock)
+    dave = Principal(user_id="usr_dave", username="dave", role="user", token_version=1)
+    service.add_member(
+        ADMIN, "dept_eng", "usr_dave", "reader", "req_tmp",
+        expires_at=T0 + timedelta(days=30),
+    )
+    # Mirror the retest: expiry moved forward, then into the past.
+    service.set_member_role(
+        ADMIN, "dept_eng", "usr_dave", "reader", "req_future",
+        expires_at=T0 + timedelta(days=60),
+    )
+    service.set_member_role(
+        ADMIN, "dept_eng", "usr_dave", "reader", "req_past",
+        expires_at=T0 - timedelta(days=1),
+    )
+    assert "dept_eng" not in access.visible_libraries(dave)
+    # Renewal with an explicit extension restores the row.
+    renewed = service.set_member_role(
+        ADMIN, "dept_eng", "usr_dave", "reader", "req_renew",
+        expires_at=None,
+    )
+    assert renewed.expires_at is None
+    assert "dept_eng" in access.visible_libraries(dave)
+    renewals = [e for e in _actions(audits) if e["action"] == "authz.permission_renewed"]
+    # Two extensions: the pre-expiry move to T0+60d, then the post-expiry
+    # renewal to a long-term grant.
+    assert len(renewals) == 2
+    assert renewals[-1]["metadata"]["new_expires_at"] is None
+    # The row survives a later department-member read (no silent purge
+    # of a live row).
+    assert any(m.user_id == "usr_dave" for m in resources.get_department_members("dept_eng"))
+
+
+def test_D8_16_expired_row_without_extension_still_404() -> None:
+    clock = FakeClock(T0)
+    service, _, _, _, _ = _seed(clock)
     service.add_member(
         ADMIN, "dept_eng", "usr_dave", "reader", "req_tmp",
         expires_at=T0 + timedelta(seconds=10),
     )
     clock.advance(11)
-    with pytest.raises(AuthError):
+    # Omitted expiry (role change only) on an expired row: still 404.
+    with pytest.raises(AuthError) as error:
         service.set_member_role(
-            ADMIN, "dept_eng", "usr_dave", "editor", "req_late_renew",
-            expires_at=T0 + timedelta(days=30),
+            ADMIN, "dept_eng", "usr_dave", "editor", "req_late_role",
         )
+    assert error.value.code == "RESOURCE_NOT_FOUND"
+    # A fresh re-grant still works after that.
     member, created = service.add_member(
         ADMIN, "dept_eng", "usr_dave", "editor", "req_regrant",
         expires_at=T0 + timedelta(days=30),

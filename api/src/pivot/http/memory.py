@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from pivot.audit.ports import Actor
+from pivot.auth.errors import AuthError
 from pivot.auth.ports import (
     ApprovalRequest,
     AuditEventDraft,
@@ -19,6 +20,7 @@ from pivot.auth.ports import (
     Library,
     Membership,
     MoveRequest,
+    Principal,
     RefreshSession,
     UserAccount,
 )
@@ -30,7 +32,14 @@ from pivot.documents.ports import (
     VersionRecord,
 )
 from pivot.exports.errors import not_found, resource_forbidden
-from pivot.exports.models import DocumentExportView, ExportRecord, PersistedAnswer
+from pivot.exports.models import (
+    EXPORTABLE_RUN_STATES,
+    CitationView,
+    ClaimView,
+    DocumentExportView,
+    ExportRecord,
+    PersistedAnswer,
+)
 from pivot.exports.ports import ExportRepository
 from pivot.shared.time import utc_now
 
@@ -523,10 +532,127 @@ class MemoryAnswerStore:
         return self.documents.get(document_id)
 
 
+class RunBackedAnswerStore:
+    """AnswerStore that falls back to persisted runs (D8-06, phenomenon 1).
+
+    The plain MemoryAnswerStore is only ever seeded by tests; production
+    QA never constructs a PersistedAnswer, so conversation export always
+    failed on real assemblies. This wrapper keeps the seeded dict (so
+    existing tests keep seeding ``assembly.answers.answers``) and, on a
+    miss, reads the conversation's latest exportable run from the run
+    store and builds a PersistedAnswer from it. The PG run store does
+    not persist claims/citations, so those lists may be empty -- the
+    answer text itself is the persisted final answer.
+    """
+
+    def __init__(
+        self,
+        inner: MemoryAnswerStore,
+        runs=None,
+        documents=None,
+        versions=None,
+        chunks=None,
+    ) -> None:
+        self._inner = inner
+        self._runs = runs
+        self._documents = documents
+        self._versions = versions
+        self._chunks = chunks
+
+    @property
+    def answers(self) -> dict[str, PersistedAnswer]:
+        return self._inner.answers
+
+    @property
+    def documents(self) -> dict[str, DocumentExportView]:
+        return self._inner.documents
+
+    def get_exportable_answer(self, conversation_id: str) -> PersistedAnswer | None:
+        answer = self._inner.get_exportable_answer(conversation_id)
+        if answer is not None or self._runs is None:
+            return answer
+        candidates = [
+            bundle
+            for bundle in self._runs.list_for_conversation(conversation_id)
+            if bundle.run.state in EXPORTABLE_RUN_STATES and bundle.run.answer_markdown
+        ]
+        if not candidates:
+            return None
+        bundle = candidates[-1]
+        claims = tuple(
+            ClaimView(
+                id=str(claim.get("id", "")),
+                text=str(claim.get("text", "")),
+                support=str(claim.get("support", "unsupported")),
+                citation_ids=tuple(str(c) for c in claim.get("citation_ids", ())),
+            )
+            for claim in bundle.claims
+            if isinstance(claim, dict)
+        )
+        citations = tuple(
+            CitationView(
+                id=str(citation.get("id", "")),
+                document_id=str(citation.get("document_id", "")),
+                version_id=str(citation.get("version_id", "")),
+                chunk_id=str(citation.get("chunk_id", "")),
+                locator=str(citation.get("locator", "")),
+                snippet=str(citation.get("snippet", "")),
+            )
+            for citation in bundle.citations
+            if isinstance(citation, dict)
+        )
+        return PersistedAnswer(
+            conversation_id=conversation_id,
+            run_id=bundle.run.id,
+            state=bundle.run.state,
+            answer_markdown=bundle.run.answer_markdown,
+            claims=claims,
+            citations=citations,
+            title=conversation_id,
+        )
+
+    def get_document_export(self, document_id: str) -> DocumentExportView | None:
+        """Document view, seeded dict first, then PG stores (D8-06, phenomenon 2).
+
+        The seeded dict is never populated on real assemblies, so the
+        document view is built from the document/version/chunk stores --
+        the same stores DocumentService already uses.
+        """
+        view = self._inner.get_document_export(document_id)
+        if view is not None:
+            return view
+        if self._documents is None or self._versions is None or self._chunks is None:
+            return None
+        document = self._documents.get(document_id)
+        if document is None or document.deleted_at is not None:
+            return None
+        current = None
+        for version in self._versions.list_for_document(document_id):
+            if version.current:
+                current = version
+                break
+        if current is None:
+            return None
+        chunks = self._chunks.list_for_version(current.id)
+        return DocumentExportView(
+            document_id=document.id,
+            title=document.title,
+            version_id=current.id,
+            locators=tuple(chunk.id for chunk in chunks),
+            display_text="\n\n".join(chunk.text for chunk in chunks),
+        )
+
+
 class MemoryExportAccess:
-    def __init__(self, exports: ExportRepository, resources: InMemoryResources) -> None:
+    def __init__(
+        self,
+        exports: ExportRepository,
+        resources: InMemoryResources,
+        access_control=None,
+    ) -> None:
         self._exports = exports
         self._resources = resources
+        self._access_control = access_control
 
     def authorize_conversation(self, actor: Actor, conversation_id: str, request_id: str) -> None:
         owner = self._resources.get_conversation_owner(conversation_id)
@@ -539,6 +665,27 @@ class MemoryExportAccess:
         raise not_found(request_id)
 
     def authorize_document(self, actor: Actor, document_id: str, request_id: str) -> None:
+        if self._access_control is not None:
+            # D8-06: the PG path must use the same visibility channels as
+            # document read (library + folder + live exception, super
+            # admins through), not the legacy owner/shared-visible rule
+            # below, which rejects even a super admin who did not upload
+            # the document. AuthError codes map onto export errors, and
+            # anything unexpected fails closed as not_found.
+            principal = Principal(
+                user_id=actor.user_id,
+                username=actor.username,
+                role=actor.role,
+                token_version=0,
+                status=actor.status,
+            )
+            try:
+                self._access_control.authorize_document(principal, document_id, request_id)
+            except AuthError as exc:
+                if exc.code == "RESOURCE_FORBIDDEN":
+                    raise resource_forbidden(request_id) from None
+                raise not_found(request_id) from None
+            return
         document = self._resources.get_document(document_id)
         if document is None or document.deleted:
             raise not_found(request_id)

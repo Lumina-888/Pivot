@@ -558,10 +558,12 @@ class DepartmentAdminService:
         Omitted expires_at keeps the stored value: the role-change path
         rebuilds the Membership (and resets grantor/granted_at, as before)
         but must not drop the expiry. Explicit None clears it to a
-        long-term grant. A renewal is an explicit expiry change before
-        expiry that extends it (later finite value, or to long-term);
-        it writes its own renewal audit event. Shortening an expiry or
-        restricting a long-term grant is not a renewal.
+        long-term grant. A renewal is an explicit expiry change that
+        extends it (later finite value, or to long-term); it writes its
+        own renewal audit event. D8-16: a renewal may also extend an
+        already-expired row (the row is restored, not re-granted);
+        shortening an expiry or restricting a long-term grant is not a
+        renewal, and an expired row with no extension still 404s.
         """
         if dept_role not in _DEPT_ROLES:
             raise ValueError("dept_role must be dept_admin, editor, or reader")
@@ -580,19 +582,56 @@ class DepartmentAdminService:
                     error=forbidden(request_id),
                 )
         self._require_department_library(dept_id, request_id)
-        current = next(
-            (
-                member
-                for member in self._store.get_department_members(dept_id)
-                if member.user_id == user_id
-            ),
-            None,
-        )
+        # D8-16: do NOT look the member up through get_department_members
+        # here. That read lazily purges expired rows, so it destroyed the
+        # very row a renewal needs to extend: the renewal then 404'd and
+        # the membership silently vanished. Look up through
+        # get_memberships instead, which does not purge (both the PG and
+        # in-memory catalogs implement it); fall back to the old purging
+        # read only for stores that lack it.
+        current = None
+        get_memberships = getattr(self._store, "get_memberships", None)
+        if get_memberships is not None:
+            current = next(
+                (
+                    member
+                    for member in get_memberships(user_id)
+                    if member.dept_id == dept_id
+                ),
+                None,
+            )
         if current is None:
-            # Expired rows are purged by the department-member read above,
-            # so an expired membership is already gone: it cannot be
-            # renewed, only re-granted through add_member (ADR-017 Q3).
+            current = next(
+                (
+                    member
+                    for member in self._store.get_department_members(dept_id)
+                    if member.user_id == user_id
+                ),
+                None,
+            )
+        if current is None:
             raise not_found(request_id)
+        # An expired row may be renewed, but only by an explicit
+        # extension: expires_at=None (long-term grant) or a finite value
+        # later than the old expiry. Anything else on an expired row
+        # (omitted, shortened, unchanged) keeps the old 404: for that
+        # purpose the row is gone and only a fresh add_member grant
+        # brings it back. This is a deliberate, department-only
+        # deviation from the old ADR-017 Q3 reading ("expired = gone,
+        # only re-grant"); project/folder renewal paths keep the old
+        # semantics. Visibility is unchanged: an expired membership
+        # stays invisible until renewed, because RBAC liveness checks
+        # filter expired rows at read time, and a later
+        # get_department_members call still purges still-expired rows.
+        if current.expires_at is not None and _as_utc(
+            current.expires_at
+        ) <= _as_utc(self._clock.now()):
+            explicit = not isinstance(expires_at, _UnsetType)
+            if not explicit or (
+                expires_at is not None
+                and _as_utc(expires_at) <= _as_utc(current.expires_at)
+            ):
+                raise not_found(request_id)
         explicit = not isinstance(expires_at, _UnsetType)
         new_expires = current.expires_at if not explicit else expires_at
         if explicit:

@@ -292,3 +292,60 @@ def test_NFR_OBS_005_admin_tasks_read_persisted_facts():
     assert item["state"] == "queued"
     assert item["retryable"] is False
     assert isinstance(item["created_at"], str) and item["created_at"]
+
+
+def test_D8_11_admin_metrics_with_documents_returns_200():
+    """D8-11: GET /admin/metrics must be 200 when the library has documents.
+
+    count_indexed/count_pending/count_failed used to read
+    DocumentRecord.status, a field that does not exist (state lives on
+    VersionRecord.state). The empty-library sum() never touched the
+    attribute, so CI stayed green while any real library 500'd.
+    """
+    from pivot.documents.ports import DocumentRecord, VersionRecord
+
+    pipeline = Pipeline()
+    for doc_id, state in (
+        ("doc_ready", "ready"),
+        ("doc_pending", "parsing"),
+        ("doc_failed", "parse_failed"),
+    ):
+        pipeline.doc_store.save(
+            DocumentRecord(
+                id=doc_id,
+                title=doc_id,
+                space="pub",
+                created_by="usr_admin",
+                library_id="pub",
+            )
+        )
+        pipeline.versions.save(
+            VersionRecord(
+                id=f"ver_{doc_id}",
+                document_id=doc_id,
+                content_sha256="deadbeef",
+                storage_key=f"key-{doc_id}",
+                state=state,
+                current=True,
+            )
+        )
+    client = TestClient(
+        create_app(
+            auth=pipeline.auth,
+            probes=FakeProbes(),
+            documents=pipeline.documents,
+            runs=pipeline.runs,
+        ),
+        base_url="https://testserver",
+    )
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "admin-password"}
+    )
+    assert login.status_code == 200
+    response = client.get(
+        "/api/v1/admin/metrics",
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+    assert response.status_code == 200
+    docs = response.json()["documents"]
+    assert docs == {"total": 3, "indexed": 1, "pending": 1, "failed": 1}

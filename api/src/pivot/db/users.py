@@ -10,9 +10,10 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from pivot.auth.ports import UserAccount
+from pivot.auth.ports import DuplicateUsernameError, UserAccount
 from pivot.db.models import User
 from pivot.db.uow import UnitOfWork
 from pivot.shared.time import utc_now
@@ -80,24 +81,34 @@ class SqlAlchemyUserDirectory:
         if not user.id or not user.username:
             raise ValueError("users require a non-empty id and username")
         with self._session_scope() as session:
-            with UnitOfWork(session):
-                row = session.get(User, user.id)
-                if row is None:
-                    session.add(
-                        User(
-                            id=user.id,
-                            username=user.username,
-                            password_hash=user.password_hash,
-                            role=user.role,
-                            status=user.status,
-                            token_version=user.token_version,
-                            must_change_password=user.must_change_password,
-                            created_at=user.created_at or utc_now(),
-                            updated_at=user.updated_at or utc_now(),
-                        )
+            try:
+                self._save_in(session, user)
+            except IntegrityError:
+                # UnitOfWork already rolled back. Convert, do not re-raise:
+                # the raw exception's str() embeds the failed statement
+                # and its parameters, including the password hash, and
+                # would be printed by the default 500 traceback logger.
+                raise DuplicateUsernameError(user.username) from None
+
+    def _save_in(self, session: Session, user: UserAccount) -> None:
+        with UnitOfWork(session):
+            row = session.get(User, user.id)
+            if row is None:
+                session.add(
+                    User(
+                        id=user.id,
+                        username=user.username,
+                        password_hash=user.password_hash,
+                        role=user.role,
+                        status=user.status,
+                        token_version=user.token_version,
+                        must_change_password=user.must_change_password,
+                        created_at=user.created_at or utc_now(),
+                        updated_at=user.updated_at or utc_now(),
                     )
-                else:
-                    _apply(row, user)
+                )
+            else:
+                _apply(row, user)
 
     def list(self) -> tuple[UserAccount, ...]:
         with self._session_scope() as session:
