@@ -312,3 +312,7 @@ MinIO 官方镜像下架的本地 fixture 供应链变更：docker-compose.yml �
 ## 缺陷 2 残留已解决：/search BM25 腿查询时重建（待审批 PR，未合并）
 
 PR #72 的启动快照残留（启动后新增文档须重启才进 /search BM25 腿）已由本 PR 解决：`LiveBm25Retriever` 每次查询时从基础集合 `scroll_payloads` 重建 BM25 索引并以实时库/文件夹事实回填，按 live 版本事实过滤已删除/非 current 版本的旧点（基础集合在删除/取代后仍含旧点，核查见 progress/modules/M04.md 新增一节）；不建持久稀疏索引，不做进程内增量 add，QA 腿与 dense 腿不动；性能实测 16/100/1000 chunk 查询中位约 0.3/1.9/15.3ms；新回归测试 9 项，相关既有套件与 ruff 通过；未改 Celery worker、pyproject、迁移与 GATE-P0-001~008 状态；真实依赖联调复测仍待 Owner 在本机真实依赖环境做。
+
+## 2026-11-04 联调复测 P1 修复（分支 fix/retest-d8-p1，待审批 PR，未合并）
+
+按 `evidence/integration-retest-20261103.md` 修复 6 个 P1（D8-01、D8-02、D8-03、D8-06、D8-11、D8-16），一个 PR，不自行合并；P2/P3（D8-04、05、07、08、09、10、12、13、14）与 FR-DOC-009 新接口均未碰；GATE-P0-001~008 状态未动，无新迁移，未改业务契约与依赖锁。D8-01：重复用户名改为 409 `AUTH_USERNAME_TAKEN` 信封，目录层转换唯一约束失败以止日志泄漏口令哈希；D8-02：compose 向 api（`:?`）与 worker（`:-`）透传 `PIVOT_BM25_K1/B`；D8-03：qdrant 健康检查改为显式 bash `/dev/tcp` 发 `GET /readyz` 验 200；D8-06：会话导出经 Run 回退、文档导出经 RBAC 通道与目录代理现建视图；D8-11：指标计数改读 current 版本 `VersionRecord.state`；D8-16：部门续期改走不清理的 `get_memberships` 查找，过期行仅显式延长时恢复（项目/文件夹续期保持旧语义，属有意偏离旧 ADR-017 Q3 解读，见 M01.md）。每项均补回归测试；本地实测：auth 269 过、documents 57 过、exports 20 过、pipeline 383 过 / 20 跳过、integration/db 164 过、retrieval 162 过、ruff check（改动文件）通过；本地无 docker，compose 渲染与 app profile 实起、以及 D8-03 探针在真实 qdrant 镜像内的表现，仍待开发机复验；真实 PG 组（db_pg）本地无 PG 服务，未跑。

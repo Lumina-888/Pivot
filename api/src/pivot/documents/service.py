@@ -69,20 +69,60 @@ class DocumentService:
         """Return total number of documents."""
         return len(self._documents.list_active())
 
+    def _current_version_state(self, document_id: str) -> str | None:
+        """State of the document's current version, if any.
+
+        D8-11: DocumentRecord has no ``status`` field at all; the state
+        lives on VersionRecord.state (the current version). Reading
+        ``doc.status`` raised AttributeError, but only once a document
+        existed -- the empty-library sum() never touched the attribute,
+        which is why CI stayed green while real libraries 500'd.
+        """
+        versions = self._versions.list_for_document(document_id)
+        for version in versions:
+            if version.current:
+                return version.state
+        return None
+
     def count_indexed(self) -> int:
         """Return number of indexed documents."""
-        all_docs = self._documents.list_active()
-        return sum(1 for doc in all_docs if is_searchable(doc.status))
+        count = 0
+        for doc in self._documents.list_active():
+            if doc.deleted_at is not None:
+                continue
+            state = self._current_version_state(doc.id)
+            if state is not None and is_searchable(state, True, False):
+                count += 1
+        return count
 
     def count_pending(self) -> int:
         """Return number of pending documents."""
-        all_docs = self._documents.list_active()
-        return sum(1 for doc in all_docs if doc.status in ("uploaded", "parsing", "indexing"))
+        pending = {
+            "uploaded",
+            "queued",
+            "parsing",
+            "chunking",
+            "embedding",
+            "indexed",
+            "pending_approval",
+        }
+        count = 0
+        for doc in self._documents.list_active():
+            if doc.deleted_at is not None:
+                continue
+            if self._current_version_state(doc.id) in pending:
+                count += 1
+        return count
 
     def count_failed(self) -> int:
         """Return number of failed documents."""
-        all_docs = self._documents.list_active()
-        return sum(1 for doc in all_docs if doc.status in TERMINAL_FAILURE)
+        count = 0
+        for doc in self._documents.list_active():
+            if doc.deleted_at is not None:
+                continue
+            if self._current_version_state(doc.id) in TERMINAL_FAILURE:
+                count += 1
+        return count
 
     def list_tasks(self) -> tuple[TaskRecord, ...]:
         """Return all persisted ingest tasks, newest first."""

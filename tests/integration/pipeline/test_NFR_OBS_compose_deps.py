@@ -123,3 +123,41 @@ def test_GATE_P0_008_not_verified_by_compose_file_alone():
     line = next(item for item in limits.splitlines() if "GATE-P0-008" in item)
     assert "unverified" in line.lower()
     assert "verified" not in line.lower().replace("unverified", "")
+
+
+def test_D8_02_compose_passes_bm25_parameters_to_api_and_worker():
+    """D8-02: the example env file sets PIVOT_BM25_K1/B, but api/worker
+    never received them, so the app profile failed at startup with a
+    RuntimeError when PIVOT_RETRIEVAL_BACKEND=llama."""
+    text = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(text)
+    for name in ("api", "worker"):
+        assert name in services, f"missing compose service {name}"
+        body = services[name]
+        assert "PIVOT_BM25_K1" in body, f"{name} must receive PIVOT_BM25_K1"
+        assert "PIVOT_BM25_B" in body, f"{name} must receive PIVOT_BM25_B"
+
+
+def test_D8_03_qdrant_healthcheck_uses_no_wget_or_curl():
+    """D8-03: qdrant/qdrant:v1.12.4 ships neither wget nor curl, so the
+    old wget probe could never pass and api/worker (depends_on healthy)
+    could never start. The probe must speak HTTP over bash /dev/tcp
+    (dash, used by CMD-SHELL, cannot) and require a 200 status line
+    from GET /readyz, not just a TCP connect."""
+    text = _COMPOSE.read_text(encoding="utf-8")
+    services = _service_blocks(text)
+    body = services["qdrant"]
+    assert "healthcheck:" in body
+    # Only the probe command itself is asserted: the explanatory comment
+    # above it legitimately names the tools the image lacks.
+    probe_lines = [
+        line for line in body.splitlines()
+        if "bash" in line or "/dev/tcp" in line or "readyz" in line
+    ]
+    probe = "\n".join(probe_lines)
+    assert "wget" not in probe, "qdrant image has no wget"
+    assert "curl" not in probe, "qdrant image has no curl"
+    assert "bash" in probe
+    assert "/dev/tcp" in probe
+    assert "/readyz" in probe
+    assert "200" in probe

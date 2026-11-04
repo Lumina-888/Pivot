@@ -16,7 +16,7 @@ from pivot.auth.approvals import ApprovalService
 from pivot.auth.attempts import CacheLoginAttempts
 from pivot.auth.departments import DepartmentAdminService
 from pivot.auth.moves import MoveService
-from pivot.auth.ports import Principal, UserAccount, UserDirectory
+from pivot.auth.ports import DocumentAuthz, Principal, UserAccount, UserDirectory
 from pivot.auth.service import AuthService
 from pivot.auth.tokens import TokenService
 from pivot.db.audit import (
@@ -60,6 +60,7 @@ from pivot.http.memory import (
     MemoryExportObjects,
     MemoryTasks,
     MemoryVersions,
+    RunBackedAnswerStore,
     UtcClock,
 )
 from pivot.http.settings import RuntimeSettings
@@ -165,9 +166,32 @@ class _LibraryBackedCatalog:
     catalog, mirroring _ConversationBoundCatalog above.
     """
 
-    def __init__(self, inner, libraries: SqlAlchemyLibraryCatalog) -> None:
+    def __init__(self, inner, libraries: SqlAlchemyLibraryCatalog, documents=None) -> None:
         self._inner = inner
         self._libraries = libraries
+        self._documents = documents
+
+    def get_document(self, document_id: str):
+        # D8-06: the document fact was never proxied, so on the PG path
+        # authorize_document (and every other get_document consumer)
+        # fell through to the empty inner catalog and read None. The
+        # document store carries exactly the fields DocumentAuthz
+        # needs; shared_visible/export_allowed are not document facts
+        # in this store, so they stay False.
+        if self._documents is None:
+            return self._inner.get_document(document_id)
+        row = self._documents.get(document_id)
+        if row is None:
+            return None
+        return DocumentAuthz(
+            id=row.id,
+            deleted=row.deleted_at is not None,
+            shared_visible=False,
+            export_allowed=False,
+            owner_id=row.created_by,
+            library_id=row.library_id,
+            folder_id=row.folder_id,
+        )
 
     def __getattr__(self, name: str):
         return getattr(self._inner, name)
@@ -948,7 +972,9 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     if resolved.storage == "postgres":
         # The sessions factory is built in the PostgreSQL branch above;
         # the memory path keeps the in-memory catalog unchanged.
-        catalog = _LibraryBackedCatalog(catalog, SqlAlchemyLibraryCatalog(sessions))
+        catalog = _LibraryBackedCatalog(
+            catalog, SqlAlchemyLibraryCatalog(sessions), documents=document_rows
+        )
     access = AccessControl(catalog, clock=clock)
 
     def _visible_libraries_for(user_id: str) -> tuple[str, ...]:
@@ -1249,9 +1275,15 @@ def assemble_runtime(settings: RuntimeSettings | None = None) -> RuntimeAssembly
     )
     export_clock = UtcClock()
     audits = AuditService(audit_store, export_clock, failures=audit_failures)
-    answers = MemoryAnswerStore()
+    answers = RunBackedAnswerStore(
+        MemoryAnswerStore(),
+        runs=runs,
+        documents=document_rows,
+        versions=version_rows,
+        chunks=chunk_rows,
+    )
     exports = ExportService(
-        access=MemoryExportAccess(export_rows, catalog),
+        access=MemoryExportAccess(export_rows, catalog, access_control=access),
         answers=answers,
         exports=export_rows,
         objects=export_object_store,

@@ -8,7 +8,6 @@ import pytest
 from pivot.auth.ports import UserAccount
 from pivot.db.models import User
 from pivot.db.users import SqlAlchemyUserDirectory
-from sqlalchemy.exc import IntegrityError
 
 
 def _account(**overrides: object) -> UserAccount:
@@ -78,7 +77,17 @@ def test_M03_sqlalchemy_user_directory_save_updates_same_id(db_session):
 
 
 def test_M03_sqlalchemy_user_directory_rejects_duplicate_username(db_session):
+    # D8-01: the raw IntegrityError must not escape -- its string embeds
+    # the failed statement and parameters, including the password hash,
+    # which the default 500 handler would print to the server log. The
+    # directory converts it to DuplicateUsernameError, which the service
+    # maps to the AUTH_USERNAME_TAKEN envelope (409).
+    from pivot.auth.ports import DuplicateUsernameError
+
     directory = _directory(db_session)
     directory.save(_account())
-    with pytest.raises(IntegrityError):
+    with pytest.raises(DuplicateUsernameError):
         directory.save(_account(id="usr_alice_2"))
+    # The failed insert was rolled back: the original row is intact.
+    loaded = directory.get_by_id("usr_alice")
+    assert loaded is not None and loaded.username == "alice"

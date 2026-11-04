@@ -12,11 +12,13 @@ from pivot.auth.errors import (
     invalid_credentials,
     not_found,
     password_change_required,
+    username_taken,
 )
 from pivot.auth.ports import (
     AuditEventDraft,
     AuditSink,
     Clock,
+    DuplicateUsernameError,
     LoginAttemptLimiter,
     PasswordHasher,
     Principal,
@@ -176,6 +178,12 @@ class AuthService:
         request_id: str,
     ) -> CreatedUser:
         self._require_admin_actor(actor_id, request_id)
+        # Pre-check first: the duplicate must surface as the SPEC §5.1
+        # envelope, never as a 500. The directory still converts a raced
+        # unique-constraint failure below, so a TOCTOU gap cannot leak
+        # either (see DuplicateUsernameError).
+        if self._users.get_by_username(username) is not None:
+            raise username_taken(request_id)
         password_hash = self._hasher.hash(initial_password)
         now = self._clock.now()
         user = UserAccount(
@@ -189,7 +197,10 @@ class AuthService:
             created_at=now,
             updated_at=now,
         )
-        self._users.save(user)
+        try:
+            self._users.save(user)
+        except DuplicateUsernameError:
+            raise username_taken(request_id) from None
         self._audit(
             actor_id,
             "auth.create_user",

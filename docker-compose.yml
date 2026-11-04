@@ -55,8 +55,20 @@ services:
     image: qdrant/qdrant:v1.12.4
     ports:
       - "127.0.0.1:6333:6333"
+    # D8-03: the qdrant image ships neither wget nor curl (verified by the
+    # 2026-11-04 retest: /bin/sh reported "wget: not found"), so the old
+    # wget probe could never pass and api/worker (depends_on healthy)
+    # could never start. CMD-SHELL runs dash here, which cannot do
+    # /dev/tcp redirection, so the probe must invoke bash explicitly and
+    # require a 200 status line from GET /readyz (not just a TCP connect).
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:6333/readyz || exit 1"]
+      test:
+        [
+          "CMD",
+          "bash",
+          "-c",
+          "exec 3<>/dev/tcp/127.0.0.1/6333; printf 'GET /readyz HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n' >&3; IFS= read -r line <&3; case \"$line\" in *200*) exit 0;; *) exit 1;; esac",
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -90,6 +102,11 @@ services:
       PIVOT_DOWNLOAD_TTL: ${PIVOT_DOWNLOAD_TTL:?set PIVOT_DOWNLOAD_TTL}
       PIVOT_EXPORT_PUBLIC_BASE: ${PIVOT_EXPORT_PUBLIC_BASE:?set PIVOT_EXPORT_PUBLIC_BASE}
       PIVOT_RETRIEVAL_K: ${PIVOT_RETRIEVAL_K:?set PIVOT_RETRIEVAL_K}
+      # D8-02: the BM25 leg requires these when PIVOT_RETRIEVAL_BACKEND=llama;
+      # the example env file already sets them, but api never received them,
+      # so the container failed at startup with a RuntimeError.
+      PIVOT_BM25_K1: ${PIVOT_BM25_K1:?set PIVOT_BM25_K1}
+      PIVOT_BM25_B: ${PIVOT_BM25_B:?set PIVOT_BM25_B}
       PIVOT_STORAGE: ${PIVOT_STORAGE:?set PIVOT_STORAGE}
       PIVOT_DATABASE_URL: ${PIVOT_DATABASE_URL:?set PIVOT_DATABASE_URL}
       PIVOT_OBJECT_STORE: ${PIVOT_OBJECT_STORE:?set PIVOT_OBJECT_STORE}
@@ -244,6 +261,11 @@ services:
       PIVOT_EMBEDDING_MODEL: ${PIVOT_EMBEDDING_MODEL:-}
       PIVOT_EMBEDDING_API_KEY: ${PIVOT_EMBEDDING_API_KEY:-}
       PIVOT_EMBEDDING_TIMEOUT: ${PIVOT_EMBEDDING_TIMEOUT:-}
+      # D8-02: pass the BM25 parameters through to the worker as well, so
+      # api and worker render from the same example env file. The worker
+      # does not require them (hence :-), unlike the api (hence :?).
+      PIVOT_BM25_K1: ${PIVOT_BM25_K1:-}
+      PIVOT_BM25_B: ${PIVOT_BM25_B:-}
       PIVOT_PARSER: ${PIVOT_PARSER:?set PIVOT_PARSER}
       PIVOT_PARSER_ENDPOINT: ${PIVOT_PARSER_ENDPOINT:-}
       PIVOT_PARSER_TOKEN: ${PIVOT_PARSER_TOKEN:-}
