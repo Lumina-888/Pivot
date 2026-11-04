@@ -1,7 +1,8 @@
 # 2026-11-03 联调复测结果与问题清单
 
-> 版本：v1.0（2026-11-04）。本文件是本次联调复测的**完整记录**：实测结果、实测数字、问题清单、未测项与需求规格。
-> 本文只记录问题与证据，**不含任何代码修改**；`api/`、`worker/`、`web/`、`tests/` 本轮零改动。
+> 版本：v1.2（2026-11-04）。本文件是本次联调复测的**完整记录**：实测结果、实测数字、问题清单、未测项与需求规格。
+> v1.0 只记录问题与证据，`api/`、`worker/`、`web/`、`tests/` 零改动。**v1.1 起追加一轮修复**：D8-03 在真实镜像内复验为“仍未闭合”，Owner 授权修复。该轮改动逐项登记于 [§15](#15-本轮代码变更记录2026-11-04)，共 2 个代码/测试文件 + 3 个文档：`docker-compose.yml`、`tests/integration/pipeline/test_NFR_OBS_compose_deps.py`。**v1.2 零代码改动**：只做 app profile 实验，新增 D8-17、D8-18。未改业务源码、公开契约、迁移与依赖锁。
+> **待决策事项集中在 [§16](#16-待决策事项阻塞修复需-owner-定)**（Q1~Q6）；未决策前不修。
 > 依据：[联调测试技术文档](../docs/联调测试技术文档.md)、[待测试任务清单](../progress/待测试任务清单.md)。
 > 本文测试通过不等于 GATE-P0 通过，`GATE-P0-001~008` 仍全部 unverified，也不改变任何 `TBD-P0` 或 DR 状态。
 
@@ -40,11 +41,19 @@
 
 | 检查 | 结果 |
 | --- | --- |
-| `docker compose up -d postgres minio qdrant redis` | 四容器启动；postgres/minio/redis healthy，**qdrant 恒为 unhealthy**（见 D8-03） |
+| `docker compose up -d postgres minio qdrant redis` | v1.0：四容器启动；postgres/minio/redis healthy，**qdrant 恒为 unhealthy**（见 D8-03）。**v1.1 复验（修复后）**：四容器全部 `healthy`，qdrant 探针 `exit=0`，见 [§15](#15-本轮代码变更记录2026-11-04) |
 | PostgreSQL 迁移 `alembic upgrade head` | 成功，`alembic_version=c8842fce3b98`，`public` schema 31 张表 |
 | `GET /healthz` | 200 `{"status":"ok"}` |
 | `GET /readyz` | 200 `{"status":"ready","checks":{"postgres":true,"minio":true,"qdrant":true,"redis":true}}` |
 | Qdrant 直连 `GET /readyz` | `all shards are ready`（服务健康，仅容器探针失败） |
+| v1.1 容器内探针实测 | `case "$line"` 收到字面量（修复前被 Compose 插值为空），健康日志 `exit=1`×4（启动期 `Connection refused`）→ `exit=0`，25 秒转 `healthy` |
+| v1.2 app profile：`build api` | 成功（482 s）；首次两次构建失败于 pip 索引抖动（`langgraph==1.2.14` `from versions: none`，而同级元数据 `requires_python>=3.10` 且未 yanked，属瞬时） |
+| v1.2 `--profile app up api` | 依赖四容器均 `Healthy` 后 api 才 `Starting`；32 秒后 `Up (healthy)`，日志 `Application startup complete`，**无 BM25 RuntimeError**（D8-02 实证闭合） |
+| v1.2 `GET /healthz`、`GET /readyz`（容器内 api） | 均 200；readyz 四项全 true |
+| v1.2 真实 PG 复核 D8-01 | 用已存在用户名 `alice` 建号 → **409** `AUTH_USERNAME_TAKEN`，信封含 `code`/`message`/`request_id`/`retryable`；容器日志搜 `argon2|password_hash|INSERT INTO users` 命中 **0 行**；库内 `alice` 仍只 1 行 |
+| v1.2 真实 PG 复核 D8-11 | `GET /admin/metrics` 200，返回 `documents`/`qa`/`storage`/`system`；`GET /admin/tasks` 200，返回 `items`/`pagination` |
+| v1.2 新鲜环境探针（D8-05 复核） | 临时实例指向不存在的桶/集合 → 启动即 `RuntimeError: minio is not reachable`（MinIO 健康）；**D8-05 确认仍是活缺陷**，且程度重于原记录（阻断启动，不只影响 `/readyz`） |
+| v1.2 `--profile app up worker` | 构建成功（453 s），但容器 **`Exited (1)`**：先 D8-18（缺 `PIVOT_QDRANT_DISTANCE`），注入后撞 D8-05（集合不存在→“not reachable”），再撞 **D8-17**（镜像无 `fastapi`） |
 
 ## 4. 回归测试结果（任务 9）
 
@@ -172,10 +181,19 @@ Agent Golden Set（`spec/fixtures/golden-set/agent/v0.1-public.json`）逐场景
 
 ### D8-03 qdrant 健康检查依赖 wget，镜像内不存在，容器永久 unhealthy
 
-- 级别：P1（阻断部署）。状态：新发现，未修复。
-- 现象：`docker-compose.yml` 的 qdrant 健康检查为 `wget -qO- http://127.0.0.1:6333/readyz`；`qdrant/qdrant:v1.12.4` 内既无 `wget` 也无 `curl`。
-- 证据：健康日志连续 `ExitCode 1` / `/bin/sh: 1: wget: not found`；`docker inspect` 状态 `unhealthy`；容器内 `command -v wget`/`curl` 均 `not found`；但 `GET /readyz` 实际返回 `all shards are ready`。
+- 级别：P1（阻断部署）。状态：**已修复**（v1.0 修探针工具，v1.1 修 Compose 插值；两次都需才能闭合）。
+- 现象（首次）：`docker-compose.yml` 的 qdrant 健康检查为 `wget -qO- http://127.0.0.1:6333/readyz`；`qdrant/qdrant:v1.12.4` 内既无 `wget` 也无 `curl`。
+- 证据（首次）：健康日志连续 `ExitCode 1` / `/bin/sh: 1: wget: not found`；`docker inspect` 状态 `unhealthy`；容器内 `command -v wget`/`curl` 均 `not found`；但 `GET /readyz` 实际返回 `all shards are ready`。
 - 影响：`api`、`worker` 都 `depends_on: qdrant: condition: service_healthy`，因此 **app profile 永远起不来**。
+
+**v1.1 追加复验：第一版修复未闭合**（2026-11-04，开发机真实镜像）
+
+- 状态：修复已合入（PR #77，`bea2f2a` 起）但**在真实容器内实测仍 `unhealthy`**。
+- 现象：探针已改为 `bash -c 'exec 3<>/dev/tcp/...; case "$line" in *200*) ...'`，但 Compose 解析期把 `$line` 当环境变量插值：
+  `warning: The "line" variable is not set. Defaulting to a blank string.`
+- 证据：容器内实际下发命令退化为 `case "" in *200*) exit 0;; *) exit 1;; esac`，永不匹配；`curl localhost:6333/readyz` → 200，但 `docker inspect` 为 `unhealthy`；手工将 `$line` 转义后同一命令返回 `PASS: HTTP/1.0 200 OK`。
+- 为什么既有测试没抓到：`test_D8_03_qdrant_healthcheck_uses_no_wget_or_curl` 是纯文本断言，只查 `wget`/`curl` 不在探针、`bash` 在探针，**不查 `$` 是否被 Compose 吃掉**。属“绿灯但功能坏”的盲区。
+- v1.1 修复：`docker-compose.yml` 探针改 `$$line`（Compose 转义），并新增回归 `test_D8_03_qdrant_probe_survives_compose_interpolation`。详见 [§15](#15-本轮代码变更记录2026-11-04)。
 
 ### D8-04 示例配置的 web 反代指向容器自身
 
@@ -272,6 +290,30 @@ Agent Golden Set（`spec/fixtures/golden-set/agent/v0.1-public.json`）逐场景
 - 初步定位（只指出位置，未改）：P1-2 S2 的“读取时过期判定 + 过期行懒清理”与“续期走角色变更路径”在实现上冲突——清理先删除行，续期路径随后按 `(user_id, dept_id)` 找不到行而 404。
 - 影响：临时授权到期后成员被静默移除，管理员无法续期，只能重新添加；审计上表现为“成员消失”，续期链路失效。属于权限生命周期缺陷。
 
+### D8-17 worker 镜像从未装 `http` extra，容器必然 `ModuleNotFoundError: fastapi`
+
+- 级别：P1（阻断部署）。状态：v1.2 新发现，可稳定复现，未修复。
+- 现象：按 `Dockerfile.worker` 构建的镜像一启动即崩溃，与任何环境变量无关。
+- 证据：
+  ```
+  docker run --rm pivot-worker:0.1.0 python -c 'import pivot.http.memory'
+  -> ModuleNotFoundError: No module named 'fastapi'
+  docker run --rm pivot-api:0.1.0 python -c 'import fastapi'
+  -> fastapi 0.162.0
+  ```
+  容器启动日志：`assembly.py:565 from pivot.http.memory import UtcClock` → `pivot/http/__init__.py:3 from pivot.http.app import create_app` → `fastapi` 缺失。
+- 根因：`Dockerfile.worker` 的 `pip install "./api[postgres,minio,qdrant,redis]"` **不含 `http` extra**（`fastapi`/`uvicorn` 在该 extra 里）；而 `api/src/pivot/http/__init__.py` 在包级 `__init__` 里**急切**导入 `create_app`，所以 worker 只想要 `pivot.http.memory.UtcClock` 也会连带拉整个 FastAPI 装配。
+- 何时引入：`pivot/http/__init__.py` 急切导入自 `e66598f`（2026-09-09），worker 的 `from pivot.http.memory import UtcClock` 自 `51a3450`（2026-10-25 `ADR-017`）——**worker 镜像自该日起就起不来**，只因 D8-02/D8-03 让 app profile 根本走不到 worker 这一步，一直被掩盖。
+- 影响：`docker compose --profile app up` 的 worker 服务永远 `Exited (1)`，Celery 消费端不存在，`PIVOT_INGEST=celery` 的入库链路全断。
+
+### D8-18 示例配置缺 `PIVOT_QDRANT_DISTANCE`，worker 启动即 RuntimeError
+
+- 级别：P1（阻断部署）。状态：v1.2 新发现，可稳定复现，未修复。
+- 现象：按 `ops/compose.env.example` 起 worker：`RuntimeError: PIVOT_QDRANT_DISTANCE is required when PIVOT_RETRIEVAL_BACKEND=llama so the worker can sync the LlamaIndex collections`。
+- 证据：`ops/compose.env.example:39` 把 `PIVOT_QDRANT_DISTANCE` **注释掉**了（`# PIVOT_QDRANT_DISTANCE=`），而 `worker/src/pivot_worker/assembly.py:315` 硬校验它非空；同一份配置下 api 不报错，因为 api 侧保留了默认值 `distance=settings.qdrant_distance or "Cosine"`（`api/src/pivot/http/bootstrap.py:711`），worker 没有这个回退。
+- 影响：与 D8-02 同类（示例配置不完整即可阻断启动），但只在 worker 侧爆，api 侧静默。
+- 观察：把 `PIVOT_QDRANT_DISTANCE=Cosine` 注入后 worker 越过此项，接着被 D8-05（集合不存在时报“qdrant is not reachable”）拦住，再接着才撞到 D8-17。三个缺陷串联，任一未修都无法起 worker。
+
 ## 11. 环境事件
 
 - E1 **Docker daemon 整体重启**：四个依赖容器同一时刻 `exit 255`（`docker ps -a` 显示同一时间点退出）。已全部拉起恢复，非产品缺陷。期间一次 API 启动因依赖未起而失败，属该事件连带。
@@ -282,7 +324,8 @@ Agent Golden Set（`spec/fixtures/golden-set/agent/v0.1-public.json`）逐场景
 
 - **任务 4（版本取代）**：无 HTTP 入口，改为需求提案，见 §13。
 - **任务 12 的解析失败路径**：未构造损坏/加密/超大样本，`FR-DOC-004` 错误码分支本轮未覆盖。
-- **缺陷 5、6 的 app profile 端到端**：未构建镜像（D8-02、D8-03 已足以证明该路径不可用），改用同参数在宿主进程装配验证。
+- **任务 4（版本取代）**：无 HTTP 入口，改为需求提案，见 §13。
+- **缺陷 5、6 的 app profile 端到端**：v1.0 未构建镜像（D8-02、D8-03 已足以证明该路径不可用）。**v1.2 已构建并实起 api（见 §3）**，worker 被 D8-17/D8-18 阻断，web 未构建（D8-04 仍为静态判定）。
 - **任务 13**：引用错误率是脚本口径（子串 + 关键 token 命中），未做人工语义判定；未跑 thinking 开关两组对照；未做多轮重复取中位数。
 - **任务 8 性能**：只测 BM25 重建下界，未测含 PG 事实过滤的整链耗时，也未测 `/search` 端到端 P50/P95。
 - **web 侧**：`npm test` / `typecheck` / `lint` / Playwright 十页本轮未跑（使用了 `--skip-web`）。
@@ -362,7 +405,139 @@ docker compose --env-file ops/compose.env.example up -d postgres minio qdrant re
 
 `regression.log`（分组回归）、`postgres-tests.log`（真实 PG）、`api.log`（被测 API）、`api-celery.log`、`worker.log`、`migration.log`。
 
-## 15. 变更记录
+## 15. 本轮代码变更记录（2026-11-04）
+
+> 本节是 v1.1 的门禁：**凡本轮动过的文件，逐项登记在此**。未列在这里的改动即为越界。
+> 范围外声明：未改业务源码（`api/`、`worker/`、`web/`）、公开契约、迁移、依赖锁、`TBD-P0` 与任何 ADR。
+> 第 1–4 项为代码/测试改动，第 5–7 项为配套文档改动；两者分开列，便于只复核代码的读者快速定位。
+
+### 15.1 变更清单
+
+| # | 文件 | 位置 | 改前 | 改后 | 理由 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `docker-compose.yml` | qdrant `healthcheck.test` 命令字符串 | `case \"$line\" in *200*)` | `case \"$$line\" in *200*)` | Compose 解析期将 `$line` 当变量插值成空串，`case \"\" in *200*)` 永不匹配 → 容器恒 unhealthy（D8-03 残留） |
+| 2 | `docker-compose.yml` | qdrant 健康检查上方注释（第 58–70 行） | —（无此段） | 新增 6 行注释：说明 2026-11-04 追加复验发现 `$line` 被插值、必须写 `$$line`、并由哪个测试守护 | 把“为什么必须有 `$$`”固化在就地文档，防下一轮又被改回单 `$` |
+| 3 | `tests/integration/pipeline/test_NFR_OBS_compose_deps.py` | 顶部 import | `import os` / `import socket` | 增加 `import re` | 新断言需要正则判定裸 `$line` |
+| 4 | `tests/integration/pipeline/test_NFR_OBS_compose_deps.py` | 文件末尾 | —（无此函数） | 新增 `test_D8_03_qdrant_probe_survives_compose_interpolation`（17 行） | 堵住“文本断言仅查工具名、不查插值”的盲区；旧写法下必红 |
+| 5 | `PROGRESS.md` | 文件末尾 | — | 新增 1 节「2026-11-04 D8-03 追加复验与修复」 | 仓库纪律要求切片进度登记；同时记录探针预算观察 |
+| 6 | `progress/modules/M11.md` | 文件末尾 | — | 新增 1 节同名记录（含模块纪律：Compose 里 shell 变量必写 `$$`） | M11 为 compose fixture 的 Owner 模块，需就地登记教训 |
+| 7 | `evidence/integration-retest-20261103.md` | 头部、§3、§10 D8-03、§15–16 | v1.0 | 升 v1.1：头部范围声明改写、部署检查补修复后复验行、D8-03 标记已修复并记录首版未闭合原因、新增 §15 本节、原变更记录改 §16 并补 v1.1 行 | 测试记录文档必须与事实一致（v1.0 声明“零代码改动”已不成立） |
+
+### 15.2 逐项说明
+
+**变更 1（唯一行为性修正）**
+
+```yaml
+# 改前
+IFS= read -r line <&3; case \"$line\" in *200*) exit 0;; *) exit 1;; esac
+# 改后
+IFS= read -r line <&3; case \"$$line\" in *200*) exit 0;; *) exit 1;; esac
+```
+
+Compose 在解析 `docker-compose.yml` 时对 `$` 做环境变量替换，`$$` 才是字面量 `$` 的转义。修复前 Compose 每次都打
+`level=warning msg="The \"line\" variable is not set. Defaulting to a blank string."`，下发给容器的探针退化为恒假表达式。
+
+**变更 3–4（防回归，不改运行时行为）**
+
+新断言做三件事：
+
+1. 探针命令里必须出现 `$$line`；
+2. 用 `re.search(r"(?<!\$)\$line\b", command)` 判定“裸 `$line` 不存在”——对引号形态免疫（旧写法是 YAML 里的 `\"$line\"`，直接匹配 `"$line"` 会漏）；
+3. 扫描范围只限 `/dev/tcp` 与 `readyz` 所在的命令行，**故意跳过注释行**——注释里为了解释转义必须写出 `$line` 本身。
+
+### 15.3 验证证据
+
+**红/绿对照（旧写法必须被新测试拒绝）**
+
+用 `git show HEAD:docker-compose.yml` 导出修复前版本，与新文件并排跑同一判定：
+
+| 输入 | `$$line` 存在 | 裸 `$line` 存在 | 判定 |
+| --- | --- | --- | --- |
+| `HEAD`（旧：`$line`） | False | True | **FAIL（被测试拒绝）** |
+| 工作区（新：`$$line`） | True | False | PASS |
+
+**真实容器复验**
+
+```bash
+docker compose --env-file ops/compose.env.example up -d qdrant
+```
+
+| 检查 | 修复前 | 修复后 |
+| --- | --- | --- |
+| Compose 插值警告 | `The "line" variable is not set` | 无 |
+| 容器内实际探针 | `case "" in *200*) ...` | `case "$line" in *200*) ...` |
+| 健康日志 | `exit=1`×N 恒失败 | `exit=1`×4（启动期 `Connection refused`）→ `exit=0` |
+| `docker inspect` 状态 | `unhealthy` | **`healthy`**（约 25 秒，qdrant 恢复历史集合期间） |
+| 四容器汇总 | qdrant unhealthy | postgres/minio/qdrant/redis **全部 healthy** |
+
+**回归与静态检查**
+
+| 命令 | 结果 |
+| --- | --- |
+| `pytest -q tests/integration/pipeline/test_NFR_OBS_compose_deps.py` | 7 passed（原 6 + 新增 1） |
+| `pytest -q tests/integration/pipeline` | **390 passed, 14 skipped**（347.22 s；对比 v1.0 的 389 passed，净增 1 为本案） |
+| `ruff check --config api/pyproject.toml tests/integration/pipeline/test_NFR_OBS_compose_deps.py` | `All checks passed!` |
+| `ruff check --config api/pyproject.toml api/src worker/src` | `All checks passed!` |
+
+### 15.4 未做的与限制
+
+- **未**用 `--profile app` 构建镜像验证 api/worker 真实启动（v1.1 时的限制；已由 v1.2 部分解除，见下节）；本轮只证明“依赖层健康门禁不再自阻”。
+- 启动预算逼近定值：qdrant 探针 `interval=5s × retries=10 ≈ 50 s`，本机历史集合较多、恢复耗时约 25 s。若换更胖的数据盘，可能顶到预算上限。未改这个参数（超出授权范围），只登记为观察。
+- 这些绿灯不等于 GATE-P0 通过；`GATE-P0-001~008` 仍全部 unverified，`qdrant` 镜像 pin 仍为 fixture，不是发布签认。
+- **未**提交 commit（Owner 未授权提交）；改动留在工作区，便于 Owner 逐行复核后再决定。
+
+### 15.5 v1.2 追加（app profile 实验，零代码改动）
+
+v1.2 只做**验证**，仓库文件除本节与上述记录外**零改动**。本轮实际执行的仓库外操作：
+
+| 操作 | 说明 |
+| --- | --- |
+| `docker build --network=host --build-arg HTTPS_PROXY=...` | 仓库 `Dockerfile`/`Dockerfile.worker` 未改；代理经 BuildKit 预定义 build arg 注入——容器默认网络到不了宿主 `127.0.0.1:7897`（Clash 未开 allow-lan，实测 `172.17.0.1:7897` Connection refused） |
+| `docker tag pivot-deps-api:latest pivot-api:0.1.0` | compose 的 `image:` 字段要求该标签 |
+| 临时容器 `pivot-fresh-probe` | 用不存在的桶/集合复核 D8-05，已删除；未触碰现有库/集合/桶 |
+| `/tmp/v11_probe.py` | HTTP 复核脚本放仓库外，不进版本库 |
+| 真实 PG 断言均无副作用 | D8-01 走“已存在用户名”路径不新建用户；D8-11 仅 GET；事后核对 `alice` 仍 1 行 |
+
+构建网络实测（同一个 5.9 MB wheel）：容器默认网络 ~15 kB/s；`--network=host` 无代理 ~56 kB/s；`--network=host` + 代理 **~325 kB/s**（单步 105.9 s → 18.2 s）。
+
+## 16. 待决策事项（阻塞修复，需 Owner 定）
+
+> 本节是评测的**输出口**：下列每一项都是“已知缺陷 + 可选修法 + 后果”，但选择权不在开发侧。
+> 未决策前不修，避免自作主张改变运行语义或部署面。
+
+### 16.1 决策清单
+
+| 编号 | 缺陷 | 需定的事项 | 选项 | 推荐 | 不决策的后果 |
+| --- | --- | --- | --- | --- | --- |
+| **Q1** | D8-17 worker 镜像缺 `http` extra | 走哪条修法 | **A** `Dockerfile.worker` 加 `http` extra（1 行，+约 30MB，worker 白装 fastapi/uvicorn）；**B** `pivot/http/__init__.py` 改惰性导入（修真耦合，但动 api 包公开导入语义，需回归 `tests/contract`） | **B**（根治）；要最小风险选 A | worker 容器永远 `Exited (1)`，`PIVOT_INGEST=celery` 入库链全断 |
+| **Q2** | D8-18 示例缺 `PIVOT_QDRANT_DISTANCE` | 是否取消注释并给值 | 取值 **`Cosine`**（与 api 侧 `or "Cosine"` 默认一致、与本机 `.env.real-deps` 一致）或 `Dot` | 取 `Cosine` | 按示例起 worker 必 `RuntimeError` |
+| **Q3** | D8-05 桶/集合缺失不自动建、报错误导 | 是否默认开启自动创建 | **A** 示例里默认 `PIVOT_QDRANT_ENSURE_COLLECTION=1` + `PIVOT_MINIO_ENSURE_BUCKET=1`；**B** 不改行为，只改报错文案（`bucket xx missing` 而非 `minio is not reachable`）；**C** 两者都做 | **C** | 新环境首次启动必然卡死，且报错把“桶不存在”说成“服务不可达”，排障被带偏 |
+| **Q4** | D8-04 示例 `PIVOT_API_ORIGIN` 指向容器自身 | 是否改示例值 | `http://api:8000` | 改 | 按示例起 app profile，web 的 `/api/v1` 反代打回自身 |
+| **Q5** | qdrant 探针预算 `interval=5s × retries=10 ≈ 50s` | 是否调大 | 建议 `retries=20`（≈100s） | 调 | 历史集合多、恢复慢的盘上会反复 healthy↔unhealthy 抖动，连带 api/worker 重启 |
+| **Q6** | D8-01~D8-18 的收口口径 | 哪些要进 GATE-P0 证据包 | — | 仅 D8-01/02/03/06/11/16（已修且实测）列入候选；D8-04/05/07/08/09/10/12/13/14/15/17/18 仍为未修 | 把本轮 app profile 实验当成 GATE 证据 |
+
+### 16.2 当前缺陷总表（截至 v1.2）
+
+| 缺陷 | 级别 | 状态 | 本轮实测 |
+| --- | --- | --- | --- |
+| D8-01 重名 500 + 日志泄漏哈希 | P1 | **已修** | 真实 PG 复核通过（409 信封、日志 0 命中、无重复行） |
+| D8-02 BM25 参数未透传 | P1 | **已修** | 容器内 api 启动无 RuntimeError（实证） |
+| D8-03 qdrant 探针失败 | P1 | **已修（两轮）** | v1.1 `$$line` 后四容器 healthy；api 能越过健康门禁 |
+| D8-04 web 反代指自身 | P2 | 未修 | 静态渲染确认 `http://127.0.0.1:8000`（Q4） |
+| D8-05 桶/集合缺创建路径 | P2 | 未修 | **升级为阻断**：新环境启动即 `RuntimeError`（Q3） |
+| D8-06 导出不可用 | P1 | **已修** | 本轮未重测（需完整上传→问答链） |
+| D8-07~D8-16 | P2/P3 | 未修（D8-15 已降级） | 本轮未重测 |
+| **D8-17** worker 镜像缺 `http` extra | **P1** | **新发现，未修** | 镜像内 `import pivot.http.memory` → `ModuleNotFoundError: fastapi`（Q1） |
+| **D8-18** 示例缺 `PIVOT_QDRANT_DISTANCE` | **P1** | **新发现，未修** | worker 启动即 `RuntimeError`（Q2） |
+
+### 16.3 本轮明确不动的东西
+
+- `GATE-P0-001~008` 全部仍 **unverified**；本轮任何绿灯都不是 GATE 证据。
+- 不改任何 `TBD-P0`、DR-010 生产数值、迁移与依赖锁。
+- 不改 D8-04/05/07~D8-18 的行为——待 Q1~Q5 决策。
+- 不自行合并 PR。
+
+## 17. 变更记录
 
 | 版本 | 时间 | 变更 |
 | --- | --- | --- |
@@ -370,3 +545,5 @@ docker compose --env-file ops/compose.env.example up -d postgres minio qdrant re
 | v0.2 | 2026-11-04 | 真实 PG 组 50 passed；新增 D8-11（指标 500）、D8-12（Redis 库号双来源）；补取消/SSE/任务/限流并更正限流口径 |
 | v0.3 | 2026-11-04 | 用 deepseek-flash 实跑 Golden Set 与任务 13；新增 D8-13（writer 不进账本）、D8-14（endpoint 语义）、D8-15（越权观察）；补任务 4 需求 |
 | v1.0 | 2026-11-04 | 汇总为完整报告：补全分组回归明细、部署检查、逐任务数字与性能采样；D8-15 降级为已解释观察；新增 D8-16（成员过期后续期 404、成员关系静默消失，可稳定复现）；任务 13 三项指标用干净矩阵重测（过期规则 5/5）；补复现方式与证据索引 |
+| v1.1 | 2026-11-04 | D8-03 追加复验：发现首版修复被 Compose 插值吃掉、容器仍 unhealthy；修复 `$line`→`$$line` 并补回归断言；新增 §15 本轮代码变更记录（逐文件/逐行）；pipeline 390 passed；四依赖容器全部 healthy |
+| v1.2 | 2026-11-04 | app profile 实验（零代码改动）：api 镜像构建成功并 `Up (healthy)`，`/healthz`、`/readyz` 均 200，真实 PG 上复核 D8-01（409 信封、日志零哈希泄漏）与 D8-11 均通过；新增 D8-17（worker 镜像缺 `http` extra，必定 `ModuleNotFoundError: fastapi`，自 2026-10-25 就存在）与 D8-18（示例缺 `PIVOT_QDRANT_DISTANCE`，worker 启动即 RuntimeError）；D8-05 复核为仍是活缺陷且阻断启动 |
