@@ -1,8 +1,8 @@
 # 2026-11-03 联调复测结果与问题清单
 
-> 版本：v1.2（2026-11-04）。本文件是本次联调复测的**完整记录**：实测结果、实测数字、问题清单、未测项与需求规格。
-> v1.0 只记录问题与证据，`api/`、`worker/`、`web/`、`tests/` 零改动。**v1.1 起追加一轮修复**：D8-03 在真实镜像内复验为“仍未闭合”，Owner 授权修复。该轮改动逐项登记于 [§15](#15-本轮代码变更记录2026-11-04)，共 2 个代码/测试文件 + 3 个文档：`docker-compose.yml`、`tests/integration/pipeline/test_NFR_OBS_compose_deps.py`。**v1.2 零代码改动**：只做 app profile 实验，新增 D8-17、D8-18。未改业务源码、公开契约、迁移与依赖锁。
-> **待决策事项集中在 [§16](#16-待决策事项阻塞修复需-owner-定)**（Q1~Q6）；未决策前不修。
+> 版本：v1.3（2026-11-04）。本文件是本次联调复测的**完整记录**：实测结果、实测数字、问题清单、未测项与需求规格。
+> v1.0 只记录问题与证据，`api/`、`worker/`、`web/`、`tests/` 零改动。**v1.1 起追加一轮修复**：D8-03 在真实镜像内复验为“仍未闭合”，Owner 授权修复。该轮改动逐项登记于 [§15](#15-本轮代码变更记录2026-11-04)，共 2 个代码/测试文件 + 3 个文档：`docker-compose.yml`、`tests/integration/pipeline/test_NFR_OBS_compose_deps.py`。**v1.2 零代码改动**：只做 app profile 实验，新增 D8-17、D8-18。**v1.3 同样零代码改动**：补测 worker 实起（D8-17、D8-18 实证闭合）、D8-05 三分支、全量分组回归、真实 PG 组、web 容器与 Playwright，新增 **D8-19**（web 镜像反代恒为空表）、**D8-20**（Playwright 夹具缺装配变量）、**D8-21**（RBAC 用例口径过期），逐项见 §17。未改业务源码、公开契约、迁移与依赖锁。
+> **待决策事项集中在 [§16](#16-待决策事项阻塞修复需-owner-定)**（Q1~Q8）；未决策前不修。
 > 依据：[联调测试技术文档](../docs/联调测试技术文档.md)、[待测试任务清单](../progress/待测试任务清单.md)。
 > 本文测试通过不等于 GATE-P0 通过，`GATE-P0-001~008` 仍全部 unverified，也不改变任何 `TBD-P0` 或 DR 状态。
 
@@ -20,7 +20,8 @@
 | 任务 13 四项指标 | 引用错误率 **0.0**、过期规则 **5/5**、租约 fencing **5/5**、预算对账 **账本自洽但漏记 writer 调用** |
 | Agent Golden Set（真实模型） | 评测装配 **8/10**；生产 writer 装配 **5/10 answered**，多次运行 4~7 条 answered，citation 错误恒为 0 |
 | 缺陷 5、6 | **未通过**（缺陷 5 未闭合；缺陷 6 被新缺陷阻断） |
-| 本轮问题 | **16 项**：P1 六项、P2 七项、P3 三项；其中 1 项已降级为“已解释观察” |
+| 本轮问题 | **19 项**（v1.0~v1.2 共 16 项：P1 六项、P2 七项、P3 三项，其中 1 项已降级为“已解释观察”；v1.3 新增 D8-19、D8-20 为 P1，D8-21 为 P2） |
+| v1.3 补测（2026-11-04，零代码改动） | 分组回归 **1832 passed / 85 skipped / 0 failed**；真实 PG 组 **50 passed**；worker 镜像实起并 `Up (healthy)`（D8-17、D8-18 实证闭合）；D8-05 三分支真实客户端复验通过；web 容器 healthy 但 `/api/v1/*` 全 404（D8-19）；Playwright 补齐装配后 6 passed / 1 failed（D8-20、D8-21） |
 
 ## 2. 环境与装配
 
@@ -314,6 +315,53 @@ Agent Golden Set（`spec/fixtures/golden-set/agent/v0.1-public.json`）逐场景
 - 影响：与 D8-02 同类（示例配置不完整即可阻断启动），但只在 worker 侧爆，api 侧静默。
 - 观察：把 `PIVOT_QDRANT_DISTANCE=Cosine` 注入后 worker 越过此项，接着被 D8-05（集合不存在时报“qdrant is not reachable”）拦住，再接着才撞到 D8-17。三个缺陷串联，任一未修都无法起 worker。
 
+### D8-19 web 镜像内 `/api/v1` 反代恒为空表，容器健康但接口全 404
+
+- 级别：**P1（阻断部署）**。状态：v1.3 新发现，可稳定复现，**未修复**。
+- 现象：web 容器 `Up (healthy)`，`/login` 200，但经 web 的 API 调用全部返回 Next 的 HTML 404 页；api 直连正常。
+- 证据：
+  ```
+  curl -s -o /dev/null -w '%{http_code} %{content_type}\n' http://127.0.0.1:3000/api/v1/documents
+  -> 404 text/html
+  curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/api/v1/documents
+  -> 401                      # api 正常，只是需要鉴权
+  docker exec pivot-deps-web-1 sh -c "cat /app/.next/routes-manifest.json" | grep -o '"rewrites":\[[^]]*\]'
+  -> "rewrites":[]
+  docker exec pivot-deps-web-1 env | grep PIVOT_API_ORIGIN
+  -> PIVOT_API_ORIGIN=http://api:8000      # 运行期有值，但构不成反代
+  ```
+  本机用 `PIVOT_API_ORIGIN=http://api:8000 npm run build` 的产物里，`rewrites` 有 `"/api/v1/:path*" -> "http://api:8000/api/v1/:path*"`。把带 rewrite 的 `routes-manifest.json` 拷进运行中容器并重启，**不改镜像与代码**，同一请求变为 `401 application/json`（已透传到 api），因果确认。
+- 根因：`web/next.config.mjs:7` 的 `rewrites()` 在**构建期**求值，读取 `process.env.PIVOT_API_ORIGIN`；`Dockerfile.web:14` 的 `RUN npm run build` 执行时没有该变量，`docker-compose.yml:207-210` 的 `web.build` 也没有 `args`，只有运行期 `environment` 注入。构建产物里的反代表因此恒为空，运行期注入无效。
+- 影响：web 容器看起来健康，静态页与登录页可打开，但所有 `/api/v1/*` 调用 404，登录、搜索、问答、管理后台全部不可用。D8-04 的端到端因此**无法闭合**。
+- 值得记的是**测试全绿**：`tests/integration/pipeline/test_NFR_OBS_compose_web.py` 6 项全过，因为它只断言镜像文本、compose 文本与 `/login` 可访问，不验证反代。与 D8-03 的「纯文本断言绿灯但功能坏」属同一类问题。
+- 建议修法：`Dockerfile.web` 在 `npm run build` 前接 `ARG` + `ENV PIVOT_API_ORIGIN`，compose `build.args` 传入（代价：origin 烘进镜像，换环境需重建）；或改为运行期读取 env 的 Route Handler / Middleware（结构性改动，需 ADR）。并给 compose web 用例补一条反代断言：`/api/v1/documents` 必须返回 `401 application/json`，出现 `text/html` 即失败。完整补丁与验收命令见 [测试执行记录](test-run-20261104.md) 第 12.3 节。
+
+### D8-20 opt-in Playwright 夹具缺装配变量，十页与登录用例自 2026-10-21 起无法执行
+
+- 级别：**P1（阻断验收）**。状态：v1.3 新发现，可稳定复现，**未修复**。
+- 现象：`PIVOT_REQUIRE_PLAYWRIGHT=1` 跑 `test_NFR_UX_browser_ten_pages.py` 与 `test_FR_AUTH_001_browser_login.py`，得到 `4 passed / 7 errors`，错误全部是 `RuntimeError: timed out waiting for http://127.0.0.1:xxxxx/healthz: <urlopen error [Errno 111] Connection refused>`。
+- 证据：按夹具的 env 手工起 api，逐步暴露两个缺失项：
+  ```
+  RuntimeError: QA requires PIVOT_VECTOR_STORE=qdrant; the native QA path was removed (ADR-020)
+  RuntimeError: PIVOT_BM25_K1 and PIVOT_BM25_B are required when PIVOT_RETRIEVAL_BACKEND=llama
+  ```
+- 根因：`tests/integration/pipeline/browser_login_support.py:185` 的 `api_env.update({...})` 只给 memory 装配，缺 `PIVOT_VECTOR_STORE=qdrant` 与 `PIVOT_QDRANT_*`（ADR-020 后必需），也缺 `PIVOT_BM25_K1/B`（2026-10-21 起的强制项）。
+- 何时引入：夹具写于 2026-09-14（`3928753`）；BM25 强制来自 2026-10-21（`e958e5b`）；ADR-020 来自 2026-10-25（`3f89b86`）。**至少自 2026-10-21 起该夹具无法启动**，因默认 skip 而 CI 一直全绿。
+- 次生问题：`api` 与 `web` 子进程的 `stdout`、`stderr` 都指向 `subprocess.DEVNULL`，真因被盖成 45 秒端口超时，排查成本高。
+- 补齐装配后的实测：登录用例 **4 passed**（50.01 s）；十页 **6 passed / 1 failed**，失败项见 D8-21。
+
+### D8-21 RBAC 浏览器用例口径过期：种的用户命中首登改密门禁
+
+- 级别：**P2（测试口径）**。状态：v1.3 新发现，**未修复**；不是安全漏洞。
+- 现象：补齐 D8-20 的装配后，`test_FR_RBAC_001_browser_regular_user_admin_is_forbidden` 超时等待文案「无权限访问管理后台」。
+- 证据：页面正常导航到 `/admin/users`，管理接口全部 403，但响应体是
+  ```json
+  {"code":"AUTH_PASSWORD_CHANGE_REQUIRED","message":"首次登录或密码重置后必须先修改密码","request_id":"...","retryable":false}
+  ```
+- 根因：`web/features/admin/rbac.ts:3` 的 `isAdminForbidden` 要求 `status === 403` 且 `envelope.code === "AUTH_FORBIDDEN"`，此码不匹配，页面落到 error 分支，不渲染 `ForbiddenView`。首登改密门禁来自 2026-10-22（`0a41733`），晚于夹具编写时间。
+- 判定：**测试口径过期，不是安全漏洞**。服务端仍然 403 阻断，管理数据没有返回。
+- 建议修法：夹具种完用户后先调 `POST /api/v1/auth/change-password`（路由见 `api/src/pivot/auth/http.py:131`）完成改密再断言；或拆成「未改密」与「已改密」两个用户分别覆盖。
+
 ## 11. 环境事件
 
 - E1 **Docker daemon 整体重启**：四个依赖容器同一时刻 `exit 255`（`docker ps -a` 显示同一时间点退出）。已全部拉起恢复，非产品缺陷。期间一次 API 启动因依赖未起而失败，属该事件连带。
@@ -328,7 +376,8 @@ Agent Golden Set（`spec/fixtures/golden-set/agent/v0.1-public.json`）逐场景
 - **缺陷 5、6 的 app profile 端到端**：v1.0 未构建镜像（D8-02、D8-03 已足以证明该路径不可用）。**v1.2 已构建并实起 api（见 §3）**，worker 被 D8-17/D8-18 阻断，web 未构建（D8-04 仍为静态判定）。
 - **任务 13**：引用错误率是脚本口径（子串 + 关键 token 命中），未做人工语义判定；未跑 thinking 开关两组对照；未做多轮重复取中位数。
 - **任务 8 性能**：只测 BM25 重建下界，未测含 PG 事实过滤的整链耗时，也未测 `/search` 端到端 P50/P95。
-- **web 侧**：`npm test` / `typecheck` / `lint` / Playwright 十页本轮未跑（使用了 `--skip-web`）。
+- **web 侧**：v1.3 已补跑 `npm test`（18 passed）、`typecheck`、`lint`、`next build` 与 Playwright；Playwright 十页为 6 passed / 1 failed（D8-21），compose web 容器接口全 404（D8-19），故 web 端到端仍**未通过**。
+- **v1.3 仍未覆盖**：缺陷 5、6 的端到端（`/search` 的 BM25 腿、会话导出与文档导出）、解析失败路径的错误码分支、含 PG 事实过滤的 `/search` P50/P95、100k 容量、备份恢复、真实模型评测。
 - **Agent 装配差异**：评测装配与生产 writer 装配通过率差异（8/10 vs 5/10）原因未定性。
 
 ## 13. 任务 4 需求规格：文档版本追加与取代（`FR-DOC-009`）
@@ -514,30 +563,59 @@ v1.2 只做**验证**，仓库文件除本节与上述记录外**零改动**。�
 | **Q3** | D8-05 桶/集合缺失不自动建、报错误导 | 是否默认开启自动创建 | **A** 示例里默认 `PIVOT_QDRANT_ENSURE_COLLECTION=1` + `PIVOT_MINIO_ENSURE_BUCKET=1`；**B** 不改行为，只改报错文案（`bucket xx missing` 而非 `minio is not reachable`）；**C** 两者都做 | **C** | 新环境首次启动必然卡死，且报错把“桶不存在”说成“服务不可达”，排障被带偏 |
 | **Q4** | D8-04 示例 `PIVOT_API_ORIGIN` 指向容器自身 | 是否改示例值 | `http://api:8000` | 改 | 按示例起 app profile，web 的 `/api/v1` 反代打回自身 |
 | **Q5** | qdrant 探针预算 `interval=5s × retries=10 ≈ 50s` | 是否调大 | 建议 `retries=20`（≈100s） | 调 | 历史集合多、恢复慢的盘上会反复 healthy↔unhealthy 抖动，连带 api/worker 重启 |
-| **Q6** | D8-01~D8-18 的收口口径 | 哪些要进 GATE-P0 证据包 | — | 仅 D8-01/02/03/06/11/16（已修且实测）列入候选；D8-04/05/07/08/09/10/12/13/14/15/17/18 仍为未修 | 把本轮 app profile 实验当成 GATE 证据 |
+| **Q6** | D8-01~D8-21 的收口口径 | 哪些要进 GATE-P0 证据包 | — | 仅 D8-01/02/03/05/06/11/16/17/18（已修且实测）列入候选；D8-04 因 D8-19 未闭合；D8-07~D8-10、D8-12~D8-14、D8-19、D8-20、D8-21 仍为未修 | 把本轮 app profile 实验当成 GATE 证据 |
+| **Q7** | D8-19 web 镜像反代恒为空表 | 走哪条修法 | **A** `Dockerfile.web` 构建期注入 `PIVOT_API_ORIGIN`（`ARG`+`ENV`，compose `build.args`），1 处镜像 + 1 处 compose，代价是 origin 烘进镜像、换环境需重建；**B** 改为运行期读取 env 的 Route Handler / Middleware，镜像与配置解耦，但改动面大且需 ADR | **A**（最小、可立即验证）；B 单开切片 | web 容器 healthy 但所有 `/api/v1/*` 404，登录、搜索、问答、管理后台全不可用；D8-04 无法闭合 |
+| **Q8** | D8-20、D8-21 是否允许改测试夹具 | 是否只改夹具、不动产品代码 | **A** 只改 `browser_login_support.py`（补装配变量、探测 qdrant、回读子进程日志）与 RBAC 用例（先改密或拆两个用户）；**B** 同时调整前端 `isAdminForbidden` 以免把 `AUTH_PASSWORD_CHANGE_REQUIRED` 显示成通用错误 | **A**（B 属体验改进，另开切片） | opt-in Playwright 永远不可用，十页与登录用例形同废弃；首登改密用户看到的是通用错误而非改密提示 |
 
-### 16.2 当前缺陷总表（截至 v1.2）
+### 16.2 当前缺陷总表（截至 v1.3）
 
 | 缺陷 | 级别 | 状态 | 本轮实测 |
 | --- | --- | --- | --- |
 | D8-01 重名 500 + 日志泄漏哈希 | P1 | **已修** | 真实 PG 复核通过（409 信封、日志 0 命中、无重复行） |
 | D8-02 BM25 参数未透传 | P1 | **已修** | 容器内 api 启动无 RuntimeError（实证） |
 | D8-03 qdrant 探针失败 | P1 | **已修（两轮）** | v1.1 `$$line` 后四容器 healthy；api 能越过健康门禁 |
-| D8-04 web 反代指自身 | P2 | 未修 | 静态渲染确认 `http://127.0.0.1:8000`（Q4） |
-| D8-05 桶/集合缺创建路径 | P2 | 未修 | **升级为阻断**：新环境启动即 `RuntimeError`（Q3） |
+| D8-04 web 反代指自身 | P2 | **已修（示例值）** | 示例渲染为 `http://api:8000`；端到端被 D8-19 阻断，**不算闭合** |
+| D8-05 桶/集合缺创建路径 | P2 | **已修（v1.3 实证闭合）** | 三分支真实客户端复验：缺点名资源、死端口报不可达、`ensure=1` 真实建桶建集合 |
 | D8-06 导出不可用 | P1 | **已修** | 本轮未重测（需完整上传→问答链） |
 | D8-07~D8-16 | P2/P3 | 未修（D8-15 已降级） | 本轮未重测 |
-| **D8-17** worker 镜像缺 `http` extra | **P1** | **新发现，未修** | 镜像内 `import pivot.http.memory` → `ModuleNotFoundError: fastapi`（Q1） |
-| **D8-18** 示例缺 `PIVOT_QDRANT_DISTANCE` | **P1** | **新发现，未修** | worker 启动即 `RuntimeError`（Q2） |
+| **D8-17** worker 镜像缺 `http` extra | **P1** | **已修（v1.3 实证闭合）** | 镜像内 `import fastapi, pivot.http` 与 `from pivot.http.memory import UtcClock` 均成功（fastapi 0.162.0） |
+| **D8-18** 示例缺 `PIVOT_QDRANT_DISTANCE` | **P1** | **已修（v1.3 实证闭合）** | 示例值 `Cosine` 渲染进 worker，容器 `Up (healthy)`，无 RuntimeError |
+| **D8-19** web 镜像内反代恒为空表 | **P1** | **v1.3 新发现，未修** | 容器 healthy、`/login` 200，`/api/v1/*` 全 HTML 404；`routes-manifest.json` 的 `rewrites` 为 `[]` |
+| **D8-20** Playwright 夹具缺装配变量 | **P1** | **v1.3 新发现，未修** | `PIVOT_REQUIRE_PLAYWRIGHT=1` 下 `4 passed / 7 errors`，真因被子进程 `DEVNULL` 盖成端口超时 |
+| **D8-21** RBAC 用例口径过期 | **P2** | **v1.3 新发现，未修** | 种用户命中首登改密门禁，返回 `AUTH_PASSWORD_CHANGE_REQUIRED` 而非 `AUTH_FORBIDDEN`；非安全漏洞 |
 
 ### 16.3 本轮明确不动的东西
 
 - `GATE-P0-001~008` 全部仍 **unverified**；本轮任何绿灯都不是 GATE 证据。
 - 不改任何 `TBD-P0`、DR-010 生产数值、迁移与依赖锁。
-- 不改 D8-04/05/07~D8-18 的行为——待 Q1~Q5 决策。
+- 不改 D8-04/05/07~D8-21 的行为——D8-19、D8-20、D8-21 的修法待 Owner 定；D8-04/05/17/18 已在 v1.3 修好并实测，仅端到端部分仍缺。
 - 不自行合并 PR。
 
-## 17. 变更记录
+## 17. v1.3 补测记录（2026-11-04，零代码改动）
+
+本轮为补测，目的把 v1.0~v1.2 留下的空位逐项跑掉。完整记录（含逐用例清单、逐条注意点、缺陷修复指引）在 [测试执行记录](test-run-20261104.md)。基线 `main` `41acbe2`。
+
+| 项目 | 结果 |
+| --- | --- |
+| 新增测试文件 18 用例 | 10 passed + 8 passed |
+| 任务 1 compose 渲染 | 通过：退出码 0、无告警；api/worker 均含 BM25 两参数与 `PIVOT_QDRANT_DISTANCE=Cosine` |
+| 任务 2 worker 实起 | 通过：镜像构建成功，`Up (healthy)`，`/healthz` 200，Celery 5.5.3 就绪 |
+| 任务 2 web 实起 | 容器 healthy、`/login` 200，但 `/api/v1/*` 全 404（**D8-19**） |
+| 任务 3 健康检查 | 部分：api `/readyz` 四项全 true，worker 200，web 只有静态页可用 |
+| 任务 6 真实 PG 组 | 通过：50 passed，357.82 s |
+| 任务 7 分组回归 | 通过：`--skip-web` 全量 11 组，1832 passed / 85 skipped / 0 failed |
+| 任务 8 前端 | 部分：`npm test` 18 passed、typecheck、lint、`next build` 均通过；Playwright 6 passed / 1 failed |
+| D8-05 三分支 | 通过：真实 minio/qdrant 客户端下三种分支均符合预期 |
+| ruff / compileall | `All checks passed!` / 通过 |
+
+环境与操作要点：
+
+- 构建镜像需要在 `--network=host` 下进行并注入代理 build arg；默认 bridge 网络下 `pip install` 实测 11 分 43 秒后 `ReadTimeout`。
+- 基础镜像 `node:20.19.0-bookworm-slim` 需先 `docker pull`，否则 registry 元数据请求 i/o timeout。
+- 实验期间向运行中 web 容器拷过 `routes-manifest.json` 以验证 D8-19 的因果，结束时已 `--force-recreate` 复原，`/api/v1/*` 复现 404；一次性 Qdrant 集合全部删除。
+- 仍未覆盖项见 §12 第二条。
+
+## 18. 变更记录
 
 | 版本 | 时间 | 变更 |
 | --- | --- | --- |
@@ -547,3 +625,4 @@ v1.2 只做**验证**，仓库文件除本节与上述记录外**零改动**。�
 | v1.0 | 2026-11-04 | 汇总为完整报告：补全分组回归明细、部署检查、逐任务数字与性能采样；D8-15 降级为已解释观察；新增 D8-16（成员过期后续期 404、成员关系静默消失，可稳定复现）；任务 13 三项指标用干净矩阵重测（过期规则 5/5）；补复现方式与证据索引 |
 | v1.1 | 2026-11-04 | D8-03 追加复验：发现首版修复被 Compose 插值吃掉、容器仍 unhealthy；修复 `$line`→`$$line` 并补回归断言；新增 §15 本轮代码变更记录（逐文件/逐行）；pipeline 390 passed；四依赖容器全部 healthy |
 | v1.2 | 2026-11-04 | app profile 实验（零代码改动）：api 镜像构建成功并 `Up (healthy)`，`/healthz`、`/readyz` 均 200，真实 PG 上复核 D8-01（409 信封、日志零哈希泄漏）与 D8-11 均通过；新增 D8-17（worker 镜像缺 `http` extra，必定 `ModuleNotFoundError: fastapi`，自 2026-10-25 就存在）与 D8-18（示例缺 `PIVOT_QDRANT_DISTANCE`，worker 启动即 RuntimeError）；D8-05 复核为仍是活缺陷且阻断启动 |
+| v1.3 | 2026-11-04 | 补测（零代码改动）：worker 镜像实起并 healthy，D8-17、D8-18 实证闭合；D8-05 三分支真实客户端复验通过；分组回归 1832 passed / 85 skipped；真实 PG 组 50 passed；web 容器 healthy 但 `/api/v1/*` 全 404，新增 **D8-19**；Playwright 夹具缺装配变量、自 2026-10-21 起失效，新增 **D8-20**，补齐后十页 6 passed / 1 failed，新增 **D8-21**；补 §17 |
