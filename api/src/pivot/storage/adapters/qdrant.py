@@ -14,6 +14,7 @@ from pivot.storage.config import VectorStoreConfig
 from pivot.storage.protocols import VectorStore
 
 __all__ = [
+    "DEFAULT_QDRANT_DISTANCE",
     "QdrantVectorStore",
     "VectorStore",
     "build_payload",
@@ -22,6 +23,13 @@ __all__ = [
 ]
 
 _REQUIRED_PAYLOAD_KEYS = frozenset({"version_id", "chunk_id"})
+
+# D8-18 (Q2): single source for the Qdrant distance default. The api and
+# worker llama-sync paths both fall back to this value when
+# PIVOT_QDRANT_DISTANCE is unset, so the two sides cannot drift apart.
+# Production deployments must still set PIVOT_QDRANT_DISTANCE explicitly;
+# this constant is a fallback, not a configuration method.
+DEFAULT_QDRANT_DISTANCE = "Cosine"
 
 
 def build_payload(
@@ -198,6 +206,16 @@ class QdrantVectorStore:
             return bool(self._client.collection_exists(self._collection))
         except Exception:
             return False
+
+    def collection_exists(self) -> bool | None:
+        """Tri-state probe for D8-05: True = present, False = the service
+        answered and the collection is missing, None = the service itself
+        could not be reached. healthy() conflates the last two, which
+        made a missing collection misreport as "qdrant is not reachable"."""
+        try:
+            return bool(self._client.collection_exists(self._collection))
+        except Exception:
+            return None
 
     def upsert(self, points: Iterable[Mapping]) -> None:
         converted: list[dict] = []
