@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import socket
 from pathlib import Path
 
@@ -161,3 +162,30 @@ def test_D8_03_qdrant_healthcheck_uses_no_wget_or_curl():
     assert "/dev/tcp" in probe
     assert "/readyz" in probe
     assert "200" in probe
+
+
+def test_D8_03_qdrant_probe_survives_compose_interpolation():
+    """D8-03 follow-up: Compose interpolates $VAR at parse time, so the
+    original `case "$line"` was rendered as `case "" in *200*)` -- a probe
+    that can never match and left qdrant permanently unhealthy even after
+    wget was replaced. The shell variable must be escaped as $$line so the
+    container receives a literal $line."""
+    text = _COMPOSE.read_text(encoding="utf-8")
+    body = _service_blocks(text)["qdrant"]
+    assert "$$line" in body, "the probe must escape $line as $$line"
+    # Only the probe command is scanned: the comment above it legitimately
+    # names $line/$$line when explaining why the escape is required.
+    command = "\n".join(
+        line for line in body.splitlines()
+        if "/dev/tcp" in line or "readyz" in line
+    )
+    assert command, "qdrant probe command not found"
+    # A bare $line (however quoted, including inside a YAML \"...\" scalar)
+    # is swallowed by Compose interpolation and renders as the empty string.
+    bare = re.search(r"(?<!\$)\$line\b", command)
+    assert bare is None, (
+        "a bare $line is swallowed by Compose interpolation and renders empty"
+    )
+    # Every $-reference in the probe command must be escaped; only env-file
+    # placeholders (${VAR}) may stay unescaped elsewhere in the file.
+    assert "$$" in command
