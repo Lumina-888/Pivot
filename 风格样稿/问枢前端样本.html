@@ -469,6 +469,25 @@
       .dept-scroll .fchip { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 13px; background: var(--main); }
       .dept-scroll .fchip .n { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
       .dept-filter-note { font-size: 12px; color: var(--ink-3); margin: 0; line-height: 1.6; }
+      /* 库筛选：种类维度 + 归属维度（正交） + 项目分组 */
+      .kb-sec { margin-top: 15px; padding-top: 13px; border-top: 1px solid var(--border); }
+      .kb-sec-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+      .kb-sec-head .kb-field-label { margin-bottom: 0; }
+      .kb-sec-head .dept-filter-note { flex: 1; min-width: 220px; text-align: right; }
+      .kind-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+      .kind-row .fchip { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 13px; background: var(--main); }
+      .kind-row .fchip .n { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
+      .proj-groups { margin-top: 10px; display: flex; flex-direction: column; gap: 9px; }
+      .proj-group { display: flex; gap: 9px; align-items: flex-start; flex-wrap: wrap; }
+      .proj-group .pg-label { font-size: 12px; font-weight: 600; color: var(--ink-3); padding-top: 7px; min-width: 52px; }
+      .proj-group .pg-chips { display: flex; flex-wrap: wrap; gap: 7px; flex: 1; min-width: 0; }
+      .proj-group .fchip { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 13px; background: var(--main); }
+      .proj-group .fchip .n { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
+      .honest-note {
+        margin: 15px 0 0; font-size: 12.5px; line-height: 1.75; color: var(--ink-2);
+        border: 1px dashed var(--border-strong); border-radius: var(--radius-s); padding: 10px 13px; background: var(--main);
+      }
+      .honest-note b { color: var(--ink); }
       .dept-life-note { font-size: 12px; color: var(--ink-3); margin: 7px 0 0; line-height: 1.6; }
       .viewer-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
       .viewer-bar .vb-label { font-size: 13px; color: var(--ink-2); font-weight: 550; margin-right: 2px; }
@@ -561,6 +580,8 @@
         .kb-filter { padding: 14px 14px 12px; }
         .kb-filter-top { grid-template-columns: minmax(0,1fr); gap: 12px; }
         .kb-depts-head .dept-filter-note { text-align: left; min-width: 0; }
+        .kb-sec-head .dept-filter-note { text-align: left; min-width: 0; }
+        .proj-group .pg-label { min-width: 44px; }
         .docs-layout, .dash-grid { grid-template-columns: minmax(0,1fr); }
         .page-inner { padding: 20px 15px 32px; }
         .pagenav .pn-hint { display: none; }
@@ -704,13 +725,28 @@
                 </label>
               </div>
             </div>
+            <div class="kb-sec">
+              <div class="kb-sec-head">
+                <span class="kb-field-label">库种类</span>
+                <p class="dept-filter-note">维度一：先按库的种类收窄。公共库独立成类，不挂在任何部门下。</p>
+              </div>
+              <div class="kind-row" id="kindOptions" aria-label="按库种类筛选文档"></div>
+            </div>
             <div class="kb-depts">
               <div class="kb-depts-head">
-                <span class="kb-field-label">按部门筛选</span>
+                <span class="kb-field-label">归属部门</span>
                 <p class="dept-filter-note" id="docDeptNote"></p>
               </div>
-              <div class="dept-scroll" id="deptOptions" aria-label="按部门筛选文档"></div>
+              <div class="dept-scroll" id="deptOptions" aria-label="按归属部门筛选文档"></div>
             </div>
+            <div class="kb-sec">
+              <div class="kb-sec-head">
+                <span class="kb-field-label">项目专用库（按归属部门分组）</span>
+                <p class="dept-filter-note" id="docProjNote"></p>
+              </div>
+              <div class="proj-groups" id="projOptions" aria-label="按项目专用库筛选文档"></div>
+            </div>
+            <p class="honest-note"><b>演示设计说明：</b>本页筛选按库模型（编号 / 名称 / 种类 / 归属部门编号）演示，项目与专用库一对一、新建项目时同步建库，公共文档只放公共库。真实接线要等后端补三项能力：<b>返回项增加归属库编号</b>、<b>GET /documents 与 GET /search 增加归属库查询参数</b>、<b>新增普通用户可用的可见库清单接口</b>。另注意：后端<b>没有客户字段、没有客户实体</b>，做不到「部门 → 客户 → 项目」三级分组，本页只按归属部门给项目库分组，<b>不用项目名称前缀冒充客户分组</b>——客户维度是待决策项，后端先补字段前端才能做。</p>
           </div>
           <div class="docs-layout">
             <div id="docRows"></div>
@@ -823,6 +859,7 @@
             <p class="sub">角色挂在「成员 × 部门」的归属关系上，同一个人在不同部门可以是不同角色；全局管理员不在这三档之内，是独立的系统角色。</p>
             <div class="matrix" id="matrix"></div>
             <p class="dept-life-note">删部门、建部门只有全局管理员能做；部门管理员只能管本人部门的成员与审批，界面上不给其他部门的管理入口——看不见的部门按不存在处理，不渲染、不计数。</p>
+            <p class="dept-life-note"><b>项目成员角色（单列，不混进上面三档矩阵）：</b>每个项目另设<b>项目负责人</b>一名（如智能工单系统的许清禾、财务系统升级的周慕云），挂在「成员 × 项目」的项目成员关系上，负责本项目专用库的文档与分派；它不替代部门三档角色——同一个人可以既是某部门的编者、又是某个项目的负责人，项目专用库的读写按项目成员关系另行校验。</p>
           </div>
         </div>
       </section>
@@ -905,7 +942,8 @@
               <p><b>定位：受控 ReAct 问答工作台 + 文档治理后台，不是通用聊天壳。</b>Pivot 的工具白名单只有检索与读证据两类，答案必须过门禁，所以界面的第一优先级是「过程可见、证据可查、状态可对账」，对话区只是其中一栏；租约、检查点、预算对账这些执行状态必须常驻可见，而不是藏进设置里。</p>
               <p><b>只参考样稿的功能设计，不借鉴它的前端设计。</b>样稿 v17 里值得借的是功能分区与流程约束——主页 / 问答 / 文档库 / 审批队列 / 移动请求 / 审计六个功能域、审批的先后顺序、移动的单边审批、认领拦截、审计事件口径、异步导出——这些是功能层面的划分，本样本照此对齐。本样本五页是六域的子集映射：问答台＝问答区，知识库＝文档库区，运营看板＝主页总览与审计的简化合并，成员与权限、系统设置对应角色与配置面。审批队列与移动请求在功能设计里是独立域，正式版必须独立成页，不能塞进知识库页凑数。</p>
               <p><b>视觉设计为本样本自有方案。</b>样稿的灰白底、石板灰主色、小圆角与密集小字排版一概不用；本样本用自己的令牌体系：暖陶土的米白画布配陶土橙与衬线标题、深夜专业的深色面板配柔和橙，圆角、间距、顶栏加页面导航的布局都是按这套令牌自排的。组件只消费 CSS 变量、不写死颜色，切换即换 <span style="font-family:ui-monospace,Menlo,monospace;font-size:12px">data-theme</span>。主题只保留这两套，顶栏只放一个太阳 / 月亮图标按钮一键切换。企业极简已下线，避免三套主题稀释维护成本。</p>
-              <p><b>部门按可变集合设计，不按固定名单设计（FR-RBAC-004）。</b>部门在后端就是一种库：Library 只有 id / name / kind / dept_id 四个字段，成员归属 Membership 是六字段关系，部门内角色只有部门管理员（dept_admin）/ 编者（editor）/ 读者（reader）三档，全局管理员是独立的系统角色、不在这三档里。部门数量后期一定会变，所以任何部门选项都不许写死：知识库的部门筛选、加成员的部门下拉、成员列表的部门过滤，全部从部门数据动态拉取；后端列表接口无分页、一次返回全量，部门多了以后前端用「先搜索、再滚动选择」承载，不做写死的前几个加一个「更多」。部门管理员的可见范围只有公共库加本人管理的部门库，其他部门在他的界面里按不存在处理。</p>
+              <p><b>部门按可变集合设计，不按固定名单设计（FR-RBAC-004）。</b>部门在后端就是一种库：Library 只有 id / name / kind / dept_id 四个字段，成员归属 Membership 是六字段关系，部门内角色只有部门管理员（dept_admin）/ 编者（editor）/ 读者（reader）三档，全局管理员是独立的系统角色、不在这三档里。部门数量后期一定会变，所以任何部门选项都不许写死：知识库的部门筛选、加成员的部门下拉、成员列表的部门过滤，全部从部门数据动态拉取；后端列表接口无分页、一次返回全量，部门多了以后前端用「先搜索、再滚动选择」承载，不做写死的前几个加一个「更多」。部门管理员的可见范围是公共库加本人部门库加本人部门归属的项目库，其他部门在他的界面里按不存在处理。</p>
+              <p><b>知识库筛选按库模型重审：种类与归属两个正交维度（本轮修正）。</b>库种类只取公共 / 部门 / 系统 / 项目四值，种子库只有公共库 pub 与未分配库 unassigned；部门库的归属编号与自身编号相同，项目库的归属编号是拥有它的部门编号。文档归属只认<b>库编号</b>、不再用部门名匹配；筛选拆成维度一「库种类」（全部 / 公共库 / 部门库 / 项目库）与维度二「归属」（先选部门、再选该部门下的项目），公共库独立成类、不挂任何部门，只受种类维度控制。项目与库一对一：<span style="font-family:ui-monospace,Menlo,monospace;font-size:12px">POST /admin/projects</span> 一次调用同时建项目与专用库，新建项目必须指定已存在的归属部门；每个项目一个专用库，公共文档只放公共库——开发部名下多客户多项目的真实形态，就是同部门多个项目库并列（样本已内置研发部四个项目专用库演示）。<b>客户分组做不到：</b>后端没有客户字段、没有客户实体，「部门 → 客户 → 项目」三级分组属<b>待决策</b>，后端先补客户字段前端才能做，严禁用项目名称前缀冒充客户分组。</p>
               <p><b>红队保留意见：</b>样本里最容易被误读的三处——运营看板的数字是合成示例，不能当真实运营指标；设置页的检索阈值类数值是 DR-010 候选值，未冻结前不得当生产参数；审批顺序与移动的单边审批是后端状态机约束，前端只能如实呈现，不许为了「顺手」简化掉。</p>
             </div>
 
@@ -928,9 +966,9 @@
                   </tr>
                   <tr>
                     <td class="dom">文档库治理</td>
-                    <td>公共库 / 部门库 / 项目库 + 未分配 unassigned；部门库由 Library（id / name / kind / dept_id）承载，部门集合可变；文件夹树与文档版本态（uploaded / pending_approval / rejected / 已发布）；待批文档不进检索索引，复核读走 quarantine 隔离路径</td>
+                    <td>库模型四字段（id / name / kind / dept_id），kind 只取公共 / 部门 / 系统 / 项目四值；种子库只有 pub 与 unassigned；项目与库一对一，建项目同步建专用库且必须指定已存在的归属部门；筛选＝库种类 × 归属（部门 → 项目）两正交维度，公共库不挂部门；文件夹树与文档版本态（uploaded / pending_approval / rejected / 已发布）；待批文档不进检索索引，复核读走 quarantine 隔离路径</td>
                     <td class="page">知识库</td>
-                    <td><span class="badge warn">部分落地</span><br>部门筛选已改为动态拉取 + 搜索滚动承载，未呈现库与版本态全貌</td>
+                    <td><span class="badge warn">部分落地</span><br>筛选已按库模型重做（种类四档 + 归属两级 + 项目库按部门分组）；真实接线待后端补：归属库回显、documents/search 归属库查询参数、可见库清单接口（均见下方待补能力）；版本态全貌仍未呈现</td>
                   </tr>
                   <tr>
                     <td class="dom">发布审批</td>
@@ -952,9 +990,21 @@
                   </tr>
                   <tr>
                     <td class="dom">成员与授权</td>
-                    <td>归属关系 Membership（六字段）把人挂到部门上，部门内角色只有三档：部门管理员 / 编者 / 读者，角色随部门而变、同一人可在不同部门是不同角色；全局管理员独立于三档之外。可见范围：普通成员＝公共库 ∪ 本人所属部门库；部门管理员＝公共库 ∪ 本人管理的部门库，只管本人部门的成员与审批</td>
+                    <td>归属关系 Membership（六字段）把人挂到部门上，部门内角色只有三档：部门管理员 / 编者 / 读者，角色随部门而变、同一人可在不同部门是不同角色；全局管理员独立于三档之外；项目负责人是项目成员角色，单列说明、不混进部门三档矩阵。可见范围：普通成员＝公共库 ∪ 本人所属部门库；部门管理员＝公共库 ∪ 本人部门库 ∪ 本人部门归属的项目库，只管本人部门的成员与审批</td>
                     <td class="page">成员与权限</td>
                     <td><span class="badge warn">部分落地</span><br>已按三档重做：动态部门列表 + 搜索过滤 + 双视角范围演示；例外授权与永久复核清单仍未呈现</td>
+                  </tr>
+                  <tr>
+                    <td class="dom">客户分组</td>
+                    <td>业务上一个部门（如开发部）服务多个客户、每个客户多个项目；但后端 Library 只有四字段、没有客户字段与客户实体，项目库只能按归属部门分组。是否引入客户实体（字段、接口、权限口径）须先决策，再谈前端三级分组</td>
+                    <td class="page">知识库（项目库分组）</td>
+                    <td><span class="badge">待决策</span><br>样本不画客户分组，不用项目名前缀冒充</td>
+                  </tr>
+                  <tr>
+                    <td class="dom">可见库清单</td>
+                    <td>筛选与范围呈现都要先拿到「当前用户可见的库清单」：需后端新增普通用户可用的可见库清单接口，并让文档 / 搜索返回项带归属库编号、查询接口接受归属库参数，前端才能真实按库筛选与回显</td>
+                    <td class="page">知识库 + 问答台（作用域标识）</td>
+                    <td><span class="badge">待补能力</span><br>样本为演示数据；问答台不新增按库提问入口，作用域只保留全局与单文档两种</td>
                   </tr>
                   <tr>
                     <td class="dom">审计</td>
@@ -997,7 +1047,7 @@
                 </div>
                 <div class="parts-group">
                   <h5>文档治理</h5>
-                  <p><code>LibraryTree</code> 库 → 文件夹树 · <code>DocTable</code> 文档表（版本态徽标） · <code>UploadPanel</code> 上传选库 · <code>ClaimTable</code> 认领表（未决请求拦截） · <code>ApprovalQueue</code> 审批队列表 · <code>Swimlane</code> 全过程泳道 · <code>MoveTable</code> 移动请求表 · <code>RetargetModal</code> 改目标弹窗</p>
+                  <p><code>LibraryTree</code> 库 → 文件夹树 · <code>KindFilter</code> 库种类筛选（全部 / 公共 / 部门 / 项目四档） · <code>AttributionFilter</code> 归属筛选（部门 → 该部门项目两级，项目库按归属部门分组） · <code>DocTable</code> 文档表（所属库 + 归属部门 + 版本态徽标，归属只认库编号） · <code>UploadPanel</code> 上传选库 · <code>ClaimTable</code> 认领表（未决请求拦截） · <code>ApprovalQueue</code> 审批队列表 · <code>Swimlane</code> 全过程泳道 · <code>MoveTable</code> 移动请求表 · <code>RetargetModal</code> 改目标弹窗 · 客户分组选择器<b>不列入</b>：后端无客户字段，待决策后再定部件</p>
                 </div>
                 <div class="parts-group">
                   <h5>权限与成员</h5>
@@ -1021,6 +1071,8 @@
                 <li><b>权限即界面：</b>不可见的库按「不存在」处理——不渲染、不计数、不在搜索与选择器里暗示其存在，与功能设计中上传选到不可见库被拒绝的口径一致。部门同理：部门管理员只看公共库与本人管理的部门，其他部门不进他的部门列表与选择器。</li>
                 <li><b>部门不写死：</b>部门集合、部门计数、部门下拉与筛选一律由数据计算，禁止在界面代码里枚举部门名或部门个数；后端列表无分页返回全量，前端必须用搜索加滚动列表承载，部门涨到几十个也不改版式。新建部门后所有选择器立即出现该部门，不用刷新配置。</li>
                 <li><b>部门生命周期如实呈现：</b>后端只有创建与删除接口，前端不许自创改名、停用、合并入口。改名走「迁空 → 删除 → 重建」；合并走移动审批逐批移文档、逐一迁成员、最后删空部门；删除前必须校验并向操作人明示残留成员数与文档数，有残留直接拦住并给出迁移路径，不许先删后补。已删除的部门必须从知识库筛选、加成员下拉、成员过滤等全部选择器中同步消失，不留幽灵选项。</li>
+                <li><b>库筛选三项待补能力（接线前置条件）：</b>知识库按库筛选目前只是演示设计，真实接线等后端补齐——① 文档与搜索的<b>返回项增加归属库编号</b>（归属库回显），没有它前端只能靠标题猜归属；② <span style="font-family:ui-monospace,Menlo,monospace;font-size:12px">GET /documents</span> 与 <span style="font-family:ui-monospace,Menlo,monospace;font-size:12px">GET /search</span> <b>增加归属库查询参数</b>，没有它筛选只能全量拉回前端过滤；③ <b>新增普通用户可用的可见库清单接口</b>，没有它普通用户拿不到自己能看的库清单、筛选选项无从生成。三项未补齐前，界面必须标注演示设计，不许假装已接线。</li>
+                <li><b>项目建库与客户边界：</b>项目与专用库一对一，建项目走 <span style="font-family:ui-monospace,Menlo,monospace;font-size:12px">POST /admin/projects</span> 一次调用同步建库且必须选已存在的归属部门，前端不提供「先建空项目后补库」或「一项目多库」的入口；公共文档只放公共库，不许把公共文档塞进部门库再靠筛选假装公共。后端没有客户字段，<b>客户分组列为待决策</b>：决策与后端补字段落地之前，项目库只按归属部门分组，严禁用项目名称前缀（如「客户A-」）拼出假分组。</li>
                 <li><b>数值纪律：</b>DR-010 未冻结前，阈值类数值在界面上标注候选 / 样本；GATE-P0 未验证前，任何页面不得出现「已上线」「已验收」表述，只能写开发实现与样本演示。</li>
                 <li><b>双主题纪律：</b>新部件只准使用本样本自有主题变量（画布 / 面板 / 发丝线 / 文字三档 / 强调色），禁止写死颜色值，否则一键切换会出现漏网区块；主题切换只保留顶栏一个太阳 / 月亮图标按钮，不再另设分段控件；本次评审已按此标准核对现有五页。</li>
               </ul>
@@ -1049,14 +1101,73 @@
       var REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
       /* ================= 示例数据（全部为合成内容） ================= */
+      /* 库模型（后端真实口径）：只有 id / name / kind / dept_id 四个字段；
+         kind 只取 public（公共）/ department（部门）/ system（系统）/ project（项目）四值；
+         后端没有客户字段、没有客户实体，前端不得自创客户分组。
+         种子库只有公共库 pub 与未分配库 unassigned；部门库的 dept_id 与自身编号相同；
+         项目库的 dept_id 是拥有它的部门编号。文档归属只认库编号，不再用部门名匹配。 */
+      var LIB_KIND_LABELS = { public: "公共库", department: "部门库", system: "系统库", project: "项目库" };
+      var LIBRARIES = [
+        { id: "pub", name: "公共库", kind: "public", dept_id: null },
+        { id: "unassigned", name: "未分配库", kind: "system", dept_id: null },
+        { id: "dept-fin", name: "财务部库", kind: "department", dept_id: "dept-fin" },
+        { id: "dept-hr", name: "人事部库", kind: "department", dept_id: "dept-hr" },
+        { id: "dept-it", name: "信息部库", kind: "department", dept_id: "dept-it" },
+        { id: "dept-sec", name: "安全部库", kind: "department", dept_id: "dept-sec" },
+        { id: "dept-mkt", name: "市场部库", kind: "department", dept_id: "dept-mkt" },
+        { id: "dept-legal", name: "法务部库", kind: "department", dept_id: "dept-legal" },
+        { id: "dept-ops", name: "运营部库", kind: "department", dept_id: "dept-ops" },
+        { id: "dept-rd", name: "研发部库", kind: "department", dept_id: "dept-rd" },
+        { id: "dept-prod", name: "产品部库", kind: "department", dept_id: "dept-prod" },
+        { id: "dept-admin", name: "行政部库", kind: "department", dept_id: "dept-admin" },
+        { id: "dept-proc", name: "采购部库", kind: "department", dept_id: "dept-proc" },
+        { id: "dept-cs", name: "客户成功部库", kind: "department", dept_id: "dept-cs" },
+        /* 研发部（开发部）名下四个项目，各一个专用库——现实中分属不同客户，
+           但后端无客户字段，这里只按归属部门分组，不按客户分组 */
+        { id: "proj-rd-wt", name: "智能工单系统专用库", kind: "project", dept_id: "dept-rd" },
+        { id: "proj-rd-dp", name: "数据中台建设专用库", kind: "project", dept_id: "dept-rd" },
+        { id: "proj-rd-mb", name: "移动端重构专用库", kind: "project", dept_id: "dept-rd" },
+        { id: "proj-rd-tc", name: "内部工具链升级专用库", kind: "project", dept_id: "dept-rd" },
+        { id: "proj-fin-fs", name: "财务系统升级专用库", kind: "project", dept_id: "dept-fin" }
+      ];
+      function libById(id) { for (var i = 0; i < LIBRARIES.length; i++) if (LIBRARIES[i].id === id) return LIBRARIES[i]; return LIBRARIES[0]; }
+      function libKindLabel(kind) { return LIB_KIND_LABELS[kind] || kind; }
+      /* 项目与库一对一：POST /admin/projects 一次调用同时完成项目与库的创建，
+         新建项目必须指定已存在的归属部门；每个项目一个专用库 */
+      var PROJECTS = [
+        { id: "PRJ-RD-01", name: "智能工单系统", libraryId: "proj-rd-wt", deptId: "dept-rd", lead: "许清禾" },
+        { id: "PRJ-RD-02", name: "数据中台建设", libraryId: "proj-rd-dp", deptId: "dept-rd", lead: "许清禾" },
+        { id: "PRJ-RD-03", name: "移动端重构", libraryId: "proj-rd-mb", deptId: "dept-rd", lead: "陈默" },
+        { id: "PRJ-RD-04", name: "内部工具链升级", libraryId: "proj-rd-tc", deptId: "dept-rd", lead: "陈默" },
+        { id: "PRJ-FIN-01", name: "财务系统升级", libraryId: "proj-fin-fs", deptId: "dept-fin", lead: "周慕云" }
+      ];
+      function projectByLibraryId(libId) { for (var i = 0; i < PROJECTS.length; i++) if (PROJECTS[i].libraryId === libId) return PROJECTS[i]; return null; }
+      function projectsOfDept(deptId) { return PROJECTS.filter(function (p) { return p.deptId === deptId; }); }
+
       var DOCS = [
-        { id: "DOC-0312", title: "差旅与报销管理办法", dept: "财务部", ver: "v2.7", updated: "2026-08-14", chunks: 148 },
-        { id: "DOC-0107", title: "员工手册", dept: "人事部", ver: "v3.2", updated: "2026-07-02", chunks: 326 },
-        { id: "DOC-0521", title: "IT 服务支持手册", dept: "信息部", ver: "v1.9", updated: "2026-09-21", chunks: 97 },
-        { id: "DOC-0119", title: "考勤与假期制度", dept: "人事部", ver: "v4.0", updated: "2026-06-18", chunks: 84 },
-        { id: "DOC-0640", title: "信息安全规范", dept: "安全部", ver: "v2.1", updated: "2026-05-30", chunks: 132 }
+        { id: "DOC-0312", title: "差旅与报销管理办法", libraryId: "pub", ver: "v2.7", updated: "2026-08-14", chunks: 148 },
+        { id: "DOC-0107", title: "员工手册", libraryId: "pub", ver: "v3.2", updated: "2026-07-02", chunks: 326 },
+        { id: "DOC-0119", title: "考勤与假期制度", libraryId: "pub", ver: "v4.0", updated: "2026-06-18", chunks: 84 },
+        { id: "DOC-0521", title: "IT 服务支持手册", libraryId: "dept-it", ver: "v1.9", updated: "2026-09-21", chunks: 97 },
+        { id: "DOC-0640", title: "信息安全规范", libraryId: "dept-sec", ver: "v2.1", updated: "2026-05-30", chunks: 132 },
+        { id: "DOC-0330", title: "预算编制与执行指引", libraryId: "dept-fin", ver: "v1.4", updated: "2026-08-02", chunks: 76 },
+        { id: "DOC-0715", title: "研发编码与评审规范", libraryId: "dept-rd", ver: "v2.0", updated: "2026-09-05", chunks: 118 },
+        { id: "DOC-0801", title: "智能工单系统接口规范", libraryId: "proj-rd-wt", ver: "v0.9", updated: "2026-10-11", chunks: 64 },
+        { id: "DOC-0802", title: "智能工单系统需求说明书", libraryId: "proj-rd-wt", ver: "v1.2", updated: "2026-09-28", chunks: 92 },
+        { id: "DOC-0811", title: "数据中台数据接入规范", libraryId: "proj-rd-dp", ver: "v0.6", updated: "2026-10-19", chunks: 71 },
+        { id: "DOC-0821", title: "移动端重构设计说明", libraryId: "proj-rd-mb", ver: "v0.4", updated: "2026-10-25", chunks: 58 },
+        { id: "DOC-0831", title: "工具链发布流程", libraryId: "proj-rd-tc", ver: "v1.0", updated: "2026-08-30", chunks: 43 },
+        { id: "DOC-0841", title: "财务系统升级迁移方案", libraryId: "proj-fin-fs", ver: "v0.3", updated: "2026-10-08", chunks: 37 }
       ];
       function docById(id) { for (var i = 0; i < DOCS.length; i++) if (DOCS[i].id === id) return DOCS[i]; return DOCS[0]; }
+      function docLib(doc) { return libById(doc.libraryId); }
+      function docDeptId(doc) { var l = docLib(doc); return l.dept_id; }
+      function docDeptName(doc) {
+        var did = docDeptId(doc);
+        if (!did) return "无归属部门";
+        var d = deptById(did);
+        return d ? d.name : "无归属部门";
+      }
 
       /* 部门集合：对应后端 Library(kind=department)——只有 id / name，数量可变，所有选择器都从这里动态生成，禁止在别处写死部门名 */
       var DEPARTMENTS = [
@@ -1075,7 +1186,10 @@
       ];
       function deptById(id) { for (var i = 0; i < DEPARTMENTS.length; i++) if (DEPARTMENTS[i].id === id) return DEPARTMENTS[i]; return null; }
       function deptByName(name) { for (var i = 0; i < DEPARTMENTS.length; i++) if (DEPARTMENTS[i].name === name) return DEPARTMENTS[i]; return null; }
-      function deptDocCount(deptName) { return DOCS.filter(function (d) { return d.dept === deptName; }).length; }
+      /* 某部门名下的文档数：按库的归属部门编号统计——部门库 + 该部门全部项目库 */
+      function deptDocCountById(deptId) { return DOCS.filter(function (d) { return docDeptId(d) === deptId; }).length; }
+      function libDocCount(libId) { return DOCS.filter(function (d) { return d.libraryId === libId; }).length; }
+      function kindDocCount(kind) { return DOCS.filter(function (d) { return docLib(d).kind === kind; }).length; }
 
       var SCENARIOS = [
         {
@@ -1281,7 +1395,7 @@
         DOCS.forEach(function (d) {
           var div = document.createElement("div"); div.className = "doc-item";
           div.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>' +
-            '<span><span class="t">' + esc(d.title) + '</span><br><span class="m">' + d.dept + " · " + d.ver + " · " + d.chunks + " 个片段</span></span>";
+            '<span><span class="t">' + esc(d.title) + '</span><br><span class="m">' + esc(docLib(d).name) + " · " + d.ver + " · " + d.chunks + " 个片段</span></span>";
           box.appendChild(div);
         });
       }
@@ -1305,8 +1419,9 @@
         var sel = state.currentCites[selected == null ? 0 : selected];
         var d2 = docById(sel.doc);
         var q = document.createElement("div"); q.className = "ev-quote";
+        var lib2 = docLib(d2);
         q.innerHTML = '<div class="loc">' + esc(sel.loc) + "</div><blockquote>“" + esc(sel.quote) + "”</blockquote>" +
-          '<div class="meta">来源文档：' + esc(d2.title) + "（" + d2.id + "）<br>发布部门：" + d2.dept + " · 版本 " + d2.ver + " · 更新于 " + d2.updated + "<br>本次读取已按你的权限重新授权</div>";
+          '<div class="meta">来源文档：' + esc(d2.title) + "（" + d2.id + "）<br>所属库：" + esc(lib2.name) + "（" + libKindLabel(lib2.kind) + "）· 归属部门：" + esc(docDeptName(d2)) + " · 版本 " + d2.ver + " · 更新于 " + d2.updated + "<br>本次读取已按你的权限重新授权</div>";
         body.appendChild(q);
         var g = document.createElement("div"); g.className = "gate-note";
         g.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 5-3.2 8.4-7 10-3.8-1.6-7-5-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg><span>答案门禁已校验：正文每个事实点都挂了引用，没有出处的说法不会出现在答案里。</span>';
@@ -1641,55 +1756,144 @@
         "DOC-0640": [
           { loc: "第 3.4 条 · 远程接入红线", txt: "访问公司内网资源必须经公司统一 VPN 网关。禁止使用第三方 VPN、代理或其他绕行工具接入内网；一经发现，安全系统将自动锁定相关账号并通知其部门负责人。" },
           { loc: "第 5.2 条 · 账号与口令", txt: "公司账号口令长度不少于 12 位且须开启双因素认证。发现账号异常登录时应立即在安全中心冻结账号并联系安全部，不得自行修改口令后继续使用。" }
+        ],
+        "DOC-0330": [
+          { loc: "第 2.1 条 · 预算编制周期", txt: "各部门年度预算于每年 11 月底前提交财务部汇总，预算外支出须走追加审批，单笔超过 5 万元的追加须经分管负责人确认。" }
+        ],
+        "DOC-0715": [
+          { loc: "第 4.3 条 · 代码评审", txt: "合入主干的代码须至少一名评审人通过，涉及权限与数据迁移的改动须两人评审；评审意见须在 2 个工作日内给出。" }
+        ],
+        "DOC-0801": [
+          { loc: "第 3.2 节 · 工单状态机", txt: "工单状态只允许按新建 → 已受理 → 处理中 → 待确认 → 已关闭流转，跨状态跳转须由项目负责人确认并留痕；接口返回的状态码以本规范为准。" }
+        ],
+        "DOC-0802": [
+          { loc: "第 2.4 节 · 分派规则", txt: "新工单按技能标签与当前负载自动分派，分派失败时落入项目公共队列，由项目负责人手工指派；分派规则变更须同步更新本说明书版本。" }
+        ],
+        "DOC-0811": [
+          { loc: "第 5.1 节 · 接入契约", txt: "数据源接入前须登记元数据与更新频率，批量接入走离线通道并做行数对账，增量接入须提供主键与删除标记语义。" }
+        ],
+        "DOC-0821": [
+          { loc: "第 3.1 节 · 双端一致性", txt: "重构期间新旧版本并行发布，接口契约以服务端版本协商为准，客户端不得写死接口路径与字段顺序。" }
+        ],
+        "DOC-0831": [
+          { loc: "第 2.2 节 · 发布窗口", txt: "工具链每周二、四晚 22:00 后进入发布窗口，发布前在项目专用库登记变更单，回滚包保留最近三个版本。" }
+        ],
+        "DOC-0841": [
+          { loc: "第 4.1 节 · 迁移批次", txt: "财务系统升级按科目、往来、报表三批迁移，每批迁移后做余额对账，对账差异清零后才允许进入下一批。" }
         ]
       };
-      var docFilter = { q: "", deptId: "all", deptQuery: "" };
+      var docFilter = { q: "", kind: "all", deptId: "all", projectLibId: "all", deptQuery: "" };
       var selectedDoc = "DOC-0312";
       function renderDocsPage() {
         var totalChunks = DOCS.reduce(function (a, d) { return a + (typeof d.chunks === "number" ? d.chunks : 0); }, 0);
-        var covered = {};
-        DOCS.forEach(function (d) { covered[d.dept] = true; });
-        var coveredCount = Object.keys(covered).length;
+        var usedLibs = {};
+        DOCS.forEach(function (d) { usedLibs[d.libraryId] = true; });
+        var projLibCount = LIBRARIES.filter(function (l) { return l.kind === "project"; }).length;
         $("docKpis").innerHTML =
-          kpiHTML("文档总数", DOCS.length + " 份", "分布在 " + coveredCount + " 个部门 · 当前共 " + DEPARTMENTS.length + " 个部门") +
-          kpiHTML("已索引片段", fmt(totalChunks) + " 个", "向量 + BM25 双路索引") +
-          kpiHTML("最近更新", "2026-09-21", "《IT 服务支持手册》升至 v1.9") +
-          kpiHTML("待授权读取", "按成员权限", "每次读取原文都重新校验");
-        /* 部门选项：从 DEPARTMENTS 动态生成，搜索过滤 + 滚动容器承载全量，已删除的部门自动消失 */
-        if (docFilter.deptId !== "all" && !deptById(docFilter.deptId)) docFilter.deptId = "all";
+          kpiHTML("文档总数", DOCS.length + " 份", "分布在 " + Object.keys(usedLibs).length + " 个库 · 归属只认库编号") +
+          kpiHTML("公共库文档", kindDocCount("public") + " 份", "公共文档只放公共库，不挂任何部门") +
+          kpiHTML("项目专用库", projLibCount + " 个", PROJECTS.length + " 个项目 · 一项目一专用库") +
+          kpiHTML("已索引片段", fmt(totalChunks) + " 个", "向量 + BM25 双路索引");
+        /* 校验筛选状态：部门被删或项目不属于该部门时自动复位 */
+        if (docFilter.deptId !== "all" && !deptById(docFilter.deptId)) { docFilter.deptId = "all"; docFilter.projectLibId = "all"; }
+        if (docFilter.projectLibId !== "all") {
+          var pl = libById(docFilter.projectLibId);
+          if (!pl || pl.kind !== "project") docFilter.projectLibId = "all";
+          else if (docFilter.deptId !== "all" && pl.dept_id !== docFilter.deptId) docFilter.projectLibId = "all";
+        }
         var selDept = docFilter.deptId === "all" ? null : deptById(docFilter.deptId);
+        /* —— 维度一：库种类（四档，与归属维度正交） —— */
+        var kc = $("kindOptions"); kc.innerHTML = "";
+        [["all", "全部种类", DOCS.length], ["public", "公共库", kindDocCount("public")], ["department", "部门库", kindDocCount("department")], ["project", "项目库", kindDocCount("project")]].forEach(function (k) {
+          var b = document.createElement("button");
+          b.className = "fchip" + (docFilter.kind === k[0] ? " on" : "");
+          b.innerHTML = k[1] + '<span class="n">' + k[2] + " 份</span>";
+          b.addEventListener("click", function () { docFilter.kind = k[0]; renderDocsPage(); });
+          kc.appendChild(b);
+        });
+        /* —— 维度二之一：归属部门（动态生成，搜索过滤 + 滚动承载） —— */
         $("docDeptCount").textContent = "共 " + DEPARTMENTS.length + " 个部门";
         var dc = $("deptOptions"); dc.innerHTML = "";
         var allBtn = document.createElement("button");
         allBtn.className = "fchip" + (docFilter.deptId === "all" ? " on" : "");
-        allBtn.innerHTML = '全部部门<span class="n">' + DOCS.length + " 份</span>";
-        allBtn.addEventListener("click", function () { docFilter.deptId = "all"; renderDocsPage(); });
+        allBtn.innerHTML = '全部归属<span class="n">' + DOCS.length + " 份</span>";
+        allBtn.addEventListener("click", function () { docFilter.deptId = "all"; docFilter.projectLibId = "all"; renderDocsPage(); });
         dc.appendChild(allBtn);
         var q = docFilter.deptQuery;
         var matched = DEPARTMENTS.filter(function (d) { return q === "" || d.name.indexOf(q) !== -1; });
         matched.forEach(function (d) {
           var b = document.createElement("button");
           b.className = "fchip" + (docFilter.deptId === d.id ? " on" : "");
-          b.innerHTML = esc(d.name) + '<span class="n">' + deptDocCount(d.name) + " 份</span>";
-          b.addEventListener("click", function () { docFilter.deptId = d.id; renderDocsPage(); });
+          b.innerHTML = esc(d.name) + '<span class="n">' + deptDocCountById(d.id) + " 份</span>";
+          b.addEventListener("click", function () {
+            docFilter.deptId = d.id;
+            if (docFilter.projectLibId !== "all" && libById(docFilter.projectLibId).dept_id !== d.id) docFilter.projectLibId = "all";
+            renderDocsPage();
+          });
           dc.appendChild(b);
         });
         if (!matched.length) dc.innerHTML += '<span style="font-size:12.5px;color:var(--ink-3);align-self:center">没有匹配「' + esc(q) + '」的部门</span>';
         $("docDeptNote").textContent = selDept
-          ? "当前只看「" + selDept.name + "」的文档；部门增减后这里自动同步。"
-          : "部门列表由数据动态生成，增减后自动同步；部门多时先搜部门名再点选。";
+          ? "维度二：当前归属选「" + selDept.name + "」——看它的部门库与名下项目库；公共库无归属、不受此维度影响（只受库种类维度控制）。"
+          : "维度二：先选部门、再选该部门下的项目；公共库无归属部门，不在此维度里。部门增减后自动同步。";
+        /* —— 维度二之二：项目专用库，按归属部门分组 —— */
+        var pg = $("projOptions"); pg.innerHTML = "";
+        var groupDepts = selDept ? [selDept] : DEPARTMENTS.filter(function (d) { return projectsOfDept(d.id).length > 0; });
+        var anyProj = false;
+        groupDepts.forEach(function (d) {
+          var projs = projectsOfDept(d.id);
+          if (!projs.length) return;
+          anyProj = true;
+          var g = document.createElement("div"); g.className = "proj-group";
+          var chips = projs.map(function (p) {
+            var on = docFilter.projectLibId === p.libraryId;
+            return '<button class="fchip' + (on ? " on" : "") + '" data-projlib="' + p.libraryId + '">' + esc(p.name) + ' 专用库<span class="n">' + libDocCount(p.libraryId) + " 份</span></button>";
+          }).join("");
+          g.innerHTML = '<span class="pg-label">' + esc(d.name) + '</span><span class="pg-chips">' +
+            '<button class="fchip' + (docFilter.projectLibId === "all" ? " on" : "") + '" data-projall="' + d.id + '">全部项目</button>' + chips + "</span>";
+          pg.appendChild(g);
+        });
+        if (!anyProj) pg.innerHTML = '<span style="font-size:12.5px;color:var(--ink-3)">该部门名下暂无项目，也就没有项目专用库。</span>';
+        pg.querySelectorAll("[data-projlib]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var libId = b.getAttribute("data-projlib");
+            docFilter.projectLibId = docFilter.projectLibId === libId ? "all" : libId;
+            if (docFilter.projectLibId !== "all") docFilter.deptId = libById(libId).dept_id;
+            renderDocsPage();
+          });
+        });
+        pg.querySelectorAll("[data-projall]").forEach(function (b) {
+          b.addEventListener("click", function () { docFilter.projectLibId = "all"; renderDocsPage(); });
+        });
+        var selProj = docFilter.projectLibId === "all" ? null : projectByLibraryId(docFilter.projectLibId);
+        $("docProjNote").textContent = selProj
+          ? "当前只看项目「" + selProj.name + "」的专用库（归属 " + (deptById(selProj.deptId) || {}).name + "）；点「全部项目」可回到部门范围。"
+          : "一项目一专用库；分组只按归属部门，后端无客户字段、不设客户分组。先选部门后这里只剩该部门的项目。";
+        /* —— 文档列表：两维度叠加过滤 —— */
         var box = $("docRows"); box.innerHTML = "";
         var list = DOCS.filter(function (d) {
-          return (docFilter.deptId === "all" || (selDept && d.dept === selDept.name)) &&
-            (docFilter.q === "" || d.title.indexOf(docFilter.q) !== -1 || d.dept.indexOf(docFilter.q) !== -1);
+          var lib = docLib(d);
+          if (docFilter.kind !== "all" && lib.kind !== docFilter.kind) return false;
+          if (docFilter.projectLibId !== "all") { if (d.libraryId !== docFilter.projectLibId) return false; }
+          else if (docFilter.deptId !== "all") {
+            /* 公共库（及未分配库）无归属部门，只受种类维度控制，不被归属维度筛掉 */
+            if (lib.dept_id && lib.dept_id !== docFilter.deptId) return false;
+          }
+          if (docFilter.q !== "" && d.title.indexOf(docFilter.q) === -1 && lib.name.indexOf(docFilter.q) === -1 && docDeptName(d).indexOf(docFilter.q) === -1) return false;
+          return true;
         });
-        if (!list.length) box.innerHTML = '<div class="ev-empty">没有符合条件的文档，换个关键词或部门试试。</div>';
+        if (!list.length) box.innerHTML = '<div class="ev-empty">没有符合条件的文档，换个关键词、库种类或归属试试。</div>';
         list.forEach(function (d) {
+          var lib = docLib(d);
+          var proj = lib.kind === "project" ? projectByLibraryId(lib.id) : null;
           var b = document.createElement("button");
           b.className = "doc-row" + (selectedDoc === d.id ? " sel" : "");
           b.innerHTML = '<span class="t">' + esc(d.title) + '</span>' +
             '<span class="st"><span class="badge ok">已索引</span></span>' +
-            '<span class="m">' + d.id + " · " + d.dept + " · " + d.ver + " · 更新于 " + d.updated + " · " +
+            '<span class="m">' + d.id + " · " + esc(lib.name) + "（" + libKindLabel(lib.kind) + "）· " +
+            (lib.kind === "public" ? "公共文档 · 无归属部门" : "归属 " + esc(docDeptName(d))) +
+            (proj ? " · 项目：" + esc(proj.name) : "") +
+            " · " + d.ver + " · 更新于 " + d.updated + " · " +
             (typeof d.chunks === "number" ? d.chunks + " 个片段" : d.chunks) + "</span>";
           b.addEventListener("click", function () { selectedDoc = d.id; renderDocsPage(); });
           box.appendChild(b);
@@ -1698,11 +1902,16 @@
       }
       function renderDocDetail() {
         var d = docById(selectedDoc);
+        var lib = docLib(d);
+        var proj = lib.kind === "project" ? projectByLibraryId(lib.id) : null;
         var chunks = CHUNKS[d.id] || [{ loc: "全文", txt: "该文档刚导入，片段切分完成后会在这里逐条列出，并同步进入问答的证据来源。" }];
         var box = $("docDetail");
         box.innerHTML = "<h3>" + esc(d.title) + "</h3>" +
           '<p class="sub">' + d.id + " · 当前版本可被问答引用</p>" +
-          '<div class="kv"><span class="k">发布部门</span><span class="v">' + d.dept + '</span>' +
+          '<div class="kv"><span class="k">所属库</span><span class="v">' + esc(lib.name) + "（" + lib.id + "）</span>" +
+          '<span class="k">库种类</span><span class="v">' + libKindLabel(lib.kind) + '</span>' +
+          '<span class="k">归属部门</span><span class="v">' + (lib.dept_id ? esc(docDeptName(d)) + "（" + lib.dept_id + "）" : "无（公共库不挂部门）") + '</span>' +
+          (proj ? '<span class="k">所属项目</span><span class="v">' + esc(proj.name) + "（" + proj.id + "）· 项目负责人：" + esc(proj.lead) + '</span>' : "") +
           '<span class="k">版本</span><span class="v">' + d.ver + '</span>' +
           '<span class="k">更新时间</span><span class="v">' + d.updated + '</span>' +
           '<span class="k">片段数</span><span class="v">' + (typeof d.chunks === "number" ? d.chunks : "解析中") + '</span></div>' +
@@ -1719,11 +1928,11 @@
         var f = e.target.files && e.target.files[0]; if (!f) return;
         var nd = {
           id: "DOC-" + Math.floor(1000 + Math.random() * 9000),
-          title: f.name.replace(/\.[^.]+$/, ""), dept: (deptByName("人事部") ? "人事部" : (DEPARTMENTS[0] ? DEPARTMENTS[0].name : "人事部")), ver: "v0.1",
+          title: f.name.replace(/\.[^.]+$/, ""), libraryId: "unassigned", ver: "v0.1",
           updated: "2026-11-06", chunks: "解析中"
         };
         DOCS.unshift(nd); selectedDoc = nd.id; renderDocs(); renderDocsPage();
-        toast("已导入《" + nd.title + "》，正在切分建索引");
+        toast("已导入《" + nd.title + "》到未分配库，正在切分建索引；认领进目标库后才按库归属筛选");
         setTimeout(function () {
           nd.chunks = 40 + Math.floor(Math.random() * 120);
           renderDocs(); if (document.querySelector(".workspace").style.display === "none") renderDocsPage();
@@ -1873,7 +2082,7 @@
           : "部门管理员视角：只显示本人管理的部门，其他部门按不存在处理";
         $("viewerNote").innerHTML = viewerMode === "global"
           ? "全局管理员：能看到全部 <b>" + DEPARTMENTS.length + "</b> 个部门与全部成员，能建部门、删空部门；部门增减后知识库筛选与成员下拉同步更新。"
-          : "部门管理员（财务部）：可见范围只有<b>公共库 + 财务部库</b>，只能管财务部的成员与审批；上方部门列表、成员列表与加成员下拉都已收拢到财务部，其他部门不渲染、不计数。切回全局管理员可恢复全量视图。";
+          : "部门管理员（财务部）：可见范围是<b>公共库 + 财务部库 + 财务部归属的项目库</b>（当前为财务系统升级专用库），只能管财务部的成员与审批；上方部门列表、成员列表与加成员下拉都已收拢到财务部，其他部门不渲染、不计数。切回全局管理员可恢复全量视图。";
         $("viewerGlobal").classList.toggle("on", viewerMode === "global");
         $("viewerDeptAdmin").classList.toggle("on", viewerMode === "dept_admin");
         var q = memberDeptQuery;
@@ -1881,13 +2090,13 @@
         var box = $("deptList"); box.innerHTML = "";
         if (!list.length) box.innerHTML = '<div class="ev-empty">没有匹配「' + esc(q) + '」的部门，换个关键词试试。</div>';
         list.forEach(function (d) {
-          var mc = deptMemberCount(d.id), dc = deptDocCount(d.name);
+          var mc = deptMemberCount(d.id), dc = deptDocCountById(d.id), pc = projectsOfDept(d.id).length;
           var row = document.createElement("div"); row.className = "dept-row";
           var canDelete = viewerMode === "global";
           row.innerHTML =
             '<span class="dn">' + esc(d.name) +
             (d.id === MANAGED_DEPT_ID && viewerMode === "dept_admin" ? ' <span class="badge">我管理的部门</span>' : "") + "</span>" +
-            '<span class="dm">' + d.id + " · " + mc + " 名成员 · " + dc + " 份文档 · 部门管理员：" + esc(deptAdminNames(d.id)) + "</span>" +
+            '<span class="dm">' + d.id + " · " + mc + " 名成员 · " + dc + " 份文档（部门库 + 项目库）" + (pc ? " · " + pc + " 个项目各一个专用库" : "") + " · 部门管理员：" + esc(deptAdminNames(d.id)) + "</span>" +
             '<span class="dact">' +
             '<button class="ghost-btn" type="button" data-view="' + d.id + '">查看成员</button>' +
             (canDelete
@@ -1909,7 +2118,7 @@
       }
       function tryDeleteDept(deptId) {
         var d = deptById(deptId); if (!d) return;
-        var mc = deptMemberCount(deptId), dc = deptDocCount(d.name);
+        var mc = deptMemberCount(deptId), dc = deptDocCountById(deptId);
         if (mc > 0 || dc > 0) {
           deptDeleteArmId = null;
           showDeptNotice("<b>删不了「" + esc(d.name) + "」：还剩 " + mc + " 名成员、" + dc + " 份文档。</b><br>按后端现状没有一键合并：先走跨库移动审批把文档逐批移到目标部门（只由目标部门管理员决定），再逐一迁走成员归属；两边都清零后才能删除。删除前校验的就是这个残留数，不许先删后补。");
@@ -1925,6 +2134,7 @@
         DEPARTMENTS = DEPARTMENTS.filter(function (x) { return x.id !== deptId; });
         deptDeleteArmId = null;
         if (docFilter.deptId === deptId) docFilter.deptId = "all";
+        if (docFilter.projectLibId !== "all" && libById(docFilter.projectLibId).dept_id === deptId) docFilter.projectLibId = "all";
         if (memberListFilterId === deptId) memberListFilterId = "all";
         showDeptNotice("已删除「" + esc(d.name) + "」。它已从全部部门选择器中移除；当前共 " + DEPARTMENTS.length + " 个部门。");
         renderMembers();
