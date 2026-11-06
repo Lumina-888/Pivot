@@ -1,0 +1,2263 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="warm">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>Pivot 样本示例</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
+    <style>
+      /* ============ 基础令牌（open-claude-ui / CDS 取向） ============ */
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        font-size: 15px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+        transition: background .35s ease, color .35s ease;
+      }
+      button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+      ::selection { background: var(--accent-soft); }
+
+      /* ============ 风格一：暖陶土（Claude 式米白） ============ */
+      [data-theme="warm"] {
+        --bg: #f0efec; --side: #eae8e1; --main: #f9f8f4; --card: #ffffff; --raised: #ffffff;
+        --ink: #1f1e1c; --ink-2: #57554f; --ink-3: #8f8c84;
+        --border: rgba(31,30,28,.10); --border-strong: rgba(31,30,28,.18);
+        --accent: #bc4b24; --accent-hover: #a53f1b; --accent-ink: #ffffff; --accent-soft: #f9ece5;
+        --user-bubble: #f0e9e2; --chip-bg: #ffffff;
+        --ok: #3e7d4e; --warn: #a86a12;
+        --radius: 14px; --radius-s: 9px;
+        --shadow: 0 1px 2px rgba(60,45,30,.05), 0 10px 32px -14px rgba(60,45,30,.20);
+        --display-font: "Noto Serif SC", "Songti SC", Georgia, serif;
+        --header-bg: rgba(249,248,244,.86);
+      }
+      /* ============ 风格二：深夜专业（深色） ============ */
+      [data-theme="dark"] {
+        --bg: #0e0e0d; --side: #161615; --main: #1a1a19; --card: #222221; --raised: #2a2a29;
+        --ink: #ece9e2; --ink-2: #b3b0a6; --ink-3: #7b7974;
+        --border: rgba(255,255,255,.09); --border-strong: rgba(255,255,255,.18);
+        --accent: #d97757; --accent-hover: #e08a67; --accent-ink: #1c1410; --accent-soft: rgba(217,119,87,.16);
+        --user-bubble: #2c2b28; --chip-bg: #222221;
+        --ok: #7fb98a; --warn: #d9a545;
+        --radius: 12px; --radius-s: 8px;
+        --shadow: 0 1px 2px rgba(0,0,0,.4), 0 14px 36px -14px rgba(0,0,0,.65);
+        --display-font: -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+        --header-bg: rgba(26,26,25,.88);
+      }
+      /* ============ 整体布局 ============ */
+      .app { display: flex; flex-direction: column; height: 100dvh; }
+      .topbar {
+        flex: 0 0 auto; display: flex; align-items: center; gap: 14px;
+        padding: 9px 16px; background: var(--header-bg);
+        backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--border); z-index: 30; flex-wrap: wrap;
+      }
+      .brand { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+      .brand .mark {
+        font-family: var(--display-font); font-weight: 700; font-size: 19px; letter-spacing: .02em;
+      }
+      .brand .mark em { font-style: normal; color: var(--accent); }
+      .brand .sub { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+      .topbar .spacer { flex: 1; }
+      .icon-btn {
+        width: 34px; height: 34px; border-radius: var(--radius-s); display: none;
+        align-items: center; justify-content: center; border: 1px solid var(--border);
+        background: var(--card);
+      }
+      .icon-btn svg { width: 17px; height: 17px; }
+
+      /* 主题切换：单个太阳 / 月亮图标按钮 */
+      .theme-toggle {
+        width: 36px; height: 36px; flex: 0 0 auto; padding: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: 1px solid var(--border-strong); background: var(--accent); color: var(--accent-ink);
+        border-radius: 50%; transition: background .2s;
+      }
+      .theme-toggle:hover { background: var(--accent-hover); }
+      .theme-toggle svg { width: 17px; height: 17px; flex: 0 0 auto; }
+      .theme-toggle .tt-ico-sun { display: none; }
+      [data-theme="dark"] .theme-toggle .tt-ico-sun { display: block; }
+      [data-theme="dark"] .theme-toggle .tt-ico-moon { display: none; }
+
+      /* ============ 项目评审（设置页末尾） ============ */
+      .review-sec { margin-top: 20px; }
+      .review-sec:first-of-type { margin-top: 4px; }
+      .review-sec > h4 {
+        font-size: 13.5px; font-weight: 650; margin: 0 0 8px; color: var(--ink);
+        display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+      }
+      .review-sec > h4 .rn { font-size: 11.5px; font-weight: 700; color: var(--accent); letter-spacing: .05em; }
+      .review-sec p { font-size: 13.5px; color: var(--ink-2); margin: 0 0 9px; line-height: 1.75; }
+      .review-sec p b, .review-sec li b { color: var(--ink); font-weight: 620; }
+      .review-sec ul { margin: 0 0 4px; padding-left: 19px; }
+      .review-sec li { font-size: 13.5px; color: var(--ink-2); margin: 4px 0; line-height: 1.7; }
+      .review-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .review-table th {
+        text-align: left; font-size: 12px; font-weight: 650; color: var(--ink-3); letter-spacing: .04em;
+        padding: 7px 10px; border-bottom: 1px solid var(--border-strong); white-space: nowrap;
+      }
+      .review-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--ink-2); line-height: 1.6; }
+      .review-table tr:last-child td { border-bottom: none; }
+      .review-table td.dom { font-weight: 620; color: var(--ink); white-space: nowrap; }
+      .review-table td.page { white-space: nowrap; }
+      .review-scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+      .parts-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px 22px; }
+      .parts-group h5 { font-size: 12.5px; font-weight: 650; color: var(--ink); margin: 0 0 5px; }
+      .parts-group p { font-size: 13px; color: var(--ink-2); margin: 0; line-height: 1.75; }
+      .parts-group code {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px;
+        background: var(--accent-soft); color: var(--accent); border-radius: 5px; padding: 1px 5px; white-space: nowrap;
+      }
+      @media (max-width: 820px) {
+        .parts-grid { grid-template-columns: minmax(0,1fr); }
+        .review-table td.dom, .review-table td.page { white-space: normal; }
+        .review-table th, .review-table td { padding: 7px 7px; }
+      }
+
+      .workspace { flex: 1; display: grid; grid-template-columns: 268px minmax(0,1fr) 336px; min-height: 0; }
+      body.no-evidence .workspace { grid-template-columns: 268px minmax(0,1fr) 0; }
+      body.no-evidence .evidence { display: none; }
+
+      /* ============ 左侧：会话与状态 ============ */
+      .sidebar {
+        background: var(--side); border-right: 1px solid var(--border);
+        display: flex; flex-direction: column; min-height: 0; overflow-y: auto;
+      }
+      .side-pad { padding: 14px 14px 8px; }
+      .new-btn {
+        width: 100%; display: flex; align-items: center; gap: 8px; justify-content: center;
+        background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 14px;
+        padding: 9px 12px; border-radius: var(--radius-s); transition: background .2s;
+      }
+      .new-btn:hover { background: var(--accent-hover); }
+      .new-btn svg { width: 15px; height: 15px; }
+      .side-label { font-size: 11.5px; font-weight: 600; letter-spacing: .08em; color: var(--ink-3); margin: 16px 4px 7px; }
+      .session {
+        width: 100%; text-align: left; padding: 9px 11px; border-radius: var(--radius-s);
+        display: block; transition: background .15s;
+      }
+      .session:hover { background: var(--accent-soft); }
+      .session.on { background: var(--card); box-shadow: var(--shadow); }
+      .session .t { font-size: 14px; font-weight: 550; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .session .m { font-size: 12px; color: var(--ink-3); display: block; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .doc-item { display: flex; gap: 9px; padding: 7px 8px; border-radius: var(--radius-s); align-items: flex-start; }
+      .doc-item:hover { background: var(--accent-soft); }
+      .doc-item svg { width: 15px; height: 15px; flex: 0 0 auto; margin-top: 3px; color: var(--ink-3); }
+      .doc-item .t { font-size: 13px; font-weight: 550; line-height: 1.4; }
+      .doc-item .m { font-size: 11.5px; color: var(--ink-3); }
+      .status-card {
+        margin: auto 14px 14px; background: var(--card); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 13px 14px; box-shadow: var(--shadow);
+      }
+      .status-card h4 { margin: 0 0 10px; font-size: 12px; letter-spacing: .06em; color: var(--ink-3); font-weight: 600; }
+      .stat-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; padding: 3px 0; }
+      .stat-row .k { color: var(--ink-2); }
+      .stat-row .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+      .stat-row .v.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
+      .meter { height: 6px; border-radius: 99px; background: var(--bg); overflow: hidden; margin: 5px 0 3px; border: 1px solid var(--border); }
+      .meter i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .6s ease; }
+      .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); margin-right: 6px; vertical-align: 1px; }
+      .dot.pulse { animation: pulse 1.6s ease-in-out infinite; }
+      @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+      /* ============ 中间：对话区 ============ */
+      .main { background: var(--main); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+      .chat-scroll { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
+      .chat-inner { max-width: 780px; margin: 0 auto; padding: 26px 22px 12px; }
+      .empty { text-align: center; padding: 9vh 10px 0; }
+      .empty h2 { font-family: var(--display-font); font-size: 27px; font-weight: 700; margin: 0 0 8px; }
+      .empty p { color: var(--ink-2); margin: 0 auto; max-width: 460px; font-size: 14.5px; }
+      .msg { margin-bottom: 30px; animation: rise .3s ease both; }
+      @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      .msg.user { display: flex; justify-content: flex-end; }
+      .msg.user .bubble {
+        background: var(--user-bubble); border-radius: var(--radius); border-bottom-right-radius: 4px;
+        padding: 10px 15px; max-width: 82%; font-size: 15px; white-space: pre-wrap;
+      }
+      .msg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+      .avatar {
+        width: 26px; height: 26px; border-radius: 8px; background: var(--accent); color: var(--accent-ink);
+        display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex: 0 0 auto;
+        font-family: var(--display-font);
+      }
+      .msg-head .who { font-weight: 600; font-size: 14px; }
+      .msg-head .tag { font-size: 11.5px; color: var(--ink-3); border: 1px solid var(--border); padding: 1px 7px; border-radius: 99px; }
+
+      /* 执行轨迹（思考 + 检索步骤） */
+      .trace { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); margin-bottom: 14px; overflow: hidden; }
+      .trace-head {
+        width: 100%; display: flex; align-items: center; gap: 9px; padding: 10px 14px; text-align: left;
+        font-size: 13.5px; font-weight: 550;
+      }
+      .trace-head .chev { margin-left: auto; color: var(--ink-3); transition: transform .25s; display: flex; }
+      .trace-head .chev svg { width: 15px; height: 15px; }
+      .trace.open .trace-head .chev { transform: rotate(180deg); }
+      .trace-head .live { color: var(--accent); font-weight: 600; }
+      .trace-body { display: none; border-top: 1px solid var(--border); padding: 13px 16px 15px; }
+      .trace.open .trace-body { display: block; }
+      .reason { font-size: 13.5px; color: var(--ink-2); margin: 0 0 13px; }
+      .reason li { margin: 2px 0; }
+      .steps { list-style: none; margin: 0; padding: 0; }
+      .steps li { position: relative; padding: 0 0 13px 26px; }
+      .steps li:last-child { padding-bottom: 2px; }
+      .steps li::before {
+        content: ""; position: absolute; left: 8px; top: 20px; bottom: 0; width: 1.5px; background: var(--border-strong); opacity: .55;
+      }
+      .steps li:last-child::before { display: none; }
+      .steps .ic {
+        position: absolute; left: 0; top: 2px; width: 17px; height: 17px; border-radius: 50%;
+        border: 1.5px solid var(--border-strong); background: var(--card);
+        display: flex; align-items: center; justify-content: center; color: var(--ok);
+      }
+      .steps .ic svg { width: 10px; height: 10px; opacity: 0; }
+      .steps li.done .ic { border-color: var(--ok); }
+      .steps li.done .ic svg { opacity: 1; }
+      .steps li.doing .ic { border-color: var(--accent); }
+      .steps li.doing .ic::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 1s infinite; }
+      .steps .nm { font-size: 13.5px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+      .steps .ms { font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; font-weight: 500; }
+      .steps .dt { font-size: 13px; color: var(--ink-2); margin-top: 1px; }
+      .steps li.pending { opacity: .45; }
+
+      /* 答案正文 */
+      .answer { font-size: 15.5px; }
+      .answer p { margin: 0 0 11px; }
+      .answer ul { margin: 4px 0 12px; padding-left: 21px; }
+      .answer li { margin: 3px 0; }
+      .answer strong { font-weight: 650; }
+      .cursor { display: inline-block; width: 8px; height: 1.05em; background: var(--accent); vertical-align: -0.18em; margin-left: 2px; animation: pulse .8s steps(1) infinite; border-radius: 1px; }
+      .cite {
+        display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px;
+        padding: 0 4px; margin: 0 1px; border-radius: 5px; background: var(--accent-soft); color: var(--accent);
+        font-size: 11px; font-weight: 700; vertical-align: super; line-height: 1; transition: all .15s;
+      }
+      .cite:hover { background: var(--accent); color: var(--accent-ink); }
+      .msg-foot { display: flex; align-items: center; gap: 6px; margin-top: 13px; flex-wrap: wrap; }
+      .msg-foot .meta { font-size: 12px; color: var(--ink-3); margin-right: 4px; }
+      .mini-btn {
+        display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--ink-2);
+        border: 1px solid var(--border); background: var(--card); padding: 4px 10px; border-radius: 99px; transition: all .15s;
+      }
+      .mini-btn:hover { color: var(--ink); border-color: var(--border-strong); }
+      .mini-btn svg { width: 13px; height: 13px; }
+
+      /* 输入区 */
+      .composer-wrap { flex: 0 0 auto; padding: 8px 22px 16px; background: var(--main); }
+      .composer-inner { max-width: 780px; margin: 0 auto; }
+      .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+      .chip {
+        font-size: 13px; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--border);
+        background: var(--chip-bg); color: var(--ink-2); transition: all .15s;
+      }
+      .chip:hover { border-color: var(--accent); color: var(--accent); }
+      .composer {
+        background: var(--card); border: 1px solid var(--border-strong); border-radius: var(--radius);
+        box-shadow: var(--shadow); padding: 10px 10px 8px 15px; transition: border-color .2s;
+      }
+      .composer:focus-within { border-color: var(--accent); }
+      .composer textarea {
+        width: 100%; border: none; outline: none; resize: none; background: transparent; color: var(--ink);
+        font: inherit; font-size: 15px; max-height: 130px; padding: 2px 0;
+      }
+      .composer textarea::placeholder { color: var(--ink-3); }
+      .composer-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+      .scope {
+        font-size: 12.5px; color: var(--ink-2); border: 1px solid var(--border); border-radius: 99px;
+        padding: 4px 11px; display: inline-flex; gap: 6px; align-items: center; background: var(--raised);
+      }
+      .scope svg { width: 13px; height: 13px; color: var(--ink-3); }
+      .composer-row .hint { font-size: 12px; color: var(--ink-3); margin-left: auto; }
+      .send-btn {
+        width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+        display: flex; align-items: center; justify-content: center; transition: all .2s; flex: 0 0 auto;
+      }
+      .send-btn:hover { background: var(--accent-hover); }
+      .send-btn:disabled { opacity: .35; cursor: default; }
+      .send-btn svg { width: 17px; height: 17px; }
+      .send-btn.stop { background: var(--ink); color: var(--bg); border-radius: var(--radius-s); }
+
+      /* ============ 模型选择器 ============ */
+      .model-wrap { position: relative; }
+      .model-btn {
+        display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--card);
+        border-radius: 999px; padding: 6px 13px; font-size: 13.5px; font-weight: 550;
+      }
+      .model-btn svg { width: 14px; height: 14px; color: var(--ink-3); }
+      .model-menu {
+        position: absolute; right: 0; top: calc(100% + 8px); width: 292px; background: var(--card);
+        border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+        padding: 7px; display: none; z-index: 50;
+      }
+      .model-menu.open { display: block; }
+      .model-opt { width: 100%; text-align: left; padding: 9px 11px; border-radius: var(--radius-s); display: block; }
+      .model-opt:hover { background: var(--accent-soft); }
+      .model-opt .r1 { display: flex; justify-content: space-between; align-items: baseline; }
+      .model-opt .nm { font-weight: 600; font-size: 14px; }
+      .model-opt .ck { color: var(--accent); font-size: 13px; font-weight: 700; }
+      .model-opt .ds { font-size: 12.5px; color: var(--ink-2); margin-top: 1px; }
+      .model-opt .gauge { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11.5px; color: var(--ink-3); }
+      .model-opt .gauge .bar { flex: 1; height: 5px; border-radius: 99px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
+      .model-opt .gauge .bar i { display: block; height: 100%; background: var(--accent); }
+
+      /* ============ 右侧：证据面板 ============ */
+      .evidence { background: var(--side); border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+      .ev-head { padding: 15px 17px 11px; display: flex; align-items: center; gap: 8px; }
+      .ev-head h3 { margin: 0; font-size: 14.5px; font-weight: 650; font-family: var(--display-font); }
+      .ev-head .x { margin-left: auto; display: none; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--border); background: var(--card); }
+      .ev-head .x svg { width: 14px; height: 14px; }
+      .ev-body { padding: 0 17px 18px; }
+      .ev-empty { color: var(--ink-2); font-size: 13.5px; background: var(--card); border: 1px dashed var(--border-strong); border-radius: var(--radius); padding: 15px; }
+      .ev-src {
+        width: 100%; text-align: left; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 11px 13px; margin-bottom: 9px; display: block; transition: all .15s;
+      }
+      .ev-src:hover { border-color: var(--accent); }
+      .ev-src.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+      .ev-src .t { font-size: 13.5px; font-weight: 600; display: flex; gap: 7px; align-items: baseline; }
+      .ev-src .n { color: var(--accent); font-weight: 700; }
+      .ev-src .m { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+      .ev-quote {
+        background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 15px; margin-top: 4px;
+      }
+      .ev-quote .loc { font-size: 12px; font-weight: 600; color: var(--accent); letter-spacing: .03em; margin-bottom: 7px; }
+      .ev-quote blockquote { margin: 0; font-size: 14px; line-height: 1.75; font-family: var(--display-font); }
+      [data-theme="dark"] .ev-quote blockquote { font-family: inherit; }
+      .ev-quote .meta { margin-top: 11px; font-size: 12px; color: var(--ink-3); border-top: 1px solid var(--border); padding-top: 9px; line-height: 1.7; }
+      .gate-note { display: flex; gap: 8px; font-size: 12.5px; color: var(--ink-2); margin-top: 12px; align-items: flex-start; }
+      .gate-note svg { width: 15px; height: 15px; flex: 0 0 auto; color: var(--ok); margin-top: 2px; }
+
+      .toast {
+        position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 16px); background: var(--ink); color: var(--bg);
+        padding: 9px 18px; border-radius: 99px; font-size: 13.5px; opacity: 0; pointer-events: none; transition: all .3s ease; z-index: 99;
+      }
+      .toast.show { opacity: 1; transform: translate(-50%, 0); }
+      .scrim { display: none; }
+
+      /* ============ 页面导航 ============ */
+      .pagenav {
+        flex: 0 0 auto; display: flex; gap: 4px; align-items: center;
+        padding: 7px 16px; background: var(--header-bg);
+        border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none;
+      }
+      .pagenav::-webkit-scrollbar { display: none; }
+      .pagenav button {
+        padding: 6px 15px; border-radius: 999px; font-size: 13.5px; font-weight: 550;
+        color: var(--ink-2); white-space: nowrap; transition: all .18s;
+      }
+      .pagenav button:hover { color: var(--ink); background: var(--accent-soft); }
+      .pagenav button.on { background: var(--accent); color: var(--accent-ink); }
+      .pagenav .pn-hint { margin-left: auto; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+
+      /* ============ 通用页面（非问答页） ============ */
+      .page { display: none; flex: 1; overflow-y: auto; min-height: 0; background: var(--main); }
+      .page.on { display: block; }
+      .page-inner { max-width: 1060px; margin: 0 auto; padding: 26px 22px 40px; }
+      .page-head { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+      .page-head h2 { font-family: var(--display-font); font-size: 24px; font-weight: 700; margin: 0; }
+      .page-head p { margin: 3px 0 0; color: var(--ink-2); font-size: 13.5px; max-width: 620px; }
+      .page-head .spacer { flex: 1; }
+      .primary-btn {
+        background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 13.5px;
+        padding: 8px 16px; border-radius: var(--radius-s); transition: background .2s; display: inline-flex; gap: 7px; align-items: center;
+      }
+      .primary-btn:hover { background: var(--accent-hover); }
+      .primary-btn svg { width: 15px; height: 15px; }
+      .ghost-btn {
+        border: 1px solid var(--border-strong); background: var(--card); color: var(--ink-2);
+        font-size: 13px; font-weight: 550; padding: 7px 14px; border-radius: var(--radius-s); transition: all .15s;
+      }
+      .ghost-btn:hover { color: var(--ink); border-color: var(--accent); }
+      .panel {
+        background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+        box-shadow: var(--shadow); padding: 17px 18px; margin-bottom: 16px;
+      }
+      .panel h3 { margin: 0 0 4px; font-size: 15.5px; font-weight: 650; font-family: var(--display-font); }
+      .panel .sub { font-size: 12.5px; color: var(--ink-3); margin: 0 0 12px; }
+      .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin-bottom: 16px; }
+      .kpi { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; }
+      .kpi .k { font-size: 12.5px; color: var(--ink-3); font-weight: 600; letter-spacing: .04em; }
+      .kpi .v { font-size: 25px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; line-height: 1.25; }
+      .kpi .d { font-size: 12px; color: var(--ink-2); margin-top: 1px; }
+      .kpi .d b { color: var(--ok); font-weight: 650; }
+      .badge {
+        display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600; padding: 1.5px 9px;
+        border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap;
+      }
+      .badge.ok { background: transparent; color: var(--ok); border: 1px solid var(--ok); }
+      .badge.warn { background: transparent; color: var(--warn); border: 1px solid var(--warn); }
+
+      /* 文档库 */
+      .search-box {
+        flex: 1 1 220px; display: flex; align-items: center; gap: 8px; background: var(--card);
+        border: 1px solid var(--border-strong); border-radius: var(--radius-s); padding: 9px 12px;
+        transition: border-color .18s;
+      }
+      .search-box:focus-within { border-color: var(--accent); }
+      .search-box svg { width: 15px; height: 15px; color: var(--ink-3); flex: 0 0 auto; }
+      .search-box input { border: none; outline: none; background: transparent; color: var(--ink); font: inherit; font-size: 14px; width: 100%; }
+      .search-box input::placeholder { color: var(--ink-3); }
+      .fchip { font-size: 12.5px; padding: 5px 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--card); color: var(--ink-2); transition: all .15s; }
+      .fchip:hover { border-color: var(--accent); color: var(--accent); }
+      .fchip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+      /* 知识库筛选面板：一块卡片装下两个搜索框与部门标签 */
+      .kb-filter { padding: 16px 18px 14px; }
+      .kb-filter-top { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
+      .kb-field { min-width: 0; }
+      .kb-field-label {
+        display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+        font-size: 12.5px; font-weight: 600; color: var(--ink-2); letter-spacing: .03em; margin-bottom: 7px;
+      }
+      .kb-field-label .cnt { font-size: 12px; font-weight: 500; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .kb-field .search-box { flex: none; width: 100%; background: var(--main); }
+      .kb-depts { margin-top: 15px; padding-top: 13px; border-top: 1px solid var(--border); }
+      .kb-depts-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+      .kb-depts-head .kb-field-label { margin-bottom: 0; }
+      .kb-depts-head .dept-filter-note { flex: 1; min-width: 220px; text-align: right; }
+      .docs-layout { display: grid; grid-template-columns: minmax(0,1fr) 372px; gap: 16px; align-items: start; }
+      .doc-row {
+        width: 100%; text-align: left; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px;
+        background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 13px 15px; margin-bottom: 9px; transition: all .15s;
+      }
+      .doc-row:hover { border-color: var(--accent); }
+      .doc-row.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+      .doc-row .t { font-size: 14.5px; font-weight: 600; }
+      .doc-row .m { font-size: 12.5px; color: var(--ink-3); grid-column: 1 / -1; }
+      .doc-row .st { grid-row: 1; grid-column: 2; }
+      .chunk { border-top: 1px solid var(--border); padding: 11px 0 2px; }
+      .chunk:first-of-type { border-top: none; }
+      .chunk .loc { font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 3px; }
+      .chunk p { margin: 0 0 9px; font-size: 13.5px; color: var(--ink-2); line-height: 1.7; }
+      .kv { display: grid; grid-template-columns: 86px 1fr; gap: 5px 10px; font-size: 13px; margin-bottom: 12px; }
+      .kv .k { color: var(--ink-3); }
+      .kv .v { font-weight: 550; }
+
+      /* 看板 */
+      .dash-grid { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(0,1fr); gap: 16px; align-items: start; }
+      .run-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 3px 14px; padding: 10px 0; border-top: 1px solid var(--border); align-items: baseline; }
+      .run-row:first-of-type { border-top: none; }
+      .run-row .q { font-size: 14px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .run-row .m { font-size: 12px; color: var(--ink-3); grid-column: 1 / -1; }
+      .event-row { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); font-size: 13.5px; align-items: flex-start; }
+      .event-row:first-of-type { border-top: none; }
+      .event-row svg { width: 15px; height: 15px; flex: 0 0 auto; margin-top: 3px; color: var(--ok); }
+      .event-row.warn svg { color: var(--warn); }
+      .event-row .tm { margin-left: auto; font-size: 12px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .chart-wrap { width: 100%; }
+      .chart-wrap svg { width: 100%; height: auto; display: block; }
+      .donut-flex { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+      .legend { font-size: 13px; color: var(--ink-2); line-height: 2; }
+      .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; }
+
+      /* 部门筛选与部门列表（动态承载，不写死数量） */
+      .dept-scroll {
+        display: flex; flex-wrap: wrap; gap: 7px; max-height: 106px; overflow-y: auto;
+        margin-top: 10px; padding: 2px 4px 2px 1px; align-content: flex-start;
+        scrollbar-width: thin;
+      }
+      .dept-scroll::-webkit-scrollbar { width: 5px; }
+      .dept-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+      .dept-scroll .fchip { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 13px; background: var(--main); }
+      .dept-scroll .fchip .n { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
+      .dept-filter-note { font-size: 12px; color: var(--ink-3); margin: 0; line-height: 1.6; }
+      /* 库筛选：种类维度 + 归属维度（正交） + 项目分组 */
+      .kb-sec { margin-top: 15px; padding-top: 13px; border-top: 1px solid var(--border); }
+      .kb-sec-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+      .kb-sec-head .kb-field-label { margin-bottom: 0; }
+      .kb-sec-head .dept-filter-note { flex: 1; min-width: 220px; text-align: right; }
+      .kind-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+      .kind-row .fchip { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 13px; background: var(--main); }
+      .kind-row .fchip .n { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
+      .proj-groups { margin-top: 10px; display: flex; flex-direction: column; gap: 9px; }
+      .proj-group { display: flex; gap: 9px; align-items: flex-start; flex-wrap: wrap; }
+      .proj-group .pg-label { font-size: 12px; font-weight: 600; color: var(--ink-3); padding-top: 7px; min-width: 52px; }
+      .proj-group .pg-chips { display: flex; flex-wrap: wrap; gap: 7px; flex: 1; min-width: 0; }
+      .proj-group .fchip { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 13px; background: var(--main); }
+      .proj-group .fchip .n { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
+      .honest-note {
+        margin: 15px 0 0; font-size: 12.5px; line-height: 1.75; color: var(--ink-2);
+        border: 1px dashed var(--border-strong); border-radius: var(--radius-s); padding: 10px 13px; background: var(--main);
+      }
+      .honest-note b { color: var(--ink); }
+      .dept-life-note { font-size: 12px; color: var(--ink-3); margin: 7px 0 0; line-height: 1.6; }
+      .viewer-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .viewer-bar .vb-label { font-size: 13px; color: var(--ink-2); font-weight: 550; margin-right: 2px; }
+      .dept-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 3px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); }
+      .dept-row:first-of-type { border-top: none; }
+      .dept-row .dn { font-size: 14.5px; font-weight: 600; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .dept-row .dm { font-size: 12.5px; color: var(--ink-3); grid-column: 1; }
+      .dept-row .dact { grid-row: 1 / span 2; display: flex; gap: 7px; align-items: center; }
+      .danger-btn { border: 1px solid var(--border-strong); background: var(--card); color: var(--ink-2); font-size: 12.5px; font-weight: 550; padding: 6px 12px; border-radius: var(--radius-s); transition: all .15s; white-space: nowrap; }
+      .danger-btn:hover { color: var(--ink); }
+      .danger-btn.armed { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+      .dept-notice { display: none; font-size: 13px; line-height: 1.7; border: 1px solid var(--border-strong); background: var(--accent-soft); color: var(--ink-2); border-radius: var(--radius-s); padding: 10px 13px; margin-top: 11px; }
+      .dept-notice.show { display: block; }
+      .dept-notice b { color: var(--ink); }
+      .dept-list-scroll { max-height: 340px; overflow-y: auto; padding-right: 2px; }
+      .member-filter-row { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+      .member-filter-row select { border: 1px solid var(--border-strong); background: var(--card); color: var(--ink); border-radius: var(--radius-s); padding: 7px 11px; font: inherit; font-size: 13.5px; outline: none; max-width: 100%; }
+      .member-filter-row select:focus { border-color: var(--accent); }
+
+      /* 成员与权限 */
+      .member-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; gap: 4px 13px; align-items: center; padding: 11px 0; border-top: 1px solid var(--border); }
+      .member-row:first-of-type { border-top: none; }
+      .m-avatar { width: 34px; height: 34px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; grid-row: span 2; }
+      .member-row .nm { font-size: 14.5px; font-weight: 600; }
+      .member-row .mt { font-size: 12.5px; color: var(--ink-3); grid-column: 2; }
+      .member-row .role { grid-row: 1 / span 2; }
+      .member-row .act { grid-row: 1 / span 2; font-size: 12.5px; color: var(--ink-3); text-align: right; white-space: nowrap; }
+      .matrix { display: grid; grid-template-columns: minmax(120px,1.5fr) repeat(3, minmax(64px,.55fr)); gap: 0; font-size: 13px; }
+      .matrix > div { padding: 9px 10px; border-top: 1px solid var(--border); display: flex; align-items: center; }
+      .matrix .mh { border-top: none; font-weight: 650; color: var(--ink-2); font-size: 12.5px; }
+      .matrix .yes { color: var(--ok); font-weight: 700; }
+      .matrix .no { color: var(--ink-3); }
+      .inline-form { display: flex; gap: 9px; flex-wrap: wrap; }
+      .inline-form input, .inline-form select {
+        border: 1px solid var(--border-strong); background: var(--card); color: var(--ink);
+        border-radius: var(--radius-s); padding: 8px 12px; font: inherit; font-size: 14px; outline: none;
+      }
+      .inline-form input:focus, .inline-form select:focus { border-color: var(--accent); }
+      .inline-form input { flex: 1 1 170px; }
+
+      /* 设置 */
+      .set-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px 20px; align-items: center; padding: 13px 0; border-top: 1px solid var(--border); }
+      .set-row:first-of-type { border-top: none; }
+      .set-row .nm { font-size: 14.5px; font-weight: 600; }
+      .set-row .ds { font-size: 12.5px; color: var(--ink-2); grid-column: 1; max-width: 560px; }
+      .set-row .ctl { grid-row: 1 / span 2; display: flex; align-items: center; gap: 10px; }
+      .set-row .val { font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; }
+      input[type="range"] { accent-color: var(--accent); width: 170px; }
+      .switch { width: 44px; height: 25px; border-radius: 99px; background: var(--bg); border: 1px solid var(--border-strong); position: relative; transition: all .2s; flex: 0 0 auto; }
+      .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 19px; height: 19px; border-radius: 50%; background: var(--ink-3); transition: all .2s; }
+      .switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+      .switch[aria-checked="true"]::after { left: 21px; background: var(--accent-ink); }
+      .num-input { width: 120px; border: 1px solid var(--border-strong); background: var(--card); color: var(--ink); border-radius: var(--radius-s); padding: 7px 11px; font: inherit; font-size: 14px; outline: none; }
+      .num-input:focus { border-color: var(--accent); }
+      .radio-row { display: flex; gap: 8px; flex-wrap: wrap; }
+      .radio-chip { border: 1px solid var(--border-strong); background: var(--card); border-radius: var(--radius-s); padding: 8px 14px; font-size: 13.5px; font-weight: 550; text-align: left; }
+      .radio-chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+      /* ============ 响应式 ============ */
+      @media (max-width: 1180px) {
+        .workspace, body.no-evidence .workspace { grid-template-columns: 268px minmax(0,1fr); }
+        .evidence {
+          display: none;
+          position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 92vw); z-index: 60;
+          box-shadow: -18px 0 44px rgba(0,0,0,.18);
+        }
+        body.ev-open .evidence { display: flex; animation: slideInR .28s ease both; }
+        .ev-head .x { display: flex; }
+        .scrim { position: fixed; inset: 0; background: rgba(10,10,8,.42); z-index: 55; }
+        body.ev-open .scrim, body.side-open .scrim { display: block; }
+      }
+      @keyframes slideInR { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+      @keyframes slideInL { from { transform: translateX(-40px); opacity: 0; } to { transform: none; opacity: 1; } }
+      @media (max-width: 820px) {
+        .workspace, body.no-evidence .workspace { grid-template-columns: minmax(0,1fr); }
+        .sidebar {
+          display: none;
+          position: fixed; top: 0; left: 0; bottom: 0; width: min(300px, 86vw); z-index: 60;
+          box-shadow: 18px 0 44px rgba(0,0,0,.18);
+        }
+        body.side-open .sidebar { display: flex; animation: slideInL .28s ease both; }
+        .icon-btn { display: flex; }
+        .brand .sub { display: none; }
+        .chat-inner { padding: 20px 15px 8px; }
+        .composer-wrap { padding: 6px 12px 12px; }
+        .composer-row .hint { display: none; }
+        .msg.user .bubble { max-width: 92%; }
+        .model-btn .mb-label { max-width: 168px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        .kb-filter { padding: 14px 14px 12px; }
+        .kb-filter-top { grid-template-columns: minmax(0,1fr); gap: 12px; }
+        .kb-depts-head .dept-filter-note { text-align: left; min-width: 0; }
+        .kb-sec-head .dept-filter-note { text-align: left; min-width: 0; }
+        .proj-group .pg-label { min-width: 44px; }
+        .docs-layout, .dash-grid { grid-template-columns: minmax(0,1fr); }
+        .page-inner { padding: 20px 15px 32px; }
+        .pagenav .pn-hint { display: none; }
+        input[type="range"] { width: 120px; }
+        .member-row .act { display: none; }
+        .matrix { font-size: 12px; grid-template-columns: minmax(96px,1.4fr) repeat(3, minmax(52px,.55fr)); }
+        .dept-row { grid-template-columns: minmax(0,1fr) auto; }
+        .dept-row .dact { grid-row: auto; grid-column: 1 / -1; }
+        .matrix > div { padding: 8px 6px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <!-- 顶栏 -->
+      <header class="topbar">
+        <button class="icon-btn" id="sideToggle" aria-label="打开会话列表">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="brand">
+          <span class="mark">问枢 <em>Pivot</em></span>
+          <span class="sub">企业知识库问答 · 界面样本</span>
+        </div>
+        <div class="spacer"></div>
+        <button class="theme-toggle" id="themeToggle" aria-label="切换到深夜专业主题" title="切换到深夜专业主题">
+          <svg class="tt-ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+          <svg class="tt-ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        </button>
+        <div class="model-wrap">
+          <button class="model-btn" id="modelBtn" aria-haspopup="true">
+            <span class="mb-label" id="modelLabel">问枢 Agent · 均衡</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="model-menu" id="modelMenu"></div>
+        </div>
+      </header>
+
+      <!-- 页面导航 -->
+      <nav class="pagenav" id="pageNav" aria-label="页面切换">
+        <button data-page="chat" class="on">问答台</button>
+        <button data-page="docs">知识库</button>
+        <button data-page="dash">运营看板</button>
+        <button data-page="members">成员与权限</button>
+        <button data-page="settings">系统设置</button>
+        <span class="pn-hint">五页共用一套风格，顶栏切换即时生效</span>
+      </nav>
+
+      <div class="workspace">
+        <!-- 左侧栏 -->
+        <aside class="sidebar" id="sidebar">
+          <div class="side-pad">
+            <button class="new-btn" id="newBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              新建会话
+            </button>
+            <div class="side-label">最近会话</div>
+            <div id="sessionList"></div>
+            <div class="side-label">知识库文档（示例）</div>
+            <div id="docList"></div>
+          </div>
+          <div class="status-card">
+            <h4>执行状态</h4>
+            <div class="stat-row"><span class="k"><span class="dot pulse" id="leaseDot"></span>执行租约</span><span class="v mono" id="leaseVal">#L-2081 · 05:00</span></div>
+            <div class="stat-row"><span class="k">检查点</span><span class="v" id="ckptVal">已保存</span></div>
+            <div class="stat-row"><span class="k">本次会话预算</span><span class="v" id="budgetVal">12,480 / 50,000</span></div>
+            <div class="meter"><i id="budgetBar" style="width:25%"></i></div>
+            <div class="stat-row"><span class="k">供应商尝试</span><span class="v mono" id="vendorVal">1 次 · 已对账</span></div>
+          </div>
+        </aside>
+
+        <!-- 对话区 -->
+        <section class="main">
+          <div class="chat-scroll" id="chatScroll">
+            <div class="chat-inner" id="chatInner"></div>
+          </div>
+          <div class="composer-wrap">
+            <div class="composer-inner">
+              <div class="chips" id="chips"></div>
+              <div class="composer">
+                <textarea id="input" rows="1" placeholder="向企业知识库提问，答案会附证据出处…"></textarea>
+                <div class="composer-row">
+                  <span class="scope">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                    检索范围：全部知识库
+                  </span>
+                  <span class="hint">Enter 发送 · Shift + Enter 换行</span>
+                  <button class="send-btn" id="sendBtn" aria-label="发送">
+                    <svg id="sendIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m-7 7 7-7 7 7"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 证据面板 -->
+        <aside class="evidence" id="evidence">
+          <div class="ev-head">
+            <h3>证据原文</h3>
+            <button class="x" id="evClose" aria-label="关闭证据面板">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div class="ev-body" id="evBody"></div>
+        </aside>
+      </div>
+
+      <!-- ============ 页面：知识库 ============ -->
+      <section class="page" id="page-docs">
+        <div class="page-inner">
+          <div class="page-head">
+            <div>
+              <h2>知识库</h2>
+              <p>文档入库后被切成片段建立向量 + BM25 双路索引；每次问答读取原文都要按提问人的权限重新授权，引用面板里看到的就是这些片段。</p>
+            </div>
+            <div class="spacer"></div>
+            <button class="primary-btn" id="uploadBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 20h16"/></svg>
+              导入文档
+            </button>
+            <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.md,.txt" style="display:none">
+          </div>
+          <div class="kpi-grid" id="docKpis"></div>
+          <div class="panel kb-filter">
+            <div class="kb-filter-top">
+              <div class="kb-field">
+                <span class="kb-field-label">搜索文档</span>
+                <label class="search-box">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                  <input id="docSearch" type="text" placeholder="输入文档标题关键词…">
+                </label>
+              </div>
+              <div class="kb-field">
+                <span class="kb-field-label">搜索部门<span class="cnt" id="docDeptCount"></span></span>
+                <label class="search-box">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                  <input id="docDeptSearch" type="text" placeholder="输入部门名，过滤下方部门列表…">
+                </label>
+              </div>
+            </div>
+            <div class="kb-sec">
+              <div class="kb-sec-head">
+                <span class="kb-field-label">库种类</span>
+                <p class="dept-filter-note">维度一：先按库的种类收窄。公共库独立成类，不挂在任何部门下。</p>
+              </div>
+              <div class="kind-row" id="kindOptions" aria-label="按库种类筛选文档"></div>
+            </div>
+            <div class="kb-depts">
+              <div class="kb-depts-head">
+                <span class="kb-field-label">归属部门</span>
+                <p class="dept-filter-note" id="docDeptNote"></p>
+              </div>
+              <div class="dept-scroll" id="deptOptions" aria-label="按归属部门筛选文档"></div>
+            </div>
+            <div class="kb-sec">
+              <div class="kb-sec-head">
+                <span class="kb-field-label">项目专用库（按归属部门分组）</span>
+                <p class="dept-filter-note" id="docProjNote"></p>
+              </div>
+              <div class="proj-groups" id="projOptions" aria-label="按项目专用库筛选文档"></div>
+            </div>
+            <p class="honest-note"><b>演示设计说明：</b>本页筛选按库模型（编号 / 名称 / 种类 / 归属部门编号）演示，项目与专用库一对一、新建项目时同步建库，公共文档只放公共库。真实接线要等后端补三项能力：<b>返回项增加归属库编号</b>、<b>GET /documents 与 GET /search 增加归属库查询参数</b>、<b>新增普通用户可用的可见库清单接口</b>。另注意：后端<b>没有客户字段、没有客户实体</b>，做不到「部门 → 客户 → 项目」三级分组，本页只按归属部门给项目库分组，<b>不用项目名称前缀冒充客户分组</b>——客户维度是待决策项，后端先补字段前端才能做。</p>
+          </div>
+          <div class="docs-layout">
+            <div id="docRows"></div>
+            <div class="panel" id="docDetail" style="margin-bottom:0"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 页面：运营看板 ============ -->
+      <section class="page" id="page-dash">
+        <div class="page-inner">
+          <div class="page-head">
+            <div>
+              <h2>运营看板</h2>
+              <p>问答量、引用覆盖与门禁、耗时和预算对账都汇在这里。你在问答台里实际跑的每一次问答，都会实时追加到下方运行记录。</p>
+            </div>
+          </div>
+          <div class="kpi-grid" id="dashKpis"></div>
+          <div class="dash-grid">
+            <div>
+              <div class="panel">
+                <h3>近 7 日问答量</h3>
+                <p class="sub">单位：次 / 日 · 含门禁拦截的运行</p>
+                <div class="chart-wrap" id="barChart"></div>
+              </div>
+              <div class="panel" style="margin-bottom:0">
+                <h3>运行记录</h3>
+                <p class="sub">最新在前 · 在问答台提问后回到本页即可看到新记录</p>
+                <div id="runList"></div>
+              </div>
+            </div>
+            <div>
+              <div class="panel">
+                <h3>答案门禁结果</h3>
+                <p class="sub">近 7 日全部运行的放行构成</p>
+                <div class="donut-flex">
+                  <div id="donutChart"></div>
+                  <div class="legend" id="donutLegend"></div>
+                </div>
+              </div>
+              <div class="panel" style="margin-bottom:0">
+                <h3>运行事件</h3>
+                <p class="sub">租约、检查点与预算对账</p>
+                <div id="eventList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 页面：成员与权限 ============ -->
+      <section class="page" id="page-members">
+        <div class="page-inner">
+          <div class="page-head">
+            <div>
+              <h2>成员与权限</h2>
+              <p>部门是会变的集合，不是一张固定名单：部门增减后，所有部门选择器都跟着变。权限决定读证据时能打开哪些文档——问答每次读取原文都按成员的当前归属重新校验，移出部门后该部门库的引用立即失效。</p>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>查看视角</h3>
+            <p class="sub">同一套数据，两种视角看到的范围不同（依据 FR-RBAC-004）</p>
+            <div class="viewer-bar">
+              <span class="vb-label">当前视角：</span>
+              <button class="fchip on" id="viewerGlobal" type="button">全局管理员</button>
+              <button class="fchip" id="viewerDeptAdmin" type="button">部门管理员 · 财务部</button>
+            </div>
+            <p class="dept-life-note" id="viewerNote"></p>
+          </div>
+          <div class="panel">
+            <h3>部门</h3>
+            <p class="sub" id="deptCount"></p>
+            <form class="inline-form" id="deptForm" style="margin-bottom:12px">
+              <input id="newDeptName" type="text" placeholder="新部门名称，如：数据部" maxlength="16">
+              <button class="primary-btn" type="submit">新建部门</button>
+            </form>
+            <label class="search-box" style="margin-bottom:6px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input id="memberDeptSearch" type="text" placeholder="搜索部门…部门再多也先搜再选">
+            </label>
+            <div class="dept-list-scroll" id="deptList"></div>
+            <div class="dept-notice" id="deptNotice" role="status"></div>
+            <p class="dept-life-note">生命周期口径（后端现状）：只有<b>创建</b>与<b>删除</b>两个入口，<b>没有改名、没有停用、没有一键合并</b>。改名只能删空后重建；合并要走移动审批逐批移走文档、逐一迁走成员，最后删空部门；删除前先校验残留成员与文档数，有残留就删不了。已删除的部门不再出现在任何选择器中。</p>
+          </div>
+          <div class="panel">
+            <h3>添加成员</h3>
+            <p class="sub">部门下拉由部门数据动态生成；部门内角色只有三档。部门管理员视角下只能往本人部门加人。</p>
+            <form class="inline-form" id="memberForm">
+              <input id="memberName" type="text" placeholder="成员姓名" maxlength="12" required>
+              <select id="memberDept" aria-label="所属部门"></select>
+              <select id="memberRole" aria-label="部门内角色">
+                <option value="dept_admin">部门管理员</option>
+                <option value="editor">编者</option>
+                <option value="reader" selected>读者</option>
+              </select>
+              <button class="primary-btn" type="submit">添加</button>
+            </form>
+          </div>
+          <div class="panel">
+            <h3>成员列表</h3>
+            <p class="sub" id="memberCount"></p>
+            <div class="member-filter-row">
+              <span style="font-size:13px;color:var(--ink-2)">按部门看：</span>
+              <select id="memberListFilter" aria-label="按部门筛选成员"></select>
+            </div>
+            <div id="memberList"></div>
+          </div>
+          <div class="panel" style="margin-bottom:0">
+            <h3>部门内角色（三档）</h3>
+            <p class="sub">角色挂在「成员 × 部门」的归属关系上，同一个人在不同部门可以是不同角色；全局管理员不在这三档之内，是独立的系统角色。</p>
+            <div class="matrix" id="matrix"></div>
+            <p class="dept-life-note">删部门、建部门只有全局管理员能做；部门管理员只能管本人部门的成员与审批，界面上不给其他部门的管理入口——看不见的部门按不存在处理，不渲染、不计数。</p>
+            <p class="dept-life-note"><b>项目成员角色（单列，不混进上面三档矩阵）：</b>每个项目另设<b>项目负责人</b>一名（如智能工单系统的许清禾、财务系统升级的周慕云），挂在「成员 × 项目」的项目成员关系上，负责本项目专用库的文档与分派；它不替代部门三档角色——同一个人可以既是某部门的编者、又是某个项目的负责人，项目专用库的读写按项目成员关系另行校验。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 页面：系统设置 ============ -->
+      <section class="page" id="page-settings">
+        <div class="page-inner">
+          <div class="page-head">
+            <div>
+              <h2>系统设置</h2>
+              <p>这里改的每一项都会立刻作用到问答台：预算上限同步到左侧执行状态卡，默认问答档位同步到顶栏模型选择，租约时长从下一次运行起生效。</p>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>检索</h3>
+            <p class="sub">决定每次问答召回多少候选、如何排序</p>
+            <div class="set-row">
+              <span class="nm">混合检索候选数（Top-K）</span>
+              <span class="ds">向量与 BM25 双路召回的候选片段总数，执行轨迹里「混合检索」一步显示的就是这个数。</span>
+              <span class="ctl"><input type="range" id="setTopk" min="8" max="40" step="2" value="24"><span class="val" id="setTopkVal">24</span></span>
+            </div>
+            <div class="set-row">
+              <span class="nm">重排序</span>
+              <span class="ds">对候选片段再做一轮相关性重排后才读证据，关掉会更快但引用质量下降。</span>
+              <span class="ctl"><button class="switch" id="setRerank" role="switch" aria-checked="true" aria-label="重排序开关"></button></span>
+            </div>
+            <div class="set-row">
+              <span class="nm">BM25 权重</span>
+              <span class="ds">关键词精确匹配在混合检索里的占比，制度条文类问题适当调高更稳。</span>
+              <span class="ctl"><input type="range" id="setBm25" min="0" max="80" step="5" value="40"><span class="val" id="setBm25Val">40%</span></span>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>答案门禁</h3>
+            <p class="sub">没有出处支撑的说法不许进答案</p>
+            <div class="set-row">
+              <span class="nm">引用覆盖率下限</span>
+              <span class="ds">答案中带引用的事实点占比低于此值时整条答案拦截，只放行有出处的部分。</span>
+              <span class="ctl"><input type="range" id="setGate" min="60" max="100" step="5" value="100"><span class="val" id="setGateVal">100%</span></span>
+            </div>
+            <div class="set-row">
+              <span class="nm">无证据时拒答</span>
+              <span class="ds">检索不到对口条款时明确说明未查到，而不是用模型常识补齐。</span>
+              <span class="ctl"><button class="switch" id="setRefuse" role="switch" aria-checked="true" aria-label="无证据拒答开关"></button></span>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>执行与预算</h3>
+            <p class="sub">租约、检查点与单会话预算对账</p>
+            <div class="set-row">
+              <span class="nm">单会话预算上限（tokens）</span>
+              <span class="ds">问答台左侧状态卡的预算条按这个上限计算，超限后新运行会被暂停并提示。</span>
+              <span class="ctl"><input class="num-input" id="setBudget" type="number" min="5000" step="1000" value="50000"><button class="ghost-btn" id="setBudgetApply">应用</button></span>
+            </div>
+            <div class="set-row">
+              <span class="nm">执行租约时长</span>
+              <span class="ds">一次运行持有租约的最长时长，运行中自动续约；进程中断后租约到期由其他实例接管。</span>
+              <span class="ctl">
+                <span class="radio-row" id="leaseRadios">
+                  <button class="radio-chip on" data-lease="300">5 分钟</button>
+                  <button class="radio-chip" data-lease="600">10 分钟</button>
+                  <button class="radio-chip" data-lease="900">15 分钟</button>
+                </span>
+              </span>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>默认问答档位</h3>
+            <p class="sub">与顶栏的模型选择器是同一个设置，改哪边都同步</p>
+            <div class="radio-row" id="modelRadios"></div>
+          </div>
+
+          <!-- ============ 项目评审：前端工程设计与部件清单 ============ -->
+          <div class="panel" style="margin-bottom:0">
+            <h3>项目评审 · 前端工程设计与部件清单</h3>
+            <p class="sub">依据 Pivot 实际功能口径（SPEC 与已发布契约）整理；功能分区参考风格样稿 v17 的功能设计，视觉设计为本样本自有方案、未借鉴样稿的前端设计 ｜ 样本完成度不等于验收结论：GATE-P0 全部未验证、DR-010 生产数值尚未冻结</p>
+
+            <div class="review-sec">
+              <h4><span class="rn">01</span>评审结论</h4>
+              <p><b>定位：受控 ReAct 问答工作台 + 文档治理后台，不是通用聊天壳。</b>Pivot 的工具白名单只有检索与读证据两类，答案必须过门禁，所以界面的第一优先级是「过程可见、证据可查、状态可对账」，对话区只是其中一栏；租约、检查点、预算对账这些执行状态必须常驻可见，而不是藏进设置里。</p>
+              <p><b>只参考样稿的功能设计，不借鉴它的前端设计。</b>样稿 v17 里值得借的是功能分区与流程约束——主页 / 问答 / 文档库 / 审批队列 / 移动请求 / 审计六个功能域、审批的先后顺序、移动的单边审批、认领拦截、审计事件口径、异步导出——这些是功能层面的划分，本样本照此对齐。本样本五页是六域的子集映射：问答台＝问答区，知识库＝文档库区，运营看板＝主页总览与审计的简化合并，成员与权限、系统设置对应角色与配置面。审批队列与移动请求在功能设计里是独立域，正式版必须独立成页，不能塞进知识库页凑数。</p>
+              <p><b>视觉设计为本样本自有方案。</b>样稿的灰白底、石板灰主色、小圆角与密集小字排版一概不用；本样本用自己的令牌体系：暖陶土的米白画布配陶土橙与衬线标题、深夜专业的深色面板配柔和橙，圆角、间距、顶栏加页面导航的布局都是按这套令牌自排的。组件只消费 CSS 变量、不写死颜色，切换即换 <span style="font-family:ui-monospace,Menlo,monospace;font-size:12px">data-theme</span>。主题只保留这两套，顶栏只放一个太阳 / 月亮图标按钮一键切换。企业极简已下线，避免三套主题稀释维护成本。</p>
+              <p><b>部门按可变集合设计，不按固定名单设计（FR-RBAC-004）。</b>部门在后端就是一种库：Library 只有 id / name / kind / dept_id 四个字段，成员归属 Membership 是六字段关系，部门内角色只有部门管理员（dept_admin）/ 编者（editor）/ 读者（reader）三档，全局管理员是独立的系统角色、不在这三档里。部门数量后期一定会变，所以任何部门选项都不许写死：知识库的部门筛选、加成员的部门下拉、成员列表的部门过滤，全部从部门数据动态拉取；后端列表接口无分页、一次返回全量，部门多了以后前端用「先搜索、再滚动选择」承载，不做写死的前几个加一个「更多」。部门管理员的可见范围是公共库加本人部门库加本人部门归属的项目库，其他部门在他的界面里按不存在处理。</p>
+              <p><b>知识库筛选按库模型重审：种类与归属两个正交维度（本轮修正）。</b>库种类只取公共 / 部门 / 系统 / 项目四值，种子库只有公共库 pub 与未分配库 unassigned；部门库的归属编号与自身编号相同，项目库的归属编号是拥有它的部门编号。文档归属只认<b>库编号</b>、不再用部门名匹配；筛选拆成维度一「库种类」（全部 / 公共库 / 部门库 / 项目库）与维度二「归属」（先选部门、再选该部门下的项目），公共库独立成类、不挂任何部门，只受种类维度控制。项目与库一对一：<span style="font-family:ui-monospace,Menlo,monospace;font-size:12px">POST /admin/projects</span> 一次调用同时建项目与专用库，新建项目必须指定已存在的归属部门；每个项目一个专用库，公共文档只放公共库——开发部名下多客户多项目的真实形态，就是同部门多个项目库并列（样本已内置研发部四个项目专用库演示）。<b>客户分组做不到：</b>后端没有客户字段、没有客户实体，「部门 → 客户 → 项目」三级分组属<b>待决策</b>，后端先补客户字段前端才能做，严禁用项目名称前缀冒充客户分组。</p>
+              <p><b>红队保留意见：</b>样本里最容易被误读的三处——运营看板的数字是合成示例，不能当真实运营指标；设置页的检索阈值类数值是 DR-010 候选值，未冻结前不得当生产参数；审批顺序与移动的单边审批是后端状态机约束，前端只能如实呈现，不许为了「顺手」简化掉。</p>
+            </div>
+
+            <div class="review-sec">
+              <h4><span class="rn">02</span>功能域 → 页面落点</h4>
+              <div class="review-scroll">
+                <table class="review-table">
+                  <tr><th>功能域</th><th>Pivot 实际功能</th><th>落点</th><th>样本状态</th></tr>
+                  <tr>
+                    <td class="dom">问答运行</td>
+                    <td>LangGraph ReAct 受控循环：工具白名单仅 search_knowledge / read_evidence；每次读证据按提问人当前权限重新授权；检查点持久化，租约 + fencing 保证中断恢复后过期接管不写脏数据</td>
+                    <td class="page">问答台（对话区 + 执行轨迹 + 执行状态卡）</td>
+                    <td><span class="badge ok">已落地</span></td>
+                  </tr>
+                  <tr>
+                    <td class="dom">证据与门禁</td>
+                    <td>证据登记为 ev 编号挂在答案事实点上；引用覆盖率校验，无出处不放行；证据不足明确拒答（insufficient_evidence），不用模型常识补齐</td>
+                    <td class="page">问答台引用编号 + 右侧证据面板</td>
+                    <td><span class="badge ok">已落地</span></td>
+                  </tr>
+                  <tr>
+                    <td class="dom">文档库治理</td>
+                    <td>库模型四字段（id / name / kind / dept_id），kind 只取公共 / 部门 / 系统 / 项目四值；种子库只有 pub 与 unassigned；项目与库一对一，建项目同步建专用库且必须指定已存在的归属部门；筛选＝库种类 × 归属（部门 → 项目）两正交维度，公共库不挂部门；文件夹树与文档版本态（uploaded / pending_approval / rejected / 已发布）；待批文档不进检索索引，复核读走 quarantine 隔离路径</td>
+                    <td class="page">知识库</td>
+                    <td><span class="badge warn">部分落地</span><br>筛选已按库模型重做（种类四档 + 归属两级 + 项目库按部门分组）；真实接线待后端补：归属库回显、documents/search 归属库查询参数、可见库清单接口（均见下方待补能力）；版本态全貌仍未呈现</td>
+                  </tr>
+                  <tr>
+                    <td class="dom">发布审批</td>
+                    <td>上传时选目标库，进目标库审批人队列；批准 / 拒绝 / 改目标 / 重提，总管理员代批另记 delegated 事件；批准后顺序固定：关请求 → 改写库 → 触发 ingest，不可颠倒</td>
+                    <td class="page">独立页「审批队列」（功能设计中的全过程泳道）</td>
+                    <td><span class="badge">未覆盖</span></td>
+                  </tr>
+                  <tr>
+                    <td class="dom">跨库移动</td>
+                    <td>单边审批：只由目标库管理员决定，源库管理员不参与；一文档一未决；批准后文件夹置空落默认文件夹并做向量 reconcile，撤回留痕 doc.move.cancelled</td>
+                    <td class="page">独立页「移动请求」</td>
+                    <td><span class="badge">未覆盖</span></td>
+                  </tr>
+                  <tr>
+                    <td class="dom">认领</td>
+                    <td>unassigned 文档由管理员认领进目标库并落默认文件夹；带未决发布或移动请求的文档认领会被拒绝，先等请求关闭</td>
+                    <td class="page">知识库（功能设计中置于文档库区内）</td>
+                    <td><span class="badge">未覆盖</span></td>
+                  </tr>
+                  <tr>
+                    <td class="dom">成员与授权</td>
+                    <td>归属关系 Membership（六字段）把人挂到部门上，部门内角色只有三档：部门管理员 / 编者 / 读者，角色随部门而变、同一人可在不同部门是不同角色；全局管理员独立于三档之外；项目负责人是项目成员角色，单列说明、不混进部门三档矩阵。可见范围：普通成员＝公共库 ∪ 本人所属部门库；部门管理员＝公共库 ∪ 本人部门库 ∪ 本人部门归属的项目库，只管本人部门的成员与审批</td>
+                    <td class="page">成员与权限</td>
+                    <td><span class="badge warn">部分落地</span><br>已按三档重做：动态部门列表 + 搜索过滤 + 双视角范围演示；例外授权与永久复核清单仍未呈现</td>
+                  </tr>
+                  <tr>
+                    <td class="dom">客户分组</td>
+                    <td>业务上一个部门（如开发部）服务多个客户、每个客户多个项目；但后端 Library 只有四字段、没有客户字段与客户实体，项目库只能按归属部门分组。是否引入客户实体（字段、接口、权限口径）须先决策，再谈前端三级分组</td>
+                    <td class="page">知识库（项目库分组）</td>
+                    <td><span class="badge">待决策</span><br>样本不画客户分组，不用项目名前缀冒充</td>
+                  </tr>
+                  <tr>
+                    <td class="dom">可见库清单</td>
+                    <td>筛选与范围呈现都要先拿到「当前用户可见的库清单」：需后端新增普通用户可用的可见库清单接口，并让文档 / 搜索返回项带归属库编号、查询接口接受归属库参数，前端才能真实按库筛选与回显</td>
+                    <td class="page">知识库 + 问答台（作用域标识）</td>
+                    <td><span class="badge">待补能力</span><br>样本为演示数据；问答台不新增按库提问入口，作用域只保留全局与单文档两种</td>
+                  </tr>
+                  <tr>
+                    <td class="dom">审计</td>
+                    <td>追加式留痕，事件名用契约口径（authz.approval.approved、doc.approval.retargeted、authz.library.move 等）；可按操作人 / 事件 / 库三维筛选，改目标事件只进新目标库视图</td>
+                    <td class="page">运营看板（运行事件流）</td>
+                    <td><span class="badge warn">部分落地</span><br>样本为事件流简化版，正式版按功能设计独立成审计页</td>
+                  </tr>
+                  <tr>
+                    <td class="dom">预算与对账</td>
+                    <td>单次运行的模型调用次数与 token 记账、供应商尝试对账；上下文用量按系统 / 历史 / 证据分项；超预算暂停并提示</td>
+                    <td class="page">问答台状态卡 + 运营看板</td>
+                    <td><span class="badge ok">已落地</span></td>
+                  </tr>
+                  <tr>
+                    <td class="dom">导出</td>
+                    <td>文档与会话导出走异步任务（requested → queued → generating → ready），完成后发 1 小时有效的签名下载链接，支持 Markdown / Word</td>
+                    <td class="page">弹窗组件（文档库与问答区共用）</td>
+                    <td><span class="badge">未覆盖</span></td>
+                  </tr>
+                  <tr>
+                    <td class="dom">系统配置</td>
+                    <td>检索（Top-K、BM25 权重、重排序开关）、门禁引用覆盖率下限、无证据拒答、单会话预算上限、执行租约时长、默认问答档位</td>
+                    <td class="page">系统设置</td>
+                    <td><span class="badge ok">已落地</span><br>数值均为样本值</td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+
+            <div class="review-sec">
+              <h4><span class="rn">03</span>部件清单（按域分组，命名为本样本自有口径）</h4>
+              <div class="parts-grid">
+                <div class="parts-group">
+                  <h5>布局壳层</h5>
+                  <p><code>AppShell</code> 应用壳 · <code>TopBar</code> 顶栏 · <code>ThemeToggle</code> 主题切换（单个太阳 / 月亮图标按钮） · <code>PageNav</code> 页面导航 · <code>SideDrawer</code> 移动端抽屉 · <code>Scrim</code> 遮罩 · <code>Toast</code> 轻提示 · <code>StatusBar</code> 底部状态条</p>
+                </div>
+                <div class="parts-group">
+                  <h5>问答运行</h5>
+                  <p><code>SessionList</code> 会话列表（今天 / 7 天 / 30 天分组） · <code>Composer</code> 输入框（附件 chips + 可见库范围条） · <code>ExecutionTrace</code> 执行轨迹（五步状态呈现） · <code>StreamingAnswer</code> 流式答案（可中断） · <code>CitationChip</code> 引用编号 · <code>EvidencePanel</code> 证据面板 · <code>AgentStatusPanel</code> 状态栏（步骤、工具调用、预算、上下文分项）</p>
+                </div>
+                <div class="parts-group">
+                  <h5>文档治理</h5>
+                  <p><code>LibraryTree</code> 库 → 文件夹树 · <code>KindFilter</code> 库种类筛选（全部 / 公共 / 部门 / 项目四档） · <code>AttributionFilter</code> 归属筛选（部门 → 该部门项目两级，项目库按归属部门分组） · <code>DocTable</code> 文档表（所属库 + 归属部门 + 版本态徽标，归属只认库编号） · <code>UploadPanel</code> 上传选库 · <code>ClaimTable</code> 认领表（未决请求拦截） · <code>ApprovalQueue</code> 审批队列表 · <code>Swimlane</code> 全过程泳道 · <code>MoveTable</code> 移动请求表 · <code>RetargetModal</code> 改目标弹窗 · 客户分组选择器<b>不列入</b>：后端无客户字段，待决策后再定部件</p>
+                </div>
+                <div class="parts-group">
+                  <h5>权限与成员</h5>
+                  <p><code>DeptList</code> 动态部门列表（计数随数据算） · <code>DeptSearchSelect</code> 部门搜索选择器（搜索 + 滚动承载全量） · <code>ViewerScopeBar</code> 视角范围条（全局 / 部门管理员） · <code>MemberList</code> 成员列表（按部门过滤） · <code>MemberForm</code> 添加成员（部门下拉动态生成） · <code>DeptRoleMatrix</code> 部门内三档角色矩阵 · <code>DeptDeleteGuard</code> 删除校验提示（残留成员 / 文档数） · <code>RoleBadge</code> 角色徽标</p>
+                </div>
+                <div class="parts-group">
+                  <h5>数据与审计</h5>
+                  <p><code>KpiCard</code> 指标卡 · <code>BarChart</code> 问答量柱状图 · <code>DonutChart</code> 门禁构成环图 · <code>RunRecordList</code> 运行记录 · <code>AuditTable</code> 审计表（操作人 / 事件 / 库三维筛选） · <code>EventFeed</code> 最近动态流 · <code>Meter</code> 用量条</p>
+                </div>
+                <div class="parts-group">
+                  <h5>表单与反馈控件</h5>
+                  <p><code>Switch</code> 开关 · <code>RangeSlider</code> 滑杆 · <code>RadioChip</code> 单选片 · <code>SearchBox</code> 搜索框 · <code>FilterChip</code> 筛选片 · <code>Modal</code> 弹窗 · <code>ExportDialog</code> 导出进度弹窗（异步任务 + 签名链接）</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="review-sec">
+              <h4><span class="rn">04</span>落地约束（红队审查后保留）</h4>
+              <ul>
+                <li><b>状态机不可简化：</b>审批批准按「关请求 → 改写库 → 触发 ingest」在泳道里原样呈现；移动审批只给目标库管理员决策入口，源库管理员视图不渲染决策按钮。</li>
+                <li><b>权限即界面：</b>不可见的库按「不存在」处理——不渲染、不计数、不在搜索与选择器里暗示其存在，与功能设计中上传选到不可见库被拒绝的口径一致。部门同理：部门管理员只看公共库与本人管理的部门，其他部门不进他的部门列表与选择器。</li>
+                <li><b>部门不写死：</b>部门集合、部门计数、部门下拉与筛选一律由数据计算，禁止在界面代码里枚举部门名或部门个数；后端列表无分页返回全量，前端必须用搜索加滚动列表承载，部门涨到几十个也不改版式。新建部门后所有选择器立即出现该部门，不用刷新配置。</li>
+                <li><b>部门生命周期如实呈现：</b>后端只有创建与删除接口，前端不许自创改名、停用、合并入口。改名走「迁空 → 删除 → 重建」；合并走移动审批逐批移文档、逐一迁成员、最后删空部门；删除前必须校验并向操作人明示残留成员数与文档数，有残留直接拦住并给出迁移路径，不许先删后补。已删除的部门必须从知识库筛选、加成员下拉、成员过滤等全部选择器中同步消失，不留幽灵选项。</li>
+                <li><b>库筛选三项待补能力（接线前置条件）：</b>知识库按库筛选目前只是演示设计，真实接线等后端补齐——① 文档与搜索的<b>返回项增加归属库编号</b>（归属库回显），没有它前端只能靠标题猜归属；② <span style="font-family:ui-monospace,Menlo,monospace;font-size:12px">GET /documents</span> 与 <span style="font-family:ui-monospace,Menlo,monospace;font-size:12px">GET /search</span> <b>增加归属库查询参数</b>，没有它筛选只能全量拉回前端过滤；③ <b>新增普通用户可用的可见库清单接口</b>，没有它普通用户拿不到自己能看的库清单、筛选选项无从生成。三项未补齐前，界面必须标注演示设计，不许假装已接线。</li>
+                <li><b>项目建库与客户边界：</b>项目与专用库一对一，建项目走 <span style="font-family:ui-monospace,Menlo,monospace;font-size:12px">POST /admin/projects</span> 一次调用同步建库且必须选已存在的归属部门，前端不提供「先建空项目后补库」或「一项目多库」的入口；公共文档只放公共库，不许把公共文档塞进部门库再靠筛选假装公共。后端没有客户字段，<b>客户分组列为待决策</b>：决策与后端补字段落地之前，项目库只按归属部门分组，严禁用项目名称前缀（如「客户A-」）拼出假分组。</li>
+                <li><b>数值纪律：</b>DR-010 未冻结前，阈值类数值在界面上标注候选 / 样本；GATE-P0 未验证前，任何页面不得出现「已上线」「已验收」表述，只能写开发实现与样本演示。</li>
+                <li><b>双主题纪律：</b>新部件只准使用本样本自有主题变量（画布 / 面板 / 发丝线 / 文字三档 / 强调色），禁止写死颜色值，否则一键切换会出现漏网区块；主题切换只保留顶栏一个太阳 / 月亮图标按钮，不再另设分段控件；本次评审已按此标准核对现有五页。</li>
+              </ul>
+            </div>
+
+            <div class="review-sec">
+              <h4><span class="rn">05</span>部门场景走查（真实业务里会发生的变化）</h4>
+              <ul>
+                <li><b>新增部门：</b>全局管理员建部门 → 部门列表、知识库筛选项、加成员下拉三处同步出现；先指派一名部门管理员，再逐个加编者与读者，空部门在列表里如实显示 0 人 0 文档。</li>
+                <li><b>部门改名：</b>没有改名接口，不提供改名输入框。真要改名：把文档经移动审批迁到新部门、逐一迁成员归属、删掉空的旧部门再按新名重建，过程全程留审计，前端只呈现这条路径、不假装能一键改名。</li>
+                <li><b>部门合并：</b>没有合并接口。走跨库移动的单边审批逐批移文档（只由目标部门管理员决定），成员逐一改归属到目标部门并重定三档角色，确认源部门 0 人 0 文档后才允许删除。</li>
+                <li><b>部门停用 / 删除：</b>没有停用态。删除前校验并提示「还剩 N 名成员、M 份文档」，有残留删不了；删空后二次确认才执行，删完该部门从所有选择器中消失，历史审计仍保留原部门名、不回写。</li>
+                <li><b>部门变多：</b>样本已内置十余个部门演示量级；正式版部门涨到几十个时，列表接口仍是全量返回，前端靠搜索过滤加滚动列表与按部门过滤成员，版式与部件都不需要改。</li>
+                <li><b>部门管理员越界：</b>切到部门管理员视角后，部门列表只剩本人部门、成员列表只剩本人部门成员、加成员的部门下拉锁定本人部门；其他部门连数量都不显示，避免从计数反推组织信息。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="scrim" id="scrim"></div>
+    <div class="toast" id="toast"></div>
+
+    <script>
+      "use strict";
+      var REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      /* ================= 示例数据（全部为合成内容） ================= */
+      /* 库模型（后端真实口径）：只有 id / name / kind / dept_id 四个字段；
+         kind 只取 public（公共）/ department（部门）/ system（系统）/ project（项目）四值；
+         后端没有客户字段、没有客户实体，前端不得自创客户分组。
+         种子库只有公共库 pub 与未分配库 unassigned；部门库的 dept_id 与自身编号相同；
+         项目库的 dept_id 是拥有它的部门编号。文档归属只认库编号，不再用部门名匹配。 */
+      var LIB_KIND_LABELS = { public: "公共库", department: "部门库", system: "系统库", project: "项目库" };
+      var LIBRARIES = [
+        { id: "pub", name: "公共库", kind: "public", dept_id: null },
+        { id: "unassigned", name: "未分配库", kind: "system", dept_id: null },
+        { id: "dept-fin", name: "财务部库", kind: "department", dept_id: "dept-fin" },
+        { id: "dept-hr", name: "人事部库", kind: "department", dept_id: "dept-hr" },
+        { id: "dept-it", name: "信息部库", kind: "department", dept_id: "dept-it" },
+        { id: "dept-sec", name: "安全部库", kind: "department", dept_id: "dept-sec" },
+        { id: "dept-mkt", name: "市场部库", kind: "department", dept_id: "dept-mkt" },
+        { id: "dept-legal", name: "法务部库", kind: "department", dept_id: "dept-legal" },
+        { id: "dept-ops", name: "运营部库", kind: "department", dept_id: "dept-ops" },
+        { id: "dept-rd", name: "研发部库", kind: "department", dept_id: "dept-rd" },
+        { id: "dept-prod", name: "产品部库", kind: "department", dept_id: "dept-prod" },
+        { id: "dept-admin", name: "行政部库", kind: "department", dept_id: "dept-admin" },
+        { id: "dept-proc", name: "采购部库", kind: "department", dept_id: "dept-proc" },
+        { id: "dept-cs", name: "客户成功部库", kind: "department", dept_id: "dept-cs" },
+        /* 研发部（开发部）名下四个项目，各一个专用库——现实中分属不同客户，
+           但后端无客户字段，这里只按归属部门分组，不按客户分组 */
+        { id: "proj-rd-wt", name: "智能工单系统专用库", kind: "project", dept_id: "dept-rd" },
+        { id: "proj-rd-dp", name: "数据中台建设专用库", kind: "project", dept_id: "dept-rd" },
+        { id: "proj-rd-mb", name: "移动端重构专用库", kind: "project", dept_id: "dept-rd" },
+        { id: "proj-rd-tc", name: "内部工具链升级专用库", kind: "project", dept_id: "dept-rd" },
+        { id: "proj-fin-fs", name: "财务系统升级专用库", kind: "project", dept_id: "dept-fin" }
+      ];
+      function libById(id) { for (var i = 0; i < LIBRARIES.length; i++) if (LIBRARIES[i].id === id) return LIBRARIES[i]; return LIBRARIES[0]; }
+      function libKindLabel(kind) { return LIB_KIND_LABELS[kind] || kind; }
+      /* 项目与库一对一：POST /admin/projects 一次调用同时完成项目与库的创建，
+         新建项目必须指定已存在的归属部门；每个项目一个专用库 */
+      var PROJECTS = [
+        { id: "PRJ-RD-01", name: "智能工单系统", libraryId: "proj-rd-wt", deptId: "dept-rd", lead: "许清禾" },
+        { id: "PRJ-RD-02", name: "数据中台建设", libraryId: "proj-rd-dp", deptId: "dept-rd", lead: "许清禾" },
+        { id: "PRJ-RD-03", name: "移动端重构", libraryId: "proj-rd-mb", deptId: "dept-rd", lead: "陈默" },
+        { id: "PRJ-RD-04", name: "内部工具链升级", libraryId: "proj-rd-tc", deptId: "dept-rd", lead: "陈默" },
+        { id: "PRJ-FIN-01", name: "财务系统升级", libraryId: "proj-fin-fs", deptId: "dept-fin", lead: "周慕云" }
+      ];
+      function projectByLibraryId(libId) { for (var i = 0; i < PROJECTS.length; i++) if (PROJECTS[i].libraryId === libId) return PROJECTS[i]; return null; }
+      function projectsOfDept(deptId) { return PROJECTS.filter(function (p) { return p.deptId === deptId; }); }
+
+      var DOCS = [
+        { id: "DOC-0312", title: "差旅与报销管理办法", libraryId: "pub", ver: "v2.7", updated: "2026-08-14", chunks: 148 },
+        { id: "DOC-0107", title: "员工手册", libraryId: "pub", ver: "v3.2", updated: "2026-07-02", chunks: 326 },
+        { id: "DOC-0119", title: "考勤与假期制度", libraryId: "pub", ver: "v4.0", updated: "2026-06-18", chunks: 84 },
+        { id: "DOC-0521", title: "IT 服务支持手册", libraryId: "dept-it", ver: "v1.9", updated: "2026-09-21", chunks: 97 },
+        { id: "DOC-0640", title: "信息安全规范", libraryId: "dept-sec", ver: "v2.1", updated: "2026-05-30", chunks: 132 },
+        { id: "DOC-0330", title: "预算编制与执行指引", libraryId: "dept-fin", ver: "v1.4", updated: "2026-08-02", chunks: 76 },
+        { id: "DOC-0715", title: "研发编码与评审规范", libraryId: "dept-rd", ver: "v2.0", updated: "2026-09-05", chunks: 118 },
+        { id: "DOC-0801", title: "智能工单系统接口规范", libraryId: "proj-rd-wt", ver: "v0.9", updated: "2026-10-11", chunks: 64 },
+        { id: "DOC-0802", title: "智能工单系统需求说明书", libraryId: "proj-rd-wt", ver: "v1.2", updated: "2026-09-28", chunks: 92 },
+        { id: "DOC-0811", title: "数据中台数据接入规范", libraryId: "proj-rd-dp", ver: "v0.6", updated: "2026-10-19", chunks: 71 },
+        { id: "DOC-0821", title: "移动端重构设计说明", libraryId: "proj-rd-mb", ver: "v0.4", updated: "2026-10-25", chunks: 58 },
+        { id: "DOC-0831", title: "工具链发布流程", libraryId: "proj-rd-tc", ver: "v1.0", updated: "2026-08-30", chunks: 43 },
+        { id: "DOC-0841", title: "财务系统升级迁移方案", libraryId: "proj-fin-fs", ver: "v0.3", updated: "2026-10-08", chunks: 37 }
+      ];
+      function docById(id) { for (var i = 0; i < DOCS.length; i++) if (DOCS[i].id === id) return DOCS[i]; return DOCS[0]; }
+      function docLib(doc) { return libById(doc.libraryId); }
+      function docDeptId(doc) { var l = docLib(doc); return l.dept_id; }
+      function docDeptName(doc) {
+        var did = docDeptId(doc);
+        if (!did) return "无归属部门";
+        var d = deptById(did);
+        return d ? d.name : "无归属部门";
+      }
+
+      /* 部门集合：对应后端 Library(kind=department)——只有 id / name，数量可变，所有选择器都从这里动态生成，禁止在别处写死部门名 */
+      var DEPARTMENTS = [
+        { id: "dept-fin", name: "财务部" },
+        { id: "dept-hr", name: "人事部" },
+        { id: "dept-it", name: "信息部" },
+        { id: "dept-sec", name: "安全部" },
+        { id: "dept-mkt", name: "市场部" },
+        { id: "dept-legal", name: "法务部" },
+        { id: "dept-ops", name: "运营部" },
+        { id: "dept-rd", name: "研发部" },
+        { id: "dept-prod", name: "产品部" },
+        { id: "dept-admin", name: "行政部" },
+        { id: "dept-proc", name: "采购部" },
+        { id: "dept-cs", name: "客户成功部" }
+      ];
+      function deptById(id) { for (var i = 0; i < DEPARTMENTS.length; i++) if (DEPARTMENTS[i].id === id) return DEPARTMENTS[i]; return null; }
+      function deptByName(name) { for (var i = 0; i < DEPARTMENTS.length; i++) if (DEPARTMENTS[i].name === name) return DEPARTMENTS[i]; return null; }
+      /* 某部门名下的文档数：按库的归属部门编号统计——部门库 + 该部门全部项目库 */
+      function deptDocCountById(deptId) { return DOCS.filter(function (d) { return docDeptId(d) === deptId; }).length; }
+      function libDocCount(libId) { return DOCS.filter(function (d) { return d.libraryId === libId; }).length; }
+      function kindDocCount(kind) { return DOCS.filter(function (d) { return docLib(d).kind === kind; }).length; }
+
+      var SCENARIOS = [
+        {
+          id: "travel", title: "出差住宿和高铁座位标准", time: "今天 14:02",
+          q: "出差住酒店的报销标准是多少？高铁可以坐一等座吗？",
+          keywords: ["差旅", "报销", "酒店", "住宿", "高铁", "一等座", "出差"],
+          reasoning: [
+            "问题包含两个可分别核验的事实点：住宿限额与高铁席位等级，需要分别定位条款，不能合并推断。",
+            "住宿标准按职级和城市分档，回答时要带上适用条件，避免把一档数字说成统一标准。"
+          ],
+          steps: [
+            { nm: "查询改写", dt: "拆成「住宿限额（按职级/城市）」与「高铁席位等级」两个子查询", ms: "41ms" },
+            { nm: "混合检索", dt: "向量 + BM25 双路召回，共 24 个候选片段", ms: "228ms" },
+            { nm: "重排序", dt: "24 个候选收敛到 5 个高相关片段", ms: "97ms" },
+            { nm: "读取证据 · 重新授权", dt: "读取《差旅与报销管理办法》2 处原文，本次读取已按当前用户权限重新校验", ms: "63ms" },
+            { nm: "答案门禁", dt: "每个事实点均有引用支撑，引用覆盖率 100%，放行", ms: "18ms" }
+          ],
+          answer: [
+            { t: "p", x: "按现行办法，住宿费按**职级和城市分档**报销，凭发票实报实销、超支自理：⟦1⟧" },
+            { t: "ul", x: ["**一线城市**：普通员工 500 元/晚，部门负责人 650 元/晚；", "**其他城市**：普通员工 380 元/晚，部门负责人 500 元/晚；", "连续出差超过 7 天的，第 8 天起按标准的 80% 执行。"] },
+            { t: "p", x: "高铁默认报销**二等座**。行程超过 4 小时、或携带重要设备同行的，可以申请一等座，但要在出差申请里提前注明事由并经部门负责人审批，事后补批不予报销。⟦2⟧" },
+            { t: "p", x: "另外提醒一句：住宿发票抬头要开公司全称，订单截图不能替代发票。" }
+          ],
+          cites: [
+            { doc: "DOC-0312", loc: "第 4.2 条 · 住宿费标准", quote: "住宿费按职级与出差城市分档报销：一线城市普通员工每晚不超过 500 元、部门负责人不超过 650 元；其他城市普通员工每晚不超过 380 元、部门负责人不超过 500 元。连续出差超过 7 天的，自第 8 天起按上述标准的 80% 执行。凭合法发票实报实销，超出部分由个人承担。" },
+            { doc: "DOC-0312", loc: "第 3.5 条 · 城际交通席位", quote: "乘坐高铁、动车出差的，原则上报销二等座。单程行程超过 4 小时，或因工作需要携带重要设备同行的，经部门负责人事前审批可乘坐一等座；未经事前审批的，按二等座票价报销。" }
+          ],
+          tokens: 1864, secs: "2.3s"
+        },
+        {
+          id: "probation", title: "试用期与转正流程", time: "今天 11:47",
+          q: "新员工试用期是多久？转正要走什么流程？",
+          keywords: ["试用期", "转正", "新员工", "入职"],
+          reasoning: [
+            "试用期长度与劳动合同期限挂钩，回答要给出本公司的现行口径，并注明法定上限的依据条款。",
+            "转正流程涉及发起人、审批链和时间节点，按顺序列清比一段话更可执行。"
+          ],
+          steps: [
+            { nm: "查询改写", dt: "拆成「试用期时长」与「转正流程节点」两个子查询", ms: "36ms" },
+            { nm: "混合检索", dt: "向量 + BM25 双路召回，共 19 个候选片段", ms: "204ms" },
+            { nm: "重排序", dt: "19 个候选收敛到 4 个高相关片段", ms: "88ms" },
+            { nm: "读取证据 · 重新授权", dt: "读取《员工手册》2 处原文，权限校验通过", ms: "57ms" },
+            { nm: "答案门禁", dt: "时长与流程节点均有出处，引用覆盖率 100%，放行", ms: "16ms" }
+          ],
+          answer: [
+            { t: "p", x: "公司现行口径：劳动合同期限 3 年及以上的，试用期为 **6 个月**；1 年以上不满 3 年的，试用期为 **2 个月**。同一员工只能约定一次试用期，续签不再设试用期。⟦1⟧" },
+            { t: "p", x: "转正流程一共四步：⟦2⟧" },
+            { t: "ul", x: ["**试用期届满前 15 天**，员工在人事系统提交转正申请并写试用期小结；", "直属主管在 5 个工作日内完成考核评定，重点看岗位胜任度与目标达成情况；", "部门负责人复核后，人事部在 3 个工作日内办结审批并出具转正通知；", "转正次月起按转正后薪酬标准执行，试用期工资不低于转正工资的 80%。"] },
+            { t: "p", x: "考核不合格的，可以依法延长一次试用期或调整岗位，具体以人事部书面通知为准。" }
+          ],
+          cites: [
+            { doc: "DOC-0107", loc: "第 2.3 条 · 试用期", quote: "劳动合同期限三年以上固定期限和无固定期限的劳动合同，试用期为六个月；劳动合同期限一年以上不满三年的，试用期为二个月。同一用人单位与同一劳动者只能约定一次试用期，劳动合同续签时不得再次约定。" },
+            { doc: "DOC-0107", loc: "第 2.5 条 · 转正办理", quote: "员工应于试用期届满前十五日提交转正申请；直属主管应在五个工作日内完成考核评定，部门负责人复核后，人事部应在三个工作日内办结审批并出具转正通知。试用期工资不得低于转正后工资的百分之八十。" }
+          ],
+          tokens: 1742, secs: "2.1s"
+        },
+        {
+          id: "vpn", title: "居家办公 VPN 掉线排查", time: "昨天 18:20",
+          q: "在家办公 VPN 老是掉线，怎么排查？",
+          keywords: ["vpn", "掉线", "内网", "远程", "在家办公", "连不上"],
+          reasoning: [
+            "这是排障类问题，先给自助排查顺序，再给出升级到 IT 的条件和要带的信息，避免来回沟通。",
+            "涉及客户端版本与网关策略两处来源，需要交叉引用两个文档。"
+          ],
+          steps: [
+            { nm: "查询改写", dt: "归一为「VPN 频繁断开的排查步骤与升级条件」", ms: "33ms" },
+            { nm: "混合检索", dt: "向量 + BM25 双路召回，共 21 个候选片段", ms: "219ms" },
+            { nm: "重排序", dt: "21 个候选收敛到 5 个高相关片段", ms: "93ms" },
+            { nm: "读取证据 · 重新授权", dt: "读取《IT 服务支持手册》《信息安全规范》各 1 处，权限校验通过", ms: "71ms" },
+            { nm: "答案门禁", dt: "排查步骤与安全红线均有出处，引用覆盖率 100%，放行", ms: "17ms" }
+          ],
+          answer: [
+            { t: "p", x: "按这个顺序排查，多数掉线在前 3 步能解决：⟦1⟧" },
+            { t: "ul", x: ["**先看客户端版本**：低于 5.2 的版本与现行网关不兼容，先到软件中心升级到最新版再重连；", "**换网络交叉验证**：同一网络下手机热点能连、家宽不能连，多为家宽运营商拦截了 UDP 500/4500 端口，在客户端里把传输模式切到 TCP 443；", "**关掉双网卡冲突**：同时插着网线和连 Wi‑Fi 时容易路由打架，只保留一条链路；", "**看掉线规律**：固定每 8 小时掉一次是令牌到期，重新做一次双因素认证即可，不要反复输密码。"] },
+            { t: "p", x: "四步都做完还掉线，直接在服务台提单，附上客户端日志导出包和掉线时间点，IT 会按网关侧记录定位。注意：**不要使用任何第三方 VPN 或代理工具绕过公司网关**，这是安全红线，触发会锁定账号。⟦2⟧" }
+          ],
+          cites: [
+            { doc: "DOC-0521", loc: "第 6.1 节 · VPN 常见故障", quote: "VPN 频繁断开时依次排查：客户端版本须为 5.2 及以上；家庭宽带环境下如 UDP 500/4500 端口被拦截，将传输模式切换为 TCP 443；有线与无线同时连接时仅保留单一链路；每 8 小时规律性断开为令牌到期，重新完成双因素认证即可。以上无效的，提交服务台工单并附客户端日志导出包。" },
+            { doc: "DOC-0640", loc: "第 3.4 条 · 远程接入红线", quote: "访问公司内网资源必须经公司统一 VPN 网关。禁止使用第三方 VPN、代理或其他绕行工具接入内网；一经发现，安全系统将自动锁定相关账号并通知其部门负责人。" }
+          ],
+          tokens: 1988, secs: "2.4s"
+        },
+        {
+          id: "leave", title: "年假天数与申请方式", time: "昨天 09:15",
+          q: "我司龄 3 年，年假有几天？怎么申请？",
+          keywords: ["年假", "假期", "司龄", "请假", "休假"],
+          reasoning: [
+            "用户给了司龄 3 年，可以直接落到对应档位，不必罗列全部档位，但要说明累计工龄与司龄的区别这一常见误解。",
+            "申请流程要点：提前量、审批人、跨年结转规则。"
+          ],
+          steps: [
+            { nm: "查询改写", dt: "识别条件「司龄 3 年」，定位年假档位与申请流程条款", ms: "38ms" },
+            { nm: "混合检索", dt: "向量 + BM25 双路召回，共 17 个候选片段", ms: "196ms" },
+            { nm: "重排序", dt: "17 个候选收敛到 4 个高相关片段", ms: "84ms" },
+            { nm: "读取证据 · 重新授权", dt: "读取《考勤与假期制度》2 处原文，权限校验通过", ms: "52ms" },
+            { nm: "答案门禁", dt: "天数档位与流程均有出处，引用覆盖率 100%，放行", ms: "15ms" }
+          ],
+          answer: [
+            { t: "p", x: "司龄 3 年对应的是 **8 天**年假：公司在法定基础上按司龄分档，满 1 年 5 天、满 3 年 8 天、满 5 年 11 天、满 10 年 15 天。⟦1⟧注意档位看的是**在本公司的司龄**，不是累计工龄，入职时人事确认过的前单位工龄只影响病假工资基数，不影响年假档位。" },
+            { t: "p", x: "申请方式：在考勤系统提交年假申请，写明起止日期和工作交接人。3 天以内直属主管审批，超过 3 天还要部门负责人复核；旺季（每年 7—8 月）原则上提前 10 个工作日申请。⟦2⟧" },
+            { t: "p", x: "当年未休完的年假可以结转到次年 3 月 31 日前休完，逾期未休且非公司原因的，视为自动放弃，公司原因导致没休完的按日工资 300% 结算。" }
+          ],
+          cites: [
+            { doc: "DOC-0119", loc: "第 2.2 条 · 年假档位", quote: "员工年假按在本公司连续工作的年限分档：满一年五天，满三年八天，满五年十一天，满十年十五天。前款年限指员工在本公司的司龄；入职前工龄不计入年假档位，仅作为病假工资计算基数的参考。" },
+            { doc: "DOC-0119", loc: "第 2.4 条 · 年假申请", quote: "年假通过考勤系统提交申请，注明起止日期与工作交接人。三天以内由直属主管审批，三天以上经部门负责人复核。每年七月至八月休假的，原则上应提前十个工作日提出申请。当年未休年假可结转至次年三月三十一日前休完。" }
+          ],
+          tokens: 1695, secs: "2.0s"
+        }
+      ];
+
+      var FALLBACK = {
+        reasoning: ["问题在当前示例知识库里没有完全对口的条款，先给出最接近的通用口径，并明确哪部分没有证据支撑。"],
+        steps: [
+          { nm: "查询改写", dt: "按原文语义生成检索查询", ms: "35ms" },
+          { nm: "混合检索", dt: "向量 + BM25 双路召回，共 9 个候选片段，相关度偏低", ms: "187ms" },
+          { nm: "重排序", dt: "9 个候选收敛到 2 个弱相关片段", ms: "79ms" },
+          { nm: "读取证据 · 重新授权", dt: "读取《员工手册》总则 1 处，权限校验通过", ms: "49ms" },
+          { nm: "答案门禁", dt: "证据不足：仅放行有出处的部分，其余明确标注未查到", ms: "14ms" }
+        ],
+        answer: [
+          { t: "p", x: "在当前示例知识库里，没有查到与这个问题完全对口的条款。能确认的通用口径只有一条：各类制度问题以公司正式发布的现行版本为准，口头答复不能替代制度原文。⟦1⟧" },
+          { t: "p", x: "建议换个问法再查一次，比如带上具体的制度名（报销、考勤、信息安全等）或事项关键词；也可以直接点上方任意一个示例问题，看完整的检索与引用过程。" }
+        ],
+        cites: [
+          { doc: "DOC-0107", loc: "总则 · 第 3 条", quote: "本手册及公司各项管理制度以公司正式发布的现行版本为准。任何部门的口头解释与制度原文不一致的，以制度原文为准；制度未覆盖的事项，由人事部会同相关职能部门出具书面意见后执行。" }
+        ],
+        tokens: 986, secs: "1.4s"
+      };
+
+      var MODELS = [
+        { id: "balanced", name: "问枢 Agent · 均衡", desc: "混合检索 + 重排序，日常问答默认档", gauge: 24, speed: 26 },
+        { id: "deep", name: "问枢 Agent · 深度检索", desc: "扩大召回并逐段核验证据，适合复杂问题", gauge: 47, speed: 15 },
+        { id: "fast", name: "问枢 Agent · 快速", desc: "小召回快速直答，适合查单一事实", gauge: 9, speed: 46 }
+      ];
+
+      /* ================= 状态 ================= */
+      var state = {
+        model: MODELS[0],
+        budgetUsed: 12480, budgetCap: 50000,
+        leaseSec: 300, running: false, runToken: 0,
+        currentSession: "travel",
+        currentCites: []
+      };
+
+      /* ================= 工具 ================= */
+      function $(id) { return document.getElementById(id); }
+      function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+      function fmt(n) { return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+      function toast(msg) {
+        var t = $("toast"); t.textContent = msg; t.classList.add("show");
+        clearTimeout(t._h); t._h = setTimeout(function () { t.classList.remove("show"); }, 1900);
+      }
+      function wait(ms) { return new Promise(function (r) { setTimeout(r, REDUCED ? 0 : ms); }); }
+
+      /* 富文本：**加粗** 与 ⟦n⟧ 引用 */
+      function richHTML(text, cites, msgId) {
+        var html = esc(text);
+        html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        html = html.replace(/⟦(\d+)⟧/g, function (_, n) {
+          return '<button class="cite" data-cite="' + (parseInt(n, 10) - 1) + '" data-msg="' + msgId + '" title="查看证据原文">' + n + "</button>";
+        });
+        return html;
+      }
+      function plainText(answerArr) {
+        return answerArr.map(function (b) {
+          if (b.t === "ul") return b.x.map(function (li) { return "· " + li; }).join("\n");
+          return b.x;
+        }).join("\n").replace(/\*\*/g, "").replace(/⟦\d+⟧/g, "");
+      }
+      /* 把答案切成流式 token：文本片段与引用标记分开 */
+      function tokenize(answerArr) {
+        var tokens = [];
+        answerArr.forEach(function (b) {
+          if (b.t === "p") tokens.push({ block: "p", parts: splitParts(b.x) });
+          else b.x.forEach(function (li) { tokens.push({ block: "li", parts: splitParts(li) }); });
+        });
+        return tokens;
+      }
+      function splitParts(text) {
+        var parts = [], re = /⟦\d+⟧/g, last = 0, m;
+        while ((m = re.exec(text)) !== null) {
+          if (m.index > last) parts.push({ txt: text.slice(last, m.index) });
+          parts.push({ cite: parseInt(m[0].slice(1, -1), 10) - 1 });
+          last = m.index + m[0].length;
+        }
+        if (last < text.length) parts.push({ txt: text.slice(last) });
+        return parts;
+      }
+
+      /* ================= 渲染：侧栏 ================= */
+      function renderSessions() {
+        var box = $("sessionList"); box.innerHTML = "";
+        SCENARIOS.forEach(function (s) {
+          var b = document.createElement("button");
+          b.className = "session" + (state.currentSession === s.id ? " on" : "");
+          b.innerHTML = '<span class="t">' + esc(s.title) + '</span><span class="m">' + esc(s.time) + " · " + s.cites.length + " 条证据</span>";
+          b.addEventListener("click", function () { loadSession(s.id); });
+          box.appendChild(b);
+        });
+      }
+      function renderDocs() {
+        var box = $("docList"); box.innerHTML = "";
+        DOCS.forEach(function (d) {
+          var div = document.createElement("div"); div.className = "doc-item";
+          div.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>' +
+            '<span><span class="t">' + esc(d.title) + '</span><br><span class="m">' + esc(docLib(d).name) + " · " + d.ver + " · " + d.chunks + " 个片段</span></span>";
+          box.appendChild(div);
+        });
+      }
+
+      /* ================= 渲染：证据面板 ================= */
+      function renderEvidence(cites, selected) {
+        state.currentCites = cites || [];
+        var body = $("evBody"); body.innerHTML = "";
+        if (!state.currentCites.length) {
+          body.innerHTML = '<div class="ev-empty">还没有可查看的证据。在对话里点答案后面的引用编号，这里会显示对应的制度原文出处。</div>';
+          return;
+        }
+        state.currentCites.forEach(function (c, i) {
+          var d = docById(c.doc);
+          var b = document.createElement("button");
+          b.className = "ev-src" + (i === selected ? " sel" : "");
+          b.innerHTML = '<span class="t"><span class="n">[' + (i + 1) + "]</span>" + esc(d.title) + '</span><span class="m">' + esc(c.loc) + " · " + d.id + "</span>";
+          b.addEventListener("click", function () { renderEvidence(state.currentCites, i); });
+          body.appendChild(b);
+        });
+        var sel = state.currentCites[selected == null ? 0 : selected];
+        var d2 = docById(sel.doc);
+        var q = document.createElement("div"); q.className = "ev-quote";
+        var lib2 = docLib(d2);
+        q.innerHTML = '<div class="loc">' + esc(sel.loc) + "</div><blockquote>“" + esc(sel.quote) + "”</blockquote>" +
+          '<div class="meta">来源文档：' + esc(d2.title) + "（" + d2.id + "）<br>所属库：" + esc(lib2.name) + "（" + libKindLabel(lib2.kind) + "）· 归属部门：" + esc(docDeptName(d2)) + " · 版本 " + d2.ver + " · 更新于 " + d2.updated + "<br>本次读取已按你的权限重新授权</div>";
+        body.appendChild(q);
+        var g = document.createElement("div"); g.className = "gate-note";
+        g.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 5-3.2 8.4-7 10-3.8-1.6-7-5-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg><span>答案门禁已校验：正文每个事实点都挂了引用，没有出处的说法不会出现在答案里。</span>';
+        body.appendChild(g);
+      }
+      function openEvidence(idx) {
+        renderEvidence(state.currentCites, idx);
+        if (window.innerWidth <= 1180) document.body.classList.add("ev-open");
+      }
+
+      /* ================= 渲染：消息 ================= */
+      var msgSeq = 0;
+      function addUserMsg(text) {
+        var div = document.createElement("div"); div.className = "msg user";
+        div.innerHTML = '<div class="bubble"></div>';
+        div.querySelector(".bubble").textContent = text;
+        $("chatInner").appendChild(div); scrollChat();
+        return div;
+      }
+      function buildTrace(scn, open) {
+        var wrap = document.createElement("div"); wrap.className = "trace" + (open ? " open" : "");
+        wrap.innerHTML =
+          '<button class="trace-head"><span class="th-label">执行轨迹 · ' + scn.steps.length + ' 步 · ' + scn.secs + '</span>' +
+          '<span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span></button>' +
+          '<div class="trace-body"><ul class="reason">' +
+          scn.reasoning.map(function (r) { return "<li>" + esc(r) + "</li>"; }).join("") +
+          '</ul><ul class="steps">' +
+          scn.steps.map(function (s) {
+            var dt = s.dt;
+            if (s.nm === "混合检索" && state.topk) dt = dt.replace(/共 \d+ 个候选片段/, "共 " + state.topk + " 个候选片段");
+            return '<li class="pending"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
+              '<span class="nm">' + esc(s.nm) + '<span class="ms">' + s.ms + '</span></span><div class="dt">' + esc(dt) + "</div></li>";
+          }).join("") + "</ul></div>";
+        wrap.querySelector(".trace-head").addEventListener("click", function () { wrap.classList.toggle("open"); });
+        return wrap;
+      }
+      function addAssistantShell(scn) {
+        var id = "m" + (++msgSeq);
+        var div = document.createElement("div"); div.className = "msg"; div.id = id;
+        div.innerHTML = '<div class="msg-head"><span class="avatar">枢</span><span class="who">问枢 Pivot</span><span class="tag">' + esc(state.model.name) + '</span></div>';
+        var trace = buildTrace(scn, false);
+        div.appendChild(trace);
+        var ans = document.createElement("div"); ans.className = "answer";
+        div.appendChild(ans);
+        var foot = document.createElement("div"); foot.className = "msg-foot"; foot.style.display = "none";
+        div.appendChild(foot);
+        $("chatInner").appendChild(div); scrollChat();
+        return { id: id, root: div, trace: trace, ans: ans, foot: foot };
+      }
+      function fillFoot(shell, scn) {
+        shell.foot.style.display = "flex";
+        shell.foot.innerHTML = '<span class="meta">用时 ' + scn.secs + " · " + fmt(scn.tokens) + " tokens · 引用 " + scn.cites.length + ' 条</span>' +
+          '<button class="mini-btn" data-act="copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>复制答案</button>' +
+          '<button class="mini-btn" data-act="rerun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>重新运行</button>' +
+          '<button class="mini-btn" data-act="ev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>查看证据</button>';
+        shell.foot.querySelector('[data-act="copy"]').addEventListener("click", function () {
+          var txt = plainText(scn.answer);
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function () { toast("答案已复制"); }, function () { toast("复制失败，请手动选择文本"); });
+          else toast("当前环境不支持一键复制");
+        });
+        shell.foot.querySelector('[data-act="rerun"]').addEventListener("click", function () {
+          if (state.running) return;
+          shell.root.remove(); runScenario(lastQuestion, true);
+        });
+        shell.foot.querySelector('[data-act="ev"]').addEventListener("click", function () { openEvidence(0); });
+      }
+      function renderAnswerInstant(shell, scn) {
+        shell.ans.innerHTML = "";
+        scn.answer.forEach(function (b) {
+          if (b.t === "p") { var p = document.createElement("p"); p.innerHTML = richHTML(b.x, scn.cites, shell.id); shell.ans.appendChild(p); }
+          else { var ul = document.createElement("ul"); b.x.forEach(function (li) { var el = document.createElement("li"); el.innerHTML = richHTML(li, scn.cites, shell.id); ul.appendChild(el); }); shell.ans.appendChild(ul); }
+        });
+        bindCites(shell, scn);
+        fillFoot(shell, scn);
+      }
+      function bindCites(shell, scn) {
+        var btns = shell.ans.querySelectorAll(".cite");
+        for (var i = 0; i < btns.length; i++) (function (btn) {
+          btn.addEventListener("click", function () { renderEvidence(scn.cites, parseInt(btn.getAttribute("data-cite"), 10)); if (window.innerWidth <= 1180) document.body.classList.add("ev-open"); });
+        })(btns[i]);
+      }
+      function scrollChat() { var s = $("chatScroll"); s.scrollTop = s.scrollHeight; }
+
+      /* ================= 会话加载 ================= */
+      var lastQuestion = "";
+      function scenarioById(id) { for (var i = 0; i < SCENARIOS.length; i++) if (SCENARIOS[i].id === id) return SCENARIOS[i]; return SCENARIOS[0]; }
+      function loadSession(id) {
+        if (state.running) stopRun();
+        state.currentSession = id;
+        var scn = scenarioById(id);
+        lastQuestion = scn.q;
+        $("chatInner").innerHTML = "";
+        addUserMsg(scn.q);
+        var shell = addAssistantShell(scn);
+        shell.trace.classList.add("open");
+        var lis = shell.trace.querySelectorAll(".steps li");
+        for (var i = 0; i < lis.length; i++) { lis[i].classList.remove("pending"); lis[i].classList.add("done"); }
+        renderAnswerInstant(shell, scn);
+        renderEvidence(scn.cites, null);
+        renderSessions();
+        document.body.classList.remove("side-open");
+        scrollChat();
+      }
+      function showEmpty() {
+        if (state.running) stopRun();
+        state.currentSession = null;
+        $("chatInner").innerHTML = '<div class="empty"><h2>向企业知识库提问</h2><p>工具白名单只有检索与读证据：每次读取都重新按你的权限授权，答案里的每个事实点都必须挂证据出处，没有出处的说法会被门禁拦下。</p></div>';
+        renderEvidence([], null);
+        renderSessions();
+        document.body.classList.remove("side-open");
+      }
+
+      /* ================= 运行：流式执行 ================= */
+      function matchScenario(q) {
+        var best = null, bestScore = 0;
+        SCENARIOS.forEach(function (s) {
+          var score = 0;
+          s.keywords.forEach(function (k) { if (q.indexOf(k) !== -1) score += k.length; });
+          if (score > bestScore) { bestScore = score; best = s; }
+        });
+        return bestScore > 0 ? best : null;
+      }
+      function setSending(on) {
+        state.running = on;
+        var btn = $("sendBtn");
+        btn.classList.toggle("stop", on);
+        $("sendIcon").innerHTML = on
+          ? '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>'
+          : '<path d="M12 19V5m-7 7 7-7 7 7"/>';
+        btn.setAttribute("aria-label", on ? "停止生成" : "发送");
+      }
+      function stopRun() { state.runToken++; setSending(false); toast("已停止本次运行，检查点保留"); }
+      async function runScenario(q, skipUser) {
+        var scn = matchScenario(q) || FALLBACK;
+        var isFallback = scn === FALLBACK;
+        var runScn = isFallback ? FALLBACK : scn;
+        lastQuestion = q;
+        if (!skipUser) addUserMsg(q);
+        var token = ++state.runToken;
+        setSending(true);
+        renewLease();
+        var shell = addAssistantShell(runScn);
+        shell.trace.classList.add("open");
+        shell.trace.querySelector(".th-label").innerHTML = '正在执行 · <span class="live">检索与核验中</span>';
+        var lis = shell.trace.querySelectorAll(".steps li");
+        for (var i = 0; i < lis.length; i++) {
+          if (token !== state.runToken) return;
+          lis[i].classList.remove("pending"); lis[i].classList.add("doing"); scrollChat();
+          await wait(REDUCED ? 0 : 260 + Math.random() * 240);
+          lis[i].classList.remove("doing"); lis[i].classList.add("done");
+        }
+        if (token !== state.runToken) return;
+        shell.trace.querySelector(".th-label").textContent = "执行轨迹 · " + runScn.steps.length + " 步 · " + runScn.secs;
+        /* 流式输出答案 */
+        var cursor = document.createElement("span"); cursor.className = "cursor";
+        shell.ans.appendChild(cursor);
+        var tokens = tokenize(runScn.answer);
+        var ulEl = null;
+        for (var ti = 0; ti < tokens.length; ti++) {
+          if (token !== state.runToken) { cursor.remove(); return; }
+          var tk = tokens[ti], host;
+          if (tk.block === "p") { host = document.createElement("p"); ulEl = null; }
+          else {
+            if (!ulEl) { ulEl = document.createElement("ul"); shell.ans.insertBefore(ulEl, cursor); }
+            host = document.createElement("li");
+          }
+          shell.ans.insertBefore(host, cursor); if (tk.block === "li") { ulEl.appendChild(host); shell.ans.insertBefore(ulEl, cursor); }
+          for (var pi = 0; pi < tk.parts.length; pi++) {
+            if (token !== state.runToken) { cursor.remove(); return; }
+            var part = tk.parts[pi];
+            if (part.cite != null) {
+              var c = document.createElement("button"); c.className = "cite"; c.textContent = part.cite + 1; c.title = "查看证据原文";
+              (function (idx) { c.addEventListener("click", function () { renderEvidence(runScn.cites, idx); if (window.innerWidth <= 1180) document.body.classList.add("ev-open"); }); })(part.cite);
+              host.appendChild(c);
+            } else {
+              var plain = part.txt.replace(/\*\*/g, "");
+              var strong = part.txt.indexOf("**") !== -1;
+              var node = document.createTextNode("");
+              var holder = strong ? document.createElement("strong") : document.createElement("span");
+              holder.appendChild(node); host.appendChild(holder);
+              var step = Math.max(1, Math.round(state.model.speed / 8));
+              for (var ci = 0; ci < plain.length; ci += step) {
+                if (token !== state.runToken) { cursor.remove(); return; }
+                node.textContent = plain.slice(0, ci + step);
+                if (ci % (step * 6) === 0) scrollChat();
+                await wait(REDUCED ? 0 : 14);
+              }
+              node.textContent = plain;
+            }
+          }
+          scrollChat();
+        }
+        cursor.remove();
+        fillFoot(shell, runScn);
+        state.budgetUsed = Math.min(state.budgetCap, state.budgetUsed + runScn.tokens);
+        updateBudget();
+        $("ckptVal").textContent = "已保存 · 刚刚";
+        renderEvidence(runScn.cites, null);
+        if (typeof logRun === "function") logRun(q, runScn, isFallback);
+        setSending(false);
+        scrollChat();
+      }
+
+      /* ================= 状态区 ================= */
+      function updateBudget() {
+        $("budgetVal").textContent = fmt(state.budgetUsed) + " / " + fmt(state.budgetCap);
+        $("budgetBar").style.width = Math.round(state.budgetUsed / state.budgetCap * 100) + "%";
+      }
+      function renewLease() {
+        state.leaseSec = state.leaseLen || 300;
+        $("leaseDot").style.background = "var(--ok)";
+      }
+      setInterval(function () {
+        if (state.leaseSec > 0) state.leaseSec--;
+        var m = String(Math.floor(state.leaseSec / 60)).padStart(2, "0"), s = String(state.leaseSec % 60).padStart(2, "0");
+        $("leaseVal").textContent = "#L-2081 · " + m + ":" + s;
+        if (state.leaseSec <= 30) $("leaseDot").style.background = "var(--warn)";
+      }, 1000);
+
+      /* ================= 模型菜单 ================= */
+      function renderModelMenu() {
+        var menu = $("modelMenu"); menu.innerHTML = "";
+        MODELS.forEach(function (m) {
+          var b = document.createElement("button"); b.className = "model-opt";
+          b.innerHTML = '<span class="r1"><span class="nm">' + esc(m.name) + '</span>' + (state.model.id === m.id ? '<span class="ck">✓</span>' : "") + "</span>" +
+            '<span class="ds">' + esc(m.desc) + '</span>' +
+            '<span class="gauge"><span>上下文窗口</span><span class="bar"><i style="width:' + m.gauge + '%"></i></span><span>' + m.gauge + "%</span></span>";
+          b.addEventListener("click", function () {
+            state.model = m; $("modelLabel").textContent = m.name;
+            renderModelMenu(); menu.classList.remove("open"); toast("已切换：" + m.name);
+          });
+          menu.appendChild(b);
+        });
+      }
+      $("modelBtn").addEventListener("click", function (e) { e.stopPropagation(); $("modelMenu").classList.toggle("open"); });
+      document.addEventListener("click", function (e) { if (!$("modelMenu").contains(e.target)) $("modelMenu").classList.remove("open"); });
+
+      /* ================= 主题切换（双主题：单个太阳 / 月亮图标按钮） ================= */
+      /* 仅保留暖陶土与深夜专业两套主题：跟随系统深色偏好时默认进深夜专业，否则暖陶土 */
+      var currentTheme = "warm";
+      function setTheme(name) {
+        currentTheme = name === "dark" ? "dark" : "warm";
+        document.documentElement.setAttribute("data-theme", currentTheme);
+        document.documentElement.style.colorScheme = currentTheme === "dark" ? "dark" : "light";
+        var label = currentTheme === "dark" ? "切换到暖陶土主题" : "切换到深夜专业主题";
+        $("themeToggle").setAttribute("aria-label", label);
+        $("themeToggle").setAttribute("title", label);
+      }
+      if (window.matchMedia("(prefers-color-scheme: dark)").matches) setTheme("dark"); else setTheme("warm");
+      /* 一键切换：在两套主题之间来回翻 */
+      $("themeToggle").addEventListener("click", function () {
+        setTheme(currentTheme === "dark" ? "warm" : "dark");
+        toast("已切换主题：" + (currentTheme === "dark" ? "深夜专业" : "暖陶土"));
+      });
+
+      /* ================= 输入与发送 ================= */
+      var input = $("input");
+      function autoGrow() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 130) + "px"; }
+      input.addEventListener("input", autoGrow);
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); doSend(); }
+      });
+      function doSend() {
+        if (state.running) { stopRun(); return; }
+        var q = input.value.trim(); if (!q) return;
+        input.value = ""; autoGrow();
+        if (state.currentSession === null && !$("chatInner").querySelector(".msg")) $("chatInner").innerHTML = "";
+        else if (state.currentSession === null) $("chatInner").querySelector(".empty") && $("chatInner").querySelector(".empty").remove();
+        runScenario(q, false);
+      }
+      $("sendBtn").addEventListener("click", doSend);
+      $("newBtn").addEventListener("click", showEmpty);
+
+      /* 示例问题 chips */
+      var chipsBox = $("chips");
+      SCENARIOS.forEach(function (s) {
+        var b = document.createElement("button"); b.className = "chip"; b.textContent = s.q;
+        b.addEventListener("click", function () {
+          if (state.running) return;
+          if (state.currentSession === null && $("chatInner").querySelector(".empty")) $("chatInner").innerHTML = "";
+          runScenario(s.q, false);
+        });
+        chipsBox.appendChild(b);
+      });
+
+      /* 抽屉控制 */
+      $("sideToggle").addEventListener("click", function () { document.body.classList.add("side-open"); });
+      $("evClose").addEventListener("click", function () { document.body.classList.remove("ev-open"); });
+      $("scrim").addEventListener("click", function () { document.body.classList.remove("ev-open", "side-open"); });
+
+      /* ================= 页面切换 ================= */
+      var PAGES = ["chat", "docs", "dash", "members", "settings"];
+      function showPage(name) {
+        PAGES.forEach(function (p) {
+          var el = p === "chat" ? document.querySelector(".workspace") : $("page-" + p);
+          if (el) el.style.display = p === name ? "" : "none";
+          if (el && p !== "chat") el.classList.toggle("on", p === name);
+        });
+        var btns = $("pageNav").querySelectorAll("button");
+        for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("on", btns[i].getAttribute("data-page") === name);
+        document.body.classList.remove("side-open", "ev-open");
+        if (name === "dash") renderDash();
+        if (name === "docs") renderDocsPage();
+        window.scrollTo(0, 0);
+      }
+      $("pageNav").addEventListener("click", function (e) {
+        var b = e.target.closest("button"); if (!b) return;
+        showPage(b.getAttribute("data-page"));
+      });
+
+      /* ================= 知识库页 ================= */
+      state.topk = 24; state.leaseLen = 300;
+      var CHUNKS = {
+        "DOC-0312": [
+          { loc: "第 3.5 条 · 城际交通席位", txt: "乘坐高铁、动车出差的，原则上报销二等座。单程行程超过 4 小时，或因工作需要携带重要设备同行的，经部门负责人事前审批可乘坐一等座；未经事前审批的，按二等座票价报销。" },
+          { loc: "第 4.2 条 · 住宿费标准", txt: "住宿费按职级与出差城市分档报销：一线城市普通员工每晚不超过 500 元、部门负责人不超过 650 元；其他城市普通员工每晚不超过 380 元、部门负责人不超过 500 元。连续出差超过 7 天的，自第 8 天起按上述标准的 80% 执行。" },
+          { loc: "第 5.1 条 · 报销时限", txt: "出差结束后 15 个工作日内提交报销单，逾期提交的须附情况说明并经财务负责人确认。所有票据须为合法发票，订单截图、支付记录不能替代发票。" }
+        ],
+        "DOC-0107": [
+          { loc: "第 2.3 条 · 试用期", txt: "劳动合同期限三年以上固定期限和无固定期限的劳动合同，试用期为六个月；劳动合同期限一年以上不满三年的，试用期为二个月。同一用人单位与同一劳动者只能约定一次试用期。" },
+          { loc: "第 2.5 条 · 转正办理", txt: "员工应于试用期届满前十五日提交转正申请；直属主管应在五个工作日内完成考核评定，部门负责人复核后，人事部应在三个工作日内办结审批并出具转正通知。" },
+          { loc: "总则 · 第 3 条", txt: "本手册及公司各项管理制度以公司正式发布的现行版本为准。任何部门的口头解释与制度原文不一致的，以制度原文为准。" }
+        ],
+        "DOC-0521": [
+          { loc: "第 6.1 节 · VPN 常见故障", txt: "VPN 频繁断开时依次排查：客户端版本须为 5.2 及以上；家庭宽带环境下如 UDP 500/4500 端口被拦截，将传输模式切换为 TCP 443；有线与无线同时连接时仅保留单一链路；每 8 小时规律性断开为令牌到期，重新完成双因素认证即可。" },
+          { loc: "第 2.2 节 · 服务台响应时限", txt: "一般故障工单 4 小时内响应、1 个工作日内给出处理结论；影响多人办公的紧急故障 30 分钟内响应并同步进展。提单时附日志与发生时间点可显著缩短定位时间。" }
+        ],
+        "DOC-0119": [
+          { loc: "第 2.2 条 · 年假档位", txt: "员工年假按在本公司连续工作的年限分档：满一年五天，满三年八天，满五年十一天，满十年十五天。前款年限指员工在本公司的司龄；入职前工龄不计入年假档位。" },
+          { loc: "第 2.4 条 · 年假申请", txt: "年假通过考勤系统提交申请，注明起止日期与工作交接人。三天以内由直属主管审批，三天以上经部门负责人复核。当年未休年假可结转至次年三月三十一日前休完。" }
+        ],
+        "DOC-0640": [
+          { loc: "第 3.4 条 · 远程接入红线", txt: "访问公司内网资源必须经公司统一 VPN 网关。禁止使用第三方 VPN、代理或其他绕行工具接入内网；一经发现，安全系统将自动锁定相关账号并通知其部门负责人。" },
+          { loc: "第 5.2 条 · 账号与口令", txt: "公司账号口令长度不少于 12 位且须开启双因素认证。发现账号异常登录时应立即在安全中心冻结账号并联系安全部，不得自行修改口令后继续使用。" }
+        ],
+        "DOC-0330": [
+          { loc: "第 2.1 条 · 预算编制周期", txt: "各部门年度预算于每年 11 月底前提交财务部汇总，预算外支出须走追加审批，单笔超过 5 万元的追加须经分管负责人确认。" }
+        ],
+        "DOC-0715": [
+          { loc: "第 4.3 条 · 代码评审", txt: "合入主干的代码须至少一名评审人通过，涉及权限与数据迁移的改动须两人评审；评审意见须在 2 个工作日内给出。" }
+        ],
+        "DOC-0801": [
+          { loc: "第 3.2 节 · 工单状态机", txt: "工单状态只允许按新建 → 已受理 → 处理中 → 待确认 → 已关闭流转，跨状态跳转须由项目负责人确认并留痕；接口返回的状态码以本规范为准。" }
+        ],
+        "DOC-0802": [
+          { loc: "第 2.4 节 · 分派规则", txt: "新工单按技能标签与当前负载自动分派，分派失败时落入项目公共队列，由项目负责人手工指派；分派规则变更须同步更新本说明书版本。" }
+        ],
+        "DOC-0811": [
+          { loc: "第 5.1 节 · 接入契约", txt: "数据源接入前须登记元数据与更新频率，批量接入走离线通道并做行数对账，增量接入须提供主键与删除标记语义。" }
+        ],
+        "DOC-0821": [
+          { loc: "第 3.1 节 · 双端一致性", txt: "重构期间新旧版本并行发布，接口契约以服务端版本协商为准，客户端不得写死接口路径与字段顺序。" }
+        ],
+        "DOC-0831": [
+          { loc: "第 2.2 节 · 发布窗口", txt: "工具链每周二、四晚 22:00 后进入发布窗口，发布前在项目专用库登记变更单，回滚包保留最近三个版本。" }
+        ],
+        "DOC-0841": [
+          { loc: "第 4.1 节 · 迁移批次", txt: "财务系统升级按科目、往来、报表三批迁移，每批迁移后做余额对账，对账差异清零后才允许进入下一批。" }
+        ]
+      };
+      var docFilter = { q: "", kind: "all", deptId: "all", projectLibId: "all", deptQuery: "" };
+      var selectedDoc = "DOC-0312";
+      function renderDocsPage() {
+        var totalChunks = DOCS.reduce(function (a, d) { return a + (typeof d.chunks === "number" ? d.chunks : 0); }, 0);
+        var usedLibs = {};
+        DOCS.forEach(function (d) { usedLibs[d.libraryId] = true; });
+        var projLibCount = LIBRARIES.filter(function (l) { return l.kind === "project"; }).length;
+        $("docKpis").innerHTML =
+          kpiHTML("文档总数", DOCS.length + " 份", "分布在 " + Object.keys(usedLibs).length + " 个库 · 归属只认库编号") +
+          kpiHTML("公共库文档", kindDocCount("public") + " 份", "公共文档只放公共库，不挂任何部门") +
+          kpiHTML("项目专用库", projLibCount + " 个", PROJECTS.length + " 个项目 · 一项目一专用库") +
+          kpiHTML("已索引片段", fmt(totalChunks) + " 个", "向量 + BM25 双路索引");
+        /* 校验筛选状态：部门被删或项目不属于该部门时自动复位 */
+        if (docFilter.deptId !== "all" && !deptById(docFilter.deptId)) { docFilter.deptId = "all"; docFilter.projectLibId = "all"; }
+        if (docFilter.projectLibId !== "all") {
+          var pl = libById(docFilter.projectLibId);
+          if (!pl || pl.kind !== "project") docFilter.projectLibId = "all";
+          else if (docFilter.deptId !== "all" && pl.dept_id !== docFilter.deptId) docFilter.projectLibId = "all";
+        }
+        var selDept = docFilter.deptId === "all" ? null : deptById(docFilter.deptId);
+        /* —— 维度一：库种类（四档，与归属维度正交） —— */
+        var kc = $("kindOptions"); kc.innerHTML = "";
+        [["all", "全部种类", DOCS.length], ["public", "公共库", kindDocCount("public")], ["department", "部门库", kindDocCount("department")], ["project", "项目库", kindDocCount("project")]].forEach(function (k) {
+          var b = document.createElement("button");
+          b.className = "fchip" + (docFilter.kind === k[0] ? " on" : "");
+          b.innerHTML = k[1] + '<span class="n">' + k[2] + " 份</span>";
+          b.addEventListener("click", function () { docFilter.kind = k[0]; renderDocsPage(); });
+          kc.appendChild(b);
+        });
+        /* —— 维度二之一：归属部门（动态生成，搜索过滤 + 滚动承载） —— */
+        $("docDeptCount").textContent = "共 " + DEPARTMENTS.length + " 个部门";
+        var dc = $("deptOptions"); dc.innerHTML = "";
+        var allBtn = document.createElement("button");
+        allBtn.className = "fchip" + (docFilter.deptId === "all" ? " on" : "");
+        allBtn.innerHTML = '全部归属<span class="n">' + DOCS.length + " 份</span>";
+        allBtn.addEventListener("click", function () { docFilter.deptId = "all"; docFilter.projectLibId = "all"; renderDocsPage(); });
+        dc.appendChild(allBtn);
+        var q = docFilter.deptQuery;
+        var matched = DEPARTMENTS.filter(function (d) { return q === "" || d.name.indexOf(q) !== -1; });
+        matched.forEach(function (d) {
+          var b = document.createElement("button");
+          b.className = "fchip" + (docFilter.deptId === d.id ? " on" : "");
+          b.innerHTML = esc(d.name) + '<span class="n">' + deptDocCountById(d.id) + " 份</span>";
+          b.addEventListener("click", function () {
+            docFilter.deptId = d.id;
+            if (docFilter.projectLibId !== "all" && libById(docFilter.projectLibId).dept_id !== d.id) docFilter.projectLibId = "all";
+            renderDocsPage();
+          });
+          dc.appendChild(b);
+        });
+        if (!matched.length) dc.innerHTML += '<span style="font-size:12.5px;color:var(--ink-3);align-self:center">没有匹配「' + esc(q) + '」的部门</span>';
+        $("docDeptNote").textContent = selDept
+          ? "维度二：当前归属选「" + selDept.name + "」——看它的部门库与名下项目库；公共库无归属、不受此维度影响（只受库种类维度控制）。"
+          : "维度二：先选部门、再选该部门下的项目；公共库无归属部门，不在此维度里。部门增减后自动同步。";
+        /* —— 维度二之二：项目专用库，按归属部门分组 —— */
+        var pg = $("projOptions"); pg.innerHTML = "";
+        var groupDepts = selDept ? [selDept] : DEPARTMENTS.filter(function (d) { return projectsOfDept(d.id).length > 0; });
+        var anyProj = false;
+        groupDepts.forEach(function (d) {
+          var projs = projectsOfDept(d.id);
+          if (!projs.length) return;
+          anyProj = true;
+          var g = document.createElement("div"); g.className = "proj-group";
+          var chips = projs.map(function (p) {
+            var on = docFilter.projectLibId === p.libraryId;
+            return '<button class="fchip' + (on ? " on" : "") + '" data-projlib="' + p.libraryId + '">' + esc(p.name) + ' 专用库<span class="n">' + libDocCount(p.libraryId) + " 份</span></button>";
+          }).join("");
+          g.innerHTML = '<span class="pg-label">' + esc(d.name) + '</span><span class="pg-chips">' +
+            '<button class="fchip' + (docFilter.projectLibId === "all" ? " on" : "") + '" data-projall="' + d.id + '">全部项目</button>' + chips + "</span>";
+          pg.appendChild(g);
+        });
+        if (!anyProj) pg.innerHTML = '<span style="font-size:12.5px;color:var(--ink-3)">该部门名下暂无项目，也就没有项目专用库。</span>';
+        pg.querySelectorAll("[data-projlib]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var libId = b.getAttribute("data-projlib");
+            docFilter.projectLibId = docFilter.projectLibId === libId ? "all" : libId;
+            if (docFilter.projectLibId !== "all") docFilter.deptId = libById(libId).dept_id;
+            renderDocsPage();
+          });
+        });
+        pg.querySelectorAll("[data-projall]").forEach(function (b) {
+          b.addEventListener("click", function () { docFilter.projectLibId = "all"; renderDocsPage(); });
+        });
+        var selProj = docFilter.projectLibId === "all" ? null : projectByLibraryId(docFilter.projectLibId);
+        $("docProjNote").textContent = selProj
+          ? "当前只看项目「" + selProj.name + "」的专用库（归属 " + (deptById(selProj.deptId) || {}).name + "）；点「全部项目」可回到部门范围。"
+          : "一项目一专用库；分组只按归属部门，后端无客户字段、不设客户分组。先选部门后这里只剩该部门的项目。";
+        /* —— 文档列表：两维度叠加过滤 —— */
+        var box = $("docRows"); box.innerHTML = "";
+        var list = DOCS.filter(function (d) {
+          var lib = docLib(d);
+          if (docFilter.kind !== "all" && lib.kind !== docFilter.kind) return false;
+          if (docFilter.projectLibId !== "all") { if (d.libraryId !== docFilter.projectLibId) return false; }
+          else if (docFilter.deptId !== "all") {
+            /* 公共库（及未分配库）无归属部门，只受种类维度控制，不被归属维度筛掉 */
+            if (lib.dept_id && lib.dept_id !== docFilter.deptId) return false;
+          }
+          if (docFilter.q !== "" && d.title.indexOf(docFilter.q) === -1 && lib.name.indexOf(docFilter.q) === -1 && docDeptName(d).indexOf(docFilter.q) === -1) return false;
+          return true;
+        });
+        if (!list.length) box.innerHTML = '<div class="ev-empty">没有符合条件的文档，换个关键词、库种类或归属试试。</div>';
+        list.forEach(function (d) {
+          var lib = docLib(d);
+          var proj = lib.kind === "project" ? projectByLibraryId(lib.id) : null;
+          var b = document.createElement("button");
+          b.className = "doc-row" + (selectedDoc === d.id ? " sel" : "");
+          b.innerHTML = '<span class="t">' + esc(d.title) + '</span>' +
+            '<span class="st"><span class="badge ok">已索引</span></span>' +
+            '<span class="m">' + d.id + " · " + esc(lib.name) + "（" + libKindLabel(lib.kind) + "）· " +
+            (lib.kind === "public" ? "公共文档 · 无归属部门" : "归属 " + esc(docDeptName(d))) +
+            (proj ? " · 项目：" + esc(proj.name) : "") +
+            " · " + d.ver + " · 更新于 " + d.updated + " · " +
+            (typeof d.chunks === "number" ? d.chunks + " 个片段" : d.chunks) + "</span>";
+          b.addEventListener("click", function () { selectedDoc = d.id; renderDocsPage(); });
+          box.appendChild(b);
+        });
+        renderDocDetail();
+      }
+      function renderDocDetail() {
+        var d = docById(selectedDoc);
+        var lib = docLib(d);
+        var proj = lib.kind === "project" ? projectByLibraryId(lib.id) : null;
+        var chunks = CHUNKS[d.id] || [{ loc: "全文", txt: "该文档刚导入，片段切分完成后会在这里逐条列出，并同步进入问答的证据来源。" }];
+        var box = $("docDetail");
+        box.innerHTML = "<h3>" + esc(d.title) + "</h3>" +
+          '<p class="sub">' + d.id + " · 当前版本可被问答引用</p>" +
+          '<div class="kv"><span class="k">所属库</span><span class="v">' + esc(lib.name) + "（" + lib.id + "）</span>" +
+          '<span class="k">库种类</span><span class="v">' + libKindLabel(lib.kind) + '</span>' +
+          '<span class="k">归属部门</span><span class="v">' + (lib.dept_id ? esc(docDeptName(d)) + "（" + lib.dept_id + "）" : "无（公共库不挂部门）") + '</span>' +
+          (proj ? '<span class="k">所属项目</span><span class="v">' + esc(proj.name) + "（" + proj.id + "）· 项目负责人：" + esc(proj.lead) + '</span>' : "") +
+          '<span class="k">版本</span><span class="v">' + d.ver + '</span>' +
+          '<span class="k">更新时间</span><span class="v">' + d.updated + '</span>' +
+          '<span class="k">片段数</span><span class="v">' + (typeof d.chunks === "number" ? d.chunks : "解析中") + '</span></div>' +
+          '<div style="font-size:12.5px;color:var(--ink-3);font-weight:600;letter-spacing:.05em;margin-bottom:2px">代表性片段（问答引用即出自此类片段）</div>' +
+          chunks.map(function (c) { return '<div class="chunk"><div class="loc">' + esc(c.loc) + "</div><p>" + esc(c.txt) + "</p></div>"; }).join("");
+      }
+      function kpiHTML(k, v, d) {
+        return '<div class="kpi"><div class="k">' + k + '</div><div class="v">' + v + '</div><div class="d">' + d + "</div></div>";
+      }
+      $("docSearch").addEventListener("input", function (e) { docFilter.q = e.target.value.trim(); renderDocsPage(); });
+      $("docDeptSearch").addEventListener("input", function (e) { docFilter.deptQuery = e.target.value.trim(); renderDocsPage(); var el = $("docDeptSearch"); el.focus(); var v = el.value; el.setSelectionRange(v.length, v.length); });
+      $("uploadBtn").addEventListener("click", function () { $("fileInput").click(); });
+      $("fileInput").addEventListener("change", function (e) {
+        var f = e.target.files && e.target.files[0]; if (!f) return;
+        var nd = {
+          id: "DOC-" + Math.floor(1000 + Math.random() * 9000),
+          title: f.name.replace(/\.[^.]+$/, ""), libraryId: "unassigned", ver: "v0.1",
+          updated: "2026-11-06", chunks: "解析中"
+        };
+        DOCS.unshift(nd); selectedDoc = nd.id; renderDocs(); renderDocsPage();
+        toast("已导入《" + nd.title + "》到未分配库，正在切分建索引；认领进目标库后才按库归属筛选");
+        setTimeout(function () {
+          nd.chunks = 40 + Math.floor(Math.random() * 120);
+          renderDocs(); if (document.querySelector(".workspace").style.display === "none") renderDocsPage();
+          toast("《" + nd.title + "》索引完成，共 " + nd.chunks + " 个片段");
+        }, 1600);
+        e.target.value = "";
+      });
+
+      /* ================= 运营看板页 ================= */
+      var RUNS = [
+        { q: "我司龄 3 年，年假有几天？怎么申请？", model: "问枢 Agent · 均衡", secs: "2.0s", tokens: 1695, cites: 2, gate: "放行", when: "昨天 09:15" },
+        { q: "在家办公 VPN 老是掉线，怎么排查？", model: "问枢 Agent · 深度检索", secs: "2.4s", tokens: 1988, cites: 2, gate: "放行", when: "昨天 18:20" },
+        { q: "出差住酒店的报销标准是多少？", model: "问枢 Agent · 均衡", secs: "2.3s", tokens: 1864, cites: 2, gate: "放行", when: "今天 14:02" }
+      ];
+      var EVENTS = [
+        { txt: "执行租约 #L-2081 已续约，下一个检查点将在步骤完成后写入", tm: "14:02", warn: false },
+        { txt: "预算对账完成：供应商尝试 1 次，账面与实际调用一致", tm: "14:02", warn: false },
+        { txt: "一次运行因证据不足被门禁拦截，仅放行有出处部分", tm: "11:26", warn: true },
+        { txt: "检查点恢复演练通过：中断运行从第 3 步继续，未重复计费", tm: "昨天 17:40", warn: false }
+      ];
+      var liveRuns = 0;
+      function logRun(q, scn, isFallback) {
+        RUNS.unshift({
+          q: q, model: state.model.name, secs: scn.secs, tokens: scn.tokens, cites: scn.cites.length,
+          gate: isFallback ? "部分拦截" : "放行", when: "刚刚"
+        });
+        EVENTS.unshift({ txt: "新运行完成：租约已续约、检查点已保存、预算已对账（" + fmt(scn.tokens) + " tokens）", tm: "刚刚", warn: false });
+        liveRuns++;
+      }
+      function renderDash() {
+        var totalTokens = RUNS.reduce(function (a, r) { return a + r.tokens; }, 0);
+        $("dashKpis").innerHTML =
+          '<div class="kpi"><div class="k">近 7 日问答</div><div class="v">398 次</div><div class="d">较前 7 日 <b>+12%</b></div></div>' +
+          '<div class="kpi"><div class="k">引用覆盖率</div><div class="v">98.6%</div><div class="d">低于门禁下限的答案会被拦截</div></div>' +
+          '<div class="kpi"><div class="k">本页运行记录</div><div class="v">' + RUNS.length + ' 次</div><div class="d">含你在问答台刚跑的 ' + liveRuns + ' 次</div></div>' +
+          '<div class="kpi"><div class="k">记录内 tokens</div><div class="v">' + fmt(totalTokens) + '</div><div class="d">供应商账面已对平</div></div>';
+        /* 柱状图（手工 SVG） */
+        var data = [["10/31", 42], ["11/01", 55], ["11/02", 48], ["11/03", 63], ["11/04", 58], ["11/05", 71], ["11/06", 61]];
+        var W = 640, H = 230, base = 190, max = 80, bw = 52, gap = (W - 70 - data.length * bw) / (data.length - 1);
+        var bars = "", labels = "", grid = "";
+        [0, 20, 40, 60, 80].forEach(function (v) {
+          var y = base - v / max * 150;
+          grid += '<line x1="44" y1="' + y + '" x2="' + (W - 10) + '" y2="' + y + '" style="stroke:var(--border)" stroke-width="1"/>' +
+            '<text x="36" y="' + (y + 4) + '" text-anchor="end" font-size="11" style="fill:var(--ink-3)">' + v + "</text>";
+        });
+        data.forEach(function (d, i) {
+          var x = 58 + i * (bw + gap), h = d[1] / max * 150, y = base - h;
+          bars += '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + h + '" rx="5" style="fill:var(--accent)" opacity="' + (i === data.length - 1 ? "1" : ".72") + '"/>' +
+            '<text x="' + (x + bw / 2) + '" y="' + (y - 7) + '" text-anchor="middle" font-size="12" font-weight="600" style="fill:var(--ink)">' + d[1] + "</text>";
+          labels += '<text x="' + (x + bw / 2) + '" y="' + (base + 22) + '" text-anchor="middle" font-size="11.5" style="fill:var(--ink-3)">' + d[0] + "</text>";
+        });
+        $("barChart").innerHTML = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="近 7 日问答量柱状图">' + grid + bars + labels + "</svg>";
+        /* 门禁构成环形图 */
+        var parts = [["完整放行", 342, "var(--accent)"], ["部分放行（仅有出处部分）", 41, "var(--warn)"], ["整条拦截", 15, "var(--ink-3)"]];
+        var total = 398, r = 52, c = 2 * Math.PI * r, off = 0, segs = "";
+        parts.forEach(function (p) {
+          var len = p[1] / total * c;
+          segs += '<circle cx="70" cy="70" r="' + r + '" fill="none" style="stroke:' + p[2] + '" stroke-width="17" stroke-dasharray="' + Math.max(0, len - 3) + " " + (c - len + 3) + '" stroke-dashoffset="' + (-off) + '" transform="rotate(-90 70 70)"/>';
+          off += len;
+        });
+        $("donutChart").innerHTML = '<svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="答案门禁结果构成">' + segs +
+          '<text x="70" y="66" text-anchor="middle" font-size="19" font-weight="700" style="fill:var(--ink)">398</text>' +
+          '<text x="70" y="86" text-anchor="middle" font-size="11" style="fill:var(--ink-3)">次运行</text></svg>';
+        $("donutLegend").innerHTML = parts.map(function (p) {
+          return '<div><i style="background:' + p[2] + '"></i>' + p[0] + " · " + p[1] + " 次（" + Math.round(p[1] / total * 100) + "%）</div>";
+        }).join("");
+        /* 运行记录与事件 */
+        $("runList").innerHTML = RUNS.map(function (r) {
+          return '<div class="run-row"><span class="q">' + esc(r.q) + '</span>' +
+            '<span class="badge ' + (r.gate === "放行" ? "ok" : "warn") + '">' + r.gate + "</span>" +
+            "<span style=\"font-size:12.5px;color:var(--ink-3);white-space:nowrap\">" + r.when + "</span>" +
+            '<span class="m">' + esc(r.model) + " · 用时 " + r.secs + " · " + fmt(r.tokens) + " tokens · 引用 " + r.cites + " 条</span></div>";
+        }).join("");
+        $("eventList").innerHTML = EVENTS.slice(0, 6).map(function (e) {
+          return '<div class="event-row' + (e.warn ? " warn" : "") + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3l7 3v5c0 5-3.2 8.4-7 10-3.8-1.6-7-5-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg><span>' + esc(e.txt) + '</span><span class="tm">' + e.tm + "</span></div>";
+        }).join("");
+      }
+
+      /* ================= 成员与权限页（部门动态模型 · FR-RBAC-004） ================= */
+      /* 归属关系：人 × 部门 × 部门内角色（三档）。角色跟着部门走，同一人换部门就是另一份归属。 */
+      var DEPT_ROLE_LABELS = { dept_admin: "部门管理员", editor: "编者", reader: "读者" };
+      function roleLabel(code) { return DEPT_ROLE_LABELS[code] || code; }
+      var MEMBERS = [
+        { name: "沈维", deptId: "dept-fin", role: "dept_admin", active: "刚刚活跃", status: "正常" },
+        { name: "周慕云", deptId: "dept-fin", role: "editor", active: "12 分钟前", status: "正常" },
+        { name: "林晓岚", deptId: "dept-hr", role: "dept_admin", active: "刚刚活跃", status: "正常" },
+        { name: "何静姝", deptId: "dept-hr", role: "reader", active: "今天 10:12", status: "正常" },
+        { name: "陈默", deptId: "dept-it", role: "editor", active: "1 小时前", status: "正常" },
+        { name: "吴峻峰", deptId: "dept-sec", role: "dept_admin", active: "昨天 18:03", status: "正常" },
+        { name: "赵一曼", deptId: "dept-mkt", role: "reader", active: "今天 09:41", status: "正常" },
+        { name: "许清禾", deptId: "dept-rd", role: "editor", active: "今天 08:57", status: "正常" },
+        { name: "唐亦舟", deptId: "dept-ops", role: "reader", active: "昨天 16:20", status: "正常" }
+      ];
+      function memberDeptName(m) { var d = deptById(m.deptId); return d ? d.name : "（部门已删除）"; }
+      function deptMemberCount(deptId) { return MEMBERS.filter(function (m) { return m.deptId === deptId; }).length; }
+      function deptAdminNames(deptId) {
+        var ns = MEMBERS.filter(function (m) { return m.deptId === deptId && m.role === "dept_admin"; }).map(function (m) { return m.name; });
+        return ns.length ? ns.join("、") : "尚未指派";
+      }
+      /* 视角：global=全局管理员看全部；dept_admin=只看公共范围 + 本人部门（财务部） */
+      var MANAGED_DEPT_ID = "dept-fin";
+      var viewerMode = "global";
+      var memberDeptQuery = "";
+      var memberListFilterId = "all";
+      var deptDeleteArmId = null;
+      function visibleDepartments() {
+        if (viewerMode === "global") return DEPARTMENTS.slice();
+        return DEPARTMENTS.filter(function (d) { return d.id === MANAGED_DEPT_ID; });
+      }
+      function showDeptNotice(html) {
+        var n = $("deptNotice");
+        if (!html) { n.className = "dept-notice"; n.innerHTML = ""; return; }
+        n.className = "dept-notice show"; n.innerHTML = html;
+      }
+      function renderDeptSelectors() {
+        /* 加成员的部门下拉：动态生成；部门管理员视角锁定本人部门 */
+        var sel = $("memberDept");
+        var prev = sel.value;
+        sel.innerHTML = "";
+        var opts = visibleDepartments();
+        opts.forEach(function (d) {
+          var o = document.createElement("option"); o.value = d.id; o.textContent = d.name;
+          sel.appendChild(o);
+        });
+        if (viewerMode === "dept_admin") { sel.value = MANAGED_DEPT_ID; sel.disabled = true; }
+        else { sel.disabled = false; if (deptById(prev)) sel.value = prev; }
+        /* 成员列表的部门过滤：全局视角给全部 + 各部门；部门管理员视角只给本人部门 */
+        var f = $("memberListFilter");
+        var fprev = memberListFilterId;
+        f.innerHTML = "";
+        if (viewerMode === "global") {
+          var ao = document.createElement("option"); ao.value = "all"; ao.textContent = "全部部门（" + DEPARTMENTS.length + " 个）";
+          f.appendChild(ao);
+        }
+        visibleDepartments().forEach(function (d) {
+          var o = document.createElement("option"); o.value = d.id; o.textContent = d.name;
+          f.appendChild(o);
+        });
+        if (viewerMode === "dept_admin") memberListFilterId = MANAGED_DEPT_ID;
+        else if (fprev !== "all" && !deptById(fprev)) memberListFilterId = "all";
+        f.value = memberListFilterId;
+      }
+      function renderDeptList() {
+        var vis = visibleDepartments();
+        $("deptCount").textContent = viewerMode === "global"
+          ? "共 " + DEPARTMENTS.length + " 个部门 · 列表由部门数据动态生成，新建 / 删除后所有选择器同步变化"
+          : "部门管理员视角：只显示本人管理的部门，其他部门按不存在处理";
+        $("viewerNote").innerHTML = viewerMode === "global"
+          ? "全局管理员：能看到全部 <b>" + DEPARTMENTS.length + "</b> 个部门与全部成员，能建部门、删空部门；部门增减后知识库筛选与成员下拉同步更新。"
+          : "部门管理员（财务部）：可见范围是<b>公共库 + 财务部库 + 财务部归属的项目库</b>（当前为财务系统升级专用库），只能管财务部的成员与审批；上方部门列表、成员列表与加成员下拉都已收拢到财务部，其他部门不渲染、不计数。切回全局管理员可恢复全量视图。";
+        $("viewerGlobal").classList.toggle("on", viewerMode === "global");
+        $("viewerDeptAdmin").classList.toggle("on", viewerMode === "dept_admin");
+        var q = memberDeptQuery;
+        var list = vis.filter(function (d) { return q === "" || d.name.indexOf(q) !== -1; });
+        var box = $("deptList"); box.innerHTML = "";
+        if (!list.length) box.innerHTML = '<div class="ev-empty">没有匹配「' + esc(q) + '」的部门，换个关键词试试。</div>';
+        list.forEach(function (d) {
+          var mc = deptMemberCount(d.id), dc = deptDocCountById(d.id), pc = projectsOfDept(d.id).length;
+          var row = document.createElement("div"); row.className = "dept-row";
+          var canDelete = viewerMode === "global";
+          row.innerHTML =
+            '<span class="dn">' + esc(d.name) +
+            (d.id === MANAGED_DEPT_ID && viewerMode === "dept_admin" ? ' <span class="badge">我管理的部门</span>' : "") + "</span>" +
+            '<span class="dm">' + d.id + " · " + mc + " 名成员 · " + dc + " 份文档（部门库 + 项目库）" + (pc ? " · " + pc + " 个项目各一个专用库" : "") + " · 部门管理员：" + esc(deptAdminNames(d.id)) + "</span>" +
+            '<span class="dact">' +
+            '<button class="ghost-btn" type="button" data-view="' + d.id + '">查看成员</button>' +
+            (canDelete
+              ? '<button class="danger-btn' + (deptDeleteArmId === d.id ? " armed" : "") + '" type="button" data-del="' + d.id + '">' + (deptDeleteArmId === d.id ? "确认删除？" : "删除部门") + "</button>"
+              : '<span style="font-size:12px;color:var(--ink-3)">仅全局管理员可删</span>') +
+            "</span>";
+          box.appendChild(row);
+        });
+        box.querySelectorAll("[data-view]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            memberListFilterId = b.getAttribute("data-view");
+            renderMembers();
+            $("memberList").scrollIntoView({ block: "nearest", behavior: REDUCED ? "auto" : "smooth" });
+          });
+        });
+        box.querySelectorAll("[data-del]").forEach(function (b) {
+          b.addEventListener("click", function () { tryDeleteDept(b.getAttribute("data-del")); });
+        });
+      }
+      function tryDeleteDept(deptId) {
+        var d = deptById(deptId); if (!d) return;
+        var mc = deptMemberCount(deptId), dc = deptDocCountById(deptId);
+        if (mc > 0 || dc > 0) {
+          deptDeleteArmId = null;
+          showDeptNotice("<b>删不了「" + esc(d.name) + "」：还剩 " + mc + " 名成员、" + dc + " 份文档。</b><br>按后端现状没有一键合并：先走跨库移动审批把文档逐批移到目标部门（只由目标部门管理员决定），再逐一迁走成员归属；两边都清零后才能删除。删除前校验的就是这个残留数，不许先删后补。");
+          renderDeptList();
+          return;
+        }
+        if (deptDeleteArmId !== deptId) {
+          deptDeleteArmId = deptId;
+          showDeptNotice("「" + esc(d.name) + "」当前 <b>0 名成员、0 份文档</b>，可以删除。再点一次「确认删除」执行；删除后该部门会从知识库筛选、加成员下拉、成员过滤等<b>全部选择器</b>中消失，历史审计仍保留原部门名。注意：后端<b>没有改名与停用</b>，删错了只能重建。");
+          renderDeptList();
+          return;
+        }
+        DEPARTMENTS = DEPARTMENTS.filter(function (x) { return x.id !== deptId; });
+        deptDeleteArmId = null;
+        if (docFilter.deptId === deptId) docFilter.deptId = "all";
+        if (docFilter.projectLibId !== "all" && libById(docFilter.projectLibId).dept_id === deptId) docFilter.projectLibId = "all";
+        if (memberListFilterId === deptId) memberListFilterId = "all";
+        showDeptNotice("已删除「" + esc(d.name) + "」。它已从全部部门选择器中移除；当前共 " + DEPARTMENTS.length + " 个部门。");
+        renderMembers();
+        toast("已删除部门：" + d.name);
+      }
+      function renderMembers() {
+        renderDeptSelectors();
+        renderDeptList();
+        var visIds = {};
+        visibleDepartments().forEach(function (d) { visIds[d.id] = true; });
+        var list = MEMBERS.filter(function (m) {
+          if (!visIds[m.deptId]) return false;
+          if (memberListFilterId !== "all" && m.deptId !== memberListFilterId) return false;
+          return true;
+        });
+        var scopeTxt = viewerMode === "global" ? "全部部门" : "仅财务部";
+        $("memberCount").textContent = "当前显示 " + list.length + " 名成员（" + scopeTxt + "）· 部门内角色决定在该部门库里能做的事";
+        if (!list.length) $("memberList").innerHTML = '<div class="ev-empty">这个范围里还没有成员，用上方表单添加，或换一个部门过滤。</div>';
+        else $("memberList").innerHTML = list.map(function (m) {
+          return '<div class="member-row"><span class="m-avatar">' + esc(m.name.charAt(0)) + "</span>" +
+            '<span class="nm">' + esc(m.name) + '</span><span class="role"><span class="badge">' + esc(roleLabel(m.role)) + "</span></span>" +
+            '<span class="act">' + esc(m.active) + "<br>" + esc(m.status) + "</span>" +
+            '<span class="mt">' + esc(memberDeptName(m)) + " · " + esc(m.status) + "</span></div>";
+        }).join("");
+        var caps = [
+          ["查看本部门库文档与证据原文", [1, 1, 1]],
+          ["在本部门范围内提问", [1, 1, 1]],
+          ["导入与更新本部门文档", [1, 1, 0]],
+          ["审批本部门库的发布请求", [1, 0, 0]],
+          ["管理本部门成员与角色", [1, 0, 0]],
+          ["新建 / 删除部门（全局）", [0, 0, 0]]
+        ];
+        var roles = ["部门管理员", "编者", "读者"];
+        var html = '<div class="mh">能力（限本部门内）</div>' + roles.map(function (r) { return '<div class="mh">' + r + "</div>"; }).join("");
+        caps.forEach(function (c) {
+          html += "<div>" + c[0] + "</div>" + c[1].map(function (v) {
+            return '<div class="' + (v ? "yes" : "no") + '">' + (v ? "✓" : "—") + "</div>";
+          }).join("");
+        });
+        $("matrix").innerHTML = html;
+      }
+      $("viewerGlobal").addEventListener("click", function () { viewerMode = "global"; deptDeleteArmId = null; showDeptNotice(""); renderMembers(); toast("已切到全局管理员视角"); });
+      $("viewerDeptAdmin").addEventListener("click", function () { viewerMode = "dept_admin"; memberListFilterId = MANAGED_DEPT_ID; deptDeleteArmId = null; showDeptNotice(""); renderMembers(); toast("已切到部门管理员视角（财务部）"); });
+      $("memberDeptSearch").addEventListener("input", function (e) { memberDeptQuery = e.target.value.trim(); renderDeptList(); });
+      $("memberListFilter").addEventListener("change", function (e) { memberListFilterId = e.target.value; renderMembers(); });
+      $("deptForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var name = $("newDeptName").value.trim(); if (!name) return;
+        if (viewerMode !== "global") { toast("部门管理员不能新建部门，请切回全局管理员视角"); return; }
+        if (deptByName(name)) { toast("已存在同名部门：" + name); return; }
+        var nd = { id: "dept-" + Math.random().toString(36).slice(2, 8), name: name };
+        DEPARTMENTS.push(nd);
+        $("newDeptName").value = "";
+        showDeptNotice("已新建部门「" + esc(name) + "」（0 名成员、0 份文档）。它已经同步出现在<b>知识库的部门筛选</b>和<b>加成员的部门下拉</b>里；下一步先给它指派一名部门管理员。");
+        renderMembers();
+        toast("已新建部门：" + name + "（当前共 " + DEPARTMENTS.length + " 个）");
+      });
+      $("memberForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var name = $("memberName").value.trim(); if (!name) return;
+        var deptId = $("memberDept").value;
+        if (!deptById(deptId)) { toast("所选部门不存在，请重新选择"); return; }
+        if (viewerMode === "dept_admin" && deptId !== MANAGED_DEPT_ID) { toast("部门管理员只能往本人部门加人"); return; }
+        MEMBERS.unshift({ name: name, deptId: deptId, role: $("memberRole").value, active: "刚刚加入", status: "正常" });
+        memberListFilterId = viewerMode === "dept_admin" ? MANAGED_DEPT_ID : deptId;
+        $("memberName").value = "";
+        renderMembers();
+        toast("已添加成员：" + name + " · " + memberDeptName({ deptId: deptId }) + " · " + roleLabel($("memberRole").value));
+      });
+
+      /* ================= 系统设置页 ================= */
+      function bindSwitch(id, fn) {
+        var el = $(id);
+        el.addEventListener("click", function () {
+          var on = el.getAttribute("aria-checked") !== "true";
+          el.setAttribute("aria-checked", on ? "true" : "false");
+          fn(on);
+        });
+      }
+      $("setTopk").addEventListener("input", function (e) {
+        state.topk = parseInt(e.target.value, 10);
+        $("setTopkVal").textContent = state.topk;
+      });
+      $("setBm25").addEventListener("input", function (e) { $("setBm25Val").textContent = e.target.value + "%"; });
+      $("setGate").addEventListener("input", function (e) { $("setGateVal").textContent = e.target.value + "%"; });
+      bindSwitch("setRerank", function (on) { toast(on ? "重排序已开启" : "重排序已关闭，下次运行生效"); });
+      bindSwitch("setRefuse", function (on) { toast(on ? "无证据拒答已开启" : "无证据拒答已关闭，下次运行生效"); });
+      $("setBudgetApply").addEventListener("click", function () {
+        var v = parseInt($("setBudget").value, 10);
+        if (!v || v < 5000) { toast("预算上限至少 5,000 tokens"); return; }
+        state.budgetCap = v;
+        if (state.budgetUsed > v) state.budgetUsed = v;
+        updateBudget();
+        toast("预算上限已更新为 " + fmt(v) + " tokens，左侧状态卡已同步");
+      });
+      $("leaseRadios").addEventListener("click", function (e) {
+        var b = e.target.closest("button"); if (!b) return;
+        var chips = $("leaseRadios").querySelectorAll("button");
+        for (var i = 0; i < chips.length; i++) chips[i].classList.toggle("on", chips[i] === b);
+        state.leaseLen = parseInt(b.getAttribute("data-lease"), 10);
+        toast("租约时长已设为 " + b.textContent + "，下一次运行起生效");
+      });
+      function renderModelRadios() {
+        var box = $("modelRadios"); box.innerHTML = "";
+        MODELS.forEach(function (m) {
+          var b = document.createElement("button");
+          b.className = "radio-chip" + (state.model.id === m.id ? " on" : "");
+          b.textContent = m.name;
+          b.addEventListener("click", function () {
+            state.model = m; $("modelLabel").textContent = m.name;
+            renderModelMenu(); renderModelRadios(); toast("默认问答档位：" + m.name);
+          });
+          box.appendChild(b);
+        });
+      }
+      /* 顶栏切换模型时同步设置页单选 */
+      var _renderModelMenu = renderModelMenu;
+      renderModelMenu = function () { _renderModelMenu(); if ($("modelRadios").children.length) renderModelRadios(); };
+
+      /* ================= 初始化 ================= */
+      renderDocs(); renderModelMenu(); updateBudget();
+      renderMembers(); renderModelRadios();
+      loadSession("travel");
+    </script>
+  </body>
+</html>
